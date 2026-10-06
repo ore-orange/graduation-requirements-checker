@@ -34,9 +34,75 @@ http://localhost:3000 を開いて Rails の画面が出れば成功です。
 docker compose exec web bin/setup --skip-server
 ```
 
+## 開発の流れ
+
+```
+ブランチを切る → 実装 → 動作確認 → テストと RuboCop を通す → コミット → プッシュして PR
+```
+
+### 1. ブランチを切る
+
+`main` への直 push は禁止しています。必ずブランチを切ってください。ブランチ名は自由です。
+
+```bash
+git switch -c graduation-requirement-model
+```
+
+### 2. 実装する
+
+### 3. 動作確認する
+
+http://localhost:3000 を開いて、実際に触って確認します。
+
+### 4. テストと RuboCop を通す
+
+**コミットする前に必ず通してください。**
+
+```bash
+docker compose exec web bin/ci
+```
+
+RuboCop の違反はほとんど自動修正できます。
+
+```bash
+docker compose exec web bin/rubocop -a
+```
+
+### 5. コミットする
+
+```bash
+git add -A
+git commit -m "feat: 卒業要件の判定ロジックを追加する"
+```
+
+コミット時に pre-commit フックが `bin/ci` を自動で実行します。4 を飛ばしてもここで止まるので、通らないとコミットできません。
+
+### 6. プッシュして PR を出す
+
+```bash
+git push -u origin graduation-requirement-model
+```
+
+PR を作るとテンプレートが展開されます。関連 issue と動作確認は埋めてください。マージには CI 5ジョブすべての通過が必要です。承認数は 0 なので自分でマージできます。
+
+### コミットメッセージ
+
+Conventional Commits の prefix + 日本語の本文。
+
+| prefix | 用途 |
+|---|---|
+| `feat:` | 機能追加 |
+| `fix:` | バグ修正 |
+| `refactor:` | 挙動を変えない改善 |
+| `test:` | テストの追加・修正 |
+| `docs:` | ドキュメント |
+| `chore:` | 雑務（依存更新は `chore(deps):`） |
+
+例: `feat: 卒業要件の判定ロジックを追加する`
+
 ## CI
 
-`.github/workflows/ci.yml`（Rails 8 の生成物）が main への push と Pull Request で動きます。
+`.github/workflows/ci.yml` が main への push と Pull Request で動きます。
 
 | ジョブ | 内容 |
 |---|---|
@@ -64,68 +130,22 @@ docker compose exec web bin/ci
 ✅ Tests: Rails                          (bin/rails test)
 ```
 
-### pre-commit フック
-
-`.githooks/pre-commit` がコミット前に `bin/ci` を実行します。落ちるとコミットできません。
-
-```bash
-git config core.hooksPath .githooks   # 初回だけ（bin/setup でも設定されます）
-```
-
 - web コンテナが起動していないと止まります。先に `docker compose up -d` してください。
 - どうしても今だけ飛ばしたい場合は `git commit --no-verify`。
 
-system test もローカルで動きます。
+### system test
+
+ローカルでも動きます。`bin/ci` では起動が遅いため既定では実行しません。
 
 ```bash
 docker compose exec -e RAILS_ENV=test web bin/rails test:system
 ```
 
-> Google Chrome は Linux arm64 版が無いため、コンテナ内では **Chromium** を使っています（`Dockerfile.dev` で
-> `chromium` / `chromium-driver` を導入）。CI の runner には本物の Chrome があるので、
-> `test/application_system_test_case.rb` が `/usr/bin/chromium` の有無で自動的に切り替えます。
-> `bin/ci` では既定で実行しません（起動が遅いため）。必要なら `config/ci.rb` のコメントを外してください。
+> Google Chrome は Linux arm64 版が無いため、コンテナ内では **Chromium** を使っています。
+> CI の runner には本物の Chrome があるので、`test/application_system_test_case.rb` が自動的に切り替えます。
 
 > **マイグレーションを追加したら `db/schema.rb` を必ずコミットしてください。** CI の `db:test:prepare` が schema.rb を読むため、
 > 入れ忘れるとテストジョブが落ちます。
-
-## 開発フロー
-
-### ブランチ名
-
-```
-<type>/<issue番号>/<説明>/<自分の名前>
-```
-
-例: `feat/12/graduation-requirement-model/touyama`、`refactor/34/extract-credit-calculator/hikaru`
-
-### コミットメッセージ
-
-Conventional Commits の prefix + 日本語の本文。使う種別:
-
-| prefix | 用途 |
-|---|---|
-| `feat:` | 機能追加 |
-| `fix:` | バグ修正 |
-| `refactor:` | 挙動を変えない改善 |
-| `test:` | テストの追加・修正 |
-| `docs:` | ドキュメント |
-| `chore:` | 雑務（依存更新は `chore(deps):`） |
-
-例: `feat: 卒業要件の判定ロジックを追加する`
-
-### PR
-
-- `main` への直 push は禁止。必ず PR を経由します。
-- PR を作ると `.github/pull_request_template.md` が展開されます。関連 issue と動作確認は埋めてください。
-- マージには CI の5ジョブすべての通過が必要です。
-- マージ方式は **merge commit** を基本とします。
-
-### Dependabot
-
-- bundler は毎日チェックし、**1つの PR にまとめる**（グループ化）
-- リリースから **7日間は様子見**（`cooldown`）してから PR を作る
-- ただし **`brakeman` は例外** — セキュリティスキャナなので待たずに単独で更新する
 
 ## よく使うコマンド
 
@@ -152,21 +172,23 @@ docker compose exec web bash   # シェルに入る
 - シンボル配列は `%i[]`、文字列配列は `%w[]`
 - `Metrics/AbcSize` は 30、`Metrics/MethodLength` は 20 まで緩和
 
-Rails 既定の omakase とは異なるので、エディタの自動整形任せにせず `bin/rubocop -a` で合わせてください。
-
-```bash
-docker compose exec web bin/rubocop      # チェック
-docker compose exec web bin/rubocop -a   # 自動修正
-```
+Rails 既定とは異なるので、エディタの自動整形任せにせず `bin/rubocop -a` で合わせてください。
 
 ## Gem を追加したとき
 
 `Gemfile` を編集したら、コンテナ内で bundle install して Gemfile.lock を更新します。
+gem はコンテナ側のボリュームに入るので、ホストで実行しても反映されません。
 
 ```bash
 docker compose exec web bundle install
 docker compose restart web
 ```
+
+## Dependabot
+
+- bundler は毎日チェックし、**1つの PR にまとめる**（グループ化）
+- リリースから **7日間は様子見**（`cooldown`）してから PR を作る
+- ただし **`brakeman` は例外** — セキュリティスキャナなので待たずに単独で更新する
 
 ## 困ったとき
 
@@ -175,18 +197,5 @@ docker compose restart web
 - **`LoadError: cannot load such file -- /app/rakefile` が出る** → git のブランチ切り替えやリベースでファイルが一斉に書き換わった直後に、
   Docker のファイル共有キャッシュが不整合を起こすことがあります。`docker compose restart web` で直ります。
 - **Gemfile.lock がコンフリクトした** → lock は手で直さず、Gemfile を解決してから `docker compose exec web bundle install` で再生成する。
-
-## 構成メモ
-
-- `Dockerfile.dev` / `compose.yml` … 開発環境。`Dockerfile`（Rails 生成）は本番用なので開発では使いません。
-- gem は名前付きボリューム `bundle_data` に入ります。ホスト側には入らないので `bundle install` は必ずコンテナ内で。
-- サービスは `db` / `web` / `css` の3つです。`web` が `rails server`、`css` が `tailwindcss:watch` を担当します。
-- **Docker では `bin/dev`（foreman）を使っていません。** foreman は tailwindcss が内部で spawn する `sh` を
-  「管理下プロセスの終了」と誤認し、`web` ごと停止させてしまうためです（`test:system` 実行時に高確率で発生）。
-  サービスを分ければ `css` が落ちても `web` は無関係で、`restart: unless-stopped` で Docker が復帰させます。
-  `Procfile.dev` は Docker を使わず `bin/dev` を直接動かす場合のために残しています。
-- `css` の `tailwindcss:watch` には **`[always]` が必須**です。付けないと stdin が閉じた時点で終了し、再起動を繰り返します。
-- `rails server` には `-b 0.0.0.0` が必須です（付けないとコンテナ外から繋がりません）。
-- `tailwindcss:watch` は増分ビルドなので、**消したクラスが `tailwind.css` に残り続けます**。
-  気になる場合は `docker compose exec web bin/rails tailwindcss:build` でフルビルドしてください（本番は常にフルビルドです）。
-- DB 接続情報は `config/database.yml` が環境変数（`DATABASE_HOST` / `DATABASE_USER` / `DATABASE_PASSWORD`）を読む形にしてあり、値は `compose.yml` で与えています。
+- **消したはずの Tailwind クラスが残っている** → `tailwindcss:watch` は増分ビルドのため残り続けます。
+  `docker compose exec web bin/rails tailwindcss:build` でフルビルドしてください（本番は常にフルビルドなので影響しません）。
