@@ -75,9 +75,16 @@ git config core.hooksPath .githooks   # 初回だけ（bin/setup でも設定さ
 - web コンテナが起動していないと止まります。先に `docker compose up -d` してください。
 - どうしても今だけ飛ばしたい場合は `git commit --no-verify`。
 
-> **注意: system test はローカルでは動きません。** `Dockerfile.dev` に Chrome を入れていないため、
-> `test/system` にテストを書くと手元では失敗します（CI の runner には Chrome があるので CI では通ります）。
-> ローカルでも動かしたくなったら Chrome + chromedriver を `Dockerfile.dev` に追加してください。
+system test もローカルで動きます。
+
+```bash
+docker compose exec -e RAILS_ENV=test web bin/rails test:system
+```
+
+> Google Chrome は Linux arm64 版が無いため、コンテナ内では **Chromium** を使っています（`Dockerfile.dev` で
+> `chromium` / `chromium-driver` を導入）。CI の runner には本物の Chrome があるので、
+> `test/application_system_test_case.rb` が `/usr/bin/chromium` の有無で自動的に切り替えます。
+> `bin/ci` では既定で実行しません（起動が遅いため）。必要なら `config/ci.rb` のコメントを外してください。
 
 > **マイグレーションを追加したら `db/schema.rb` を必ずコミットしてください。** CI の `db:test:prepare` が schema.rb を読むため、
 > 入れ忘れるとテストジョブが落ちます。
@@ -178,6 +185,13 @@ docker compose restart web
 
 - `Dockerfile.dev` / `compose.yml` … 開発環境。`Dockerfile`（Rails 生成）は本番用なので開発では使いません。
 - gem は名前付きボリューム `bundle_data` に入ります。ホスト側には入らないので `bundle install` は必ずコンテナ内で。
-- 起動は `bin/dev`（`Procfile.dev`）で、`rails server` と `tailwindcss:watch` を並行実行します。`foreman` は `Dockerfile.dev` に入れています。
-- `Procfile.dev` の `rails server` には `-b 0.0.0.0` が必須です（付けないとコンテナ外から繋がりません）。
+- サービスは `db` / `web` / `css` の3つです。`web` が `rails server`、`css` が `tailwindcss:watch` を担当します。
+- **Docker では `bin/dev`（foreman）を使っていません。** foreman は tailwindcss が内部で spawn する `sh` を
+  「管理下プロセスの終了」と誤認し、`web` ごと停止させてしまうためです（`test:system` 実行時に高確率で発生）。
+  サービスを分ければ `css` が落ちても `web` は無関係で、`restart: unless-stopped` で Docker が復帰させます。
+  `Procfile.dev` は Docker を使わず `bin/dev` を直接動かす場合のために残しています。
+- `css` の `tailwindcss:watch` には **`[always]` が必須**です。付けないと stdin が閉じた時点で終了し、再起動を繰り返します。
+- `rails server` には `-b 0.0.0.0` が必須です（付けないとコンテナ外から繋がりません）。
+- `tailwindcss:watch` は増分ビルドなので、**消したクラスが `tailwind.css` に残り続けます**。
+  気になる場合は `docker compose exec web bin/rails tailwindcss:build` でフルビルドしてください（本番は常にフルビルドです）。
 - DB 接続情報は `config/database.yml` が環境変数（`DATABASE_HOST` / `DATABASE_USER` / `DATABASE_PASSWORD`）を読む形にしてあり、値は `compose.yml` で与えています。
