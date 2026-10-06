@@ -82,6 +82,48 @@ git config core.hooksPath .githooks   # 初回だけ（bin/setup でも設定さ
 > **マイグレーションを追加したら `db/schema.rb` を必ずコミットしてください。** CI の `db:test:prepare` が schema.rb を読むため、
 > 入れ忘れるとテストジョブが落ちます。
 
+## 開発フロー
+
+`grade_review_tool` と同じ規約に揃えています。
+
+### ブランチ名
+
+```
+<type>/<issue番号>/<説明>/<自分の名前>
+```
+
+例: `feat/12/graduation-requirement-model/touyama`、`refactor/34/extract-credit-calculator/hikaru`
+
+### コミットメッセージ
+
+Conventional Commits の prefix + 日本語の本文。`grade_review_tool` で使われている種別:
+
+| prefix | 用途 |
+|---|---|
+| `feat:` | 機能追加 |
+| `fix:` | バグ修正 |
+| `refactor:` | 挙動を変えない改善 |
+| `test:` | テストの追加・修正 |
+| `docs:` | ドキュメント |
+| `chore:` | 雑務（依存更新は `chore(deps):`） |
+
+例: `feat: 卒業要件の判定ロジックを追加する`
+
+### PR
+
+- `main` への直 push は禁止。必ず PR を経由します。
+- PR を作ると `.github/pull_request_template.md` が展開されます。関連 issue と動作確認は埋めてください。
+- マージには CI の5ジョブすべての通過が必要です。
+- マージ方式は **merge commit**（`grade_review_tool` と同じ）。
+
+### Dependabot
+
+`grade_review_tool` と同じ設定にしています。
+
+- bundler は毎日チェックし、**1つの PR にまとめる**（グループ化）
+- リリースから **7日間は様子見**（`cooldown`）してから PR を作る
+- ただし **`brakeman` は例外** — セキュリティスキャナなので待たずに単独で更新する
+
 ## よく使うコマンド
 
 ```bash
