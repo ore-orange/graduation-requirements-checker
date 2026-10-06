@@ -1,0 +1,80 @@
+# grade_review_tool と同じスタイルに揃えている（Slim は未使用のため rubocop-slim は除外）
+plugins:
+  - rubocop-rails
+  - rubocop-rake
+  - rubocop-performance
+
+AllCops:
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - "bin/*"
+    - "config/**/*"
+    - "db/**/*"
+    - "node_modules/**/*"
+    - "vendor/**/*"
+
+# Classはドキュメントなくてもわかるように記述すべし
+Style/Documentation:
+  Enabled: false
+
+# 日本語のコメントを許可する
+Style/AsciiComments:
+  Enabled: false
+
+# メソッドの複雑さの上限を少し上げる
+Metrics/AbcSize:
+  Max: 30
+
+# メソッドの行数の上限を少し上げる
+Metrics/MethodLength:
+  Max: 20
+  Exclude:
+    - "test/**/*"
+
+Metrics/ParameterLists:
+  Exclude:
+    - "test/**/*"
+
+Metrics/ClassLength:
+  Max: 200
+  Exclude:
+    - "test/**/*"
+  CountAsOne: ['array', 'hash', 'heredoc', 'method_call']
+
+Metrics/BlockLength:
+  Exclude:
+    - "test/**/*"
+
+# else/endはifの高さに揃える
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: keyword
+
+# 展開の必要でないstringリテラルはシングルクオートで表記する
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+# Guard節の後には空行を入れる
+Layout/EmptyLineAfterGuardClause:
+  Enabled: true
+
+# ファイルの最後には空行を入れる
+Layout/TrailingEmptyLines:
+  EnforcedStyle: final_blank_line
+
+# %i[]を使う
+Style/SymbolArray:
+  Enabled: true
+  EnforcedStyle: percent
+
+# %w[]を使う
+Style/WordArray:
+  Enabled: true
+  EnforcedStyle: percent
+
+Rails/I18nLocaleTexts:
+  Enabled: false
+
+# ラムダ記法は -> に統一する
+Style/Lambda:
+  EnforcedStyle: literal

@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+if ! docker compose ps --status running --services 2>/dev/null | grep -qx web; then
+  echo "pre-commit: web コンテナが起動していません。'docker compose up -d' してから再度コミットしてください。" >&2
+  echo "pre-commit: 今回だけ飛ばす場合は 'git commit --no-verify' を使ってください。" >&2
+  exit 1
+fi
+
+docker compose exec -T web bin/ci

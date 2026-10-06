@@ -1,0 +1,34 @@
+FROM ruby:3.4-slim
+
+ENV LANG=C.UTF-8 \
+    TZ=Asia/Tokyo \
+    BUNDLE_PATH=/usr/local/bundle
+
+# Rails / PostgreSQL / Hotwire(ビルド不要だがNodeは何かと必要) の依存
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      libpq-dev \
+      libyaml-dev \
+      git \
+      curl \
+      pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# bin/dev (Procfile.dev) を動かすための foreman
+RUN gem install foreman
+
+# Gemfile だけ先にコピーして bundle install → キャッシュを効かせる
+COPY Gemfile Gemfile.lock ./
+RUN bundle install
+
+COPY . .
+
+COPY entrypoint.sh /usr/bin/entrypoint.sh
+RUN chmod +x /usr/bin/entrypoint.sh
+ENTRYPOINT ["entrypoint.sh"]
+
+EXPOSE 3000
+CMD ["bin/dev"]
