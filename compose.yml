@@ -19,8 +19,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    # bin/dev で rails server と Tailwind のウォッチを並行起動する
-    command: bin/dev
+    # foreman(bin/dev) は tailwindcss が内部で spawn する sh を誤って
+    # 「管理下プロセスの終了」と解釈し、web ごと停止させてしまう。
+    # そのため Docker では foreman を使わず、css を別サービスに分離している。
+    command: bin/rails server -b 0.0.0.0 -p 3000
     environment:
       DATABASE_HOST: db
       DATABASE_USER: postgres
@@ -39,6 +41,27 @@ services:
         condition: service_healthy
     tty: true
     stdin_open: true
+
+  css:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    # [always] を付けないと stdin が閉じた時点で watch が終了してしまう
+    command: bin/rails tailwindcss:watch[always]
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: password
+      RAILS_ENV: development
+    volumes:
+      - .:/app
+      - bundle_data:/usr/local/bundle
+      - tmp_data:/app/tmp
+    # watch が落ちても Docker が勝手に立ち上げ直す（web は巻き込まれない）
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:
