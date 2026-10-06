@@ -42,13 +42,13 @@ docker compose exec web bin/setup --skip-server
 |---|---|
 | `scan_ruby` | brakeman（Rails の脆弱性静的解析）+ bundler-audit（gem の既知脆弱性） |
 | `scan_js` | importmap audit（JS 依存の脆弱性） |
-| `lint` | RuboCop（rails-omakase ルール） |
+| `lint` | RuboCop + yamlfmt |
 | `test` | `bin/rails test` |
 | `system-test` | `bin/rails test:system`（失敗時はスクリーンショットを artifact に保存） |
 
 ### bin/ci — ローカルで全チェックを一括実行
 
-`grade_review_tool` と同じく Rails 8.1 の `ActiveSupport::ContinuousIntegration` を使っています。
+Rails 8.1 の `ActiveSupport::ContinuousIntegration` を使っています。
 実行内容は `config/ci.rb` に定義されていて、1コマンドで全部回せます（約5秒）。
 
 ```bash
@@ -91,8 +91,6 @@ docker compose exec -e RAILS_ENV=test web bin/rails test:system
 
 ## 開発フロー
 
-`grade_review_tool` と同じ規約に揃えています。
-
 ### ブランチ名
 
 ```
@@ -103,7 +101,7 @@ docker compose exec -e RAILS_ENV=test web bin/rails test:system
 
 ### コミットメッセージ
 
-Conventional Commits の prefix + 日本語の本文。`grade_review_tool` で使われている種別:
+Conventional Commits の prefix + 日本語の本文。使う種別:
 
 | prefix | 用途 |
 |---|---|
@@ -121,11 +119,9 @@ Conventional Commits の prefix + 日本語の本文。`grade_review_tool` で�
 - `main` への直 push は禁止。必ず PR を経由します。
 - PR を作ると `.github/pull_request_template.md` が展開されます。関連 issue と動作確認は埋めてください。
 - マージには CI の5ジョブすべての通過が必要です。
-- マージ方式は **merge commit**（`grade_review_tool` と同じ）。
+- マージ方式は **merge commit** を基本とします。
 
 ### Dependabot
-
-`grade_review_tool` と同じ設定にしています。
 
 - bundler は毎日チェックし、**1つの PR にまとめる**（グループ化）
 - リリースから **7日間は様子見**（`cooldown`）してから PR を作る
@@ -148,8 +144,7 @@ docker compose exec web bash   # シェルに入る
 
 ## コード規約
 
-`.rubocop.yml` は **`grade_review_tool` と同じルール**を流用しています（Slim 未使用のため `rubocop-slim` のみ除外）。
-チーム内でプロジェクトをまたいでもコードの書き方が揃うようにする狙いです。主な点:
+`.rubocop.yml` でチーム共通のスタイルを定めています。主な点:
 
 - 文字列リテラルは**シングルクオート**（`Style/StringLiterals: single_quotes`）
 - **日本語コメント OK**（`Style/AsciiComments` 無効）

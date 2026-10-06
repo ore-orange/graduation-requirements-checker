@@ -1,4 +1,4 @@
-# grade_review_tool と同じスタイルに揃えている（Slim は未使用のため rubocop-slim は除外）
+# チーム共通の Ruby / Rails スタイル設定
 plugins:
   - rubocop-rails
   - rubocop-rake
@@ -14,19 +14,18 @@ AllCops:
     - "node_modules/**/*"
     - "vendor/**/*"
 
-# Classはドキュメントなくてもわかるように記述すべし
+# クラス名と実装で意図が伝わるようにするため、必須コメントは課さない
 Style/Documentation:
   Enabled: false
 
-# 日本語のコメントを許可する
+# コメントは日本語で書く
 Style/AsciiComments:
   Enabled: false
 
-# メソッドの複雑さの上限を少し上げる
+# 既定値は厳しすぎるため緩和する
 Metrics/AbcSize:
   Max: 30
 
-# メソッドの行数の上限を少し上げる
 Metrics/MethodLength:
   Max: 20
   Exclude:
@@ -42,39 +41,41 @@ Metrics/ClassLength:
     - "test/**/*"
   CountAsOne: ['array', 'hash', 'heredoc', 'method_call']
 
+# テストは記述量が増えがちなので対象外にする
 Metrics/BlockLength:
   Exclude:
     - "test/**/*"
 
-# else/endはifの高さに揃える
+# end は対応する if の位置に合わせる
 Layout/EndAlignment:
   EnforcedStyleAlignWith: keyword
 
-# 展開の必要でないstringリテラルはシングルクオートで表記する
+# 文字列展開が不要ならシングルクオートを使う
 Style/StringLiterals:
   EnforcedStyle: single_quotes
 
-# Guard節の後には空行を入れる
+# ガード節の直後は空行を入れて区切る
 Layout/EmptyLineAfterGuardClause:
   Enabled: true
 
-# ファイルの最後には空行を入れる
+# ファイル末尾は必ず改行で終える
 Layout/TrailingEmptyLines:
   EnforcedStyle: final_blank_line
 
-# %i[]を使う
+# シンボルの配列は %i[] で書く
 Style/SymbolArray:
   Enabled: true
   EnforcedStyle: percent
 
-# %w[]を使う
+# 文字列の配列は %w[] で書く
 Style/WordArray:
   Enabled: true
   EnforcedStyle: percent
 
+# ロケールに直接文字列を置く書き方を許容する
 Rails/I18nLocaleTexts:
   Enabled: false
 
-# ラムダ記法は -> に統一する
+# ラムダは -> 記法に統一する
 Style/Lambda:
   EnforcedStyle: literal

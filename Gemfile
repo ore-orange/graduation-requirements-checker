@@ -54,7 +54,7 @@ group :development, :test do
   # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
   gem 'brakeman', require: false
 
-  # Ruby / Rails 静的解析（grade_review_tool と同じ構成に揃える）
+  # Ruby / Rails 静的解析
   gem 'rubocop', require: false
   gem 'rubocop-performance', require: false
   gem 'rubocop-rails', require: false
