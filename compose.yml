@@ -22,6 +22,7 @@ services:
     # foreman(bin/dev) は tailwindcss が内部で spawn する sh を誤って
     # 「管理下プロセスの終了」と解釈し、web ごと停止させてしまう。
     # そのため Docker では foreman を使わず、css を別サービスに分離している。
+    # -b 0.0.0.0 が無いとコンテナ外（ホストのブラウザ）から繋がらない
     command: bin/rails server -b 0.0.0.0 -p 3000
     environment:
       DATABASE_HOST: db

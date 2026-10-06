@@ -1,3 +1,4 @@
+# 開発用。本番用は Rails が生成した Dockerfile を使う
 FROM ruby:3.4-slim
 
 ENV LANG=C.UTF-8 \
