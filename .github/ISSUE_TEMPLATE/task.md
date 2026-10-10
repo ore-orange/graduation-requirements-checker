@@ -2,7 +2,6 @@
 name: 作業
 about: 実装・調査・設計など、やることを登録する
 title: ''
-labels: ''
 assignees: ''
 ---
 
