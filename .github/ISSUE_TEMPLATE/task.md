@@ -1,6 +1,6 @@
 ---
-name: 作業
-about: 実装や調査や設計などやることを登録する
+name: やること
+about: 実装・調査・設計など、やることを登録する
 title: ''
 labels: enhancement
 assignees: ''
