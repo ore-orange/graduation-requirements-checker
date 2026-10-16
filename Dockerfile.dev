@@ -12,6 +12,8 @@ RUN apt-get update -qq && \
       libpq-dev \
       libyaml-dev \
       git \
+      # 授業時間配当表PDFの読み取り(script/timetable_pdf_to_csv.rb)
+      ghostscript \
       curl \
       pkg-config \
       # system test 用のブラウザ。Google Chrome は Linux arm64 版が無いため Chromium を使う

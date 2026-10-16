@@ -1,0 +1,5 @@
+<%# 保存できるのは、全行が確認済みでエラーがないときだけ。それ以外は無効のまま理由を示す %>
+<% savable = preview&.ok? %>
+<%= button_to '保存する', commit_timetable_upload_path(upload), disabled: !savable,
+              class: "demo-button #{'cursor-not-allowed opacity-50' unless savable}",
+              title: (savable ? nil : (preview.nil? ? '未確認の行があります' : '直す点があります')) %>

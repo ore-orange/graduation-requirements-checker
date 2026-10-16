@@ -11,7 +11,7 @@ class GraduationDataTest < ActiveSupport::TestCase
     @user = User.create!(email: 'student@example.test')
     @student = Student.create!(user: @user, department: @department, admission_year: 2024)
     @program = Program.create!(department: @department, name: 'テストプログラム')
-    @course = Course.create!(course_number: 'TEST-01', name: 'テスト科目', credits: '2.5')
+    @course = Course.create!(course_number: 'TEST-01', name: 'テスト科目', credits: 2)
   end
 
   test 'associations work and students may have no assigned program' do

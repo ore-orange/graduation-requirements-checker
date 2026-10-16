@@ -12,6 +12,15 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   root "home#index"
 
+  resources :course_registrations, only: :index
+  resources :timetable_uploads, only: %i[create show destroy] do
+    member do
+      post :commit
+      post :confirm_all
+    end
+    resources :rows, controller: 'timetable_upload_rows', only: :update
+  end
+
   get 'demo', to: 'demo#show', as: :demo
   post 'demo/planned_courses', to: 'demo#create', as: :demo_planned_courses
   delete 'demo/planned_courses/:id', to: 'demo#destroy', as: :demo_planned_course

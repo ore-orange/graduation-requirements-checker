@@ -1,0 +1,82 @@
+<% content_for :title, "取り込みの確認 | #{app_name}" %>
+<%# 更新後のリダイレクトで、ページ全体を読み込み直さず差分だけ反映し、スクロール位置を保つ %>
+<% content_for :head do %>
+  <meta name="turbo-refresh-method" content="morph">
+  <meta name="turbo-refresh-scroll" content="preserve">
+<% end %>
+<% fields = [[:course_number, '科目番号', 'w-24'], [:name, '科目名', 'w-56'], [:credits, '単位', 'w-14'], [:requirement_type, '必修選択', 'w-20'],
+             [:grade_text, '年次', 'w-16'], [:weekday, '曜日', 'w-14'], [:period_text, '時限', 'w-20'], [:term_type, '開講区分', 'w-20'], [:lecture_code, '講義コード', 'w-28']] %>
+<div class="space-y-6">
+  <header>
+    <%= link_to '← 授業登録', course_registrations_path, class: 'text-sm font-semibold text-slate-700 underline underline-offset-4' %>
+    <h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900">取り込みの確認</h1>
+    <p class="mt-2 text-slate-600"><%= @upload.source_filename %>（<%= @upload.semester %>）/ <%= @upload.rows.size %>行</p>
+    <p class="mt-2 text-sm leading-6 text-slate-600">PDFと見比べて、違う値は直してください。「確認済み」にチェックして更新した行だけが保存の対象になります。まだ授業のデータは変わっていません。</p>
+  </header>
+
+  <%= render 'shared/toast' %>
+
+  <div class="flex flex-wrap items-center gap-4">
+    <p class="text-sm font-semibold text-slate-800">未確認 <%= @upload.unconfirmed_count %>行</p>
+    <%= button_to '問題のない行をまとめて確認済みにする', confirm_all_timetable_upload_path(@upload), params: { page: @paginator.page }, class: 'demo-button' %>
+    <%= render 'save_button', upload: @upload, preview: @preview %>
+    <%= button_to '取り込みを破棄する', @upload, method: :delete, class: 'text-sm font-semibold text-red-800 underline underline-offset-4',
+                  form: { data: { turbo_confirm: 'この取り込みを破棄します。よろしいですか?' } } %>
+  </div>
+
+  <%= render 'shared/pagination', paginator: @paginator, path: ->(page) { timetable_upload_path(@upload, page: page) } %>
+
+  <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <table class="w-full min-w-[78rem] text-left text-sm">
+      <thead class="border-b border-slate-300 bg-slate-50 text-slate-600">
+        <tr>
+          <th class="p-2">行</th>
+          <% fields.each do |_, label, _| %><th class="p-2"><%= label %></th><% end %>
+          <th class="p-2">確認済み</th><th class="p-2"></th><th class="p-2">要確認の理由 / 備考</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% @page_rows.each do |row| %>
+          <% form_id = "row-#{row.id}" %>
+          <tr id="<%= form_id %>-tr" class="<%= 'bg-amber-50' if row.review_reason.present? && !row.confirmed %> <%= 'bg-emerald-50' if row.confirmed %>">
+            <td class="p-2 text-slate-500"><%= row.position + 1 %></td>
+            <% fields.each do |field, label, width| %>
+              <td class="p-2">
+                <%= text_field_tag "row[#{field}]", row[field], form: form_id, id: "#{form_id}-#{field}", 'aria-label': "#{row.position + 1}行目 #{label}",
+                                   class: "#{width} rounded border border-slate-300 px-2 py-1" %>
+              </td>
+            <% end %>
+            <td class="p-2 text-center">
+              <%= check_box_tag :confirmed, '1', row.confirmed, form: form_id, id: "#{form_id}-confirmed", 'aria-label': "#{row.position + 1}行目 確認済み" %>
+            </td>
+            <td class="p-2"><%= submit_tag '更新', form: form_id, id: nil, class: 'rounded border border-slate-400 px-3 py-1 font-semibold' %></td>
+            <td class="max-w-xs p-2 text-xs leading-5 text-slate-600">
+              <% if row.review_reason.present? %><strong class="text-amber-900">要確認: <%= row.review_reason %></strong><br><% end %>
+              <%= row.note %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+  <%# 表の中にformは置けないため、各行の入力はform属性でここのformに結び付ける。pageは更新後に同じページへ戻すため %>
+  <% @page_rows.each do |row| %>
+    <%= form_with url: timetable_upload_row_path(@upload, row), method: :patch, id: "row-#{row.id}" do %>
+      <%= hidden_field_tag :page, @paginator.page %>
+    <% end %>
+  <% end %>
+  <%= render 'shared/pagination', paginator: @paginator, path: ->(page) { timetable_upload_path(@upload, page: page) } %>
+
+  <section class="demo-panel" aria-labelledby="commit-heading">
+    <h2 id="commit-heading" class="text-xl font-bold text-slate-900">授業として保存する</h2>
+    <% if @preview.nil? %>
+      <p class="mt-3 text-slate-700">未確認の行が <%= @upload.unconfirmed_count %>行 あります。すべて確認済みにすると保存できます。</p>
+    <% elsif @preview.ok? %>
+      <p class="mt-3 text-slate-700">科目の新規 <%= @preview.created_courses %>件 / 開講情報の新規 <%= @preview.created_offerings %>件・更新 <%= @preview.updated_offerings %>件・変更なし <%= @preview.unchanged_offerings %>件</p>
+    <% else %>
+      <p class="mt-3 font-semibold text-red-900">次の点を直してください。何も保存していません。</p>
+      <ul class="mt-2 list-disc space-y-1 pl-5 text-red-900"><% @preview.errors.each do |message| %><li><%= message %></li><% end %></ul>
+    <% end %>
+    <div class="mt-4"><%= render 'save_button', upload: @upload, preview: @preview %></div>
+  </section>
+</div>
