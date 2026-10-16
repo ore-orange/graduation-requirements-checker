@@ -1,131 +1,543 @@
-<% content_for :title, "ローカルデモ | #{app_name}" %>
-<div class="space-y-8">
-  <header>
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <%= link_to app_name, root_path, class: 'text-sm font-semibold text-slate-700 underline underline-offset-4' %>
-      <span class="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold tracking-wider text-white">LOCAL DEMO</span>
-    </div>
-    <h1 class="mt-6 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl"><%= app_name %></h1>
-    <p class="mt-3 text-slate-600">2024 年度入学・知能情報コース / 履修計画シミュレーション</p>
-    <div class="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-7 text-amber-950">
-      <p class="font-bold">人工の履修データを使うローカル専用デモです。</p>
-      <p>表示される学生・成績・履修状況は大学の実データではありません。卒業の最終認定ではなく、出典に基づく要件確認の補助です。未確認の情報は「要確認」として表示します。</p>
-      <p>修得済み・履修中の記録は変更できません。今後の履修予定だけを追加・削除でき、操作のたびにこのデモ学生のデータベースへ保存します。</p>
+<% content_for :title, app_name %>
+<% content_for :full_bleed, true %>
+<%
+  actual_credits = @assessment.actual.counted_credits
+  projected_credits = @assessment.projected.counted_credits
+  custom_plans = @plans.select { |p| custom_course?(p.course.curriculum_key) }
+  custom_credits = custom_plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
+  planned_delta = (projected_credits - actual_credits) + custom_credits
+  projected_display_total = projected_credits + custom_credits
+  actual_pct = [[(actual_credits.to_f / 130 * 100).round(1), 100.0].min, 0.0].max
+  remaining_actual = [BigDecimal('130') - actual_credits, BigDecimal('0')].max
+
+  actual_req_check = find_check(@assessment.actual, 'required_all')
+  projected_req_check = find_check(@assessment.projected, 'required_all')
+  actual_req_done = 31 - (actual_req_check&.missing_courses&.size || 0)
+  projected_req_done = 31 - (projected_req_check&.missing_courses&.size || 0)
+  review_count = @assessment.projected.review_notes.size
+%>
+
+<div class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
+  <!-- Top Header & Navigation -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-0 sm:h-16 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <%= link_to root_path, class: 'w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-xs hover:bg-indigo-700 transition', aria: { label: 'トップページへ戻る' } do %>
+          卒
+        <% end %>
+        <div>
+          <h1 class="text-base font-bold text-slate-900 leading-tight"><%= app_name %></h1>
+          <p class="text-xs text-slate-500">工学部 知能情報コース (<%= @student.admission_year %>年度基準)</p>
+        </div>
+      </div>
+
+      <!-- Segmented Pill Tabs -->
+      <nav class="flex overflow-x-auto max-w-full space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60" role="tablist" aria-label="機能切り替えタブ">
+        <button type="button" role="tab" aria-selected="true" onclick="switchTab('dashboard')" id="tab-btn-dashboard"
+          class="tab-btn whitespace-nowrap px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all bg-white text-indigo-600 shadow-xs cursor-pointer">
+          進捗ダッシュボード
+        </button>
+        <button type="button" role="tab" aria-selected="false" onclick="switchTab('builder')" id="tab-btn-builder"
+          class="tab-btn whitespace-nowrap px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 hover:text-slate-900 cursor-pointer">
+          卒業要件の編集
+        </button>
+        <button type="button" role="tab" aria-selected="false" onclick="switchTab('planner')" id="tab-btn-planner"
+          class="tab-btn whitespace-nowrap px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 hover:text-slate-900 cursor-pointer">
+          履修計画表
+        </button>
+        <button type="button" role="tab" aria-selected="false" onclick="switchTab('profile')" id="tab-btn-profile"
+          class="tab-btn whitespace-nowrap px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 hover:text-slate-900 cursor-pointer">
+          マイページ
+        </button>
+      </nav>
     </div>
   </header>
 
-  <% if flash[:notice] %><p role="status" class="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-950"><%= flash[:notice] %></p><% end %>
-  <% if flash[:alert] %><p role="alert" class="rounded-xl border border-red-300 bg-red-50 p-4 text-red-950"><%= flash[:alert] %></p><% end %>
-
-  <nav aria-label="ページ内ナビゲーション" class="flex flex-wrap gap-x-5 gap-y-3 text-sm font-semibold text-slate-700">
-    <a href="#assessments" class="underline underline-offset-4">判定結果</a>
-    <a href="#plans" class="underline underline-offset-4">今後の履修予定</a>
-    <a href="#catalogue" class="underline underline-offset-4">科目を探す</a>
-    <a href="#history" class="underline underline-offset-4">履修記録</a>
-    <a href="#sources" class="underline underline-offset-4">出典</a>
-  </nav>
-
-  <div id="assessments" class="grid items-start gap-6 lg:grid-cols-2">
-    <%= render 'snapshot', snapshot: @assessment.actual, kind: 'actual', heading: '現在の修得状況', description: '修得済みの科目のみで判定しています。' %>
-    <%= render 'snapshot', snapshot: @assessment.projected, kind: 'projected', heading: '履修予定を含めた見込み', description: '修得済み + 履修登録済み・履修中 + 今後の履修予定で判定しています。単位修得を保証するものではありません。' %>
-  </div>
-
-  <section id="plans" class="demo-panel" aria-labelledby="plans-heading">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <h2 id="plans-heading" class="text-xl font-bold text-slate-900">今後の履修予定</h2>
-      <span class="text-sm text-slate-600"><%= @plans.size %> 科目を保存済み</span>
-    </div>
-    <p class="mt-2 text-sm leading-6 text-slate-600">追加した科目は再訪時にも復元します。登録しても修得済みの記録にはなりません。個別の履修許可が必要な科目は、許可済みと仮定せず判定します。</p>
-    <% if @plans.empty? %>
-      <p class="mt-5 rounded-lg bg-slate-50 p-4 text-slate-600">まだ科目を追加していません。下の科目一覧から今後の履修予定を選んでください。</p>
-    <% else %>
-      <ul class="mt-4 divide-y divide-slate-200">
-        <% @plans.each do |plan| %>
-          <% course = @courses_by_key[plan.course.curriculum_key] %>
-          <li class="flex flex-wrap items-center justify-between gap-4 py-4" data-plan="<%= plan.id %>" data-course-key="<%= plan.course.curriculum_key %>">
-            <div>
-              <h3 class="font-semibold text-slate-900"><%= plan.course.name %></h3>
-              <p class="mt-1 text-sm text-slate-600"><%= category_label(course&.fetch('category') || '未分類') %> / <%= credit_label(course&.fetch('credits')) %></p>
-            </div>
-            <%= button_to '予定から削除', demo_planned_course_path(plan), method: :delete, class: 'demo-button-secondary', form: { class: 'shrink-0' }, aria: { label: "#{plan.course.name}を今後の履修予定から削除" } %>
-          </li>
-        <% end %>
-      </ul>
-    <% end %>
-  </section>
-
-  <section id="catalogue" class="demo-panel" aria-labelledby="catalogue-heading">
-    <h2 id="catalogue-heading" class="text-xl font-bold text-slate-900">科目一覧から予定を追加</h2>
-    <p class="mt-2 text-sm leading-6 text-slate-600">出典で確認できる科目を掲載しています。修得済み・履修中・追加済みの科目や選択対象外の科目は追加できません。</p>
-    <%= form_with url: demo_path(anchor: 'catalogue'), method: :get, class: 'mt-5 grid items-end gap-4 sm:grid-cols-[1fr_1fr_auto]' do |form| %>
-      <div>
-        <%= form.label :q, '科目名・科目番号で検索', class: 'demo-label' %>
-        <%= form.search_field :q, value: @query, class: 'demo-input' %>
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+    <% if flash[:notice] %>
+      <div role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs sm:text-sm font-medium text-emerald-900 flex items-center justify-between">
+        <span><%= flash[:notice] %></span>
+        <button type="button" onclick="this.parentElement.remove()" class="text-emerald-700 hover:text-emerald-950 ml-4 cursor-pointer">✕</button>
       </div>
-      <div>
-        <%= form.label :category, '科目区分', class: 'demo-label' %>
-        <%= form.select :category, @curriculum.fetch('courses').map { |course| course.fetch('category') }.uniq.map { |category| [category_label(category), category] }, { include_blank: 'すべての区分', selected: @category }, class: 'demo-input' %>
-      </div>
-      <%= form.submit '絞り込む', class: 'demo-button cursor-pointer' %>
     <% end %>
-    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-      <p><%= @catalogue.size %> 科目を表示</p>
-      <%= link_to '条件をリセット', demo_path(anchor: 'catalogue'), class: 'underline underline-offset-4' %>
-    </div>
-    <% if @catalogue.empty? %>
-      <p class="mt-5 rounded-lg bg-slate-50 p-4 text-slate-600">条件に合う科目がありません。検索語や区分を変更してください。</p>
-    <% else %>
-      <ul class="mt-4 divide-y divide-slate-200">
-        <% @catalogue.each do |course| %>
-          <% unavailable = catalogue_availability(course, unavailable_keys: @unavailable_keys, persisted_keys: @persisted_keys) %>
-          <li class="py-4" data-catalogue-key="<%= course.fetch('key') %>">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-              <div class="min-w-0 flex-1 basis-56">
-                <h3 class="font-semibold text-slate-900"><%= course.fetch('name') %></h3>
-                <p class="mt-1 text-sm text-slate-600"><%= category_label(course.fetch('category')) %> / <%= credit_label(course['credits']) %><% if course['number'].present? %> / <%= course['number'] %><% end %></p>
-                <% if course['required'] %><span class="mt-2 inline-block rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">専門必修</span><% end %>
-                <% if course['requires_approval'] %><p class="mt-2 text-sm text-amber-800">個別の履修許可の確認が必要です。</p><% end %>
-                <% if course['review_reason'].present? %><p class="mt-2 text-sm leading-6 text-amber-800">要確認: <%= course['review_reason'] %></p><% end %>
-                <p class="mt-2 text-xs text-slate-500">出典: <%= course['source'] %> / <%= course['source_page'] %></p>
+    <% if flash[:alert] %>
+      <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs sm:text-sm font-medium text-rose-900 flex items-center justify-between">
+        <span><%= flash[:alert] %></span>
+        <button type="button" onclick="this.parentElement.remove()" class="text-rose-700 hover:text-rose-950 ml-4 cursor-pointer">✕</button>
+      </div>
+    <% end %>
+
+    <!-- ==========================================
+         TAB 1: 進捗ダッシュボード (トップページ)
+         ========================================== -->
+    <section id="tab-dashboard" class="tab-panel space-y-6">
+      <!-- KPI サマリーカード (実績判定・見込み判定・専門必修＆要確認ステータス) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <!-- カード1: 実績判定 (現在の卒業算入単位) -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">現在の卒業算入単位 (実績判定)</span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold <%= assessment_status_class(@assessment.actual.status) %>">
+              <%= assessment_status_label(@assessment.actual.status) %>
+            </span>
+          </div>
+          <div class="mt-3 flex items-baseline gap-2">
+            <span class="text-4xl font-extrabold text-slate-900 tracking-tight"><%= credit_number(actual_credits) %></span>
+            <span class="text-sm font-medium text-slate-500">/ 130 単位 (<%= actual_pct %>%)</span>
+          </div>
+          <p class="mt-2 text-xs text-slate-500">
+            <% if remaining_actual.positive? %>
+              卒業要件まで残り <strong class="text-slate-700"><%= credit_number(remaining_actual) %>単位</strong> 必要です
+            <% else %>
+              総単位数（130単位）に到達しています
+            <% end %>
+          </p>
+        </div>
+
+        <!-- カード2: 見込み判定 (履修予定を含めた卒業算入単位) -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">履修予定を含む見込み (見込み判定)</span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold <%= assessment_status_class(@assessment.projected.status) %>">
+              <%= assessment_status_label(@assessment.projected.status) %>
+            </span>
+          </div>
+          <div class="mt-3 flex items-baseline gap-2">
+            <span class="text-4xl font-extrabold text-sky-600 tracking-tight">+<%= credit_number(planned_delta) %></span>
+            <span class="text-sm font-medium text-slate-500">単位 (計 <%= credit_number(projected_display_total) %> / 130 単位見込)</span>
+          </div>
+          <p class="mt-2 text-xs text-slate-500">
+            履修中 <%= @current.size %>科目 ＋ 将来計画 <%= @plans.size %>科目
+            <% if custom_plans.any? %>
+              <span class="text-amber-700 font-semibold">（うち自由入力 <%= custom_plans.size %>科目・要確認）</span>
+            <% end %>
+          </p>
+        </div>
+
+        <!-- カード3: 専門必修31科目の充足状況 ＆ 要確認チェック -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">専門必修科目 (31科目・57単位)</span>
+            <% if review_count.positive? %>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900">要確認 <%= review_count %>件</span>
+            <% elsif projected_req_done == 31 %>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900">計画で全必修充足</span>
+            <% else %>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700">見込み残り<%= 31 - projected_req_done %>科目</span>
+            <% end %>
+          </div>
+          <div class="mt-3 flex items-baseline gap-2">
+            <span class="text-4xl font-extrabold text-slate-900 tracking-tight"><%= actual_req_done %></span>
+            <% if projected_req_done > actual_req_done %>
+              <span class="text-lg font-bold text-sky-600">(→<%= projected_req_done %>)</span>
+            <% end %>
+            <span class="text-sm font-medium text-slate-500">/ 31 科目 (<%= credit_number(actual_req_check&.counted_credits) %> / 57単位)</span>
+          </div>
+          <p class="mt-2 text-xs text-slate-500 truncate" title="<%= projected_req_check&.missing_courses&.join('、') %>">
+            <% if projected_req_check&.missing_courses&.any? %>
+              未計画の必修: <strong class="text-rose-600"><%= projected_req_check.missing_courses.join('、') %></strong>
+            <% else %>
+              <strong class="text-emerald-600">専門必修31科目すべて修得または計画済みです</strong>
+            <% end %>
+          </p>
+        </div>
+      </div>
+
+      <!-- 区分別 単位充足グラフ (親グループ見出し + 子区分スタックバー) -->
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-base font-bold text-slate-900">区分別 単位充足グラフ</h2>
+            <p class="text-xs text-slate-500 mt-0.5">濃いバーが修得済み算入単位、水色が履修中・将来計画の追加見込みを示します</p>
+          </div>
+          <!-- 凡例 -->
+          <div class="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-600">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-emerald-500 inline-block"></span>実績で充足</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-indigo-600 inline-block"></span>修得済 (未達)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-sky-300 inline-block"></span>履修予定 (履修中＋計画)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-amber-400 inline-block"></span>要確認</span>
+          </div>
+        </div>
+
+        <div id="dashboard-groups-container" class="divide-y divide-slate-200">
+          <% DemoHelper::PLANNER_GROUPS.each do |group| %>
+            <%
+              group_actual = find_check(@assessment.actual, group[:check_id])
+              group_projected = find_check(@assessment.projected, group[:check_id])
+              group_cats = group[:rows].flat_map { |r| r[:categories] }
+              group_custom = custom_plans.select { |p| group_cats.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+                                         .sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
+              group_earned = group_actual ? group_actual.counted_credits : BigDecimal('0')
+              group_planned = ((group_projected ? group_projected.counted_credits : BigDecimal('0')) - group_earned) + group_custom
+              group_status = if group_custom.positive?
+                               :needs_review
+                             elsif group_actual&.status == :satisfied
+                               :satisfied
+                             else
+                               group_projected&.status || :unmet
+                             end
+            %>
+            <div class="p-6 space-y-4" data-dashboard-group="<%= group[:id] %>">
+              <!-- 親グループ見出し -->
+              <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                <div class="flex items-center gap-2.5">
+                  <h3 class="text-sm font-bold text-slate-900" data-sync-group-title="<%= group[:id] %>"><%= group[:title] %></h3>
+                  <% if group_projected %>
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-bold <%= assessment_status_class(group_status) %>">
+                      見込み: <%= assessment_status_label(group_status) %>
+                    </span>
+                  <% end %>
+                </div>
+                <div class="text-xs text-slate-600 font-medium">
+                  領域合計: <strong class="text-slate-900"><%= credit_number(group_earned) %></strong>
+                  <% if group_planned.positive? %>
+                    <span class="text-sky-600 font-semibold">(+<%= credit_number(group_planned) %>)</span>
+                  <% end %>
+                  / <span data-sync-group-req="<%= group[:id] %>"><%= group[:req] %></span> 単位以上
+                </div>
               </div>
-              <% if unavailable %>
-                <p class="max-w-60 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-600"><%= unavailable %></p>
-              <% else %>
-                <%= form_with url: demo_planned_courses_path, class: 'shrink-0' do |form| %>
-                  <%= form.hidden_field :course_key, value: course.fetch('key'), id: nil %>
-                  <%= form.submit '予定に追加', class: 'demo-button cursor-pointer', aria: { label: "#{course.fetch('name')}を今後の履修予定に追加" } %>
+
+              <!-- 子区分バー一覧 -->
+              <div class="space-y-4 pl-0 sm:pl-2" data-dashboard-children="<%= group[:id] %>">
+                <% group[:rows].each do |row| %>
+                  <%
+                    # 専門選択の内数3区分と自由科目は、内数22単位バー・選択全体37単位バーとしても視覚化できるよう実単位を集計
+                    row_cred = category_credits(@enrollments, @plans, row[:categories], @courses_by_key)
+                    primary_actual_check = find_check(@assessment.actual, row[:check_ids].first)
+                    primary_projected_check = find_check(@assessment.projected, row[:check_ids].first)
+                    row_custom = custom_plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+                                             .sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
+
+                    if %w[general_subtotal fusion].include?(row[:id]) && primary_actual_check&.counted_credits && primary_projected_check&.counted_credits
+                      earned_val = primary_actual_check.counted_credits
+                      planned_val = (primary_projected_check.counted_credits - earned_val) + row_custom
+                    else
+                      earned_val = row_cred[:earned]
+                      planned_val = row_cred[:planned]
+                    end
+
+                    target_req = row[:req] || (row[:id] == 'free' ? 37 : 22)
+                    earned_pct = [[(earned_val.to_f / target_req * 100).round, 100].min, 0].max
+                    planned_pct = [[(planned_val.to_f / target_req * 100).round, 100 - earned_pct].min, 0].max
+                    status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_custom.positive?)
+                    missing_list = @assessment.projected.checks.select { |c| row[:check_ids].include?(c.id) }.flat_map(&:missing_courses).uniq
+                  %>
+                  <div class="flex flex-col sm:flex-row sm:items-center gap-3" data-dashboard-row="<%= row[:id] %>">
+                    <div class="sm:w-2/5">
+                      <div class="text-sm font-semibold text-slate-800 flex flex-wrap items-center gap-2">
+                        <span data-sync-row-title="<%= row[:id] %>"><%= row[:name] %></span>
+                        <% if status == :satisfied %>
+                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700">CLEAR</span>
+                        <% elsif status == :projected %>
+                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700">見込み達成</span>
+                        <% elsif status == :needs_review %>
+                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">要確認</span>
+                        <% end %>
+                      </div>
+                      <p class="text-[11px] text-slate-400 mt-0.5"><%= row[:subtitle] %></p>
+                      <% if missing_list.any? %>
+                        <p class="text-[11px] text-rose-600 font-medium mt-0.5">未計画の必修・指定科目: <%= missing_list.join('、') %></p>
+                      <% end %>
+                    </div>
+
+                    <!-- 横線グラフ本体 -->
+                    <div class="sm:w-3/5 flex items-center gap-4">
+                      <div class="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden flex">
+                        <div class="<%= status == :satisfied ? 'bg-emerald-500' : (status == :needs_review ? 'bg-amber-500' : 'bg-indigo-600') %> h-full transition-all duration-300"
+                             data-bar-earned="<%= row[:id] %>"
+                             data-earned-value="<%= earned_val.to_f %>"
+                             style="width: <%= earned_pct %>%"></div>
+                        <% if planned_pct.positive? %>
+                          <div class="<%= status == :needs_review ? 'bg-amber-300' : 'bg-sky-300' %> h-full transition-all duration-300"
+                               data-bar-planned="<%= row[:id] %>"
+                               data-planned-value="<%= planned_val.to_f %>"
+                               style="width: <%= planned_pct %>%"></div>
+                        <% end %>
+                      </div>
+                      <div class="w-32 text-right text-xs tabular-nums shrink-0">
+                        <span class="font-bold text-slate-900 text-sm"><%= credit_number(earned_val) %></span>
+                        <% if planned_val.positive? %>
+                          <span class="text-sky-600 font-semibold">(+<%= credit_number(planned_val) %>)</span>
+                        <% end %>
+                        <span class="text-slate-400">
+                          /
+                          <% if row[:req] %>
+                            <span data-sync-row-req="<%= row[:id] %>"><%= row[:req] %></span>単位
+                          <% else %>
+                            <%= row[:req_label] %>
+                          <% end %>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 <% end %>
-              <% end %>
+              </div>
             </div>
-          </li>
-        <% end %>
-      </ul>
-    <% end %>
-  </section>
-
-  <div id="history" class="grid items-start gap-6 lg:grid-cols-2">
-    <%= render 'enrollments', section_id: 'completed-heading', heading: '修得済み（読み取り専用）', description: 'データベースに保存された修得記録です。現在と見込みの両方に使用します。', enrollments: @completed %>
-    <%= render 'enrollments', section_id: 'current-heading', heading: '履修登録済み・履修中（読み取り専用）', description: 'まだ修得していないため、見込みの判定にのみ使用します。', enrollments: @current %>
-    <% if @other_enrollments.any? %>
-      <%= render 'enrollments', section_id: 'other-heading', heading: 'その他の履修記録（読み取り専用）', description: '未修得の科目は算入しません。状態未確認の記録は、現在・見込みともに確認が必要な情報として扱います。', enrollments: @other_enrollments %>
-    <% end %>
-  </div>
-
-  <section id="sources" class="demo-panel" aria-labelledby="sources-heading">
-    <h2 id="sources-heading" class="text-xl font-bold text-slate-900">判定に使用する出典</h2>
-    <p class="mt-2 text-sm leading-6 text-slate-600"><%= @curriculum['title'] %>。個別の特例・留学生向けの例外は対象外です。最新の履修要項や教務窓口で最終確認してください。</p>
-    <ul class="mt-4 space-y-4 text-sm">
-      <% @curriculum.fetch('sources').each do |source| %>
-        <li>
-          <% if source_url(source) %>
-            <%= link_to source.fetch('title'), source_url(source), class: 'font-semibold text-sky-800 underline underline-offset-4', target: '_blank', rel: 'noopener noreferrer' %><span class="text-slate-500">（別タブで開きます）</span>
-          <% else %>
-            <span class="font-semibold text-slate-800"><%= source.fetch('title') %></span>
           <% end %>
-          <p class="mt-1 text-slate-500"><%= source.fetch('id') %><% if source['pages'].present? %> / <%= source['pages'] %><% end %></p>
-          <% if source['note'].present? %><p class="mt-1 leading-6 text-slate-600"><%= source['note'] %></p><% end %>
-        </li>
-      <% end %>
-    </ul>
-  </section>
+        </div>
+      </div>
+
+      <!-- 実績判定・見込み判定の詳細カード (不足科目・算入理由の確認) -->
+      <div id="assessments" class="grid items-start gap-6 lg:grid-cols-2">
+        <%= render 'snapshot', snapshot: @assessment.actual, kind: 'actual',
+                               heading: '実績判定（現在の修得状況）',
+                               description: '修得済みの科目のみで算入単位と必修条件を判定しています。' %>
+        <%= render 'snapshot', snapshot: @assessment.projected, kind: 'projected',
+                               heading: '見込み判定（履修予定を含めた見込み）',
+                               description: '修得済み ＋ 履修中 ＋ 将来計画で判定しています。未確認事項がある場合は「要確認」となります。' %>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 2: 卒業要件の編集 (AND/OR・入れ子構造)
+         ========================================== -->
+    <%= render 'builder_tab' %>
+
+    <!-- ==========================================
+         TAB 3: 履修計画表 & インライン編集・検索
+         ========================================== -->
+    <%= render 'planner_tab' %>
+
+    <!-- ==========================================
+         TAB 4: マイページ (所属情報・公式便覧リンク)
+         ========================================== -->
+    <%= render 'profile_tab' %>
+  </main>
 </div>
+
+<script>
+  var VALID_TABS = ['dashboard', 'builder', 'planner', 'profile'];
+
+  function switchTab(tabName) {
+    if (!VALID_TABS.includes(tabName)) tabName = 'dashboard';
+
+    document.querySelectorAll('.tab-panel').forEach(el => el.classList.add('hidden'));
+    const targetPanel = document.getElementById('tab-' + tabName);
+    if (targetPanel) targetPanel.classList.remove('hidden');
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.setAttribute('aria-selected', 'false');
+      btn.classList.remove('bg-white', 'text-indigo-600', 'shadow-xs', 'font-semibold');
+      btn.classList.add('text-slate-600', 'font-medium');
+    });
+    const activeBtn = document.getElementById('tab-btn-' + tabName);
+    if (activeBtn) {
+      activeBtn.setAttribute('aria-selected', 'true');
+      activeBtn.classList.remove('text-slate-600', 'font-medium');
+      activeBtn.classList.add('bg-white', 'text-indigo-600', 'shadow-xs', 'font-semibold');
+    }
+
+    try {
+      sessionStorage.setItem('grc_active_tab', tabName);
+    } catch (_) {}
+  }
+
+  function togglePlannerEdit(isEditing) {
+    document.querySelectorAll('.planner-edit-ui').forEach(el => {
+      el.style.display = isEditing ? '' : 'none';
+    });
+  }
+
+  function toggleRowAddBox(rowId) {
+    const box = document.getElementById('add-box-' + rowId);
+    const trigger = document.getElementById('add-trigger-' + rowId);
+    if (!box || !trigger) return;
+
+    const isHidden = box.classList.contains('hidden');
+    if (isHidden) {
+      box.classList.remove('hidden');
+      trigger.classList.add('hidden');
+    } else {
+      box.classList.add('hidden');
+      trigger.classList.remove('hidden');
+    }
+  }
+
+  function switchRowAddMode(rowId, mode) {
+    const catBox = document.getElementById('add-mode-cat-' + rowId);
+    const cusBox = document.getElementById('add-mode-cus-' + rowId);
+    const catBtn = document.getElementById('mode-btn-cat-' + rowId);
+    const cusBtn = document.getElementById('mode-btn-cus-' + rowId);
+    if (!catBox || !cusBox) return;
+
+    if (mode === 'custom') {
+      catBox.classList.add('hidden');
+      cusBox.classList.remove('hidden');
+      cusBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white cursor-pointer';
+      catBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer';
+    } else {
+      cusBox.classList.add('hidden');
+      catBox.classList.remove('hidden');
+      catBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white cursor-pointer';
+      cusBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer';
+    }
+  }
+
+  function toggleLogicBadge(btn) {
+    const isAnd = btn.textContent.trim() === 'AND';
+    btn.textContent = isAnd ? 'OR' : 'AND';
+    btn.className = isAnd
+      ? 'px-2.5 py-1 rounded-md text-xs font-bold bg-amber-500 text-white cursor-pointer'
+      : 'px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-600 text-white cursor-pointer';
+  }
+
+  function removeBuilderNode(btn) {
+    const node = btn.closest('[data-row-id], .builder-custom-node, .builder-group');
+    if (!node) return;
+    const rowId = node.getAttribute('data-row-id');
+    node.remove();
+    if (rowId) {
+      document.querySelectorAll(`[data-dashboard-row="${rowId}"], [data-planner-row="${rowId}"]`).forEach(el => el.remove());
+    }
+  }
+
+  function addChildRuleRow(btn, groupId) {
+    const groupEl = btn.closest('.builder-group');
+    const container = groupEl ? groupEl.querySelector('.builder-children') : null;
+    if (!container) return;
+
+    const newId = 'custom_row_' + Date.now();
+    const rowHtml = `
+      <div class="builder-custom-node flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-xl border border-indigo-200 shadow-2xs" data-row-id="${newId}" data-parent-group="${groupId}">
+        <div class="flex items-center gap-3">
+          <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+          <input type="text" value="新規子区分" data-row-title="${newId}" class="text-sm font-medium text-slate-800 border-b border-slate-300 focus:border-indigo-500 focus:outline-none px-1 w-60" />
+        </div>
+        <div class="flex items-center gap-3">
+          <input type="number" value="2" min="0" data-row-req="${newId}" class="w-14 text-right text-sm font-semibold border border-slate-200 rounded-md px-2 py-1" />
+          <span class="text-xs text-slate-400">単位以上</span>
+          <button type="button" onclick="removeBuilderNode(this)" class="text-slate-400 hover:text-rose-500 text-xs cursor-pointer">削除</button>
+        </div>
+      </div>`;
+    container.insertAdjacentHTML('beforeend', rowHtml);
+  }
+
+  function addNestedConditionGroup(btn) {
+    const groupEl = btn.closest('.builder-group');
+    const container = groupEl ? groupEl.querySelector('.builder-children') : null;
+    if (!container) return;
+
+    const newId = 'nested_' + Date.now();
+    const html = `
+      <div class="builder-custom-node rounded-xl border border-amber-200 bg-amber-50/40 p-3.5" data-row-id="${newId}">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <select class="bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-md focus:outline-none cursor-pointer">
+              <option value="OR" selected>OR (いずれか満たす)</option>
+              <option value="AND">AND (すべて満たす)</option>
+            </select>
+            <input type="text" value="新規ネスト条件グループ" data-row-title="${newId}" class="bg-white border border-amber-200 rounded-lg px-2.5 py-1 text-sm font-bold text-slate-800" />
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500">計</span>
+            <input type="number" value="4" min="0" data-row-req="${newId}" class="w-14 bg-white border border-amber-200 rounded-md px-2 py-1 text-right text-sm font-bold" />
+            <span class="text-xs text-slate-500">単位以上</span>
+            <button type="button" onclick="removeBuilderNode(this)" class="text-slate-400 hover:text-rose-500 text-xs ml-2 cursor-pointer">削除</button>
+          </div>
+        </div>
+      </div>`;
+    container.insertAdjacentHTML('beforeend', html);
+  }
+
+  function addRootRuleGroup() {
+    const root = document.getElementById('builder-tree-root');
+    if (!root) return;
+
+    const groupId = 'custom_group_' + Date.now();
+    const html = `
+      <div class="builder-group rounded-xl border border-slate-200 bg-slate-50/60 p-4" data-group-id="${groupId}">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <button type="button" onclick="toggleLogicBadge(this)" class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-600 text-white cursor-pointer">AND</button>
+            <input type="text" value="新規ルート区分" data-group-title="${groupId}" class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="text-xs font-medium text-slate-500">必要単位数:</label>
+            <div class="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1">
+              <input type="number" value="4" min="0" data-group-req="${groupId}" class="w-12 text-right text-sm font-bold text-slate-900 focus:outline-none" />
+              <span class="ml-1 text-xs text-slate-400">単位以上</span>
+            </div>
+            <button type="button" onclick="addChildRuleRow(this, '${groupId}')" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 cursor-pointer">+ 子区分</button>
+            <button type="button" onclick="removeBuilderNode(this)" class="text-xs text-slate-400 hover:text-rose-500 px-2 py-1 cursor-pointer">削除</button>
+          </div>
+        </div>
+        <div class="builder-children mt-4 ml-4 pl-4 border-l-2 border-indigo-200 space-y-3"></div>
+      </div>`;
+    root.insertAdjacentHTML('beforeend', html);
+  }
+
+  function applyBuilderRulesToUI() {
+    document.querySelectorAll('[data-group-title]').forEach(input => {
+      const id = input.getAttribute('data-group-title');
+      document.querySelectorAll(`[data-sync-group-title="${id}"]`).forEach(el => {
+        el.textContent = input.value;
+      });
+    });
+
+    document.querySelectorAll('[data-group-req]').forEach(input => {
+      const id = input.getAttribute('data-group-req');
+      document.querySelectorAll(`[data-sync-group-req="${id}"]`).forEach(el => {
+        el.textContent = input.value;
+      });
+    });
+
+    document.querySelectorAll('[data-row-title]').forEach(input => {
+      const id = input.getAttribute('data-row-title');
+      document.querySelectorAll(`[data-sync-row-title="${id}"]`).forEach(el => {
+        el.textContent = input.value;
+      });
+    });
+
+    document.querySelectorAll('[data-row-req]').forEach(input => {
+      const id = input.getAttribute('data-row-req');
+      const reqVal = Math.max(parseFloat(input.value) || 0, 1);
+      document.querySelectorAll(`[data-sync-row-req="${id}"]`).forEach(el => {
+        el.textContent = input.value;
+      });
+
+      const earnedBar = document.querySelector(`[data-bar-earned="${id}"]`);
+      const plannedBar = document.querySelector(`[data-bar-planned="${id}"]`);
+      if (earnedBar) {
+        const earned = parseFloat(earnedBar.getAttribute('data-earned-value')) || 0;
+        const earnedPct = Math.min(Math.max(Math.round((earned / reqVal) * 100), 0), 100);
+        earnedBar.style.width = earnedPct + '%';
+        if (plannedBar) {
+          const planned = parseFloat(plannedBar.getAttribute('data-planned-value')) || 0;
+          const plannedPct = Math.min(Math.max(Math.round((planned / reqVal) * 100), 0), 100 - earnedPct);
+          plannedBar.style.width = plannedPct + '%';
+        }
+      }
+    });
+
+    const toast = document.getElementById('builder-toast');
+    if (toast) toast.classList.remove('hidden');
+  }
+
+  function resetBuilderRules() {
+    window.location.reload();
+  }
+
+  function initTabState() {
+    const params = new URLSearchParams(window.location.search);
+    const paramTab = params.get('tab');
+    const hasSearch = params.has('q') || params.has('category');
+
+    if (paramTab && VALID_TABS.includes(paramTab)) {
+      switchTab(paramTab);
+      return;
+    }
+    if (hasSearch) {
+      switchTab('planner');
+      return;
+    }
+    try {
+      const savedTab = sessionStorage.getItem('grc_active_tab');
+      if (savedTab && VALID_TABS.includes(savedTab)) {
+        switchTab(savedTab);
+      }
+    } catch (_) {}
+  }
+
+  document.addEventListener('turbo:load', initTabState);
+  initTabState();
+</script>

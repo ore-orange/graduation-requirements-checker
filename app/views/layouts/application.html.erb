@@ -24,8 +24,12 @@
   </head>
 
   <body>
-    <main class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <% if content_for?(:full_bleed) %>
       <%= yield %>
-    </main>
+    <% else %>
+      <main class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <%= yield %>
+      </main>
+    <% end %>
   </body>
 </html>

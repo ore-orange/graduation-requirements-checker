@@ -191,6 +191,42 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'failed', failed.reload.enrollment_status
   end
 
+  test 'custom free-text course persists marks projected as needs_review and cleans up on delete' do
+    get demo_path, env: local_env
+    original_actual = assessment_attributes('actual')
+
+    assert_difference ['@student.planned_courses.count', 'Course.count'], 1 do
+      post demo_planned_courses_path,
+           params: { custom_course: { name: '他学部情報法特論', course_number: '他学901', credits: '2', category: 'free' } },
+           env: local_env
+    end
+    assert_response :see_other
+    plan = @student.planned_courses.order(:id).last
+    assert_predicate plan.course.curriculum_key, :present?
+    assert plan.course.curriculum_key.start_with?('custom:free:')
+
+    get demo_path, env: local_env
+    assert_select "[data-plan='#{plan.id}']", count: 1
+    assert_equal original_actual, assessment_attributes('actual')
+    assert_select '[data-assessment="projected"][data-status="needs_review"]', count: 1
+
+    assert_difference ['@student.planned_courses.count', 'Course.count'], -1 do
+      delete demo_planned_course_path(plan), env: local_env
+    end
+    assert_response :see_other
+  end
+
+  test 'custom course input matching catalogue course links to existing catalogue course' do
+    custom = { name: @candidate.fetch('name'), course_number: '', credits: '2', category: 'advanced' }
+    assert_difference '@student.planned_courses.count', 1 do
+      assert_no_difference 'Course.count' do
+        post demo_planned_courses_path, params: { custom_course: custom }, env: local_env
+      end
+    end
+    plan = @student.planned_courses.order(:id).last
+    assert_equal @candidate.fetch('key'), plan.course.curriculum_key
+  end
+
   test 'missing seed returns unavailable without creating fake data' do
     @student.user.update!(email: 'not-the-demo-account@example.test')
 

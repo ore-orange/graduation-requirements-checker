@@ -3,7 +3,7 @@
 class DemoController < ApplicationController
   CURRENT_STATUSES = %w[registered in_progress].freeze
   BLOCKED_STATUSES = %w[completed registered in_progress].freeze
-
+  CUSTOM_CATEGORIES = (GraduationAssessment::Catalogue::CATEGORIES - ['excluded']).freeze
   before_action :require_local_demo
   before_action :load_demo
 
@@ -32,7 +32,9 @@ class DemoController < ApplicationController
     plan = @student.planned_courses.find_by(id: params[:id])
     return head :not_found unless plan
 
+    course = plan.course
     plan.destroy!
+    cleanup_custom_course(course)
     redirect_to demo_path, notice: '今後の履修予定から削除しました。判定を更新しました。', status: :see_other
   end
 
@@ -85,12 +87,54 @@ class DemoController < ApplicationController
   end
 
   def selectable_course
+    return build_custom_course if params[:custom_course].present?
+
     key = params.permit(:course_key)[:course_key]
-    catalogue_course = @courses_by_key[key] if key.is_a?(String)
+    find_catalogue_course(key) if key.is_a?(String)
+  end
+
+  def find_catalogue_course(key)
+    catalogue_course = @courses_by_key[key]
     return unless catalogue_course && catalogue_course['selectable'] == true
 
     Course.find_by(curriculum_key: key) ||
       raise(DemoAccount::Unavailable, 'Catalogue courses have not been seeded')
+  end
+
+  def build_custom_course
+    attrs = custom_course_attributes
+    return unless attrs
+
+    matched = match_catalogue_course(attrs[:name], attrs[:number])
+    return find_catalogue_course(matched.fetch('key')) if matched
+
+    Course.create!(curriculum_key: "custom:#{attrs[:category]}:#{SecureRandom.hex(6)}",
+                   course_number: attrs[:number], name: attrs[:name], credits: attrs[:credits])
+  end
+
+  def custom_course_attributes
+    raw = params.expect(custom_course: %i[name course_number credits category])
+    name = raw[:name].to_s.strip
+    category = raw[:category].to_s.strip
+    credits = BigDecimal(raw[:credits].to_s, exception: false)
+    return unless name.present? && CUSTOM_CATEGORIES.include?(category) && credits&.positive? && credits < 100
+
+    { name: name, number: raw[:course_number].to_s.strip.presence, category: category, credits: credits }
+  rescue ActionController::ParameterMissing, ActionController::UnpermittedParameters
+    nil
+  end
+
+  def match_catalogue_course(name, number)
+    @curriculum.fetch('courses').find do |course|
+      course['name'].casecmp?(name) || (number.present? && course['number'].to_s.casecmp?(number))
+    end
+  end
+
+  def cleanup_custom_course(course)
+    return unless course.curriculum_key.to_s.start_with?('custom:')
+    return if course.planned_courses.exists? || course.student_courses.exists?
+
+    course.destroy!
   end
 
   def unavailable_course?(course)
@@ -101,7 +145,8 @@ class DemoController < ApplicationController
 
   def planned_entry(plan)
     course = @courses_by_key[plan.course.curriculum_key]
-    { key: plan.course.curriculum_key, credits: course&.fetch('credits'), approved: nil, name: plan.course.name }
+    credits = course ? course.fetch('credits') : plan.course.credits
+    { key: plan.course.curriculum_key, credits: credits, approved: nil, name: plan.course.name }
   end
 
   def show_setup
