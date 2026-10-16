@@ -1,0 +1,50 @@
+<section class="demo-panel" aria-labelledby="<%= kind %>-heading" data-assessment="<%= kind %>" data-status="<%= snapshot.status %>" data-counted-credits="<%= snapshot.counted_credits %>">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 id="<%= kind %>-heading" class="text-xl font-bold text-slate-900"><%= heading %></h2>
+      <p class="mt-1 text-sm text-slate-600"><%= description %></p>
+    </div>
+    <span class="demo-status <%= assessment_status_class(snapshot.status) %>"><%= assessment_status_label(snapshot.status) %></span>
+  </div>
+  <p class="mt-5 text-sm text-slate-600">算入できる既知の単位数</p>
+  <p class="mt-1 text-3xl font-bold text-slate-900"><%= credit_label(snapshot.counted_credits) %></p>
+  <% if snapshot.review_notes.any? %>
+    <div class="mt-5 rounded-lg border border-amber-300 bg-amber-50 p-4">
+      <h3 class="font-semibold text-amber-950">確認が必要な情報</h3>
+      <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-950">
+        <% snapshot.review_notes.each do |note| %><li><%= note %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+  <details class="mt-6 space-y-3" data-assessment-details>
+    <summary class="cursor-pointer font-semibold text-slate-800">区分ごとの判定・不足科目を確認</summary>
+    <% snapshot.checks.each do |check| %>
+      <article class="rounded-lg border border-slate-200 p-4" data-check="<%= check.id %>" data-status="<%= check.status %>">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="font-semibold text-slate-900"><%= check.label %></h3>
+          <span class="demo-status <%= assessment_status_class(check.status) %>"><%= assessment_status_label(check.status) %></span>
+        </div>
+        <% unless check.required_credits.nil? %>
+          <p class="mt-2 text-sm text-slate-700">算入 <%= credit_label(check.counted_credits) %> / 必要 <%= credit_label(check.required_credits) %></p>
+        <% end %>
+        <% if check.missing_courses.any? %>
+          <p class="mt-2 text-sm text-slate-700"><%= check.status == :needs_review ? '修得・条件の確認が必要な科目' : '未充足の科目・履修条件' %>: <%= check.missing_courses.join('、') %></p>
+        <% end %>
+        <% if check.detail.present? %><p class="mt-2 text-sm leading-6 text-slate-700"><%= check.detail %></p><% end %>
+        <p class="mt-2 text-xs leading-5 text-slate-500">根拠: <%= check.source.presence || '出典情報の確認が必要です' %></p>
+      </article>
+    <% end %>
+  </details>
+  <details class="mt-6 border-t border-slate-200 pt-4">
+    <summary class="cursor-pointer font-semibold text-slate-800">科目ごとの算入理由を確認</summary>
+    <ul class="mt-3 divide-y divide-slate-200">
+      <% snapshot.course_results.each do |course| %>
+        <li class="py-3 text-sm">
+          <p class="font-medium text-slate-900"><%= course.name %></p>
+          <p class="mt-1 text-slate-600">科目単位: <%= credit_label(course.credits) %> / 算入: <%= credit_label(course.counted_credits) %></p>
+          <p class="mt-1 leading-6 text-slate-700"><%= course.reason %></p>
+        </li>
+      <% end %>
+    </ul>
+  </details>
+</section>

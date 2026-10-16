@@ -68,6 +68,8 @@ group :development do
 end
 
 group :test do
+  # Minitest 6ではstubを含むmock機能が別gemに分離されている。
+  gem 'minitest-mock', '~> 5.27', require: false
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem 'capybara'
   gem 'selenium-webdriver'

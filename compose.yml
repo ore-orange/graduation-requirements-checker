@@ -29,6 +29,8 @@ services:
       DATABASE_USER: postgres
       DATABASE_PASSWORD: password
       RAILS_ENV: development
+      # ホスト側ポートをloopbackに限定したDockerプロキシ経由のローカルデモ。
+      LOCAL_DEMO_PROXY: "1"
     volumes:
       # ソースをマウントしてホストの編集を即反映
       - .:/app
@@ -36,7 +38,7 @@ services:
       - bundle_data:/usr/local/bundle
       - tmp_data:/app/tmp
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       db:
         condition: service_healthy
