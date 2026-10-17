@@ -2,6 +2,19 @@
 
 琉球大学の卒業要件チェッカー
 
+## 開発対象（合意事項）
+
+- 対象：琉球大学 工学部 工学科 知能情報コースの2024年度入学生。
+- 判定：修得済みの科目・単位による「実績判定」と、履修予定科目をすべて修得した場合の「見込み判定」を分けて扱う。
+- 特例：外国人学生の特例、編入・転学科に伴う個別認定等は、今回の判定対象から除外する。
+- 履修データ：アカウントに紐づくアプリ保存済みのダミー履修データを読み出す。教務システムからの取得は将来対応とし、今回は実装しない。
+- 利用形態：ローカル開発専用の固定デモアカウント。実アカウントの登録・ログインと、認証なしでの外部公開は今回の対象外。
+- 用語の定義は[CONTEXT.md](CONTEXT.md)を参照。
+
+判定設計の基準資料は、リポジトリ内の[2024年度学生便覧・知能情報コース](docs/kogaku_chinot_y24.pdf)。
+便覧の数値・科目条件と未確定事項は[2024年度の卒業要件判定設計](docs/graduation-rules-2024.md)に整理する。
+公式の2024年度共通教育科目表も確認し、科目・出典を要件JSONへ登録済み。実績・見込み判定と将来計画の保存をローカルデモで利用できます。特別講義Ⅴ・Ⅵの単位数など原本で未確認の情報は、推測せず「要確認」として扱います。
+
 ## 技術スタック
 
 - Ruby 3.4 / Rails 8
@@ -12,7 +25,7 @@
 
 ## セットアップ
 
-Docker Desktop が動いていれば、以下だけで開発環境が立ち上がります。
+Docker DesktopまたはColimaでDockerが起動していれば、以下で開発環境が立ち上がります。
 
 ```bash
 git clone git@github.com:ore-orange/graduation-requirements-checker.git
@@ -20,19 +33,43 @@ cd graduation-requirements-checker
 
 docker compose build
 docker compose run --rm web bin/rails db:prepare
+docker compose run --rm web bin/rails db:seed
 docker compose up
 
 # git hooks を有効化（pre-commit で bin/ci が走るようになる。初回だけ）
 git config core.hooksPath .githooks
 ```
 
-http://localhost:3000 を開いて Rails の画面が出れば成功です。
+http://localhost:3000/demo を開くと、固定デモアカウントの判定画面が表示されます。既存環境でも新しいMigrationとseedを適用してください。
 
 `bin/setup` を使う場合は `git config core.hooksPath` も自動で設定されます。
 
 ```bash
 docker compose exec web bin/setup --skip-server
 ```
+
+### ローカルデモ
+
+```bash
+docker compose exec web bin/rails db:migrate
+docker compose exec web bin/rails db:seed
+```
+
+- 修得済み・履修登録済み・履修中のデータは架空のサンプルです。読み取り専用で、実績と見込みを分けて表示します。
+- 科目名・番号・区分から将来科目を探し、追加・削除できます。操作ごとにDBへ保存され、再訪時にも復元されます。seedの再実行で保存済み計画は消しません。
+- 卒業研究Ⅰ・ⅡとセミナーⅠ・Ⅱを追加すると、見込み判定の充足への変化を確認できます。未確認の特別講義Ⅴ等を選ぶと「要確認」を確認できます。
+- デモは開発・テスト環境、ローカルホストでのみ利用できます。本番・非ローカルからのデータ閲覧や変更は404になります。
+- ComposeのWeb公開先は`127.0.0.1:3000`に限定しています。`LOCAL_DEMO_PROXY=1`は、このloopback公開を前提にしたDockerプロキシ許可です。外部公開する構成へ流用しないでください。
+
+## DB設計・Supabase
+
+- [DB設計・関連・未確定仕様](docs/database-design.md)
+- [Supabase接続と承認後の反映手順](docs/supabase.md)
+- [卒業要件JSON・Repositoryの契約](config/curricula/README.md)
+
+業務テーブルはRails Migrationで管理します。要件JSONには一次資料由来の科目を登録し、開発・テストの明示的なseedで科目マスタと架空の履修データを作成します。実際の学生データや教務システム連携は含みません。
+本番のSolid Cache / Queue / Cableの単一DB集約は承認待ちで、本番反映は未実施です。
+接続変数の一覧は`.env.example`を参照してください（Railsによる自動読み込みはありません）。
 
 ## 開発の流れ
 

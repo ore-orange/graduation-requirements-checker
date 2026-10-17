@@ -164,6 +164,7 @@ GEM
     minitest (6.0.6)
       drb (~> 2.0)
       prism (~> 1.5)
+    minitest-mock (5.27.0)
     msgpack (1.8.5)
     net-imap (0.6.7)
       date
@@ -374,6 +375,7 @@ DEPENDENCIES
   importmap-rails
   jbuilder
   kamal
+  minitest-mock (~> 5.27)
   pg (~> 1.1)
   propshaft
   puma (>= 5.0)
