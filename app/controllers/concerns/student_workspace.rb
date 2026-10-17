@@ -23,7 +23,8 @@ module StudentWorkspace
   # 全画面で必要になる最小限。履修履歴は使う画面だけが enrollments で読む。
   def load_workspace
     @student = DemoAccount.student
-    @curriculum = CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
+    @curriculum = CurriculumRepository.find(department: DemoAccount::DEPARTMENT,
+                                            admission_year: @student.admission_year)
     @courses_by_key = @curriculum.fetch('courses').index_by { |course| course.fetch('key') }
   end
 
