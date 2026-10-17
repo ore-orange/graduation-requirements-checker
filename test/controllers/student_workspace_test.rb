@@ -356,5 +356,12 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-catalogue-key]', count: 0
     assert_select '[data-enrollment]', count: 0
   end
+
+  test '科目検索のフォームとリセットは履修計画表に留まる' do
+    get plan_path, env: local_env
+
+    assert_select 'form[action=?][method=?]', plan_path, 'get'
+    assert_select 'a[href=?]', plan_path, text: 'リセット'
+  end
 end
 
