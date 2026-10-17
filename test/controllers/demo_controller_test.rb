@@ -34,6 +34,9 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     assert_select '[data-assessment="actual"]', count: 1
     assert_select '[data-assessment="projected"]', count: 1
     assert_select '[data-plan]', count: 0
+
+    get demo_planner_path, env: local_env
+
     @student.student_courses.each do |enrollment|
       assert_select "[data-enrollment='#{enrollment.id}']", count: 1
     end
@@ -51,27 +54,31 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
       post demo_planned_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
     end
     assert_response :see_other
-    assert_redirected_to demo_path
+    assert_redirected_to demo_planner_path
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
 
-    get demo_path, env: local_env
+    get demo_planner_path, env: local_env
     assert_response :success
     assert_select "[data-plan='#{plan.id}'][data-course-key='#{@candidate.fetch('key')}']", count: 1
+
+    get demo_path, env: local_env
     assert_equal original_actual, assessment_attributes('actual')
     assert_operator BigDecimal(assessment_attributes('projected').fetch('data-counted-credits')), :>=,
                     original_projected_credits
 
     # A fresh request restores the persisted plan rather than relying on submitted state.
-    get demo_path, env: local_env
+    get demo_planner_path, env: local_env
     assert_select "[data-plan='#{plan.id}']", count: 1
 
     assert_difference '@student.planned_courses.count', -1 do
       delete demo_planned_course_path(plan), env: local_env
     end
     assert_response :see_other
-    assert_redirected_to demo_path
-    get demo_path, env: local_env
+    assert_redirected_to demo_planner_path
+    get demo_planner_path, env: local_env
     assert_select '[data-plan]', count: 0
+
+    get demo_path, env: local_env
     assert_equal original_actual, assessment_attributes('actual')
     assert_equal original_projected_credits,
                  BigDecimal(assessment_attributes('projected').fetch('data-counted-credits'))
@@ -113,7 +120,7 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
         post demo_planned_courses_path, params: { course_key: key }, env: local_env
       end
       assert_response :see_other
-      assert_redirected_to demo_path
+      assert_redirected_to demo_planner_path
     end
 
     post demo_planned_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
@@ -142,19 +149,20 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
       end
     end
     assert_response :see_other
-    get demo_path, params: { student_id: other.id, account: other.user.email }, env: local_env
+    get demo_planner_path, params: { student_id: other.id, account: other.user.email }, env: local_env
     assert_select "[data-plan='#{foreign_plan.id}']", count: 0
   end
 
   test 'catalogue search filters visible courses by name and category' do
-    get demo_path, params: { q: @candidate.fetch('name'), category: @candidate.fetch('category') }, env: local_env
+    get demo_planner_path, params: { q: @candidate.fetch('name'), category: @candidate.fetch('category') },
+                           env: local_env
     assert_response :success
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
     @courses.reject { |course| course['category'] == @candidate.fetch('category') }.each do |course|
       assert_select "[data-catalogue-key='#{course.fetch('key')}']", count: 0
     end
 
-    get demo_path, params: { q: 'does-not-exist-in-the-catalogue' }, env: local_env
+    get demo_planner_path, params: { q: 'does-not-exist-in-the-catalogue' }, env: local_env
     assert_select '[data-catalogue-key]', count: 0
   end
 
@@ -164,8 +172,12 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     unknown = @student.student_courses.create!(course: course_record(@candidate), academic_year: 2026,
                                                enrollment_status: 'unknown', credits_earned: nil)
 
-    get demo_path, env: local_env
+    get demo_planner_path, env: local_env
+
     assert_select "[data-enrollment='#{unknown.id}']", count: 1
+
+    get demo_path, env: local_env
+
     assert_select '[data-assessment="actual"][data-status="needs_review"]', count: 1
     assert_select '[data-assessment="projected"][data-status="needs_review"]', count: 1
     assert_equal original_actual_credits, assessment_attributes('actual').fetch('data-counted-credits')
@@ -179,8 +191,12 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
       course: course_record(@candidate), academic_year: 2025, enrollment_status: 'failed', credits_earned: 0
     )
 
-    get demo_path, env: local_env
+    get demo_planner_path, env: local_env
+
     assert_select "[data-enrollment='#{failed.id}']", count: 1
+
+    get demo_path, env: local_env
+
     assert_equal before_actual, assessment_attributes('actual')
     assert_equal before_projected, assessment_attributes('projected')
 
@@ -205,8 +221,10 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     assert_predicate plan.course.curriculum_key, :present?
     assert plan.course.curriculum_key.start_with?('custom:free:')
 
-    get demo_path, env: local_env
+    get demo_planner_path, env: local_env
     assert_select "[data-plan='#{plan.id}']", count: 1
+
+    get demo_path, env: local_env
     assert_equal original_actual, assessment_attributes('actual')
     assert_select '[data-assessment="projected"][data-status="needs_review"]', count: 1
 
@@ -310,6 +328,33 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
       assert_response :not_found
     end
     plan.destroy!
+  end
+
+  test '各画面が固有のURLで表示される' do
+    { demo_path => '進捗ダッシュボード',
+      demo_builder_path => '卒業要件の編集',
+      demo_planner_path => '履修計画表',
+      demo_profile_path => 'マイページ' }.each do |path, label|
+      get path, env: local_env
+
+      assert_response :success, "#{path} が表示できない"
+      assert_select 'h2', text: label, count: 1
+    end
+  end
+
+  test '各画面にほかの画面へのリンクがある' do
+    get demo_path, env: local_env
+
+    assert_select 'a[href=?]', demo_builder_path
+    assert_select 'a[href=?]', demo_planner_path
+    assert_select 'a[href=?]', demo_profile_path
+  end
+
+  test '進捗ダッシュボードは履修計画表の中身を描画しない' do
+    get demo_path, env: local_env
+
+    assert_select '[data-catalogue-key]', count: 0
+    assert_select '[data-enrollment]', count: 0
   end
 end
 

@@ -1,0 +1,441 @@
+<% content_for :title, app_name %>
+<% content_for :full_bleed, true %>
+
+<div class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
+  <%= render 'nav' %>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+    <%= render 'flash' %>
+
+    <h2 class="sr-only">卒業要件の編集</h2>
+
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6">
+      <div class="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-100">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">卒業要件ルールビルダー</h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            2024年度便覧の要件構造（AND / OR 条件・入れ子グループ・必要単位数）を確認・カスタマイズできます。変更内容はダッシュボードと履修計画表の区分表示に連動します。
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="resetBuilderRules()"
+                  class="px-3.5 py-2 rounded-xl text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+            便覧基準にリセット
+          </button>
+          <button type="button" onclick="addRootRuleGroup()"
+                  class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer">
+            ＋ ルート区分を追加
+          </button>
+          <button type="button" onclick="applyBuilderRulesToUI()"
+                  class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs transition cursor-pointer">
+            要件を保存して反映
+          </button>
+        </div>
+      </div>
+
+      <div id="builder-toast" class="hidden mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-800 flex items-center justify-between">
+        <span>要件ツリーの区分名・必要単位数を進捗ダッシュボードと履修計画表に反映しました。</span>
+        <button type="button" onclick="this.parentElement.classList.add('hidden')" class="text-emerald-600 hover:text-emerald-900">✕</button>
+      </div>
+
+      <!-- ネスト構造ツリー (2024年度便覧基準の4大区分) -->
+      <div id="builder-tree-root" class="mt-6 space-y-5">
+
+        <!-- 親グループ 1: 1. 共通教育 (30単位以上) -->
+        <div class="builder-group rounded-xl border border-slate-200 bg-slate-50/60 p-4" data-group-id="common">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <button type="button" onclick="toggleLogicBadge(this)" class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-600 text-white cursor-pointer" title="クリックでAND/OR切替">AND</button>
+              <input type="text" value="1. 共通教育" data-group-title="common"
+                     class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="text-xs font-medium text-slate-500">領域合計:</label>
+              <div class="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1">
+                <input type="number" value="30" min="0" data-group-req="common" class="w-12 text-right text-sm font-bold text-slate-900 focus:outline-none" />
+                <span class="ml-1 text-xs text-slate-400">単位以上</span>
+              </div>
+              <button type="button" onclick="addChildRuleRow(this, 'common')" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 cursor-pointer">+ 子区分</button>
+              <button type="button" onclick="addNestedConditionGroup(this)" class="text-xs font-semibold text-sky-600 hover:text-sky-800 px-2 py-1 cursor-pointer">+ ネスト条件(AND/OR)</button>
+            </div>
+          </div>
+
+          <div class="builder-children mt-4 ml-4 pl-4 border-l-2 border-indigo-200 space-y-3">
+            <!-- 教養・総合領域 (16単位: 健康運動2 + 人文・社会・自然・総合等14) -->
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs" data-row-id="health">
+              <div class="flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                <input type="text" value="健康運動系" data-row-title="health" class="text-sm font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 w-64" />
+                <span class="text-[11px] text-slate-400">教養領域</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="number" value="2" min="0" data-row-req="health" class="w-14 text-right text-sm font-semibold border border-slate-200 rounded-md px-2 py-1" />
+                <span class="text-xs text-slate-400">単位以上</span>
+                <button type="button" onclick="removeBuilderNode(this)" class="text-slate-400 hover:text-rose-500 text-xs cursor-pointer">削除</button>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs" data-row-id="general_subtotal">
+              <div class="flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                <input type="text" value="教養・総合領域 (人文・社会・自然・総合等)" data-row-title="general_subtotal" class="text-sm font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 w-80" />
+                <span class="text-[11px] text-slate-400">人文2・社会2・総合等2必須 / 自然系上限2</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="number" value="14" min="0" data-row-req="general_subtotal" class="w-14 text-right text-sm font-semibold border border-slate-200 rounded-md px-2 py-1" />
+                <span class="text-xs text-slate-400">単位以上</span>
+                <button type="button" onclick="removeBuilderNode(this)" class="text-slate-400 hover:text-rose-500 text-xs cursor-pointer">削除</button>
+              </div>
+            </div>
+
+            <!-- 基幹領域 (14単位: 日本語表現法入門2 + 外国語12 ※情報科学演習は注4により卒業算入対象外) -->
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs" data-row-id="japanese">
+              <div class="flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                <input type="text" value="基幹領域：日本語表現法入門" data-row-title="japanese" class="text-sm font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 w-64" />
+                <span class="text-[11px] text-slate-400">指定必修（情報科学演習は注4により算入外）</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="number" value="2" min="0" data-row-req="japanese" class="w-14 text-right text-sm font-semibold border border-slate-200 rounded-md px-2 py-1" />
+                <span class="text-xs text-slate-400">単位以上</span>
+                <button type="button" onclick="removeBuilderNode(this)" class="text-slate-400 hover:text-rose-500 text-xs cursor-pointer">削除</button>
+              </div>
+            </div>
+
+            <!-- 入れ子 (OR条件グループ: 外国語科目 12単位) -->
+            <div class="rounded-xl border border-amber-200 bg-amber-50/40 p-3.5" data-row-id="foreign_language">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <select class="bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-md focus:outline-none cursor-pointer">
+                    <option value="OR" selected>OR (いずれか満たす)</option>
+                    <option value="AND">AND (すべて満たす)</option>
+                  </select>
+                  <input type="text" value="基幹領域：外国語科目" data-row-title="foreign_language" class="bg-white border border-amber-200 rounded-lg px-2.5 py-1 text-sm font-bold text-slate-800 w-60" />
+                  <span class="text-[11px] text-amber-800 font-medium">※「大学英語」「英語講読演習中級」は両経路とも必須</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-500">計</span>
+                  <input type="number" value="12" min="0" data-row-req="foreign_language" class="w-14 bg-white border border-amber-200 rounded-md px-2 py-1 text-right text-sm font-bold" />
+                  <span class="text-xs text-slate-500">単位以上</span>
+                </div>
+              </div>
+
+              <div class="mt-3 ml-3 pl-3 border-l-2 border-amber-300 space-y-2">
+                <div class="bg-white p-2.5 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div class="flex items-center gap-2">
+                    <span class="px-1.5 py-0.5 rounded bg-indigo-50 font-bold text-indigo-700">AND</span>
+                    <span class="font-semibold text-slate-700">経路A: 英語 (8単位以上) ＋ 英語以外の同一外国語 (4単位以上)</span>
+                  </div>
+                  <span class="text-[11px] text-slate-400">別言語2＋2の分散は不可</span>
+                </div>
+                <div class="bg-white p-2.5 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div class="flex items-center gap-2">
+                    <span class="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-slate-600">単一</span>
+                    <span class="font-semibold text-slate-700">経路B: 英語のみ (12単位以上)</span>
+                  </div>
+                  <span class="text-[11px] text-slate-400">指定英語2科目(6単位)を含む</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 親グループ 2: 2. 専門基礎教育 (6単位以上) -->
+        <div class="builder-group rounded-xl border border-slate-200 bg-slate-50/60 p-4" data-group-id="basic">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <button type="button" onclick="toggleLogicBadge(this)" class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-600 text-white cursor-pointer">AND</button>
+              <input type="text" value="2. 専門基礎教育" data-group-title="basic"
+                     class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="text-xs font-medium text-slate-500">必要単位数:</label>
+              <div class="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1">
+                <input type="number" value="6" min="0" data-group-req="basic" class="w-12 text-right text-sm font-bold text-slate-900 focus:outline-none" />
+                <span class="ml-1 text-xs text-slate-400">単位以上</span>
+              </div>
+              <button type="button" onclick="addChildRuleRow(this, 'basic')" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 cursor-pointer">+ 子区分</button>
+            </div>
+          </div>
+
+          <div class="builder-children mt-4 ml-4 pl-4 border-l-2 border-indigo-200 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs" data-row-id="basic">
+              <div class="flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                <input type="text" value="専門基礎科目 (微分積分学・物理学)" data-row-title="basic" class="text-sm font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 w-72" />
+                <span class="text-[11px] text-slate-400">(微積STⅠ・Ⅱ OR 入門Ⅰ・Ⅱ) AND (物理Ⅰ OR 物理入門Ⅰ)</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="number" value="6" min="0" data-row-req="basic" class="w-14 text-right text-sm font-semibold border border-slate-200 rounded-md px-2 py-1" />
+                <span class="text-xs text-slate-400">単位以上</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 親グループ 3: 3. 専門必修科目 (31科目・57単位) -->
+        <div class="builder-group rounded-xl border border-slate-200 bg-slate-50/60 p-4" data-group-id="required">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <button type="button" onclick="toggleLogicBadge(this)" class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-600 text-white cursor-pointer">AND</button>
+              <input type="text" value="3. 専門必修科目" data-group-title="required"
+                     class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <span class="text-xs text-slate-500">全31科目の修得が必要</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="text-xs font-medium text-slate-500">必修合計:</label>
+              <div class="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1">
+                <input type="number" value="57" min="0" data-group-req="required" class="w-12 text-right text-sm font-bold text-slate-900 focus:outline-none" />
+                <span class="ml-1 text-xs text-slate-400">単位</span>
+              </div>
+              <button type="button" onclick="addChildRuleRow(this, 'required')" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 cursor-pointer">+ 子区分</button>
+            </div>
+          </div>
+
+          <div class="builder-children mt-4 ml-4 pl-4 border-l-2 border-indigo-200 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            <% [
+              ['required_information', '情報技術系', 2, 'プログラミング演習Ⅰ・Ⅱ'],
+              ['required_comprehensive', '総合力演習', 7, '工学基礎演習・キャリアデザイン等'],
+              ['required_research', '研究・基礎演習・実験', 16, '基礎演習Ⅰ〜Ⅳ・総合実験・卒研Ⅰ・Ⅱ・セミナーⅠ・Ⅱ等'],
+              ['required_math', '数学基礎（必修）', 6, '工業数学Ⅰ・Ⅱ、離散数学'],
+              ['required_core', '知能情報コア', 26, '専門基幹必修12科目']
+            ].each do |row_id, row_name, row_req, row_note| %>
+              <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs" data-row-id="<%= row_id %>">
+                <div>
+                  <input type="text" value="<%= row_name %>" data-row-title="<%= row_id %>" class="text-sm font-semibold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1" />
+                  <p class="text-[11px] text-slate-400 px-1 mt-0.5"><%= row_note %></p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <input type="number" value="<%= row_req %>" min="0" data-row-req="<%= row_id %>" class="w-12 text-right text-sm font-semibold border border-slate-200 rounded-md px-1.5 py-1" />
+                  <span class="text-xs text-slate-400">単位</span>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <!-- 親グループ 4: 4. 専門選択科目 (37単位以上：内数22単位＋同一他コース工学融合4単位) -->
+        <div class="builder-group rounded-xl border border-slate-200 bg-slate-50/60 p-4" data-group-id="elective">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <button type="button" onclick="toggleLogicBadge(this)" class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-600 text-white cursor-pointer">AND</button>
+              <input type="text" value="4. 専門選択科目" data-group-title="elective"
+                     class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="text-xs font-medium text-slate-500">選択全体合計:</label>
+              <div class="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1">
+                <input type="number" value="37" min="0" data-group-req="elective" class="w-12 text-right text-sm font-bold text-slate-900 focus:outline-none" />
+                <span class="ml-1 text-xs text-slate-400">単位以上</span>
+              </div>
+              <button type="button" onclick="addChildRuleRow(this, 'elective')" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 cursor-pointer">+ 子区分</button>
+            </div>
+          </div>
+
+          <div class="builder-children mt-4 ml-4 pl-4 border-l-2 border-indigo-200 space-y-3">
+            <!-- 内数22単位グループ (M + V + R >= 22) -->
+            <div class="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3.5">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 rounded bg-indigo-600 text-white text-xs font-bold">内数グループ合計</span>
+                  <span class="text-sm font-bold text-slate-800">数学基礎（選択）＋ 知能情報アドバンスト ＋ 知能情報関連</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-600">3区分合計で</span>
+                  <input type="number" value="22" min="0" data-row-req="advanced" class="w-14 bg-white border border-indigo-200 rounded-md px-2 py-1 text-right text-sm font-bold text-indigo-700" />
+                  <span class="text-xs text-slate-600">単位以上</span>
+                </div>
+              </div>
+              <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                <div class="bg-white p-2.5 rounded-lg border border-slate-200 flex justify-between items-center text-xs" data-row-id="elective_math">
+                  <input type="text" value="数学基礎（選択）" data-row-title="elective_math" class="font-semibold text-slate-700 focus:outline-none w-36" />
+                  <span class="text-slate-400">工数Ⅲ・Ⅳ・確率統計</span>
+                </div>
+                <div class="bg-white p-2.5 rounded-lg border border-slate-200 flex justify-between items-center text-xs" data-row-id="advanced">
+                  <input type="text" value="知能情報アドバンスト" data-row-title="advanced" class="font-semibold text-slate-700 focus:outline-none w-40" />
+                  <span class="text-indigo-600 font-semibold">3区分計 22単位以上</span>
+                </div>
+                <div class="bg-white p-2.5 rounded-lg border border-slate-200 flex justify-between items-center text-xs" data-row-id="related">
+                  <input type="text" value="知能情報関連" data-row-title="related" class="font-semibold text-slate-700 focus:outline-none w-36" />
+                  <span class="text-slate-400">技術英語・関連科目</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 工学融合科目 (同一他コースから4単位以上) -->
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs" data-row-id="fusion">
+              <div class="flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                <input type="text" value="工学融合科目" data-row-title="fusion" class="text-sm font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 w-48" />
+                <span class="text-[11px] text-slate-400">自コース以外の同一コース提供分から4単位以上（専門選択37単位の内数）</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="number" value="4" min="0" data-row-req="fusion" class="w-14 text-right text-sm font-semibold border border-slate-200 rounded-md px-2 py-1" />
+                <span class="text-xs text-slate-400">単位以上</span>
+              </div>
+            </div>
+
+            <!-- 専門科目（自由） -->
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs" data-row-id="free">
+              <div class="flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+                <input type="text" value="専門科目（自由）" data-row-title="free" class="text-sm font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 w-48" />
+                <span class="text-[11px] text-slate-400">他コース・他学部等の所定専門科目（専門選択37単位に算入、内数22単位には含めない）</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-400">下限 0単位（選択37単位枠）</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  function toggleLogicBadge(btn) {
+    const isAnd = btn.textContent.trim() === 'AND';
+    btn.textContent = isAnd ? 'OR' : 'AND';
+    btn.className = isAnd
+      ? 'px-2.5 py-1 rounded-md text-xs font-bold bg-amber-500 text-white cursor-pointer'
+      : 'px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-600 text-white cursor-pointer';
+  }
+
+  function removeBuilderNode(btn) {
+    const node = btn.closest('[data-row-id], .builder-custom-node, .builder-group');
+    if (!node) return;
+    const rowId = node.getAttribute('data-row-id');
+    node.remove();
+    if (rowId) {
+      document.querySelectorAll(`[data-dashboard-row="${rowId}"], [data-planner-row="${rowId}"]`).forEach(el => el.remove());
+    }
+  }
+
+  function addChildRuleRow(btn, groupId) {
+    const groupEl = btn.closest('.builder-group');
+    const container = groupEl ? groupEl.querySelector('.builder-children') : null;
+    if (!container) return;
+
+    const newId = 'custom_row_' + Date.now();
+    const rowHtml = `
+      <div class="builder-custom-node flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-xl border border-indigo-200 shadow-2xs" data-row-id="${newId}" data-parent-group="${groupId}">
+        <div class="flex items-center gap-3">
+          <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+          <input type="text" value="新規子区分" data-row-title="${newId}" class="text-sm font-medium text-slate-800 border-b border-slate-300 focus:border-indigo-500 focus:outline-none px-1 w-60" />
+        </div>
+        <div class="flex items-center gap-3">
+          <input type="number" value="2" min="0" data-row-req="${newId}" class="w-14 text-right text-sm font-semibold border border-slate-200 rounded-md px-2 py-1" />
+          <span class="text-xs text-slate-400">単位以上</span>
+          <button type="button" onclick="removeBuilderNode(this)" class="text-slate-400 hover:text-rose-500 text-xs cursor-pointer">削除</button>
+        </div>
+      </div>`;
+    container.insertAdjacentHTML('beforeend', rowHtml);
+  }
+
+  function addNestedConditionGroup(btn) {
+    const groupEl = btn.closest('.builder-group');
+    const container = groupEl ? groupEl.querySelector('.builder-children') : null;
+    if (!container) return;
+
+    const newId = 'nested_' + Date.now();
+    const html = `
+      <div class="builder-custom-node rounded-xl border border-amber-200 bg-amber-50/40 p-3.5" data-row-id="${newId}">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <select class="bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-md focus:outline-none cursor-pointer">
+              <option value="OR" selected>OR (いずれか満たす)</option>
+              <option value="AND">AND (すべて満たす)</option>
+            </select>
+            <input type="text" value="新規ネスト条件グループ" data-row-title="${newId}" class="bg-white border border-amber-200 rounded-lg px-2.5 py-1 text-sm font-bold text-slate-800" />
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500">計</span>
+            <input type="number" value="4" min="0" data-row-req="${newId}" class="w-14 bg-white border border-amber-200 rounded-md px-2 py-1 text-right text-sm font-bold" />
+            <span class="text-xs text-slate-500">単位以上</span>
+            <button type="button" onclick="removeBuilderNode(this)" class="text-slate-400 hover:text-rose-500 text-xs ml-2 cursor-pointer">削除</button>
+          </div>
+        </div>
+      </div>`;
+    container.insertAdjacentHTML('beforeend', html);
+  }
+
+  function addRootRuleGroup() {
+    const root = document.getElementById('builder-tree-root');
+    if (!root) return;
+
+    const groupId = 'custom_group_' + Date.now();
+    const html = `
+      <div class="builder-group rounded-xl border border-slate-200 bg-slate-50/60 p-4" data-group-id="${groupId}">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <button type="button" onclick="toggleLogicBadge(this)" class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-600 text-white cursor-pointer">AND</button>
+            <input type="text" value="新規ルート区分" data-group-title="${groupId}" class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="text-xs font-medium text-slate-500">必要単位数:</label>
+            <div class="flex items-center bg-white border border-slate-200 rounded-lg px-2.5 py-1">
+              <input type="number" value="4" min="0" data-group-req="${groupId}" class="w-12 text-right text-sm font-bold text-slate-900 focus:outline-none" />
+              <span class="ml-1 text-xs text-slate-400">単位以上</span>
+            </div>
+            <button type="button" onclick="addChildRuleRow(this, '${groupId}')" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 cursor-pointer">+ 子区分</button>
+            <button type="button" onclick="removeBuilderNode(this)" class="text-xs text-slate-400 hover:text-rose-500 px-2 py-1 cursor-pointer">削除</button>
+          </div>
+        </div>
+        <div class="builder-children mt-4 ml-4 pl-4 border-l-2 border-indigo-200 space-y-3"></div>
+      </div>`;
+    root.insertAdjacentHTML('beforeend', html);
+  }
+
+  function applyBuilderRulesToUI() {
+    document.querySelectorAll('[data-group-title]').forEach(input => {
+      const id = input.getAttribute('data-group-title');
+      document.querySelectorAll(`[data-sync-group-title="${id}"]`).forEach(el => {
+        el.textContent = input.value;
+      });
+    });
+
+    document.querySelectorAll('[data-group-req]').forEach(input => {
+      const id = input.getAttribute('data-group-req');
+      document.querySelectorAll(`[data-sync-group-req="${id}"]`).forEach(el => {
+        el.textContent = input.value;
+      });
+    });
+
+    document.querySelectorAll('[data-row-title]').forEach(input => {
+      const id = input.getAttribute('data-row-title');
+      document.querySelectorAll(`[data-sync-row-title="${id}"]`).forEach(el => {
+        el.textContent = input.value;
+      });
+    });
+
+    document.querySelectorAll('[data-row-req]').forEach(input => {
+      const id = input.getAttribute('data-row-req');
+      const reqVal = Math.max(parseFloat(input.value) || 0, 1);
+      document.querySelectorAll(`[data-sync-row-req="${id}"]`).forEach(el => {
+        el.textContent = input.value;
+      });
+
+      const earnedBar = document.querySelector(`[data-bar-earned="${id}"]`);
+      const plannedBar = document.querySelector(`[data-bar-planned="${id}"]`);
+      if (earnedBar) {
+        const earned = parseFloat(earnedBar.getAttribute('data-earned-value')) || 0;
+        const earnedPct = Math.min(Math.max(Math.round((earned / reqVal) * 100), 0), 100);
+        earnedBar.style.width = earnedPct + '%';
+        if (plannedBar) {
+          const planned = parseFloat(plannedBar.getAttribute('data-planned-value')) || 0;
+          const plannedPct = Math.min(Math.max(Math.round((planned / reqVal) * 100), 0), 100 - earnedPct);
+          plannedBar.style.width = plannedPct + '%';
+        }
+      }
+    });
+
+    const toast = document.getElementById('builder-toast');
+    if (toast) toast.classList.remove('hidden');
+  }
+
+  function resetBuilderRules() {
+    window.location.reload();
+  }
+</script>

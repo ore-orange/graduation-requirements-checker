@@ -13,6 +13,9 @@ Rails.application.routes.draw do
   root "home#index"
 
   get 'demo', to: 'demo#show', as: :demo
+  get 'demo/builder', to: 'demo#builder', as: :demo_builder
+  get 'demo/planner', to: 'demo#planner', as: :demo_planner
+  get 'demo/profile', to: 'demo#profile', as: :demo_profile
   post 'demo/planned_courses', to: 'demo#create', as: :demo_planned_courses
   delete 'demo/planned_courses/:id', to: 'demo#destroy', as: :demo_planned_course
 end

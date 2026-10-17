@@ -9,23 +9,43 @@ class DemoController < ApplicationController
 
   rescue_from DemoAccount::Unavailable, with: :show_setup
 
+  # 進捗ダッシュボード
   def show
     load_history
-    @plans = @student.planned_courses.includes(:course).order(:id).to_a
+    load_plans
+    @assessment = assess
+  end
+
+  # 卒業要件の編集。要件ツリーは @curriculum だけで描画できる
+  def builder; end
+
+  # 履修計画表。科目を検索して追加するため科目一覧も読む
+  def planner
+    load_history
+    load_plans
     @assessment = assess
     load_catalogue
   end
 
+  # マイページ
+  def profile
+    load_history
+    load_plans
+  end
+
   def create
     course = selectable_course
-    return redirect_to demo_path, alert: '追加できる科目を科目一覧から選択してください。', status: :see_other unless course
+    return redirect_to demo_planner_path, alert: '追加できる科目を科目一覧から選択してください。', status: :see_other unless course
 
-    return redirect_to demo_path, alert: 'この科目は修得済み・履修中、または追加済みです。', status: :see_other if unavailable_course?(course)
+    if unavailable_course?(course)
+      return redirect_to demo_planner_path, alert: 'この科目は修得済み・履修中、または追加済みです。',
+                                            status: :see_other
+    end
 
     @student.planned_courses.create!(course: course)
-    redirect_to demo_path, notice: '今後の履修予定に追加しました。判定を更新しました。', status: :see_other
+    redirect_to demo_planner_path, notice: '今後の履修予定に追加しました。判定を更新しました。', status: :see_other
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
-    redirect_to demo_path, alert: '科目を追加できませんでした。既に追加されていないか確認してください。', status: :see_other
+    redirect_to demo_planner_path, alert: '科目を追加できませんでした。既に追加されていないか確認してください。', status: :see_other
   end
 
   def destroy
@@ -35,7 +55,7 @@ class DemoController < ApplicationController
     course = plan.course
     plan.destroy!
     cleanup_custom_course(course)
-    redirect_to demo_path, notice: '今後の履修予定から削除しました。判定を更新しました。', status: :see_other
+    redirect_to demo_planner_path, notice: '今後の履修予定から削除しました。判定を更新しました。', status: :see_other
   end
 
   private
@@ -49,6 +69,10 @@ class DemoController < ApplicationController
     @curriculum = CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
     @courses_by_key = @curriculum.fetch('courses').index_by { |course| course.fetch('key') }
     @enrollments = @student.student_courses.includes(:course).order(:academic_year, :id).to_a
+  end
+
+  def load_plans
+    @plans = @student.planned_courses.includes(:course).order(:id).to_a
   end
 
   def load_history

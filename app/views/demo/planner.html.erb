@@ -1,0 +1,418 @@
+<% content_for :title, app_name %>
+<% content_for :full_bleed, true %>
+
+<div class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
+  <%= render 'nav' %>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+    <%= render 'flash' %>
+
+    <h2 class="sr-only">履修計画表</h2>
+
+    <%
+      mapped_categories = DemoHelper::PLANNER_GROUPS.flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
+      unmapped_enrollments = @enrollments.reject { |e| mapped_categories.include?(course_category(e.course.curriculum_key, @courses_by_key)) }
+      unmapped_plans = @plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+      year_totals = [1, 2, 3].index_with do |yr|
+        @enrollments.select { |e| enrollment_grade_year(e, @student) == yr && %w[completed registered in_progress].include?(e.enrollment_status) }
+                    .sum(BigDecimal('0')) { |e| (e.enrollment_status == 'completed' ? e.credits_earned : e.course.credits) || BigDecimal('0') }
+      end
+      planned_total = @plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
+    %>
+
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <!-- 計画表ツールバー -->
+      <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">年次別 履修計画マトリクス</h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            1〜3年次の修得済み・履修中科目と、今後の履修予定（将来計画）を区分ごとに管理できます。カタログ選択と自由入力の両方に対応しています。
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-xs font-semibold text-slate-600 bg-sky-50 border border-sky-200 text-sky-800 px-3 py-1.5 rounded-xl">
+            将来計画: <%= @plans.size %> 科目 (<%= credit_label(planned_total) %>)
+          </span>
+          <!-- 編集モード切替トグル -->
+          <label class="inline-flex items-center cursor-pointer bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+            <input type="checkbox" id="planner-edit-toggle" onchange="togglePlannerEdit(this.checked)" class="sr-only peer" checked>
+            <div class="w-8 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all relative peer-checked:bg-indigo-600"></div>
+            <span class="ml-2 text-xs font-semibold text-slate-700">編集モード (追加・削除を表示)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 5列マトリクステーブル -->
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-left table-fixed min-w-[980px]">
+          <thead>
+            <tr class="bg-slate-50/90 border-b border-slate-200 text-xs font-bold text-slate-600">
+              <th class="w-56 py-3.5 px-4 border-r border-slate-200">卒業要件区分</th>
+              <th class="py-3.5 px-3 border-r border-slate-200">
+                <div class="flex items-center justify-between">
+                  <span>1年次 (2024)</span>
+                  <span class="text-[11px] font-semibold text-slate-400">計 <%= credit_number(year_totals[1]) %>単位</span>
+                </div>
+              </th>
+              <th class="py-3.5 px-3 border-r border-slate-200">
+                <div class="flex items-center justify-between">
+                  <span>2年次 (2025)</span>
+                  <span class="text-[11px] font-semibold text-slate-400">計 <%= credit_number(year_totals[2]) %>単位</span>
+                </div>
+              </th>
+              <th class="py-3.5 px-3 border-r border-slate-200 bg-indigo-50/30">
+                <div class="flex items-center justify-between">
+                  <span class="text-indigo-700">3年次・現在 (2026)</span>
+                  <span class="text-[11px] font-semibold text-indigo-600">計 <%= credit_number(year_totals[3]) %>単位</span>
+                </div>
+              </th>
+              <th class="py-3.5 px-3 bg-sky-50/30">
+                <div class="flex items-center justify-between">
+                  <span class="text-sky-800">今後の履修予定 (将来計画)</span>
+                  <span class="text-[11px] font-semibold text-sky-700">+<%= credit_number(planned_total) %>単位</span>
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 text-xs">
+            <% DemoHelper::PLANNER_GROUPS.each do |group| %>
+              <% group_check = find_check(@assessment.projected, group[:check_id]) %>
+              <!-- 親グループ見出し行 -->
+              <tr class="bg-slate-100/80 border-y border-slate-200" data-planner-group="<%= group[:id] %>">
+                <td colspan="5" class="py-2 px-4">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="font-bold text-slate-800 text-xs uppercase tracking-wider" data-sync-group-title="<%= group[:id] %>"><%= group[:title] %></span>
+                    <span class="text-[11px] font-semibold text-slate-600">
+                      領域要件: <strong data-sync-group-req="<%= group[:id] %>"><%= group[:req] %></strong>単位以上
+                      <% if group_check %>
+                        （見込み算入: <%= credit_label(group_check.counted_credits) %> / <%= assessment_status_label(group_check.status) %>）
+                      <% end %>
+                    </span>
+                  </div>
+                </td>
+              </tr>
+
+              <% group[:rows].each do |row| %>
+                <%
+                  row_enrollments = @enrollments.select { |e| row[:categories].include?(course_category(e.course.curriculum_key, @courses_by_key)) }
+                  row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+                  row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_key)
+                  row_has_custom = row_plans.any? { |p| custom_course?(p.course.curriculum_key) }
+                  row_status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_has_custom)
+                  selectable_in_row = @curriculum.fetch('courses').select do |c|
+                    row[:categories].include?(c['category']) && c['selectable'] == true && @unavailable_keys.exclude?(c['key'])
+                  end
+                %>
+                <tr class="align-top hover:bg-slate-50/40" data-planner-row="<%= row[:id] %>">
+                  <!-- 区分名セル -->
+                  <th class="p-3.5 border-r border-slate-200 bg-slate-50/30">
+                    <div class="font-bold text-slate-800 text-sm leading-snug" data-sync-row-title="<%= row[:id] %>"><%= row[:name] %></div>
+                    <div class="mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold <%= row_status == :satisfied ? 'bg-emerald-50 text-emerald-700' : (row_status == :needs_review ? 'bg-amber-50 text-amber-800' : 'bg-sky-50 text-sky-700') %>">
+                      <span><%= credit_number(row_credits[:earned]) %></span>
+                      <% if row_credits[:planned].positive? %>
+                        <span class="ml-0.5">(+<%= credit_number(row_credits[:planned]) %>)</span>
+                      <% end %>
+                      <span class="mx-1">/</span>
+                      <% if row[:req] %>
+                        <span data-sync-row-req="<%= row[:id] %>"><%= row[:req] %></span> 単位
+                      <% else %>
+                        <span><%= row[:req_label] %></span>
+                      <% end %>
+                    </div>
+                    <p class="mt-1.5 text-[11px] text-slate-400 font-normal leading-relaxed"><%= row[:subtitle] %></p>
+                  </th>
+
+                  <!-- 1〜3年次セル -->
+                  <% [1, 2, 3].each do |yr| %>
+                    <% cell_enrollments = row_enrollments.select { |e| enrollment_grade_year(e, @student) == yr } %>
+                    <td class="p-2.5 border-r border-slate-200 space-y-2 <%= 'bg-indigo-50/15' if yr == 3 %>">
+                      <% if cell_enrollments.empty? %>
+                        <div class="text-center text-slate-300 py-4">—</div>
+                      <% else %>
+                        <% cell_enrollments.each do |enrollment| %>
+                          <%
+                            cat_course = @courses_by_key[enrollment.course.curriculum_key]
+                            course_num = cat_course&.dig('number') || enrollment.course.course_number
+                            is_current = DemoController::CURRENT_STATUSES.include?(enrollment.enrollment_status)
+                            is_other = %w[failed unknown].include?(enrollment.enrollment_status)
+                            card_credits = enrollment.enrollment_status == 'completed' ? enrollment.credits_earned : enrollment.course.credits
+                          %>
+                          <div data-enrollment="<%= enrollment.id %>"
+                               class="p-2 rounded-lg border <%= is_current ? 'border-sky-200 bg-sky-50/60' : (is_other ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200 bg-white') %> shadow-2xs">
+                            <div class="flex items-center justify-between gap-1 text-[10px] font-mono <%= is_current ? 'text-sky-700' : (is_other ? 'text-amber-800' : 'text-slate-400') %>">
+                              <span>
+                                <%= course_num.presence || '番号未設定' %>
+                                <% if is_current %>
+                                  <span class="font-sans font-semibold">(履修中)</span>
+                                <% elsif is_other %>
+                                  <span class="font-sans font-semibold">(<%= enrollment_status_label(enrollment.enrollment_status) %>)</span>
+                                <% end %>
+                              </span>
+                              <span class="font-sans font-bold <%= is_current ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 text-slate-700' %> px-1.5 py-0.5 rounded shrink-0">
+                                <%= credit_label(card_credits) %>
+                              </span>
+                            </div>
+                            <div class="font-semibold text-slate-800 mt-0.5 leading-snug"><%= enrollment.course.name %></div>
+                          </div>
+                        <% end %>
+                      <% end %>
+                    </td>
+                  <% end %>
+
+                  <!-- 4列目: 今後の履修予定 (将来計画) ＆ インライン追加フォーム -->
+                  <td class="p-2.5 bg-sky-50/10 space-y-2">
+                    <% row_plans.each do |plan| %>
+                      <%
+                        cat_course = @courses_by_key[plan.course.curriculum_key]
+                        course_num = cat_course&.dig('number') || plan.course.course_number
+                        is_custom = custom_course?(plan.course.curriculum_key)
+                      %>
+                      <div data-plan="<%= plan.id %>" data-course-key="<%= plan.course.curriculum_key %>"
+                           class="p-2 rounded-lg border <%= is_custom ? 'border-amber-300 bg-amber-50/70' : 'border-sky-200 bg-sky-50/70' %> shadow-2xs">
+                        <div class="flex items-center justify-between gap-1 text-[10px] font-mono <%= is_custom ? 'text-amber-800' : 'text-sky-700' %>">
+                          <span>
+                            <%= course_num.presence || (is_custom ? '自由入力' : '履修予定') %>
+                            <% if is_custom %>
+                              <span class="font-sans font-bold text-amber-800">(要確認)</span>
+                            <% else %>
+                              <span class="font-sans">(予定)</span>
+                            <% end %>
+                          </span>
+                          <span class="font-sans font-bold <%= is_custom ? 'bg-amber-100 text-amber-900' : 'bg-sky-100 text-sky-800' %> px-1.5 py-0.5 rounded shrink-0">
+                            <%= credit_label(plan_credits(plan, @courses_by_key)) %>
+                          </span>
+                        </div>
+                        <div class="mt-0.5 flex items-start justify-between gap-1.5">
+                          <div class="font-semibold text-slate-800 leading-snug"><%= plan.course.name %></div>
+                          <div class="planner-edit-ui shrink-0">
+                            <%= button_to '削除', demo_planned_course_path(plan), method: :delete,
+                                          class: 'px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 cursor-pointer',
+                                          form: { class: 'inline' },
+                                          aria: { label: "#{plan.course.name}を今後の履修予定から削除" } %>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
+
+                    <!-- インライン追加UI (カタログ選択 + 自由入力切替) -->
+                    <div class="planner-edit-ui">
+                      <button type="button" onclick="toggleRowAddBox('<%= row[:id] %>')"
+                              id="add-trigger-<%= row[:id] %>"
+                              class="w-full py-1.5 px-2 border border-dashed border-slate-300 rounded-lg text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-white text-xs font-medium transition cursor-pointer">
+                        ＋ 科目を追加
+                      </button>
+
+                      <div id="add-box-<%= row[:id] %>" class="hidden p-2.5 rounded-xl border border-indigo-200 bg-white shadow-xs space-y-2">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                          <div class="flex gap-1">
+                            <button type="button" onclick="switchRowAddMode('<%= row[:id] %>', 'catalogue')"
+                                    id="mode-btn-cat-<%= row[:id] %>"
+                                    class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white cursor-pointer">
+                              便覧から選択
+                            </button>
+                            <button type="button" onclick="switchRowAddMode('<%= row[:id] %>', 'custom')"
+                                    id="mode-btn-cus-<%= row[:id] %>"
+                                    class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer">
+                              自由入力
+                            </button>
+                          </div>
+                          <button type="button" onclick="toggleRowAddBox('<%= row[:id] %>')" class="text-slate-400 hover:text-slate-600 text-xs cursor-pointer">✕</button>
+                        </div>
+
+                        <!-- モードA: カタログから選択 -->
+                        <div id="add-mode-cat-<%= row[:id] %>">
+                          <% if selectable_in_row.any? %>
+                            <%= form_with url: demo_planned_courses_path, class: 'space-y-2' do |f| %>
+                              <select name="course_key" aria-label="<%= row[:name] %>の科目を選択"
+                                      class="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
+                                <% selectable_in_row.each do |c| %>
+                                  <option value="<%= c.fetch('key') %>">
+                                    <%= [c['number'], c.fetch('name'), "(#{credit_label(c['credits'])})"].compact.join(' ') %>
+                                  </option>
+                                <% end %>
+                              </select>
+                              <div class="flex justify-end">
+                                <%= f.submit '予定に追加', class: 'px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer' %>
+                              </div>
+                            <% end %>
+                          <% else %>
+                            <p class="text-[11px] text-slate-500 py-1">この区分の便覧掲載科目はすべて修得・追加済みか、自由入力対象（他学部等）です。「自由入力」タブから追加できます。</p>
+                          <% end %>
+                        </div>
+
+                        <!-- モードB: 自由入力で追加 (自由入力計画科目) -->
+                        <div id="add-mode-cus-<%= row[:id] %>" class="hidden">
+                          <%= form_with url: demo_planned_courses_path, scope: :custom_course, class: 'space-y-1.5' do |f| %>
+                            <%= f.hidden_field :category, value: row[:categories].first, id: nil %>
+                            <div class="flex gap-1.5">
+                              <%= f.text_field :course_number, placeholder: '科目番号 (任意)', id: nil,
+                                               class: 'w-2/3 border border-slate-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-indigo-500' %>
+                              <%= f.number_field :credits, value: 2, min: 0.5, step: 0.5, placeholder: '単位', required: true, id: nil,
+                                                 class: 'w-1/3 border border-slate-200 rounded-md px-2 py-1 text-xs text-right focus:outline-none focus:border-indigo-500' %>
+                            </div>
+                            <%= f.text_field :name, placeholder: '授業科目名を入力...', required: true, id: nil,
+                                             class: 'w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-indigo-500' %>
+                            <p class="text-[10px] text-amber-700 leading-tight">※便覧外の科目は「要確認」として計画に保存されます</p>
+                            <div class="flex justify-end pt-0.5">
+                              <%= f.submit '自由入力で追加', class: 'px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer' %>
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            <% end %>
+
+            <% if unmapped_enrollments.any? || unmapped_plans.any? %>
+              <tr class="bg-slate-100/80 border-y border-slate-200">
+                <td colspan="5" class="py-2 px-4 font-bold text-slate-700 text-xs">その他・卒業算入対象外</td>
+              </tr>
+              <tr class="align-top">
+                <th class="p-3.5 border-r border-slate-200 bg-slate-50/30">
+                  <div class="font-bold text-slate-700 text-sm">算入対象外・未分類</div>
+                  <p class="mt-1 text-[11px] text-slate-400 font-normal">情報科学演習など卒業単位に含めない科目</p>
+                </th>
+                <% [1, 2, 3].each do |yr| %>
+                  <% cell_enrollments = unmapped_enrollments.select { |e| enrollment_grade_year(e, @student) == yr } %>
+                  <td class="p-2.5 border-r border-slate-200 space-y-2">
+                    <% cell_enrollments.each do |enrollment| %>
+                      <div data-enrollment="<%= enrollment.id %>" class="p-2 rounded-lg border border-slate-200 bg-slate-50">
+                        <div class="flex items-center justify-between text-[10px] text-slate-500">
+                          <span><%= enrollment_status_label(enrollment.enrollment_status) %></span>
+                          <span><%= credit_label(enrollment.assessment_entry[:credits]) %></span>
+                        </div>
+                        <div class="font-semibold text-slate-800 mt-0.5"><%= enrollment.course.name %></div>
+                      </div>
+                    <% end %>
+                  </td>
+                <% end %>
+                <td class="p-2.5 space-y-2">
+                  <% unmapped_plans.each do |plan| %>
+                    <div data-plan="<%= plan.id %>" data-course-key="<%= plan.course.curriculum_key %>" class="p-2 rounded-lg border border-amber-200 bg-amber-50">
+                      <div class="font-semibold text-slate-800"><%= plan.course.name %></div>
+                      <%= button_to '削除', demo_planned_course_path(plan), method: :delete, class: 'text-xs text-rose-600 underline' %>
+                    </div>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 全科目横断検索カタログ (#catalogue) -->
+    <section id="catalogue" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6" aria-labelledby="catalogue-heading">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 id="catalogue-heading" class="text-base font-bold text-slate-900">便覧カタログから科目を検索して追加</h2>
+          <p class="text-xs text-slate-500 mt-0.5">科目名・科目番号・区分で2024年度便覧の掲載科目を横断検索し、履修予定へ追加できます。</p>
+        </div>
+        <span class="text-xs font-semibold text-slate-500"><%= @catalogue.size %> 科目を表示中</span>
+      </div>
+
+      <%= form_with url: demo_path, method: :get, class: 'mt-4 grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto_auto]' do |form| %>
+        <div>
+          <%= form.label :q, '科目名・科目番号で検索', class: 'block text-xs font-semibold text-slate-600 mb-1' %>
+          <%= form.search_field :q, value: @query, placeholder: '例: 機械学習 / 知能326 / 英語',
+                                class: 'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500' %>
+        </div>
+        <div>
+          <%= form.label :category, '科目区分で絞り込み', class: 'block text-xs font-semibold text-slate-600 mb-1' %>
+          <%= form.select :category,
+                          @curriculum.fetch('courses').map { |course| course.fetch('category') }.uniq.map { |category| [category_label(category), category] },
+                          { include_blank: 'すべての区分', selected: @category },
+                          class: 'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500' %>
+        </div>
+        <%= form.submit '検索する', class: 'px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer h-9.5' %>
+        <%= link_to 'リセット', demo_path(tab: 'planner'), class: 'px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 text-center h-9.5 flex items-center justify-center' %>
+      <% end %>
+
+      <% if @catalogue.empty? %>
+        <p class="mt-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語や区分を変更するか、上のマトリクス表から「自由入力」で追加してください。</p>
+      <% else %>
+        <ul class="mt-4 divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1">
+          <% @catalogue.each do |course| %>
+            <% unavailable = catalogue_availability(course, unavailable_keys: @unavailable_keys, persisted_keys: @persisted_keys) %>
+            <li class="py-3" data-catalogue-key="<%= course.fetch('key') %>">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <% if course['number'].present? %>
+                      <span class="font-mono text-xs text-slate-400"><%= course['number'] %></span>
+                    <% end %>
+                    <h3 class="text-sm font-semibold text-slate-900"><%= course.fetch('name') %></h3>
+                    <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700"><%= category_label(course.fetch('category')) %></span>
+                    <span class="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700"><%= credit_label(course['credits']) %></span>
+                    <% if course['required'] %>
+                      <span class="rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">専門必修</span>
+                    <% end %>
+                  </div>
+                  <% if course['requires_approval'] %>
+                    <p class="mt-1 text-xs text-amber-800">※指導教員の履修承認確認が必要です</p>
+                  <% end %>
+                  <% if course['review_reason'].present? %>
+                    <p class="mt-1 text-xs text-amber-800">※要確認: <%= course['review_reason'] %></p>
+                  <% end %>
+                </div>
+                <% if unavailable %>
+                  <span class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-500"><%= unavailable %></span>
+                <% else %>
+                  <%= form_with url: demo_planned_courses_path, class: 'shrink-0' do |form| %>
+                    <%= form.hidden_field :course_key, value: course.fetch('key'), id: nil %>
+                    <%= form.submit '予定に追加', class: 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer', aria: { label: "#{course.fetch('name')}を今後の履修予定に追加" } %>
+                  <% end %>
+                <% end %>
+              </div>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </section>
+  </main>
+</div>
+
+<script>
+  function togglePlannerEdit(isEditing) {
+    document.querySelectorAll('.planner-edit-ui').forEach(el => {
+      el.style.display = isEditing ? '' : 'none';
+    });
+  }
+
+  function toggleRowAddBox(rowId) {
+    const box = document.getElementById('add-box-' + rowId);
+    const trigger = document.getElementById('add-trigger-' + rowId);
+    if (!box || !trigger) return;
+
+    const isHidden = box.classList.contains('hidden');
+    if (isHidden) {
+      box.classList.remove('hidden');
+      trigger.classList.add('hidden');
+    } else {
+      box.classList.add('hidden');
+      trigger.classList.remove('hidden');
+    }
+  }
+
+  function switchRowAddMode(rowId, mode) {
+    const catBox = document.getElementById('add-mode-cat-' + rowId);
+    const cusBox = document.getElementById('add-mode-cus-' + rowId);
+    const catBtn = document.getElementById('mode-btn-cat-' + rowId);
+    const cusBtn = document.getElementById('mode-btn-cus-' + rowId);
+    if (!catBox || !cusBox) return;
+
+    if (mode === 'custom') {
+      catBox.classList.add('hidden');
+      cusBox.classList.remove('hidden');
+      cusBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white cursor-pointer';
+      catBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer';
+    } else {
+      cusBox.classList.add('hidden');
+      catBox.classList.remove('hidden');
+      catBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white cursor-pointer';
+      cusBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer';
+    }
+  }
+</script>
