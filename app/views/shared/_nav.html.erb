@@ -1,0 +1,21 @@
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-0 sm:h-16 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 class="text-base font-bold text-slate-900 leading-tight"><%= app_name %></h1>
+      <p class="text-xs text-slate-500">工学部 知能情報コース (<%= @student.admission_year %>年度基準)</p>
+    </div>
+
+    <nav class="flex overflow-x-auto max-w-full space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60" aria-label="画面の切り替え">
+      <% [[root_path, '進捗ダッシュボード'],
+          [requirements_path, '卒業要件の編集'],
+          [plan_path, '履修計画表'],
+          [profile_path, 'マイページ']].each do |path, label| %>
+        <% active = current_page?(path) %>
+        <%= link_to label, path,
+              aria: { current: ('page' if active) },
+              class: ['whitespace-nowrap px-3.5 py-1.5 rounded-lg text-xs sm:text-sm transition-all',
+                      active ? 'bg-white text-indigo-600 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'] %>
+      <% end %>
+    </nav>
+  </div>
+</header>

@@ -1,0 +1,12 @@
+<% if flash[:notice] %>
+  <div role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs sm:text-sm font-medium text-emerald-900 flex items-center justify-between">
+    <span><%= flash[:notice] %></span>
+    <button type="button" onclick="this.parentElement.remove()" class="text-emerald-700 hover:text-emerald-950 ml-4 cursor-pointer">✕</button>
+  </div>
+<% end %>
+<% if flash[:alert] %>
+  <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs sm:text-sm font-medium text-rose-900 flex items-center justify-between">
+    <span><%= flash[:alert] %></span>
+    <button type="button" onclick="this.parentElement.remove()" class="text-rose-700 hover:text-rose-950 ml-4 cursor-pointer">✕</button>
+  </div>
+<% end %>
