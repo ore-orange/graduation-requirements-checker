@@ -20,11 +20,15 @@ module StudentWorkspace
     head :not_found unless local_demo_access?
   end
 
+  # 全画面で必要になる最小限。履修履歴は使う画面だけが enrollments で読む。
   def load_workspace
     @student = DemoAccount.student
     @curriculum = CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
     @courses_by_key = @curriculum.fetch('courses').index_by { |course| course.fetch('key') }
-    @enrollments = @student.student_courses.includes(:course).order(:academic_year, :id).to_a
+  end
+
+  def enrollments
+    @enrollments ||= @student.student_courses.includes(:course).order(:academic_year, :id).to_a
   end
 
   def load_plans
@@ -32,6 +36,7 @@ module StudentWorkspace
   end
 
   def load_history
+    enrollments
     @completed = @enrollments.select { |enrollment| enrollment.enrollment_status == 'completed' }
     @current = @enrollments.select { |enrollment| CURRENT_STATUSES.include?(enrollment.enrollment_status) }
     @other_enrollments = @enrollments - @completed - @current

@@ -83,7 +83,7 @@ class PlanCoursesController < ApplicationController
   end
 
   def unavailable_course?(course)
-    @enrollments.any? do |enrollment|
+    enrollments.any? do |enrollment|
       enrollment.course_id == course.id && BLOCKED_STATUSES.include?(enrollment.enrollment_status)
     end || @student.planned_courses.exists?(course_id: course.id)
   end
