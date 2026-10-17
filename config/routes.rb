@@ -10,11 +10,11 @@ Rails.application.routes.draw do
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
   # ルートは進捗ダッシュボード
-  root 'demo#show'
+  root 'dashboard#show'
 
-  get 'requirements', to: 'demo#builder', as: :requirements
-  get 'plan', to: 'demo#planner', as: :plan
-  get 'profile', to: 'demo#profile', as: :profile
-  post 'plan/courses', to: 'demo#create', as: :plan_courses
-  delete 'plan/courses/:id', to: 'demo#destroy', as: :plan_course
+  get 'requirements', to: 'requirements#show'
+  get 'plan', to: 'plans#show'
+  get 'profile', to: 'profiles#show'
+
+  resources :plan_courses, only: %i[create destroy], path: 'plan/courses'
 end

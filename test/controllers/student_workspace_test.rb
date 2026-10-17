@@ -3,7 +3,7 @@
 require 'test_helper'
 require 'minitest/mock'
 
-class DemoControllerTest < ActionDispatch::IntegrationTest
+class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   setup do
     @previous_proxy = ENV.delete('LOCAL_DEMO_PROXY')
     host! 'localhost'

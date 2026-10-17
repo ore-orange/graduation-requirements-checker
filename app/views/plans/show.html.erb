@@ -2,15 +2,15 @@
 <% content_for :full_bleed, true %>
 
 <div class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
-  <%= render 'nav' %>
+  <%= render 'shared/nav' %>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-    <%= render 'flash' %>
+    <%= render 'shared/flash' %>
 
     <h2 class="sr-only">履修計画表</h2>
 
     <%
-      mapped_categories = DemoHelper::PLANNER_GROUPS.flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
+      mapped_categories = StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
       unmapped_enrollments = @enrollments.reject { |e| mapped_categories.include?(course_category(e.course.curriculum_key, @courses_by_key)) }
       unmapped_plans = @plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
       year_totals = [1, 2, 3].index_with do |yr|
@@ -75,7 +75,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200 text-xs">
-            <% DemoHelper::PLANNER_GROUPS.each do |group| %>
+            <% StudentWorkspaceHelper::PLANNER_GROUPS.each do |group| %>
               <% group_check = find_check(@assessment.projected, group[:check_id]) %>
               <!-- 親グループ見出し行 -->
               <tr class="bg-slate-100/80 border-y border-slate-200" data-planner-group="<%= group[:id] %>">
@@ -133,7 +133,7 @@
                           <%
                             cat_course = @courses_by_key[enrollment.course.curriculum_key]
                             course_num = cat_course&.dig('number') || enrollment.course.course_number
-                            is_current = DemoController::CURRENT_STATUSES.include?(enrollment.enrollment_status)
+                            is_current = StudentWorkspace::CURRENT_STATUSES.include?(enrollment.enrollment_status)
                             is_other = %w[failed unknown].include?(enrollment.enrollment_status)
                             card_credits = enrollment.enrollment_status == 'completed' ? enrollment.credits_earned : enrollment.course.credits
                           %>

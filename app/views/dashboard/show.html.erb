@@ -18,10 +18,10 @@
 %>
 
 <div class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
-  <%= render 'nav' %>
+  <%= render 'shared/nav' %>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-    <%= render 'flash' %>
+    <%= render 'shared/flash' %>
 
     <h2 class="sr-only">進捗ダッシュボード</h2>
 
@@ -114,7 +114,7 @@
         </div>
 
         <div id="dashboard-groups-container" class="divide-y divide-slate-200">
-          <% DemoHelper::PLANNER_GROUPS.each do |group| %>
+          <% StudentWorkspaceHelper::PLANNER_GROUPS.each do |group| %>
             <%
               group_actual = find_check(@assessment.actual, group[:check_id])
               group_projected = find_check(@assessment.projected, group[:check_id])
@@ -233,10 +233,10 @@
 
       <!-- 実績判定・見込み判定の詳細カード (不足科目・算入理由の確認) -->
       <div id="assessments" class="grid items-start gap-6 lg:grid-cols-2">
-        <%= render 'snapshot', snapshot: @assessment.actual, kind: 'actual',
+        <%= render 'shared/snapshot', snapshot: @assessment.actual, kind: 'actual',
                                heading: '実績判定（現在の修得状況）',
                                description: '修得済みの科目のみで算入単位と必修条件を判定しています。' %>
-        <%= render 'snapshot', snapshot: @assessment.projected, kind: 'projected',
+        <%= render 'shared/snapshot', snapshot: @assessment.projected, kind: 'projected',
                                heading: '見込み判定（履修予定を含めた見込み）',
                                description: '修得済み ＋ 履修中 ＋ 将来計画で判定しています。未確認事項がある場合は「要確認」となります。' %>
       </div>
