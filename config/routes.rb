@@ -9,13 +9,12 @@ Rails.application.routes.draw do
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
-  # Defines the root path route ("/")
-  root "home#index"
+  # ルートは進捗ダッシュボード
+  root 'demo#show'
 
-  get 'demo', to: 'demo#show', as: :demo
-  get 'demo/builder', to: 'demo#builder', as: :demo_builder
-  get 'demo/planner', to: 'demo#planner', as: :demo_planner
-  get 'demo/profile', to: 'demo#profile', as: :demo_profile
-  post 'demo/planned_courses', to: 'demo#create', as: :demo_planned_courses
-  delete 'demo/planned_courses/:id', to: 'demo#destroy', as: :demo_planned_course
+  get 'requirements', to: 'demo#builder', as: :requirements
+  get 'plan', to: 'demo#planner', as: :plan
+  get 'profile', to: 'demo#profile', as: :profile
+  post 'plan/courses', to: 'demo#create', as: :plan_courses
+  delete 'plan/courses/:id', to: 'demo#destroy', as: :plan_course
 end

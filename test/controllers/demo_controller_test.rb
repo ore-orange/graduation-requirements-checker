@@ -27,7 +27,7 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
 
   test 'reads persisted history and starts with an empty plan without creating data' do
     assert_no_difference ['Student.count', 'StudentCourse.count', 'PlannedCourse.count'] do
-      get demo_path, env: local_env
+      get root_path, env: local_env
     end
 
     assert_response :success
@@ -35,7 +35,7 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     assert_select '[data-assessment="projected"]', count: 1
     assert_select '[data-plan]', count: 0
 
-    get demo_planner_path, env: local_env
+    get plan_path, env: local_env
 
     @student.student_courses.each do |enrollment|
       assert_select "[data-enrollment='#{enrollment.id}']", count: 1
@@ -46,39 +46,39 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
 
   test 'adds persists restores and removes a planned course without changing history' do
     original_history = @student.student_courses.order(:id).map(&:attributes)
-    get demo_path, env: local_env
+    get root_path, env: local_env
     original_actual = assessment_attributes('actual')
     original_projected_credits = BigDecimal(assessment_attributes('projected').fetch('data-counted-credits'))
 
     assert_difference '@student.planned_courses.count', 1 do
-      post demo_planned_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
+      post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
     end
     assert_response :see_other
-    assert_redirected_to demo_planner_path
+    assert_redirected_to plan_path
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
 
-    get demo_planner_path, env: local_env
+    get plan_path, env: local_env
     assert_response :success
     assert_select "[data-plan='#{plan.id}'][data-course-key='#{@candidate.fetch('key')}']", count: 1
 
-    get demo_path, env: local_env
+    get root_path, env: local_env
     assert_equal original_actual, assessment_attributes('actual')
     assert_operator BigDecimal(assessment_attributes('projected').fetch('data-counted-credits')), :>=,
                     original_projected_credits
 
     # A fresh request restores the persisted plan rather than relying on submitted state.
-    get demo_planner_path, env: local_env
+    get plan_path, env: local_env
     assert_select "[data-plan='#{plan.id}']", count: 1
 
     assert_difference '@student.planned_courses.count', -1 do
-      delete demo_planned_course_path(plan), env: local_env
+      delete plan_course_path(plan), env: local_env
     end
     assert_response :see_other
-    assert_redirected_to demo_planner_path
-    get demo_planner_path, env: local_env
+    assert_redirected_to plan_path
+    get plan_path, env: local_env
     assert_select '[data-plan]', count: 0
 
-    get demo_path, env: local_env
+    get root_path, env: local_env
     assert_equal original_actual, assessment_attributes('actual')
     assert_equal original_projected_credits,
                  BigDecimal(assessment_attributes('projected').fetch('data-counted-credits'))
@@ -86,18 +86,18 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'future mandatory courses improve the projected requirement but not actual history' do
-    get demo_path, env: local_env
+    get root_path, env: local_env
     assert_select '[data-assessment="projected"] [data-check="required_all"][data-status="unmet"]', count: 1
     original_actual = assessment_attributes('actual')
     initial_credits = BigDecimal(assessment_attributes('projected').fetch('data-counted-credits'))
     future_required = @courses.select { |course| course['required'] && @occupied_keys.exclude?(course.fetch('key')) }
 
     future_required.each do |course|
-      post demo_planned_courses_path, params: { course_key: course.fetch('key') }, env: local_env
+      post plan_courses_path, params: { course_key: course.fetch('key') }, env: local_env
       assert_response :see_other
     end
 
-    get demo_path, env: local_env
+    get root_path, env: local_env
     assert_select '[data-assessment="projected"] [data-check="required_all"][data-status="satisfied"]', count: 1
     assert_select '[data-assessment="actual"] [data-check="required_all"][data-status="unmet"]', count: 1
     assert_select '[data-assessment="projected"][data-status="satisfied"]', count: 1
@@ -105,8 +105,8 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     assert_operator BigDecimal(assessment_attributes('projected').fetch('data-counted-credits')), :>, initial_credits
 
     plan = @student.planned_courses.find_by!(course: course_record(future_required.first))
-    delete demo_planned_course_path(plan), env: local_env
-    get demo_path, env: local_env
+    delete plan_course_path(plan), env: local_env
+    get root_path, env: local_env
     assert_select '[data-assessment="projected"] [data-check="required_all"][data-status="unmet"]', count: 1
     assert_select '[data-assessment="projected"][data-status="unmet"]', count: 1
   end
@@ -117,15 +117,15 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     keys = @occupied_keys + [prohibited.fetch('key'), 'not-a-catalogue-course', nil, ['not-a-string']]
     keys.each do |key|
       assert_no_difference 'PlannedCourse.count' do
-        post demo_planned_courses_path, params: { course_key: key }, env: local_env
+        post plan_courses_path, params: { course_key: key }, env: local_env
       end
       assert_response :see_other
-      assert_redirected_to demo_planner_path
+      assert_redirected_to plan_path
     end
 
-    post demo_planned_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
+    post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
     assert_no_difference 'PlannedCourse.count' do
-      post demo_planned_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
+      post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
     end
     assert_response :see_other
   end
@@ -136,7 +136,7 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     foreign_plan = other.planned_courses.create!(course: course_record(@candidate))
 
     assert_no_difference 'PlannedCourse.count' do
-      delete demo_planned_course_path(foreign_plan), params: { student_id: other.id }, env: local_env
+      delete plan_course_path(foreign_plan), params: { student_id: other.id }, env: local_env
     end
     assert_response :not_found
     assert foreign_plan.reload.persisted?
@@ -145,38 +145,38 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
 
     assert_difference '@student.planned_courses.count', 1 do
       assert_no_difference 'other.planned_courses.count' do
-        post demo_planned_courses_path, params: request_params, env: local_env
+        post plan_courses_path, params: request_params, env: local_env
       end
     end
     assert_response :see_other
-    get demo_planner_path, params: { student_id: other.id, account: other.user.email }, env: local_env
+    get plan_path, params: { student_id: other.id, account: other.user.email }, env: local_env
     assert_select "[data-plan='#{foreign_plan.id}']", count: 0
   end
 
   test 'catalogue search filters visible courses by name and category' do
-    get demo_planner_path, params: { q: @candidate.fetch('name'), category: @candidate.fetch('category') },
-                           env: local_env
+    get plan_path, params: { q: @candidate.fetch('name'), category: @candidate.fetch('category') },
+                   env: local_env
     assert_response :success
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
     @courses.reject { |course| course['category'] == @candidate.fetch('category') }.each do |course|
       assert_select "[data-catalogue-key='#{course.fetch('key')}']", count: 0
     end
 
-    get demo_planner_path, params: { q: 'does-not-exist-in-the-catalogue' }, env: local_env
+    get plan_path, params: { q: 'does-not-exist-in-the-catalogue' }, env: local_env
     assert_select '[data-catalogue-key]', count: 0
   end
 
   test 'unknown history is shown and makes both assessments need review without earning credits' do
-    get demo_path, env: local_env
+    get root_path, env: local_env
     original_actual_credits = assessment_attributes('actual').fetch('data-counted-credits')
     unknown = @student.student_courses.create!(course: course_record(@candidate), academic_year: 2026,
                                                enrollment_status: 'unknown', credits_earned: nil)
 
-    get demo_planner_path, env: local_env
+    get plan_path, env: local_env
 
     assert_select "[data-enrollment='#{unknown.id}']", count: 1
 
-    get demo_path, env: local_env
+    get root_path, env: local_env
 
     assert_select '[data-assessment="actual"][data-status="needs_review"]', count: 1
     assert_select '[data-assessment="projected"][data-status="needs_review"]', count: 1
@@ -184,35 +184,35 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'failed history is not projected as earned and may be explicitly planned again' do
-    get demo_path, env: local_env
+    get root_path, env: local_env
     before_actual = assessment_attributes('actual')
     before_projected = assessment_attributes('projected')
     failed = @student.student_courses.create!(
       course: course_record(@candidate), academic_year: 2025, enrollment_status: 'failed', credits_earned: 0
     )
 
-    get demo_planner_path, env: local_env
+    get plan_path, env: local_env
 
     assert_select "[data-enrollment='#{failed.id}']", count: 1
 
-    get demo_path, env: local_env
+    get root_path, env: local_env
 
     assert_equal before_actual, assessment_attributes('actual')
     assert_equal before_projected, assessment_attributes('projected')
 
     assert_difference '@student.planned_courses.count', 1 do
-      post demo_planned_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
+      post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
     end
     assert_response :see_other
     assert_equal 'failed', failed.reload.enrollment_status
   end
 
   test 'custom free-text course persists marks projected as needs_review and cleans up on delete' do
-    get demo_path, env: local_env
+    get root_path, env: local_env
     original_actual = assessment_attributes('actual')
 
     assert_difference ['@student.planned_courses.count', 'Course.count'], 1 do
-      post demo_planned_courses_path,
+      post plan_courses_path,
            params: { custom_course: { name: '他学部情報法特論', course_number: '他学901', credits: '2', category: 'free' } },
            env: local_env
     end
@@ -221,15 +221,15 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     assert_predicate plan.course.curriculum_key, :present?
     assert plan.course.curriculum_key.start_with?('custom:free:')
 
-    get demo_planner_path, env: local_env
+    get plan_path, env: local_env
     assert_select "[data-plan='#{plan.id}']", count: 1
 
-    get demo_path, env: local_env
+    get root_path, env: local_env
     assert_equal original_actual, assessment_attributes('actual')
     assert_select '[data-assessment="projected"][data-status="needs_review"]', count: 1
 
     assert_difference ['@student.planned_courses.count', 'Course.count'], -1 do
-      delete demo_planned_course_path(plan), env: local_env
+      delete plan_course_path(plan), env: local_env
     end
     assert_response :see_other
   end
@@ -238,7 +238,7 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     custom = { name: @candidate.fetch('name'), course_number: '', credits: '2', category: 'advanced' }
     assert_difference '@student.planned_courses.count', 1 do
       assert_no_difference 'Course.count' do
-        post demo_planned_courses_path, params: { custom_course: custom }, env: local_env
+        post plan_courses_path, params: { custom_course: custom }, env: local_env
       end
     end
     plan = @student.planned_courses.order(:id).last
@@ -249,13 +249,13 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     @student.user.update!(email: 'not-the-demo-account@example.test')
 
     assert_no_difference ['User.count', 'Student.count', 'StudentCourse.count', 'PlannedCourse.count'] do
-      get demo_path, env: local_env
+      get root_path, env: local_env
     end
     assert_response :service_unavailable
     assert_select '[data-assessment]', count: 0
 
     assert_no_difference 'PlannedCourse.count' do
-      post demo_planned_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
+      post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
     end
     assert_response :service_unavailable
   end
@@ -274,15 +274,15 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
     assert_demo_denied(proxy_env)
 
     ENV['LOCAL_DEMO_PROXY'] = '1'
-    get demo_path, env: proxy_env
+    get root_path, env: proxy_env
     assert_response :success
     assert_difference '@student.planned_courses.count', 1 do
-      post demo_planned_courses_path, params: { course_key: @candidate.fetch('key') }, env: proxy_env
+      post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: proxy_env
     end
     assert_response :see_other
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
     assert_difference '@student.planned_courses.count', -1 do
-      delete demo_planned_course_path(plan), env: proxy_env
+      delete plan_course_path(plan), env: proxy_env
     end
     assert_response :see_other
 
@@ -317,24 +317,24 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
   def assert_demo_denied(request_env)
     plan = @student.planned_courses.create!(course: course_record(@candidate))
     assert_no_difference ['StudentCourse.count', 'PlannedCourse.count'] do
-      get demo_path, env: request_env
+      get root_path, env: request_env
       assert_response :not_found
       assert_select '[data-assessment]', count: 0
       assert_select '[data-demo-setup]', count: 0
 
-      post demo_planned_courses_path, params: { course_key: @candidate.fetch('key') }, env: request_env
+      post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: request_env
       assert_response :not_found
-      delete demo_planned_course_path(plan), env: request_env
+      delete plan_course_path(plan), env: request_env
       assert_response :not_found
     end
     plan.destroy!
   end
 
   test '各画面が固有のURLで表示される' do
-    { demo_path => '進捗ダッシュボード',
-      demo_builder_path => '卒業要件の編集',
-      demo_planner_path => '履修計画表',
-      demo_profile_path => 'マイページ' }.each do |path, label|
+    { root_path => '進捗ダッシュボード',
+      requirements_path => '卒業要件の編集',
+      plan_path => '履修計画表',
+      profile_path => 'マイページ' }.each do |path, label|
       get path, env: local_env
 
       assert_response :success, "#{path} が表示できない"
@@ -343,15 +343,15 @@ class DemoControllerTest < ActionDispatch::IntegrationTest
   end
 
   test '各画面にほかの画面へのリンクがある' do
-    get demo_path, env: local_env
+    get root_path, env: local_env
 
-    assert_select 'a[href=?]', demo_builder_path
-    assert_select 'a[href=?]', demo_planner_path
-    assert_select 'a[href=?]', demo_profile_path
+    assert_select 'a[href=?]', requirements_path
+    assert_select 'a[href=?]', plan_path
+    assert_select 'a[href=?]', profile_path
   end
 
   test '進捗ダッシュボードは履修計画表の中身を描画しない' do
-    get demo_path, env: local_env
+    get root_path, env: local_env
 
     assert_select '[data-catalogue-key]', count: 0
     assert_select '[data-enrollment]', count: 0
