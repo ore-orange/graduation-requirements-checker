@@ -43,8 +43,12 @@
             <td class="p-1.5"><%= text_field_tag "#{key}[course_number]", row.course_number, class: field_class, 'aria-label': "#{row.name} 科目番号" %></td>
             <td class="p-1.5">
               <%= text_field_tag "#{key}[name]", row.name, class: field_class, 'aria-label': "#{row.name} 科目名" %>
-              <% if row.course_candidates.exists? %>
-                <%= select_tag "#{key}[course_choice]", course_choice_options(row), class: "#{field_class} mt-1 text-xs", 'aria-label': "#{row.name} 既存の講義との関係" %>
+              <% candidates = row.course_candidates.to_a %>
+              <% if candidates.any? %>
+                <div class="mt-1 flex flex-wrap items-center gap-1 text-xs <%= row.course_choice_resolved? ? 'text-slate-600' : 'font-bold text-red-700' %>">
+                  <span><%= row.course_choice_resolved? ? '既存の講義と被っています' : '既存の講義と被っています。選んでください' %></span>
+                  <%= select_tag "#{key}[course_choice]", course_choice_options(row, candidates), class: 'w-auto max-w-44 rounded border border-slate-300 bg-white px-1 py-0.5 text-xs font-normal text-slate-900', 'aria-label': "#{row.name} 既存の講義との関係" %>
+                </div>
               <% end %>
             </td>
             <td class="p-1.5"><%= number_field_tag "#{key}[credits]", row.credits, min: 0, max: 999, step: 1, class: field_class, 'aria-label': "#{row.name} 単位" %></td>

@@ -40,7 +40,7 @@ erDiagram
 | student_program_assignments | student/program/status必須、assigned_at/ended_at任意 |
 | planned_courses | student/course必須、組み合わせは一意。将来科目の一覧として保存し、年度・学期を持たない |
 | course_offerings | 科目の学期ごとの開講情報（授業時間配当表の1行）。course/semester（前期・後期）必須。講義コード（学期内で一意）、必修/選択、受講年次（整数配列）、曜日、時限（整数配列）、開講区分（1Q・2Q・半年・集中）は任意。集中講義は曜日・時限なし |
-| timetable_uploads / timetable_upload_rows | 講義登録画面でアップロードしたPDFの確認待ちデータ。値はPDFの表記のまま文字列で持ち、確認済みの行だけを保存時にcourses・course_offeringsへ入れ、保存または破棄で消える。PDF本体は保存しない。名前・番号が同じ既存の講義があっても自動では同じ講義にせず、行ごとに人が選んだ結果をcourse_id（既存の講義として扱う）かregister_as_new（別の講義として登録する）に持つ |
+| timetable_uploads / timetable_upload_rows | 講義登録画面でアップロードしたPDFの確認待ちデータ。値はPDFの表記のまま文字列で持ち、確認済みの行だけを保存時にcourses・course_offeringsへ入れ、保存または破棄で消える。PDF本体は保存しない。科目番号・科目名がどちらも完全に一致する既存の講義（被り）がちょうど1件で単位も同じなら、その講義を既定の選択（course_id）にする。複数ある・単位が違う行は未選択のままにし、人が選ぶまで確認済みにできない。「別の講義として登録する」はregister_as_newに持つ。保存できるのは人が確認済みにした行だけ |
 
 外部キーにカスケード削除は指定せず、Modelも履歴がある親のdestroyを拒否する。
 データの削除・退会・保持期間は別途仕様が必要。個人情報を永続保持する方針ではない。

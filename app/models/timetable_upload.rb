@@ -14,7 +14,11 @@ class TimetableUpload < ApplicationRecord
 
     transaction do
       import = create!(semester: semester, source_filename: filename)
-      parsed.each_with_index { |row, index| import.rows.create!(TimetableUploadRow.attributes_from_parsed(row, index)) }
+      parsed.each_with_index do |row, index|
+        upload_row = import.rows.build(TimetableUploadRow.attributes_from_parsed(row, index))
+        upload_row.assign_default_course_choice
+        upload_row.save!
+      end
       import
     end
   end

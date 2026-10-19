@@ -25,6 +25,24 @@ class TimetableUploadRow < ApplicationRecord
     register_as_new || course_id.present?
   end
 
+  # 候補がちょうど1件で、単位も同じなら、その講義が既定の選択。
+  # 候補が複数、または単位が違う(別の講義かもしれない)ときは、既定を決めず人に選んでもらう。
+  def default_course
+    candidates = course_candidates.limit(2).to_a
+    candidates.first if candidates.one? && candidates.first.credits == credits_value
+  end
+
+  # まだ選ばれていない行に、既定の選択を付ける(人が選んだ内容は上書きしない)
+  def assign_default_course_choice
+    return if course_choice_resolved?
+
+    self.course = default_course
+  end
+
+  def credits_value
+    Integer(credits.to_s, 10, exception: false)
+  end
+
   # セレクトボックスの現在値。'new' か既存講義のIDで、未選択は''。
   def course_choice
     return 'new' if register_as_new
@@ -39,10 +57,17 @@ class TimetableUploadRow < ApplicationRecord
     self.course_id = value.match?(/\A\d+\z/) && course_candidates.exists?(id: value) ? value.to_i : nil
   end
 
-  # 画面から送られた値を反映する(保存はしない)。course_choiceが無ければ紐付けは変えない。
+  # 画面から送られた値を反映する(保存はしない)。
+  # 名前・番号を直したときは候補が変わるので、それまでの選択を捨てて既定から選び直す。
   def apply_edit(values)
     EDITABLE.each { |field| self[field] = values[field].to_s.strip if values.key?(field) }
-    apply_course_choice(values[:course_choice]) if values.key?(:course_choice)
+    if course_number_changed? || name_changed?
+      self.course = nil
+      self.register_as_new = false
+    elsif values.key?(:course_choice)
+      apply_course_choice(values[:course_choice])
+    end
+    assign_default_course_choice
   end
 
   def importer_values(review: '')
@@ -58,10 +83,15 @@ class TimetableUploadRow < ApplicationRecord
     importer_values(review: confirmed ? '' : (review_reason.presence || '未確認'))
   end
 
+  def credits_mismatch_message
+    "選んだ既存の講義の単位(#{course.credits})と違います。単位を直すか、別の講義として登録してください。"
+  end
+
   # 今の値がDBに入れられる形か(確認済みにしてよいか)。問題があればその一覧を返す。
   def problems
     errors = TimetableImport::Importer::RowAttributes.new(importer_values).errors
     errors << TimetableImport::Importer::UNRESOLVED_MESSAGE if course_candidates.exists? && !course_choice_resolved?
+    errors << credits_mismatch_message if course && course.credits != credits_value
     errors
   end
 end

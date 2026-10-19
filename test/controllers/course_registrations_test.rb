@@ -291,27 +291,20 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_select 'tbody tr', 5
   end
 
-  test 'a registered course with the same name and number needs an explicit choice' do
-    registered_course
-    upload = create_upload
-    row = upload.rows.first
-
-    get timetable_upload_path(upload), env: ENV_LOCAL
-    assert_select "select[name='rows[#{row.id}][course_choice]'] option", text: /既存の講義として扱う/
-    assert_select "select[name='rows[#{row.id}][course_choice]'] option", text: /別の講義として新しく登録する/
-
-    update_rows(upload, changes: { row => {} }, confirmed: [row])
-    assert_not row.reload.confirmed
-    follow_redirect!
-    assert_select "tbody#row-#{row.id} td", text: /同じ講義として扱うか、別の講義として登録するか/
-  end
-
-  test 'choosing the existing course links the offering without creating a course' do
+  # 同じ名前・番号の講義が1件で単位も同じなら、既存の講義が既定で選ばれる
+  test 'a single matching course with the same credits is selected by default and shown compactly' do
     course = registered_course
     upload = create_upload
     row = upload.rows.first
 
-    update_rows(upload, changes: { row => { 'course_choice' => course.id.to_s } }, confirmed: [row])
+    assert_equal course, row.course
+    get timetable_upload_path(upload), env: ENV_LOCAL
+    assert_select "select[name='rows[#{row.id}][course_choice]'] option[selected]", text: '既存の講義として扱う'
+    assert_select "select[name='rows[#{row.id}][course_choice]'] option", text: '別の講義として登録'
+    assert_select "select[name='rows[#{row.id}][course_choice]'] option", text: '選んでください', count: 0
+    assert_select "tbody#row-#{row.id} .text-red-700", 0
+
+    update_rows(upload, changes: { row => {} }, confirmed: [row])
     assert_predicate row.reload, :confirmed
 
     assert_no_difference 'Course.count' do
@@ -322,6 +315,62 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_equal course, CourseOffering.find_by!(lecture_code: '610000071').course
   end
 
+  test 'rows without an overlapping course show no choice at all' do
+    upload = create_upload
+    row = upload.rows.first
+
+    get timetable_upload_path(upload), env: ENV_LOCAL
+
+    assert_nil row.course
+    assert_select "select[name='rows[#{row.id}][course_choice]']", 0
+    assert_select 'p', text: /被っています/, count: 0
+    assert_select 'span', text: /被っています/, count: 0
+  end
+
+  test 'several matching courses leave the choice open and block confirming until chosen' do
+    first = registered_course
+    Course.create!(course_number: '工共100', name: '工学基礎演習', credits: 2)
+    upload = create_upload
+    row = upload.rows.first
+
+    assert_nil row.course
+    get timetable_upload_path(upload), env: ENV_LOCAL
+    assert_select "select[name='rows[#{row.id}][course_choice]'] option", text: '選んでください'
+    assert_select "tbody#row-#{row.id} .text-red-700", text: /選んでください/
+
+    update_rows(upload, changes: { row => {} }, confirmed: [row])
+    assert_not row.reload.confirmed
+    follow_redirect!
+    assert_select "tbody#row-#{row.id} td", text: /同じ講義として扱うか、別の講義として登録するか/
+
+    update_rows(upload, changes: { row => { 'course_choice' => first.id.to_s } }, confirmed: [row])
+    assert_predicate row.reload, :confirmed
+    assert_equal first, row.course
+  end
+
+  test 'a matching course with different credits is not selected by default' do
+    Course.create!(course_number: '工共100', name: '工学基礎演習', credits: 1)
+    upload = create_upload
+    row = upload.rows.first
+
+    assert_nil row.course
+    assert_not row.register_as_new
+    update_rows(upload, changes: { row => {} }, confirmed: [row])
+    assert_not row.reload.confirmed
+  end
+
+  test 'choosing the existing course and then changing the credits cannot be confirmed' do
+    registered_course
+    upload = create_upload
+    row = upload.rows.first
+
+    update_rows(upload, changes: { row => { 'credits' => '4' } }, confirmed: [row])
+
+    assert_not row.reload.confirmed
+    follow_redirect!
+    assert_select "tbody#row-#{row.id} td", text: /選んだ既存の講義の単位\(2\)と違います/
+  end
+
   test 'choosing a new course registers a separate course even with the same name and number' do
     registered_course
     upload = create_upload
@@ -329,6 +378,8 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
 
     update_rows(upload, changes: { row => { 'course_choice' => 'new' } }, confirmed: [row])
     assert_predicate row.reload, :confirmed
+    assert_nil row.course
+    assert_predicate row, :register_as_new
 
     assert_difference 'Course.count', 1 do
       post commit_timetable_upload_path(upload), env: ENV_LOCAL
@@ -336,16 +387,30 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_equal 2, Course.where(course_number: '工共100', name: '工学基礎演習').count
   end
 
-  test 'a choice that is not among the candidates is ignored' do
-    registered_course
+  test 'editing the name or number drops the old choice and picks the default again' do
+    course = registered_course
+    other = Course.create!(course_number: '工共200', name: '別の講義', credits: 2)
+    upload = create_upload
+    row = upload.rows.first
+    assert_equal course, row.course
+
+    update_rows(upload, changes: { row => { 'course_number' => '工共200', 'name' => '別の講義' } })
+    assert_equal other, row.reload.course
+
+    update_rows(upload, changes: { row => { 'course_number' => '工共999' } })
+    assert_nil row.reload.course
+    assert_not row.register_as_new
+  end
+
+  test 'a choice that is not among the candidates is ignored and the default is kept' do
+    course = registered_course
     other = Course.create!(course_number: '別', name: '別の講義', credits: 1)
     upload = create_upload
     row = upload.rows.first
 
-    update_rows(upload, changes: { row => { 'course_choice' => other.id.to_s } }, confirmed: [row])
+    update_rows(upload, changes: { row => { 'course_choice' => other.id.to_s } })
 
-    assert_nil row.reload.course_id
-    assert_not row.confirmed
+    assert_equal course, row.reload.course
   end
 
   test 'opening a missing upload goes back to the list with a message' do
