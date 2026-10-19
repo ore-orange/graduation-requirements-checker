@@ -41,9 +41,12 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     file&.close!
   end
 
-  def update_row(upload, row, changes, confirmed:)
-    values = row.slice(*TimetableUploadRow::EDITABLE).merge(changes)
-    patch timetable_upload_row_path(upload, row), params: { row: values, confirmed: confirmed }, env: ENV_LOCAL
+  # 確認画面の「更新」と同じ形で送る。changesは { 行 => { 項目 => 値 } }、confirmedはチェックを入れる行。
+  def update_rows(upload, changes: {}, confirmed: [], page: nil, operation: 'update')
+    rows = changes.to_h { |row, values| [row.id, row.slice(*TimetableUploadRow::EDITABLE).merge(values)] }
+    params = { rows: rows, confirmed: confirmed.to_h { |row| [row.id, '1'] }, operation: operation }
+    params[:page] = page if page
+    patch update_rows_timetable_upload_path(upload), params: params, env: ENV_LOCAL
   end
 
   def create_upload
@@ -51,16 +54,34 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     TimetableUpload.order(:id).last
   end
 
+  def create_large_upload(count = 35)
+    upload = TimetableUpload.create!(semester: '前期', source_filename: 'big.pdf')
+    count.times do |index|
+      upload.rows.create!(position: index, lecture_code: format('%09d', index), course_number: "工共#{100 + index}",
+                          name: "科目#{index + 1}", credits: '2', requirement_type: '必修', grade_text: '1',
+                          weekday: '月', period_text: '1', term_type: '半年')
+    end
+    upload
+  end
+
+  def registered_course
+    Course.create!(course_number: '工共100', name: '工学基礎演習', credits: 2)
+  end
+
   test 'tab is shown in the navigation and lists registered offerings' do
-    TimetableImport::Importer.new([{ '学期' => '前期', '講義コード' => '1', '科目番号' => '工共100', '科目名' => '工学基礎演習', '単位' => '2',
-                                     '必修選択' => '必修', '受講年次' => '1', '曜日' => '金', '時限' => '2・3', '開講区分' => '1Q',
-                                     '要確認' => '' }]).call(apply: true)
+    TimetableImport::Importer.new([{ '学期' => '前期', '講義コード' => '1', '科目番号' => '工共100', '科目名' => '工学基礎演習',
+                                     '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '金', '時限' => '2・3',
+                                     '開講区分' => '1Q', '要確認' => '' }]).call(apply: true)
 
     get course_registrations_path, env: ENV_LOCAL
 
     assert_response :success
-    assert_select 'nav a[aria-current=page]', text: '授業登録'
+    assert_select 'nav a[aria-current=page]', text: '講義登録'
     assert_select 'td', text: '工学基礎演習'
+    assert_select 'button', text: '講義を追加'
+    assert_select 'dialog form input[type=file][accept="application/pdf"]'
+    assert_select 'dialog', text: /必ず、読み取った内容をPDFと見比べてください/
+    assert_select 'dialog', text: /知能情報コースの授業時間配当表にのみ対応/
   end
 
   test 'upload parses the pdf into unconfirmed rows without touching courses' do
@@ -93,12 +114,29 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_match '科目の行を見つけられません', flash[:alert]
   end
 
+  test 'fixed-value fields are selects and the page has one save button in the footer' do
+    upload = create_upload
+    row = upload.rows.first
+
+    get timetable_upload_path(upload), env: ENV_LOCAL
+
+    %w[requirement_type grade_text weekday period_text term_type].each do |field|
+      assert_select "select[name='rows[#{row.id}][#{field}]']"
+    end
+    assert_select "input[type=number][name='rows[#{row.id}][credits]']"
+    assert_select 'button', text: '保存する', count: 1
+    assert_select 'button', text: 'チェックした行を確認済みにして更新'
+    assert_select 'input[type=submit][value=更新]', 0
+    assert_select 'thead.sticky'
+    assert_select 'form#rows-form'
+    assert_select 'p', text: /必ず、PDFと見比べて内容を確認してください/
+  end
+
   test 'cannot commit until every row is confirmed' do
     upload = create_upload
 
     get timetable_upload_path(upload), env: ENV_LOCAL
-    assert_select 'button[disabled]', text: '保存する', minimum: 1
-    assert_select 'button:not([disabled])', text: '保存する', count: 0
+    assert_select 'button[disabled]', text: '保存する'
 
     assert_no_difference 'CourseOffering.count' do
       post commit_timetable_upload_path(upload), env: ENV_LOCAL
@@ -111,12 +149,14 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     upload = create_upload
     row = upload.rows.first
 
-    update_row(upload, row, { 'weekday' => '月' }, confirmed: '1')
+    update_rows(upload, changes: { row => { 'weekday' => '月' } }, confirmed: [row])
     assert_predicate row.reload, :confirmed
     assert_equal '月', row.weekday
+    follow_redirect!
+    assert_select '[role=status]', text: /1行を更新しました/
 
     get timetable_upload_path(upload), env: ENV_LOCAL
-    assert_select 'button:not([disabled])', text: '保存する', minimum: 1
+    assert_select 'button:not([disabled])', text: '保存する'
 
     assert_difference ['Course.count', 'CourseOffering.count'], 1 do
       post commit_timetable_upload_path(upload), env: ENV_LOCAL
@@ -126,77 +166,79 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_not TimetableUpload.exists?(upload.id)
   end
 
-  test 'update result is shown as a fixed toast, errors stay until closed' do
+  test 'edits are saved even when the row is not checked' do
     upload = create_upload
     row = upload.rows.first
 
-    update_row(upload, row, { 'weekday' => '月' }, confirmed: '0')
-    follow_redirect!
-    assert_select '[role=status][data-controller=toast]', text: /1行目を更新しました/
+    update_rows(upload, changes: { row => { 'name' => '工学基礎演習A' } })
 
-    update_row(upload, row, { 'period_text' => '4(・5)' }, confirmed: '1')
-    follow_redirect!
-    assert_select '[role=alert][data-controller=toast]', text: /確認済みにできません/
-    assert_select '[role=alert][data-toast-auto-dismiss-value]', count: 0
+    assert_equal '工学基礎演習A', row.reload.name
+    assert_not row.confirmed
   end
 
-  test 'a row with invalid values cannot be confirmed' do
+  test 'a row with invalid values is not confirmed and is shown in red with the reason' do
     upload = create_upload
     row = upload.rows.first
 
-    update_row(upload, row, { 'period_text' => '4(・5)' }, confirmed: '1')
+    update_rows(upload, changes: { row => { 'period_text' => '4(・5)' } }, confirmed: [row])
 
     assert_not row.reload.confirmed
     assert_equal '4(・5)', row.period_text
-    assert_match '確認済みにできません', flash[:alert]
+    follow_redirect!
+    assert_select '[role=alert][data-controller=toast]', text: /確認済みにできない行が1行/
+    assert_select '[role=alert][data-toast-auto-dismiss-value]', 0
+    assert_select "tbody#row-#{row.id}.bg-red-50"
+    assert_select "tbody#row-#{row.id} td", text: /時限は「2・3」のように/
   end
 
-  test 'confirm all only confirms rows without problems' do
-    upload = nil
-    TimetableImport::PdfParser.stub(:extract_xml, timetable_xml + timetable_xml(periods: '4(・5)')) do
-      upload = TimetableUpload.build_from_pdf('unused', semester: '前期', filename: 'a.pdf')
-    end
-    flagged = upload.rows.where.not(review_reason: nil)
+  test 'updating with no edits and no checks says nothing changed' do
+    upload = create_upload
+    row = upload.rows.first
 
-    post confirm_all_timetable_upload_path(upload), env: ENV_LOCAL
+    update_rows(upload, changes: { row => {} })
+    follow_redirect!
 
-    assert_equal 1, upload.rows.where(confirmed: true).count
-    assert_equal flagged.pluck(:id), upload.rows.where(confirmed: false).pluck(:id)
+    assert_select '[role=status]', text: /変更はありません/
+    assert_select '[role=status]', text: /更新しました/, count: 0
   end
 
-  test 'opening a missing upload goes back to the list with a message' do
-    get timetable_upload_path(0), env: ENV_LOCAL
+  test 'success messages dismiss themselves and sit at the right edge' do
+    upload = create_upload
+    row = upload.rows.first
 
-    assert_redirected_to course_registrations_path
-    assert_match '見つかりません', flash[:alert]
+    update_rows(upload, changes: { row => { 'weekday' => '月' } })
+    follow_redirect!
+
+    assert_select 'div.right-4 [role=status][data-toast-auto-dismiss-value="5000"]'
   end
 
-  def create_large_upload(count = 35)
-    upload = TimetableUpload.create!(semester: '前期', source_filename: 'big.pdf')
-    count.times do |index|
-      upload.rows.create!(position: index, lecture_code: format('%09d', index), course_number: "工共#{100 + index}",
-                          name: "科目#{index + 1}", credits: '2', requirement_type: '必修', grade_text: '1',
-                          weekday: '月', period_text: '1', term_type: '半年')
-    end
-    upload
+  test 'confirm all covers every page but skips rows flagged for review' do
+    upload = create_large_upload
+    flagged = upload.rows.find_by!(position: 34)
+    flagged.update!(review_reason: '時限が不明')
+
+    update_rows(upload, operation: 'confirm_all', page: 2)
+
+    assert_redirected_to timetable_upload_path(upload, page: 2)
+    assert_equal 34, upload.rows.where(confirmed: true).count
+    assert_not flagged.reload.confirmed
   end
 
-  test 'confirmation screen shows 30 rows per page' do
+  test 'confirmation screen shows 30 rows per page with pagination only at the bottom' do
     upload = create_large_upload
 
     get timetable_upload_path(upload), env: ENV_LOCAL
-    assert_select 'tbody tr', 30
-    assert_select 'nav[aria-label=ページ送り] a', text: '2'
-    # 1ページ目では « と ‹ は押せず、› と » は押せる
+    assert_select 'tbody[id^=row-]', 30
+    assert_select 'input[value=科目30]', 1
+    assert_select 'input[value=科目31]', 0
+    assert_select 'nav[aria-label=ページ送り]', 1
     assert_select 'nav[aria-label=ページ送り] span[aria-disabled=true]', text: '<<'
     assert_select 'nav[aria-label=ページ送り] span[aria-disabled=true]', text: '<'
     assert_select 'nav[aria-label=ページ送り] a[href=?]', timetable_upload_path(upload, page: 2), text: '>'
     assert_select 'nav[aria-label=ページ送り] a[href=?]', timetable_upload_path(upload, page: 2), text: '>>'
-    assert_select 'input[value=科目30]', 1
-    assert_select 'input[value=科目31]', 0
 
     get timetable_upload_path(upload, page: 2), env: ENV_LOCAL
-    assert_select 'tbody tr', 5
+    assert_select 'tbody[id^=row-]', 5
     assert_select 'input[value=科目31]', 1
     assert_select 'span[aria-current=page]', text: '2', minimum: 1
     assert_select 'nav[aria-label=ページ送り] a[href=?]', timetable_upload_path(upload, page: 1), text: '<<'
@@ -209,31 +251,32 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
 
     get timetable_upload_path(upload, page: 99), env: ENV_LOCAL
     assert_response :success
-    assert_select 'tbody tr', 5
+    assert_select 'tbody[id^=row-]', 5
   end
 
-  test 'updating a row returns to the same page' do
+  test 'updating rows returns to the same page' do
     upload = create_large_upload
     row = upload.rows.find_by!(position: 32)
 
-    patch timetable_upload_row_path(upload, row), env: ENV_LOCAL,
-                                                  params: { page: 2, confirmed: '1',
-                                                            row: row.slice(*TimetableUploadRow::EDITABLE) }
+    update_rows(upload, changes: { row => {} }, confirmed: [row], page: 2)
 
     assert_redirected_to timetable_upload_path(upload, page: 2)
     assert_predicate row.reload, :confirmed
   end
 
-  test 'confirm all covers every page, not just the visible one' do
+  test 'only rows sent from the page are touched' do
     upload = create_large_upload
+    sent = upload.rows.find_by!(position: 0)
+    other = upload.rows.find_by!(position: 33)
 
-    post confirm_all_timetable_upload_path(upload), params: { page: 2 }, env: ENV_LOCAL
+    update_rows(upload, changes: { sent => { 'name' => '変更後' } }, confirmed: [sent])
 
-    assert_redirected_to timetable_upload_path(upload, page: 2)
-    assert_equal 35, upload.rows.where(confirmed: true).count
+    assert_equal '変更後', sent.reload.name
+    assert_equal '科目34', other.reload.name
+    assert_not other.confirmed
   end
 
-  test 'saved offerings list is paginated too' do
+  test 'saved offerings list is paginated at the bottom only' do
     rows = Array.new(35) do |index|
       { '学期' => '前期', '講義コード' => format('%09d', index), '科目番号' => "工共#{index}", '科目名' => "科目#{index}",
         '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '月', '時限' => '1', '開講区分' => '半年',
@@ -242,10 +285,74 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     TimetableImport::Importer.new(rows).call(apply: true)
 
     get course_registrations_path, env: ENV_LOCAL
-    assert_select '#registered-heading ~ div nav', minimum: 1
+    assert_select 'nav[aria-label=ページ送り]', 1
     assert_select 'tbody tr', 30
     get course_registrations_path(page: 2), env: ENV_LOCAL
     assert_select 'tbody tr', 5
+  end
+
+  test 'a registered course with the same name and number needs an explicit choice' do
+    registered_course
+    upload = create_upload
+    row = upload.rows.first
+
+    get timetable_upload_path(upload), env: ENV_LOCAL
+    assert_select "select[name='rows[#{row.id}][course_choice]'] option", text: /既存の講義として扱う/
+    assert_select "select[name='rows[#{row.id}][course_choice]'] option", text: /別の講義として新しく登録する/
+
+    update_rows(upload, changes: { row => {} }, confirmed: [row])
+    assert_not row.reload.confirmed
+    follow_redirect!
+    assert_select "tbody#row-#{row.id} td", text: /同じ講義として扱うか、別の講義として登録するか/
+  end
+
+  test 'choosing the existing course links the offering without creating a course' do
+    course = registered_course
+    upload = create_upload
+    row = upload.rows.first
+
+    update_rows(upload, changes: { row => { 'course_choice' => course.id.to_s } }, confirmed: [row])
+    assert_predicate row.reload, :confirmed
+
+    assert_no_difference 'Course.count' do
+      assert_difference 'CourseOffering.count', 1 do
+        post commit_timetable_upload_path(upload), env: ENV_LOCAL
+      end
+    end
+    assert_equal course, CourseOffering.find_by!(lecture_code: '610000071').course
+  end
+
+  test 'choosing a new course registers a separate course even with the same name and number' do
+    registered_course
+    upload = create_upload
+    row = upload.rows.first
+
+    update_rows(upload, changes: { row => { 'course_choice' => 'new' } }, confirmed: [row])
+    assert_predicate row.reload, :confirmed
+
+    assert_difference 'Course.count', 1 do
+      post commit_timetable_upload_path(upload), env: ENV_LOCAL
+    end
+    assert_equal 2, Course.where(course_number: '工共100', name: '工学基礎演習').count
+  end
+
+  test 'a choice that is not among the candidates is ignored' do
+    registered_course
+    other = Course.create!(course_number: '別', name: '別の講義', credits: 1)
+    upload = create_upload
+    row = upload.rows.first
+
+    update_rows(upload, changes: { row => { 'course_choice' => other.id.to_s } }, confirmed: [row])
+
+    assert_nil row.reload.course_id
+    assert_not row.confirmed
+  end
+
+  test 'opening a missing upload goes back to the list with a message' do
+    get timetable_upload_path(0), env: ENV_LOCAL
+
+    assert_redirected_to course_registrations_path
+    assert_match '見つかりません', flash[:alert]
   end
 
   test 'discarding an upload removes it without touching courses' do
@@ -269,6 +376,8 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_no_difference 'TimetableUpload.count' do
       post timetable_uploads_path, params: { semester: '前期' }, env: remote
     end
+    assert_response :not_found
+    patch update_rows_timetable_upload_path(upload), env: remote
     assert_response :not_found
     post commit_timetable_upload_path(upload), env: remote
     assert_response :not_found

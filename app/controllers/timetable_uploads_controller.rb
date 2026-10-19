@@ -5,7 +5,7 @@ class TimetableUploadsController < ApplicationController
 
   MAX_PDF_BYTES = 10.megabytes
 
-  before_action :load_upload, only: %i[show destroy commit confirm_all]
+  before_action :load_upload, only: %i[show destroy commit update_rows]
 
   # 保存済み・破棄済みの取り込みを開いたときは、エラー画面ではなく一覧に戻す
   rescue_from ActiveRecord::RecordNotFound do
@@ -16,6 +16,7 @@ class TimetableUploadsController < ApplicationController
     @preview = @upload.preview if @upload.all_confirmed?
     @paginator = Paginator.new(total: @upload.rows.size, page: params[:page])
     @page_rows = @upload.rows.slice(@paginator.offset, @paginator.per)
+    @row_errors = flash[:row_errors] || {}
   end
 
   def create
@@ -36,12 +37,16 @@ class TimetableUploadsController < ApplicationController
     redirect_to course_registrations_path, notice: '取り込みを破棄しました。', status: :see_other
   end
 
-  # 問題のない行(読み取りで要確認が付かず、値も正しい行)をまとめて確認済みにする
-  def confirm_all
-    targets = @upload.rows.select { |row| !row.confirmed && row.review_reason.blank? && row.problems.empty? }
-    targets.each { |row| row.update!(confirmed: true) }
-    redirect_to timetable_upload_path(@upload, page: params[:page].presence),
-                notice: "#{targets.size}行を確認済みにしました（全ページ対象）。要確認の行は個別に確認してください。", status: :see_other
+  # 表示中のページの編集内容とチェックをまとめて保存する。
+  # operation=confirm_all のときは、問題のない行を全ページぶん確認済みにする。
+  def update_rows
+    result = @upload.apply_edits(submitted_edits, submitted_confirmed_ids,
+                                 confirm_valid: params[:operation] == 'confirm_all')
+    flash[:row_errors] = result.failures if result.failures.any?
+    flash[:notice] = update_notice(result)
+    flash[:alert] = "確認済みにできない行が#{result.failures.size}行あります。赤い行の内容を直してください。" if result.failures.any?
+    # 送ったページ自身(同じURL)に戻すと、画面全体を読み込み直さず差分だけ反映してスクロール位置を保てる
+    redirect_back_or_to timetable_upload_path(@upload, page: params[:page].presence), status: :see_other
   end
 
   def commit
@@ -50,7 +55,7 @@ class TimetableUploadsController < ApplicationController
     return redirect_to @upload, alert: result.errors.join(' / '), status: :see_other unless result.applied
 
     redirect_to course_registrations_path, status: :see_other,
-                                           notice: "保存しました。科目の新規#{result.created_courses}件、開講情報の新規" \
+                                           notice: "保存しました。講義の新規#{result.created_courses}件、開講情報の新規" \
                                                    "#{result.created_offerings}件・更新#{result.updated_offerings}件。"
   end
 
@@ -58,6 +63,28 @@ class TimetableUploadsController < ApplicationController
 
   def load_upload
     @upload = TimetableUpload.includes(:rows).find(params.expect(:id))
+  end
+
+  def update_notice(result)
+    return "#{result.updated}行を更新しました。" if result.updated.positive?
+
+    '変更はありません。' if result.failures.empty?
+  end
+
+  # rows[行ID][項目]=値 の形で送られる入力値。許可した項目だけを受け取る。
+  def submitted_edits
+    raw = params[:rows]
+    return {} unless raw.respond_to?(:each_pair)
+
+    raw.each_pair.filter_map do |id, values|
+      [id.to_s, values.permit(*TimetableUploadRow::EDITABLE, :course_choice)] if values.respond_to?(:permit)
+    end.to_h
+  end
+
+  # confirmed[行ID]=1 の形で送られる、チェックされた行
+  def submitted_confirmed_ids
+    raw = params[:confirmed]
+    raw.respond_to?(:keys) ? raw.keys.map(&:to_s) : []
   end
 
   def upload_error(semester, pdf)

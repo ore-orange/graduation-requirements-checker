@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_300000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -137,6 +137,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_300000) do
     t.boolean "confirmed", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "course_id"
+    t.boolean "register_as_new", default: false, null: false
+    t.index ["course_id"], name: "index_timetable_upload_rows_on_course_id"
     t.index ["timetable_upload_id", "position"], name: "idx_on_timetable_upload_id_position_b91dfae42d", unique: true
     t.index ["timetable_upload_id"], name: "index_timetable_upload_rows_on_timetable_upload_id"
   end
@@ -167,5 +170,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_300000) do
   add_foreign_key "student_program_assignments", "students"
   add_foreign_key "students", "departments"
   add_foreign_key "students", "users"
+  add_foreign_key "timetable_upload_rows", "courses"
   add_foreign_key "timetable_upload_rows", "timetable_uploads"
 end

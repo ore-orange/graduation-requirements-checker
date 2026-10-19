@@ -1,37 +1,48 @@
-<% content_for :title, "授業登録 | #{app_name}" %>
-<div class="space-y-8">
-  <header>
-    <h1 class="text-3xl font-bold tracking-tight text-slate-900">授業登録</h1>
-    <p class="mt-3 text-slate-600">授業時間配当表のPDFを読み取り、内容を人が確認してから授業のデータとして保存します。</p>
+<% content_for :title, "講義登録 | #{app_name}" %>
+<div class="space-y-8" data-controller="modal">
+  <header class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-bold tracking-tight text-slate-900">講義登録</h1>
+      <p class="mt-3 text-slate-600">授業時間配当表のPDFを読み取り、内容を確認してから講義として保存します。</p>
+    </div>
+    <button type="button" data-action="modal#open" class="demo-button">講義を追加</button>
   </header>
 
   <%= render 'shared/toast' %>
 
-  <section class="demo-panel" aria-labelledby="upload-heading">
-    <h2 id="upload-heading" class="text-xl font-bold text-slate-900">PDFをアップロードする</h2>
-    <div class="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-7 text-amber-950">
-      <p class="font-bold">現時点では、知能情報コースの授業時間配当表にのみ対応しています。</p>
-      <p>他の学部・共通教育などのPDFは、表の列の位置や講義コードの形式が違うため、正しく読み取れません。読み取れた場合も、必ず内容をPDFと見比べてください。</p>
-    </div>
-    <p class="mt-2 text-sm leading-6 text-slate-600">前期・後期でPDFが分かれているため、読み取るPDFの学期を選んでください。アップロードしただけでは授業のデータは変わりません。PDF自体は保存しません。</p>
-    <%= form_with url: timetable_uploads_path, multipart: true, class: 'mt-5 flex flex-wrap items-end gap-4' do |form| %>
-      <div>
-        <%= form.label :semester_first, '学期', class: 'block text-sm font-semibold text-slate-700' %>
-        <div class="mt-2 flex gap-4">
+  <dialog data-modal-target="dialog" data-action="click->modal#closeOnBackdrop" aria-labelledby="upload-heading"
+          class="m-auto w-full max-w-lg rounded-2xl p-0 shadow-2xl backdrop:bg-slate-900/40">
+    <%= form_with url: timetable_uploads_path, multipart: true, class: 'space-y-5 p-6', data: { controller: 'dropzone', turbo: false } do |form| %>
+      <h2 id="upload-heading" class="text-xl font-bold text-slate-900">PDFから講義を追加する</h2>
+      <p class="text-sm font-bold text-red-700">必ず、読み取った内容をPDFと見比べてください。</p>
+      <p class="text-sm font-bold text-red-700">現時点では、知能情報コースの授業時間配当表にのみ対応しています。</p>
+
+      <fieldset>
+        <legend class="text-sm font-semibold text-slate-700">学期</legend>
+        <div class="mt-2 flex gap-6">
           <% TimetableImport::Values::SEMESTERS.each_with_index do |semester, index| %>
             <label class="flex items-center gap-2 text-slate-800">
-              <%= form.radio_button :semester, semester, checked: index.zero?, id: (index.zero? ? 'semester_first' : nil) %><%= semester %>
+              <%= form.radio_button :semester, semester, checked: index.zero? %><%= semester %>
             </label>
           <% end %>
         </div>
+      </fieldset>
+
+      <div data-dropzone-target="zone" data-action="dragover->dropzone#dragOver dragleave->dropzone#dragLeave drop->dropzone#drop"
+           class="rounded-xl border-2 border-dashed border-slate-300 p-6 text-center">
+        <p class="text-sm text-slate-600">ここにPDFをドラッグ&ドロップ、または</p>
+        <button type="button" data-action="dropzone#choose" class="mt-3 rounded-lg border border-slate-400 px-5 py-2 font-semibold text-slate-800 hover:bg-slate-50">PDFを選ぶ</button>
+        <p data-dropzone-target="name" class="mt-3 text-sm text-slate-700">ファイルが選ばれていません</p>
+        <%= form.file_field :pdf, accept: 'application/pdf', required: true, class: 'sr-only', tabindex: '-1',
+                            data: { dropzone_target: 'input', action: 'change->dropzone#changed' } %>
       </div>
-      <div>
-        <%= form.label :pdf, 'PDFファイル', class: 'block text-sm font-semibold text-slate-700' %>
-        <%= form.file_field :pdf, accept: 'application/pdf', required: true, class: 'mt-2 block text-sm' %>
+
+      <div class="flex justify-end gap-3">
+        <button type="button" data-action="modal#close" class="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700">キャンセル</button>
+        <%= form.submit '読み取る', class: 'demo-button' %>
       </div>
-      <%= form.submit '読み取る', class: 'demo-button' %>
     <% end %>
-  </section>
+  </dialog>
 
   <% if @uploads.any? %>
     <section class="demo-panel" aria-labelledby="pending-heading">
@@ -51,11 +62,10 @@
   <% end %>
 
   <section class="demo-panel" aria-labelledby="registered-heading">
-    <h2 id="registered-heading" class="text-xl font-bold text-slate-900">保存済みの授業</h2>
+    <h2 id="registered-heading" class="text-xl font-bold text-slate-900">保存済みの講義</h2>
     <% if @offerings.empty? %>
-      <p class="mt-4 rounded-lg bg-slate-50 p-4 text-slate-600">まだ保存された授業はありません。</p>
+      <p class="mt-4 rounded-lg bg-slate-50 p-4 text-slate-600">まだ保存された講義はありません。「講義を追加」からPDFを取り込んでください。</p>
     <% else %>
-      <div class="mt-4"><%= render 'shared/pagination', paginator: @paginator, path: ->(page) { course_registrations_path(page: page) } %></div>
       <% @offerings.each do |semester, offerings| %>
         <h3 class="mt-6 font-bold text-slate-900"><%= semester %></h3>
         <div class="mt-2 overflow-x-auto">
@@ -80,6 +90,7 @@
           </table>
         </div>
       <% end %>
+      <div class="mt-6"><%= render 'shared/pagination', paginator: @paginator, path: ->(page) { course_registrations_path(page: page) } %></div>
     <% end %>
   </section>
 </div>

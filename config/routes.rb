@@ -16,9 +16,8 @@ Rails.application.routes.draw do
   resources :timetable_uploads, only: %i[create show destroy] do
     member do
       post :commit
-      post :confirm_all
+      patch :update_rows
     end
-    resources :rows, controller: 'timetable_upload_rows', only: :update
   end
 
   get 'demo', to: 'demo#show', as: :demo

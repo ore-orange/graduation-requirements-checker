@@ -4,11 +4,17 @@ module TimetableImport
   # 人が確認した行(日本語の見出しをキーにしたハッシュ)を courses / course_offerings に保存する。
   # 1つでもエラーがあれば何も保存しない。apply: false(既定)ではトランザクションを巻き戻し、
   # 保存した場合と同じ件数だけを返す(dry-run)。
+  #
+  # 既存の講義と同じかどうかは、名前・番号では自動判定しない。行に「既存講義ID」があればその講義に紐付け、
+  # 無ければ新しい講義として登録する。ただし同じ名前・番号の講義が既にあるのに「新規登録」の指定も無い行は、
+  # 人が選び忘れているのでエラーにする。
   class Importer
     Result = Struct.new(:errors, :created_courses, :created_offerings, :updated_offerings, :unchanged_offerings,
                         :applied, keyword_init: true) do
       def ok? = errors.empty?
     end
+
+    UNRESOLVED_MESSAGE = '同じ名前・番号の講義が登録済みです。同じ講義として扱うか、別の講義として登録するかを選んでください。'
 
     def initialize(rows)
       @rows = rows
@@ -17,6 +23,7 @@ module TimetableImport
     def call(apply: false)
       result = Result.new(errors: [], created_courses: 0, created_offerings: 0, updated_offerings: 0,
                           unchanged_offerings: 0, applied: false)
+      @new_courses = {}
       ActiveRecord::Base.transaction do
         @rows.each_with_index { |row, index| import_row(row, index + 1, result) }
         raise ActiveRecord::Rollback if result.errors.any? || !apply
@@ -36,17 +43,39 @@ module TimetableImport
         return
       end
 
-      course = find_or_create_course(attrs, result, line)
+      course = resolve_course(attrs, result, line)
       save_offering(course, attrs, result, line) if course
     end
 
-    def find_or_create_course(attrs, result, line)
-      course = Course.find_by(course_number: attrs.course_number, name: attrs.name)
-      return create_course(attrs, result) unless course
+    def resolve_course(attrs, result, line)
+      return linked_course(attrs, result, line) if attrs.course_id
 
-      return course if course.credits == attrs.credits
+      key = [attrs.course_number, attrs.name]
+      # 同じPDFの中で、同じ名前・番号の行は、先に登録する講義にまとめる
+      return @new_courses[key] if @new_courses.key?(key)
 
-      result.errors << "#{line}行目(#{attrs.name}): 登録済みの単位(#{course.credits})と取り込みの単位(#{attrs.credits})が違います。"
+      if !attrs.register_as_new && same_course_registered?(attrs)
+        result.errors << "#{line}行目(#{attrs.name}): #{UNRESOLVED_MESSAGE}"
+        return nil
+      end
+
+      @new_courses[key] = create_course(attrs, result)
+    end
+
+    # 番号が無い講義は、名前だけでは同じ講義かを判断できないので、既存とは突き合わせない
+    def same_course_registered?(attrs)
+      attrs.course_number.present? && Course.exists?(course_number: attrs.course_number, name: attrs.name)
+    end
+
+    def linked_course(attrs, result, line)
+      course = Course.find_by(id: attrs.course_id)
+      return course if course && course.credits == attrs.credits
+
+      result.errors << if course
+                         "#{line}行目(#{attrs.name}): 登録済みの単位(#{course.credits})と取り込みの単位(#{attrs.credits})が違います。"
+                       else
+                         "#{line}行目(#{attrs.name}): 選ばれた既存の講義が見つかりません。"
+                       end
       nil
     end
 
@@ -77,10 +106,10 @@ module TimetableImport
       end
     end
 
-    # CSV1行ぶんの検証と型変換
+    # 1行ぶんの検証と型変換
     class RowAttributes
       attr_reader :errors, :semester, :lecture_code, :course_number, :name, :credits, :requirement_type,
-                  :grade_years, :weekday, :periods, :term_type
+                  :grade_years, :weekday, :periods, :term_type, :course_id, :register_as_new
 
       def initialize(row)
         @errors = []
@@ -94,6 +123,8 @@ module TimetableImport
         @weekday = row['曜日'].presence
         @periods = parse_digits(row['時限'], '時限')
         @term_type = row['開講区分'].presence
+        @course_id = parse_course_id(row['既存講義ID'])
+        @register_as_new = row['新規登録'] == '1'
         validate(row['要確認'])
       end
 
@@ -115,6 +146,12 @@ module TimetableImport
 
       def validate_choice(label, value, allowed)
         errors << "#{label}は#{allowed.join('か')}にしてください(空欄可)。" unless value.nil? || allowed.include?(value)
+      end
+
+      def parse_course_id(text)
+        return if text.blank?
+
+        Integer(text, 10, exception: false) || (errors << '既存講義IDが数字ではありません。' and nil)
       end
 
       def parse_credits(text)

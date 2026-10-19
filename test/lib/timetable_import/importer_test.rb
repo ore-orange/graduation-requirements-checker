@@ -10,6 +10,10 @@ module TimetableImport
         '時限' => '2・3', '開講区分' => '1Q', '備考' => '' }.merge(overrides)
     end
 
+    def linked_row(overrides = {})
+      row({ '既存講義ID' => Course.find_by!(course_number: '工共100').id.to_s }.merge(overrides))
+    end
+
     test 'dry run reports counts but saves nothing' do
       result = nil
       assert_no_difference ['Course.count', 'CourseOffering.count'] do
@@ -43,9 +47,9 @@ module TimetableImport
       assert_equal [2, 3, 4], offering.grade_years
     end
 
-    test 'running twice does not duplicate and reports unchanged' do
+    test 'running twice with the existing course chosen does not duplicate and reports unchanged' do
       Importer.new([row]).call(apply: true)
-      result = Importer.new([row]).call(apply: true)
+      result = Importer.new([linked_row]).call(apply: true)
 
       assert_equal 0, result.created_courses
       assert_equal 1, result.unchanged_offerings
@@ -54,15 +58,15 @@ module TimetableImport
 
     test 'changed values update the existing offering' do
       Importer.new([row]).call(apply: true)
-      result = Importer.new([row('曜日' => '月')]).call(apply: true)
+      result = Importer.new([linked_row('曜日' => '月')]).call(apply: true)
 
       assert_equal 1, result.updated_offerings
       assert_equal '月', CourseOffering.find_by!(lecture_code: '610000071').weekday
     end
 
-    test 'same course in the other semester reuses the course' do
+    test 'same course in the other semester reuses the chosen course' do
       Importer.new([row]).call(apply: true)
-      Importer.new([row('学期' => '後期')]).call(apply: true)
+      Importer.new([linked_row('学期' => '後期')]).call(apply: true)
 
       assert_equal 1, Course.where(course_number: '工共100').count
       assert_equal %w[前期 後期], CourseOffering.order(:semester).pluck(:semester).sort
@@ -95,9 +99,57 @@ module TimetableImport
       end
     end
 
-    test 'credit mismatch with a registered course is an error, not an overwrite' do
-      Course.create!(course_number: '工共100', name: '工学基礎演習', credits: 1)
-      result = Importer.new([row]).call(apply: true)
+    test 'a registered course with the same name and number is never merged automatically' do
+      Course.create!(course_number: '工共100', name: '工学基礎演習', credits: 2)
+
+      result = nil
+      assert_no_difference ['Course.count', 'CourseOffering.count'] do
+        result = Importer.new([row]).call(apply: true)
+      end
+
+      assert_not result.ok?
+      assert_includes result.errors.first, '同じ講義として扱うか、別の講義として登録するか'
+    end
+
+    test 'choosing new registers a separate course even if the name and number exist' do
+      Course.create!(course_number: '工共100', name: '工学基礎演習', credits: 2)
+
+      result = nil
+      assert_difference 'Course.count', 1 do
+        result = Importer.new([row('新規登録' => '1')]).call(apply: true)
+      end
+
+      assert_predicate result, :ok?
+      assert_equal 2, Course.where(course_number: '工共100', name: '工学基礎演習').count
+    end
+
+    test 'a course without a number is not matched to anything and stays separate' do
+      Course.create!(course_number: nil, name: '工学基礎演習', credits: 2)
+
+      assert_difference 'Course.count', 1 do
+        assert_predicate Importer.new([row('科目番号' => '')]).call(apply: true), :ok?
+      end
+    end
+
+    test 'rows with the same name and number in one import share one new course' do
+      rows = [row, row('講義コード' => '610000072', '時限' => '4')]
+
+      assert_difference 'Course.count', 1 do
+        result = Importer.new(rows).call(apply: true)
+        assert_equal [1, 2], [result.created_courses, result.created_offerings]
+      end
+    end
+
+    test 'a chosen course that no longer exists is an error' do
+      result = Importer.new([row('既存講義ID' => '0')]).call
+
+      assert_not result.ok?
+      assert_includes result.errors.first, '選ばれた既存の講義が見つかりません'
+    end
+
+    test 'credit mismatch with a chosen course is an error, not an overwrite' do
+      course = Course.create!(course_number: '工共100', name: '工学基礎演習', credits: 1)
+      result = Importer.new([row('既存講義ID' => course.id.to_s)]).call(apply: true)
 
       assert_not result.ok?
       assert_equal 1, Course.find_by!(course_number: '工共100').credits

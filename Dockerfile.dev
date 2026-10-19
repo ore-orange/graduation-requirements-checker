@@ -6,13 +6,13 @@ ENV LANG=C.UTF-8 \
     BUNDLE_PATH=/usr/local/bundle
 
 # Rails / PostgreSQL / system test の依存（Tailwind は単体バイナリなので Node は不要）
+# ghostscript は、講義登録でPDFを読み取るために使う
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       build-essential \
       libpq-dev \
       libyaml-dev \
       git \
-      # 授業時間配当表PDFの読み取り(script/timetable_pdf_to_csv.rb)
       ghostscript \
       curl \
       pkg-config \

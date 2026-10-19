@@ -19,6 +19,30 @@ class TimetableUpload < ApplicationRecord
     end
   end
 
+  EditResult = Struct.new(:updated, :failures, keyword_init: true)
+
+  # 画面の1ページぶんの編集内容とチェックを、まとめて保存する。
+  # edits: { 行ID(文字列) => 入力値 } / confirmed_ids: チェックされた行ID(文字列)の配列。
+  # confirm_valid: 読み取りで要確認が付かず、値にも問題のない行を、全ページぶん確認済みにする。
+  # 確認済みにできない行(値に問題がある)は確認済みにせず、その理由を failures({ 行ID => 理由の配列 })で返す。
+  def apply_edits(edits, confirmed_ids, confirm_valid: false)
+    result = EditResult.new(updated: 0, failures: {})
+    transaction do
+      rows.each do |row|
+        values = edits[row.id.to_s]
+        next if values.nil? && !confirm_valid
+
+        row.apply_edit(values) if values
+        update_confirmation(row, values ? confirmed_ids.include?(row.id.to_s) : row.confirmed, confirm_valid, result)
+        next unless row.changed?
+
+        row.save!
+        result.updated += 1
+      end
+    end
+    result
+  end
+
   def unconfirmed_count
     rows.count { |row| !row.confirmed }
   end
@@ -39,6 +63,15 @@ class TimetableUpload < ApplicationRecord
     result = TimetableImport::Importer.new(rows.map(&:importer_row)).call(apply: true)
     destroy! if result.applied
     result
+  end
+
+  private
+
+  def update_confirmation(row, checked, confirm_valid, result)
+    checked ||= confirm_valid && row.review_reason.blank? && row.problems.empty?
+    problems = checked ? row.problems : []
+    result.failures[row.id.to_s] = problems if problems.any?
+    row.confirmed = checked && problems.empty?
   end
 end
 
