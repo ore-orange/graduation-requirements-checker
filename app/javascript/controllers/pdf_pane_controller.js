@@ -5,26 +5,19 @@ import { Controller } from "@hotwired/stimulus"
 // 状態は倍率の入力欄だけに持つので、turbo:morph で作り直されても困らない。
 export default class extends Controller {
   static targets = ["pane", "hidden", "headRow", "scroll", "page", "zoom", "zoomValue"]
+  // ページ画像の実寸(横幅px)。画像の読み込みを待たずに倍率を決められるよう、サーバーから受け取る。
+  static values = { pageWidth: Number }
 
   connect() {
     this.stick = this.stick.bind(this)
     this.observer = new ResizeObserver(this.stick)
     this.observer.observe(this.scrollTarget)
-    this.whenPageIsReady(() => this.fit())
+    this.fit()
     this.stick()
   }
 
   disconnect() {
     this.observer.disconnect()
-  }
-
-  // ページの実寸がわかるのは画像を読み終えてから。
-  whenPageIsReady(callback) {
-    const page = this.pageTargets[0]
-    if (!page) return
-    if (page.naturalWidth) return callback()
-
-    page.addEventListener("load", callback, { once: true })
   }
 
   fit() {
@@ -79,9 +72,9 @@ export default class extends Controller {
     return Number(this.zoomValueTarget.value) / 100
   }
 
-  // ページの実寸(画像そのものの幅)。読み込み前はペインの幅で代用する。
+  // ページの実寸。受け取れていなければ、等倍として扱う。
   pageWidth() {
-    return this.pageTargets[0]?.naturalWidth || this.scrollTarget.clientWidth
+    return this.pageWidthValue || this.scrollTarget.clientWidth
   }
 
   centerRatio() {

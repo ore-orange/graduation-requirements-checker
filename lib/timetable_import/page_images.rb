@@ -22,6 +22,12 @@ module TimetableImport
     rescue Errno::ENOENT
       raise Error, 'Ghostscript(gs)が見つかりません。'
     end
+
+    # PNGの見出し(IHDR)にある横幅。画面はこの実寸をもとに倍率を決める。
+    def self.width(path)
+      header = File.binread(path, 24)
+      header[16, 4]&.unpack1('N') if header.to_s.start_with?("\x89PNG".b)
+    end
   end
 end
 

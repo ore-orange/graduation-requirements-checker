@@ -49,6 +49,12 @@ class TimetableUpload < ApplicationRecord
     page_image_paths[number - 1]
   end
 
+  # ページ画像の実寸(横幅px)。画面の倍率はこれをもとに決める。
+  def page_width
+    first = page_image_paths.first
+    TimetableImport::PageImages.width(first) if first
+  end
+
   # ページ画像の中身。画面には、この取り込みが実際に作った画像しか出さない。
   def page_image_data(page)
     path = page_image_path(page)

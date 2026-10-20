@@ -20,9 +20,14 @@ class TimetableUploadTest < ActiveSupport::TestCase
     end
   end
 
+  # 幅2113pxのPNGの見出し(IHDR)だけを持つファイル。幅の読み取りに使う。
+  def png_header(width)
+    "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR".b + [width, 100].pack('N2')
+  end
+
   def write_one_page(_pdf, dir)
     FileUtils.mkdir_p(dir)
-    File.write(File.join(dir, 'p1.png'), 'png')
+    File.binwrite(File.join(dir, 'p1.png'), png_header(2113))
     1
   end
 
@@ -30,7 +35,8 @@ class TimetableUploadTest < ActiveSupport::TestCase
     upload = build_upload(method(:write_one_page))
 
     assert_equal 1, upload.page_count
-    assert_equal 'png', File.read(upload.page_image_path(1))
+    assert_equal 2113, upload.page_width
+    assert_equal png_header(2113), File.binread(upload.page_image_path(1))
     assert_nil upload.page_image_path(2)
   end
 
@@ -39,6 +45,7 @@ class TimetableUploadTest < ActiveSupport::TestCase
 
     assert_equal 1, upload.rows.size
     assert_equal 0, upload.page_count
+    assert_nil upload.page_width
   end
 
   test 'destroying an upload removes its page images' do

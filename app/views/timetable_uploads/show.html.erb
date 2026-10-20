@@ -36,7 +36,7 @@
       </colgroup>
       <% with_pdf = @upload.page_count.positive? %>
       <thead class="sticky top-0 z-10 bg-slate-100 text-left text-slate-700 shadow-sm"
-             <%= tag.attributes(data: { controller: 'pdf-pane' }) if with_pdf %>>
+             <%= tag.attributes(data: { controller: 'pdf-pane', pdf_pane_page_width_value: @upload.page_width }) if with_pdf %>>
         <%= render 'pdf_pane', upload: @upload if with_pdf %>
         <tr data-pdf-pane-target="headRow">
           <% %w[講義コード 科目番号 科目名 単位 必修選択 年次 曜日 時限 開講区分].each do |label| %><th class="px-1.5 py-2"><%= label %></th><% end %>
@@ -51,7 +51,7 @@
       <% @rows.each do |row| %>
         <% errors = @row_errors[row.id.to_s] %>
         <% key = "rows[#{row.id}]" %>
-        <tbody id="row-<%= row.id %>" data-row-id="<%= row.id %>" <%= 'data-error-row' if errors %> class="border-b border-slate-200 <%= errors ? 'bg-red-50' : (row.confirmed ? 'bg-emerald-50' : (row.review_reason.present? ? 'bg-amber-50' : '')) %>">
+        <tbody id="row-<%= row.id %>" data-row-id="<%= row.id %>" <%= 'data-error-row' if errors %> class="border-b border-slate-200 <%= errors ? 'bg-red-50' : (row.confirmed ? 'bg-emerald-50' : ((row.review_reason.present? || row.added_by_hand) ? 'bg-amber-50' : '')) %>">
           <tr class="align-top">
             <td class="p-1.5"><%= text_field_tag "#{key}[lecture_code]", row.lecture_code, class: field_class, 'aria-label': "#{row.name} 講義コード", data: { lecture_code: true } %></td>
             <td class="p-1.5"><%= text_field_tag "#{key}[course_number]", row.course_number, class: field_class, 'aria-label': "#{row.name} 科目番号" %></td>
@@ -78,6 +78,17 @@
                                                                  data: { checks_target: 'box', row_id: row.id, action: 'change->checks#toggle' } %>
             </td>
           </tr>
+          <% if row.added_by_hand %>
+            <tr>
+              <td colspan="10" class="px-2 pb-2">
+                <div class="flex items-center gap-3 text-xs font-bold text-amber-900">
+                  <span>手で追加した行 ― PDFを見ながら入力してください</span>
+                  <%= button_tag 'この行を削除', type: 'submit', form: 'rows-form', name: 'destroy_row_id', value: row.id,
+                                 class: 'font-semibold text-red-800 underline underline-offset-2' %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
           <% if errors || (row.review_reason.present? && !row.confirmed) %>
             <tr>
               <td colspan="10" class="px-2 pb-2 text-xs font-bold <%= errors ? 'text-red-800' : 'text-amber-900' %>">

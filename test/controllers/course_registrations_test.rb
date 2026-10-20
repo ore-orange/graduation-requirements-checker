@@ -317,6 +317,32 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_equal [0, 1, 2, 3, 4], upload.rows.map(&:position)
   end
 
+  test 'a hand-added row is marked, can be deleted, and keeps the edits in the same submit' do
+    upload = create_large_upload(2)
+    first = upload.rows.first
+    update_rows(upload, operation: 'add_row', after_row_id: first.id)
+    added = upload.rows.reload[1]
+
+    get timetable_upload_path(upload), env: ENV_LOCAL
+    assert_select "tbody#row-#{added.id}", text: /手で追加した行/
+    assert_select "button[name=destroy_row_id][value='#{added.id}']"
+
+    assert_difference -> { upload.rows.reload.size }, -1 do
+      update_rows(upload, changes: { first => { 'name' => '直した名前' } }, destroy_row_id: added.id)
+    end
+    assert_equal '直した名前', first.reload.name
+  end
+
+  test 'a row id from another upload is not deleted' do
+    upload = create_large_upload(2)
+    other = create_large_upload(1).rows.first
+
+    assert_no_difference -> { TimetableUploadRow.count } do
+      update_rows(upload, destroy_row_id: other.id)
+    end
+    assert TimetableUploadRow.exists?(other.id)
+  end
+
   test 'only rows sent from the screen are touched' do
     upload = create_large_upload
     sent = upload.rows.find_by!(position: 0)
