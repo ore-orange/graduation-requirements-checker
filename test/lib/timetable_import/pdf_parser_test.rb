@@ -76,6 +76,53 @@ module TimetableImport
       assert_equal '単位が整数でない、必修選択が不明', row['要確認']
     end
 
+    # 縮尺の違うPDF(知能情報コースの後半など)は、全体のx座標が縮んでいる。見出しの位置から基準の座標に直して読む。
+    def scaled_header
+      [span('科目番', 91, 102), span('科目名', 151, 106), span('単', 211, 102), span('必修', 260, 102),
+       span('受', 400, 102), span('曜', 430, 102), span('期間', 565, 106), span('(許可コード)', 602, 110)]
+    end
+
+    def scaled_course(code:, top:)
+      [span(code, 54, top), span('工共114', 90, top), span('プログラミングI', 140, top), span('2', 213, top),
+       span('必', 264, top), span('1', 407, top), span('金', 430, top), span('1', 448, top),
+       span('半年', 565, top), span('※備考', 644, top)]
+    end
+
+    test 'reads a pdf whose table is narrower than the reference layout' do
+      row = parse(scaled_header + scaled_course(code: '610004072', top: 137)).first
+
+      assert_equal(
+        { '学期' => '前期', '講義コード' => '610004072', '科目番号' => '工共114', '科目名' => 'プログラミングI',
+          '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '金', '時限' => '1',
+          '開講区分' => '半年', '備考' => '※備考', '要確認' => '' },
+        row
+      )
+    end
+
+    test 'a page without its own header reuses the previous page header' do
+      continuation = scaled_course(code: '610048072', top: 137)
+      assert_equal %w[工共114 工共114], parse(scaled_header + scaled_course(code: '610004072', top: 137), continuation)
+        .pluck('科目番号')
+    end
+
+    test 'normalizes quarter wording and half-width digits' do
+      rows = parse(header + course(code: '610000071', top: 153, term: '１クォーター') +
+                   course(code: '610002071', top: 189, term: '3Q', grade: '3･4'))
+
+      assert_equal %w[1Q 3Q], rows.pluck('開講区分')
+      assert_equal %w[1 3・4], rows.pluck('受講年次')
+      assert_equal ['', ''], rows.pluck('要確認')
+    end
+
+    test 'accepts a full-year course' do
+      assert_equal '', parse(header + course(code: '610000071', top: 153, term: '通年')).first['要確認']
+    end
+
+    test 'flags a term that is not a known one' do
+      row = parse(header + course(code: '610000071', top: 153, term: '前期')).first
+      assert_equal '開講区分が不明', row['要確認']
+    end
+
     test 'returns no rows for a page without lecture codes' do
       assert_empty parse(header)
     end
