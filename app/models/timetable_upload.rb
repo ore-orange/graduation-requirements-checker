@@ -27,17 +27,20 @@ class TimetableUpload < ApplicationRecord
 
   # 画面の1ページぶんの編集内容とチェックを、まとめて保存する。
   # edits: { 行ID(文字列) => 入力値 } / confirmed_ids: チェックされた行ID(文字列)の配列。
+  # remembered: ほかのページでチェックを入れ外ししたまま更新していない行({ 行ID(文字列) => true/false })。
+  #   画面にない行なので、入力値は変えず、確認済みかどうかだけを反映する。
   # confirm_valid: 読み取りで要確認が付かず、値にも問題のない行を、全ページぶん確認済みにする。
   # 確認済みにできない行(値に問題がある)は確認済みにせず、その理由を failures({ 行ID => 理由の配列 })で返す。
-  def apply_edits(edits, confirmed_ids, confirm_valid: false)
+  def apply_edits(edits, confirmed_ids, confirm_valid: false, remembered: {})
     result = EditResult.new(updated: 0, failures: {})
     transaction do
       rows.each do |row|
-        values = edits[row.id.to_s]
-        next if values.nil? && !confirm_valid
+        id = row.id.to_s
+        values = edits[id]
+        next if values.nil? && !remembered.key?(id) && !confirm_valid
 
         row.apply_edit(values) if values
-        update_confirmation(row, values ? confirmed_ids.include?(row.id.to_s) : row.confirmed, confirm_valid, result)
+        update_confirmation(row, checked_state(row, values, confirmed_ids, remembered), confirm_valid, result)
         next unless row.changed?
 
         row.save!
@@ -70,6 +73,15 @@ class TimetableUpload < ApplicationRecord
   end
 
   private
+
+  # 画面から送られたページの行はチェックの有無、覚えていた行は覚えていた状態、それ以外は今の状態
+  def checked_state(row, values, confirmed_ids, remembered)
+    id = row.id.to_s
+    return confirmed_ids.include?(id) if values
+    return remembered[id] if remembered.key?(id)
+
+    row.confirmed
+  end
 
   def update_confirmation(row, checked, confirm_valid, result)
     checked ||= confirm_valid && row.review_reason.blank? && row.problems.empty?

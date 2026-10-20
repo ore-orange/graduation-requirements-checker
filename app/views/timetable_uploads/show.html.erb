@@ -4,7 +4,9 @@
   <meta name="turbo-refresh-method" content="morph">
   <meta name="turbo-refresh-scroll" content="preserve">
 <% end %>
+<% content_for :wide, true %>
 <% savable = @preview&.ok? %>
+<% save_reason = savable ? nil : (@preview.nil? ? "あと#{@upload.unconfirmed_count}行を確認済みにすると保存できます" : '直す点があります。下の「保存の内容」を確認してください') %>
 <% field_class = 'w-full rounded border border-slate-300 bg-white px-1.5 py-1' %>
 <div class="space-y-6 pb-32">
   <header>
@@ -23,7 +25,8 @@
 
   <%= render 'shared/toast' %>
 
-  <%= form_with url: update_rows_timetable_upload_path(@upload), method: :patch, id: 'rows-form' do %>
+  <%= form_with url: update_rows_timetable_upload_path(@upload), method: :patch, id: 'rows-form',
+                data: { controller: 'checks scroll-to-error', checks_key_value: "timetable-upload-checks-#{@upload.id}", action: 'submit->checks#submit' } do %>
     <%= hidden_field_tag :page, @paginator.page %>
     <table class="w-full table-fixed text-sm">
       <colgroup>
@@ -32,13 +35,18 @@
       <thead class="sticky top-0 z-10 bg-slate-100 text-left text-slate-700 shadow-sm">
         <tr>
           <% %w[科目番号 科目名 単位 必修選択 年次 曜日 時限 開講区分 講義コード・備考].each do |label| %><th class="px-1.5 py-2"><%= label %></th><% end %>
-          <th class="px-1.5 py-2 text-center">確認済み</th>
+          <th class="px-1.5 py-2 text-center">
+            <label class="flex flex-col items-center gap-0.5 text-xs font-semibold">
+              <input type="checkbox" data-checks-target="all" data-action="change->checks#toggleAll" class="size-4" aria-label="このページの全行を確認済みにする">
+              確認済み
+            </label>
+          </th>
         </tr>
       </thead>
       <% @page_rows.each do |row| %>
         <% errors = @row_errors[row.id.to_s] %>
         <% key = "rows[#{row.id}]" %>
-        <tbody id="row-<%= row.id %>" class="border-b border-slate-200 <%= errors ? 'bg-red-50' : (row.confirmed ? 'bg-emerald-50' : (row.review_reason.present? ? 'bg-amber-50' : '')) %>">
+        <tbody id="row-<%= row.id %>" <%= 'data-error-row' if errors %> class="border-b border-slate-200 <%= errors ? 'bg-red-50' : (row.confirmed ? 'bg-emerald-50' : (row.review_reason.present? ? 'bg-amber-50' : '')) %>">
           <tr class="align-top">
             <td class="p-1.5"><%= text_field_tag "#{key}[course_number]", row.course_number, class: field_class, 'aria-label': "#{row.name} 科目番号" %></td>
             <td class="p-1.5">
@@ -62,7 +70,8 @@
               <p class="mt-1 text-xs leading-5 text-slate-600"><%= row.note %></p>
             </td>
             <td class="p-1.5 text-center">
-              <%= check_box_tag "confirmed[#{row.id}]", '1', row.confirmed, class: 'mt-1.5 size-4', 'aria-label': "#{row.name} 確認済み" %>
+              <%= check_box_tag "confirmed[#{row.id}]", '1', row.confirmed, class: 'mt-1.5 size-4', 'aria-label': "#{row.name} 確認済み",
+                                                                 data: { checks_target: 'box', row_id: row.id, action: 'change->checks#toggle' } %>
             </td>
           </tr>
           <% if errors || (row.review_reason.present? && !row.confirmed) %>
@@ -99,15 +108,24 @@
 <%# 保存は別のformにして、下に固定したバーのボタンから form 属性で結び付ける %>
 <%= form_with url: commit_timetable_upload_path(@upload), id: 'commit-form' do %><% end %>
 <div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-300 bg-white/95 shadow-[0_-2px_8px_rgba(0,0,0,0.08)] backdrop-blur">
-  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-    <p class="text-sm font-semibold text-slate-800">未確認 <%= @upload.unconfirmed_count %>行</p>
+  <div class="mx-auto flex w-full <%= content_width_class %> flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+    <p class="text-sm text-slate-800">
+      <span class="font-semibold">未確認 <%= @upload.unconfirmed_count %>行</span>
+      <% if save_reason %><span id="save-reason" class="ml-2 text-slate-600"><%= save_reason %></span><% end %>
+    </p>
     <div class="flex flex-wrap items-center gap-3">
       <%= button_tag '問題のない行をまとめて確認済みにする', type: 'submit', form: 'rows-form', name: 'operation', value: 'confirm_all',
                      class: 'rounded-lg border border-slate-400 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50' %>
       <%= button_tag 'チェックした行を確認済みにして更新', type: 'submit', form: 'rows-form', name: 'operation', value: 'update',
                      class: 'rounded-lg border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50' %>
-      <%= button_tag '保存する', type: 'submit', form: 'commit-form', disabled: !savable, title: (savable ? nil : (@preview.nil? ? '未確認の行があります' : '直す点があります')),
-                     class: "demo-button #{'cursor-not-allowed opacity-50' unless savable}" %>
+      <%# 無効のボタンはホバーを受け取れないので、外側の要素でツールチップを出す %>
+      <span class="group relative inline-block">
+        <%= button_tag '保存する', type: 'submit', form: 'commit-form', disabled: !savable, 'aria-describedby': (save_reason ? 'save-reason' : nil),
+                       class: "demo-button #{'pointer-events-none cursor-not-allowed opacity-50' unless savable}" %>
+        <% if save_reason %>
+          <span role="tooltip" class="invisible absolute bottom-full right-0 z-50 mb-2 w-max max-w-xs rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-lg group-hover:visible"><%= save_reason %></span>
+        <% end %>
+      </span>
     </div>
   </div>
 </div>

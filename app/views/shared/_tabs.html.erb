@@ -1,5 +1,5 @@
 <nav aria-label="メインメニュー" class="border-b border-slate-200 bg-white">
-  <ul class="mx-auto flex w-full max-w-7xl gap-1 px-4 sm:px-6 lg:px-8">
+  <ul class="mx-auto flex w-full <%= content_width_class %> gap-1 px-4 sm:px-6 lg:px-8">
     <% [['ホーム', root_path], ['ローカルデモ', demo_path], ['講義登録', course_registrations_path]].each do |label, path| %>
       <% current = path == root_path ? current_page?(root_path) : request.path.start_with?(path) || (path == course_registrations_path && request.path.start_with?('/timetable_uploads')) %>
       <li>

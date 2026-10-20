@@ -413,6 +413,98 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_equal course, row.reload.course
   end
 
+  # ほかのページで入れ外ししたまま更新していないチェック(ブラウザが覚えていて、更新時にまとめて送る)
+  def update_with_remembered(upload, remembered, changes: {}, confirmed: [], page: nil)
+    rows = changes.to_h { |row, values| [row.id, row.slice(*TimetableUploadRow::EDITABLE).merge(values)] }
+    params = { rows: rows, confirmed: confirmed.to_h do |row|
+      [row.id, '1']
+    end, remembered: remembered.transform_keys(&:id) }
+    params[:page] = page if page
+    patch update_rows_timetable_upload_path(upload), params: params, env: ENV_LOCAL
+  end
+
+  test 'checks remembered from other pages are applied together with the update' do
+    upload = create_large_upload
+    on_page = upload.rows.find_by!(position: 31)
+    page_one = upload.rows.find_by!(position: 0)
+    already_confirmed = upload.rows.find_by!(position: 1)
+    already_confirmed.update!(confirmed: true)
+
+    update_with_remembered(upload, { page_one => '1', already_confirmed => '0' },
+                           changes: { on_page => {} }, confirmed: [on_page], page: 2)
+
+    assert_predicate page_one.reload, :confirmed
+    assert_not already_confirmed.reload.confirmed
+    assert_predicate on_page.reload, :confirmed
+    assert_redirected_to timetable_upload_path(upload, page: 2)
+    follow_redirect!
+    assert_select '[role=status]', text: /3行を更新しました/
+  end
+
+  test 'a remembered row on another page that cannot be confirmed sends you to its page' do
+    upload = create_large_upload
+    broken = upload.rows.find_by!(position: 2)
+    broken.update!(period_text: '4(・5)')
+    on_page = upload.rows.find_by!(position: 31)
+
+    update_with_remembered(upload, { broken => '1' }, changes: { on_page => {} }, confirmed: [on_page], page: 2)
+
+    assert_not broken.reload.confirmed
+    assert_predicate on_page.reload, :confirmed
+    assert_redirected_to timetable_upload_path(upload, page: 1)
+    follow_redirect!
+    assert_select '[role=alert]', text: /確認済みにできない行が1行あります（1ページ目）/
+    assert_select "tbody#row-#{broken.id}[data-error-row].bg-red-50"
+  end
+
+  test 'a remembered check for a row that is not on the page is ignored when absent' do
+    upload = create_large_upload
+    untouched = upload.rows.find_by!(position: 3)
+    on_page = upload.rows.find_by!(position: 0)
+
+    update_rows(upload, changes: { on_page => { 'name' => '変更後' } })
+
+    assert_not untouched.reload.confirmed
+  end
+
+  test 'the page offers select-all, remembered checks and the first error row to scroll to' do
+    upload = create_large_upload
+    row = upload.rows.first
+
+    get timetable_upload_path(upload), env: ENV_LOCAL
+
+    assert_select 'form#rows-form[data-controller~=checks][data-controller~=scroll-to-error]'
+    assert_select "form#rows-form[data-checks-key-value='timetable-upload-checks-#{upload.id}']"
+    assert_select 'th input[type=checkbox][data-checks-target=all]', 1
+    assert_select "input[type=checkbox][name='confirmed[#{row.id}]'][data-checks-target=box][data-row-id='#{row.id}']"
+    assert_select 'tbody[data-error-row]', 0
+  end
+
+  test 'the disabled save button explains why with text and a tooltip' do
+    upload = create_large_upload
+
+    get timetable_upload_path(upload), env: ENV_LOCAL
+    assert_select '#save-reason', text: /あと35行を確認済みにすると保存できます/
+    assert_select '[role=tooltip]', text: /あと35行を確認済みにすると保存できます/
+    assert_select 'button[disabled][aria-describedby=save-reason]', text: '保存する'
+
+    upload.rows.each { |row| row.update!(confirmed: true) }
+    get timetable_upload_path(upload), env: ENV_LOCAL
+    assert_select '[role=tooltip]', 0
+    assert_select 'button:not([disabled])', text: '保存する'
+  end
+
+  test 'the confirmation screen uses the wide layout and the list keeps the standard width' do
+    upload = create_large_upload
+
+    get timetable_upload_path(upload), env: ENV_LOCAL
+    assert_select 'main.max-w-\\[110rem\\]'
+    assert_select 'main.max-w-7xl', 0
+
+    get course_registrations_path, env: ENV_LOCAL
+    assert_select 'main.max-w-7xl'
+  end
+
   test 'opening a missing upload goes back to the list with a message' do
     get timetable_upload_path(0), env: ENV_LOCAL
 

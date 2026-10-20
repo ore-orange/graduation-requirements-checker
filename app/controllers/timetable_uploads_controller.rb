@@ -41,12 +41,16 @@ class TimetableUploadsController < ApplicationController
   # operation=confirm_all のときは、問題のない行を全ページぶん確認済みにする。
   def update_rows
     result = @upload.apply_edits(submitted_edits, submitted_confirmed_ids,
-                                 confirm_valid: params[:operation] == 'confirm_all')
-    flash[:row_errors] = result.failures if result.failures.any?
+                                 confirm_valid: params[:operation] == 'confirm_all', remembered: remembered_checks)
     flash[:notice] = update_notice(result)
-    flash[:alert] = "確認済みにできない行が#{result.failures.size}行あります。赤い行の内容を直してください。" if result.failures.any?
-    # 送ったページ自身(同じURL)に戻すと、画面全体を読み込み直さず差分だけ反映してスクロール位置を保てる
-    redirect_back_or_to timetable_upload_path(@upload, page: params[:page].presence), status: :see_other
+    return redirect_after_update if result.failures.empty?
+
+    flash[:row_errors] = result.failures
+    pages = failure_pages(result)
+    flash[:alert] = "確認済みにできない行が#{result.failures.size}行あります（#{pages.map { |page| "#{page}ページ目" }.join('、')}）。" \
+                    '赤い行の内容を直してください。'
+    # 最初のエラーがあるページへ移る(同じページなら、同じURLのまま差分更新する)
+    redirect_after_update(error_page: pages.first)
   end
 
   def commit
@@ -63,6 +67,30 @@ class TimetableUploadsController < ApplicationController
 
   def load_upload
     @upload = TimetableUpload.includes(:rows).find(params.expect(:id))
+  end
+
+  # 送ったページ自身(同じURL)に戻すと、画面全体を読み込み直さず差分だけ反映してスクロール位置を保てる
+  def redirect_after_update(error_page: nil)
+    current = Paginator.new(total: @upload.rows.size, page: params[:page]).page
+    if error_page && error_page != current
+      redirect_to timetable_upload_path(@upload, page: error_page), status: :see_other
+    else
+      redirect_back_or_to timetable_upload_path(@upload, page: params[:page].presence), status: :see_other
+    end
+  end
+
+  # エラーのある行が何ページ目にあるか(小さい順)
+  def failure_pages(result)
+    per = Paginator::PER_PAGE
+    @upload.rows.select { |row| result.failures.key?(row.id.to_s) }.map { |row| (row.position / per) + 1 }.uniq.sort
+  end
+
+  # ほかのページで覚えていたチェック。remembered[行ID]=1(チェックあり)/0(なし)
+  def remembered_checks
+    raw = params[:remembered]
+    return {} unless raw.respond_to?(:each_pair)
+
+    raw.each_pair.to_h { |id, value| [id.to_s, value.to_s == '1'] }
   end
 
   def update_notice(result)
