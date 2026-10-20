@@ -27,8 +27,18 @@ module TimetableImport
       note: 770..2000
     }.freeze
 
+    # 見出し文字と、それが上の列位置(COLUMNS)の座標系で出てくるx座標。
+    # PDFによって表の幅(縮尺)が違うので、見出しがこの位置に重なるようにx座標を伸縮してから列を判定する。
+    HEADER_ANCHORS = {
+      /\A科目番/ => 108, /\A科目名\z/ => 178, /\A単/ => 247, /\A必修/ => 305,
+      /\A受/ => 469, /\A曜/ => 505, /\A期間\z/ => 682
+    }.freeze
+
     LECTURE_CODE = /\A\d{9}\z/
     REQUIREMENTS = { '必' => '必修', '選' => '選択' }.freeze
+    TERM_TYPES = %w[半年 1Q 2Q 3Q 4Q 通年 集中].freeze
+    # 「第1Q」「１クォーター」など、n番目のクォーターの書き方
+    QUARTER = /\A第?(\d)(?:Q|クォーター)\z/
     # 表の最初の行の上にある見出し行を除くための余裕
     HEADER_MARGIN = 20
     LINE_GAP = 6
@@ -49,7 +59,12 @@ module TimetableImport
     end
 
     def rows
-      pages.flat_map { |spans| page_rows(spans) }
+      points = []
+      pages.flat_map do |spans|
+        found = header_points(spans)
+        points = found unless found.empty?
+        page_rows(align_to_reference(spans, points))
+      end
     end
 
     private
@@ -63,6 +78,39 @@ module TimetableImport
         text = body.scan(/\bc="([^"]*)"/).flatten.map { |char| CGI.unescapeHTML(char) }.join
         Span.new(x.to_i, y.to_i, text)
       end
+    end
+
+    # 見出しが無いページ(前のページの続き)は、前のページの見出しの位置を使う。
+    # どのページにも見出しが無ければ、そのままの座標で判定する。
+    def align_to_reference(spans, points)
+      return spans if points.size < 2
+
+      spans.map { |span| Span.new(reference_x(points, span.x), span.y, span.text) }
+    end
+
+    # [このPDFでの見出しのx座標, 基準のx座標] を、x座標の小さい順に返す。順序が基準と食い違うときは使わない。
+    def header_points(spans)
+      first_code_y = spans.select { |span| span.text.match?(LECTURE_CODE) }.map(&:y).min
+      return [] unless first_code_y
+
+      header = spans.select { |span| span.y < first_code_y }
+      points = HEADER_ANCHORS.filter_map { |pattern, reference| header_point(header, pattern, reference) }.sort
+      same_order?(points) ? points : []
+    end
+
+    def same_order?(points)
+      points.each_cons(2).all? { |left, right| left[0] < right[0] && left[1] < right[1] }
+    end
+
+    def header_point(header, pattern, reference)
+      found = header.select { |span| span.text.match?(pattern) }.max_by(&:y)
+      [found.x, reference] if found
+    end
+
+    # 見出しの位置の間は線形に、両端の外側は端の区間の伸縮率で延ばして、基準のx座標に直す。
+    def reference_x(points, left_edge)
+      from, to = points.each_cons(2).find { |_, upper| left_edge <= upper[0] } || points.last(2)
+      (from[1] + ((left_edge - from[0]) * (to[1] - from[1]).fdiv(to[0] - from[0]))).round
     end
 
     def page_rows(spans)
@@ -91,15 +139,24 @@ module TimetableImport
         '講義コード' => anchor.text,
         '科目番号' => cell(spans, :course_number),
         '科目名' => name(spans),
-        '単位' => cell(spans, :credits),
+        '単位' => half_width(cell(spans, :credits)),
         '必修選択' => REQUIREMENTS.fetch(cell(spans, :requirement), cell(spans, :requirement)),
-        '受講年次' => cell(spans, :grade),
+        '受講年次' => half_width(cell(spans, :grade)),
         '曜日' => cell(spans, :weekday),
-        '時限' => cell(spans, :periods),
-        '開講区分' => cell(spans, :term_type),
+        '時限' => half_width(cell(spans, :periods)),
+        '開講区分' => term_type(cell(spans, :term_type)),
         '備考' => note(spans)
       }
       row.merge('要確認' => review_reasons(row).join('、'))
+    end
+
+    def half_width(text)
+      text.tr('０-９･', '0-9・')
+    end
+
+    def term_type(text)
+      quarter = half_width(text).match(QUARTER)
+      quarter ? "#{quarter[1]}Q" : text
     end
 
     def column_spans(spans, column)
@@ -131,6 +188,7 @@ module TimetableImport
       reasons << '単位が整数でない' unless row['単位'].match?(/\A\d+\z/)
       reasons << '必修選択が不明' unless Values::REQUIREMENT_TYPES.include?(row['必修選択'])
       reasons << '受講年次が不明' unless row['受講年次'].match?(Values::DIGIT_LIST)
+      reasons << '開講区分が不明' unless TERM_TYPES.include?(row['開講区分'])
       reasons.concat(schedule_reasons(row))
     end
 
