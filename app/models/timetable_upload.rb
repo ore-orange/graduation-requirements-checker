@@ -7,12 +7,15 @@ class TimetableUpload < ApplicationRecord
 
   validates :semester, inclusion: { in: TimetableImport::Values::SEMESTERS }
 
+  # 見比べ用のページ画像の置き場。取り込みを消すときに、ここごと消す。
+  after_destroy { FileUtils.rm_rf(images_dir) }
+
   def self.build_from_pdf(pdf_path, semester:, filename:)
     xml = TimetableImport::PdfParser.extract_xml(pdf_path)
     parsed = TimetableImport::PdfParser.new(xml, semester: semester).rows
     raise TimetableImport::PdfParser::Error, 'PDFから科目の行を見つけられませんでした。授業時間配当表のPDFか確認してください。' if parsed.empty?
 
-    transaction do
+    import = transaction do
       import = create!(semester: semester, source_filename: filename)
       parsed.each_with_index do |row, index|
         upload_row = import.rows.build(TimetableUploadRow.attributes_from_parsed(row, index))
@@ -21,6 +24,29 @@ class TimetableUpload < ApplicationRecord
       end
       import
     end
+    import.render_page_images(pdf_path)
+    import
+  end
+
+  def images_dir
+    Rails.root.join('storage/timetable_uploads', id.to_s)
+  end
+
+  def page_count
+    Dir.glob(images_dir.join('p*.png')).size
+  end
+
+  # 画面に出すページ画像。無ければ nil。
+  def page_image_path(page)
+    path = images_dir.join("p#{Integer(page.to_s, 10, exception: false) || 0}.png")
+    path if File.exist?(path)
+  end
+
+  # 見比べ用の画像を作る。作れなくても取り込みは成立させる(ペインが出ないだけ)。
+  def render_page_images(pdf_path)
+    TimetableImport::PageImages.render(pdf_path, images_dir)
+  rescue TimetableImport::PageImages::Error
+    nil
   end
 
   EditResult = Struct.new(:updated, :failures, keyword_init: true)
