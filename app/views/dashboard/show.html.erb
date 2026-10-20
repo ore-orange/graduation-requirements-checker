@@ -1,244 +1,71 @@
 <% content_for :title, app_name %>
 <% content_for :full_bleed, true %>
 <%
+  metrics = @metrics
   actual_credits = @assessment.actual.counted_credits
-  projected_credits = @assessment.projected.counted_credits
-  custom_plans = @plans.select { |p| custom_course?(p.course.curriculum_key) }
-  custom_credits = custom_plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
-  planned_delta = (projected_credits - actual_credits) + custom_credits
-  projected_display_total = projected_credits + custom_credits
-  actual_pct = [[(actual_credits.to_f / 130 * 100).round(1), 100.0].min, 0.0].max
-  remaining_actual = [BigDecimal('130') - actual_credits, BigDecimal('0')].max
-
-  actual_req_check = find_check(@assessment.actual, 'required_all')
-  projected_req_check = find_check(@assessment.projected, 'required_all')
-  actual_req_done = 31 - (actual_req_check&.missing_courses&.size || 0)
-  projected_req_done = 31 - (projected_req_check&.missing_courses&.size || 0)
-  review_count = @assessment.projected.review_notes.size
+  custom_credits = metrics.custom_plans.sum(BigDecimal('0')) { |plan| plan_credits(plan, @courses_by_key) }
+  planned_delta = (@assessment.projected.counted_credits - actual_credits) + custom_credits
+  groups = StudentWorkspaceHelper::PLANNER_GROUPS.map { |definition| [definition, metrics.group(definition)] }
+  unmet_groups = groups.reject { |_, summary| summary[:status] == :satisfied }
 %>
 
-<div class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
+<div class="min-h-screen bg-slate-50 pb-16 font-sans text-slate-800">
   <%= render 'shared/nav' %>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+  <main class="mx-auto max-w-5xl space-y-6 px-4 pt-6 sm:px-6 lg:px-8">
     <%= render 'shared/flash' %>
 
     <h2 class="sr-only">進捗ダッシュボード</h2>
 
-      <!-- KPI サマリーカード (実績判定・見込み判定・専門必修＆要確認ステータス) -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <!-- カード1: 実績判定 (現在の卒業算入単位) -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">現在の卒業算入単位 (実績判定)</span>
-            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold <%= assessment_status_class(@assessment.actual.status) %>">
-              <%= assessment_status_label(@assessment.actual.status) %>
-            </span>
-          </div>
-          <div class="mt-3 flex items-baseline gap-2">
-            <span class="text-4xl font-extrabold text-slate-900 tracking-tight"><%= credit_number(actual_credits) %></span>
-            <span class="text-sm font-medium text-slate-500">/ 130 単位 (<%= actual_pct %>%)</span>
-          </div>
-          <p class="mt-2 text-xs text-slate-500">
-            <% if remaining_actual.positive? %>
-              卒業要件まで残り <strong class="text-slate-700"><%= credit_number(remaining_actual) %>単位</strong> 必要です
-            <% else %>
-              総単位数（130単位）に到達しています
+    <section aria-labelledby="progress-heading" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <h3 id="progress-heading" class="sr-only">卒業に向けた単位の充足状況</h3>
+
+      <%# 上段: 卒業算入単位の合計と、充足していない大項目 %>
+      <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-6">
+        <p class="flex flex-wrap items-baseline gap-x-2 gap-y-1"
+           data-assessment="total"
+           data-status="<%= @assessment.projected.status %>"
+           data-actual-status="<%= @assessment.actual.status %>"
+           data-counted-credits="<%= credit_number(actual_credits) %>"
+           data-projected-credits="<%= credit_number(actual_credits + planned_delta) %>">
+          <span class="text-4xl font-extrabold tracking-tight text-slate-900 tabular-nums"><%= credit_number(actual_credits) %></span>
+          <% if planned_delta.positive? %>
+            <span class="text-2xl font-bold text-sky-700 tabular-nums">+<%= credit_number(planned_delta) %></span>
+          <% end %>
+          <span class="text-base font-medium text-slate-500">/ 130 単位</span>
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <% if unmet_groups.empty? %>
+            <span class="demo-status status-satisfied">卒業要件を満たしています</span>
+          <% else %>
+            <% unmet_groups.each do |definition, summary| %>
+              <span class="demo-status <%= assessment_status_class(summary[:status]) %>">
+                <%= group_short_title(definition) %> <%= assessment_status_label(summary[:status]) %>
+              </span>
             <% end %>
-          </p>
-        </div>
-
-        <!-- カード2: 見込み判定 (履修予定を含めた卒業算入単位) -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">履修予定を含む見込み (見込み判定)</span>
-            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold <%= assessment_status_class(@assessment.projected.status) %>">
-              <%= assessment_status_label(@assessment.projected.status) %>
-            </span>
-          </div>
-          <div class="mt-3 flex items-baseline gap-2">
-            <span class="text-4xl font-extrabold text-sky-600 tracking-tight">+<%= credit_number(planned_delta) %></span>
-            <span class="text-sm font-medium text-slate-500">単位 (計 <%= credit_number(projected_display_total) %> / 130 単位見込)</span>
-          </div>
-          <p class="mt-2 text-xs text-slate-500">
-            履修中 <%= @current.size %>科目 ＋ 将来計画 <%= @plans.size %>科目
-            <% if custom_plans.any? %>
-              <span class="text-amber-700 font-semibold">（うち自由入力 <%= custom_plans.size %>科目・要確認）</span>
-            <% end %>
-          </p>
-        </div>
-
-        <!-- カード3: 専門必修31科目の充足状況 ＆ 要確認チェック -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">専門必修科目 (31科目・57単位)</span>
-            <% if review_count.positive? %>
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900">要確認 <%= review_count %>件</span>
-            <% elsif projected_req_done == 31 %>
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900">計画で全必修充足</span>
-            <% else %>
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700">見込み残り<%= 31 - projected_req_done %>科目</span>
-            <% end %>
-          </div>
-          <div class="mt-3 flex items-baseline gap-2">
-            <span class="text-4xl font-extrabold text-slate-900 tracking-tight"><%= actual_req_done %></span>
-            <% if projected_req_done > actual_req_done %>
-              <span class="text-lg font-bold text-sky-600">(→<%= projected_req_done %>)</span>
-            <% end %>
-            <span class="text-sm font-medium text-slate-500">/ 31 科目 (<%= credit_number(actual_req_check&.counted_credits) %> / 57単位)</span>
-          </div>
-          <p class="mt-2 text-xs text-slate-500 truncate" title="<%= projected_req_check&.missing_courses&.join('、') %>">
-            <% if projected_req_check&.missing_courses&.any? %>
-              未計画の必修: <strong class="text-rose-600"><%= projected_req_check.missing_courses.join('、') %></strong>
-            <% else %>
-              <strong class="text-emerald-600">専門必修31科目すべて修得または計画済みです</strong>
-            <% end %>
-          </p>
-        </div>
-      </div>
-
-      <!-- 区分別 単位充足グラフ (親グループ見出し + 子区分スタックバー) -->
-      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 class="text-base font-bold text-slate-900">区分別 単位充足グラフ</h2>
-            <p class="text-xs text-slate-500 mt-0.5">濃いバーが修得済み算入単位、水色が履修中・将来計画の追加見込みを示します</p>
-          </div>
-          <!-- 凡例 -->
-          <div class="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-600">
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-emerald-500 inline-block"></span>実績で充足</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-indigo-600 inline-block"></span>修得済 (未達)</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-sky-300 inline-block"></span>履修予定 (履修中＋計画)</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-amber-400 inline-block"></span>要確認</span>
-          </div>
-        </div>
-
-        <div id="dashboard-groups-container" class="divide-y divide-slate-200">
-          <% StudentWorkspaceHelper::PLANNER_GROUPS.each do |group| %>
-            <%
-              group_actual = find_check(@assessment.actual, group[:check_id])
-              group_projected = find_check(@assessment.projected, group[:check_id])
-              group_cats = group[:rows].flat_map { |r| r[:categories] }
-              group_custom = custom_plans.select { |p| group_cats.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-                                         .sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
-              group_earned = group_actual ? group_actual.counted_credits : BigDecimal('0')
-              group_planned = ((group_projected ? group_projected.counted_credits : BigDecimal('0')) - group_earned) + group_custom
-              group_status = if group_custom.positive?
-                               :needs_review
-                             elsif group_actual&.status == :satisfied
-                               :satisfied
-                             else
-                               group_projected&.status || :unmet
-                             end
-            %>
-            <div class="p-6 space-y-4" data-dashboard-group="<%= group[:id] %>">
-              <!-- 親グループ見出し -->
-              <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
-                <div class="flex items-center gap-2.5">
-                  <h3 class="text-sm font-bold text-slate-900" data-sync-group-title="<%= group[:id] %>"><%= group[:title] %></h3>
-                  <% if group_projected %>
-                    <span class="px-2 py-0.5 rounded-full text-[11px] font-bold <%= assessment_status_class(group_status) %>">
-                      見込み: <%= assessment_status_label(group_status) %>
-                    </span>
-                  <% end %>
-                </div>
-                <div class="text-xs text-slate-600 font-medium">
-                  領域合計: <strong class="text-slate-900"><%= credit_number(group_earned) %></strong>
-                  <% if group_planned.positive? %>
-                    <span class="text-sky-600 font-semibold">(+<%= credit_number(group_planned) %>)</span>
-                  <% end %>
-                  / <span data-sync-group-req="<%= group[:id] %>"><%= group[:req] %></span> 単位以上
-                </div>
-              </div>
-
-              <!-- 子区分バー一覧 -->
-              <div class="space-y-4 pl-0 sm:pl-2" data-dashboard-children="<%= group[:id] %>">
-                <% group[:rows].each do |row| %>
-                  <%
-                    # 専門選択の内数3区分と自由科目は、内数22単位バー・選択全体37単位バーとしても視覚化できるよう実単位を集計
-                    row_cred = category_credits(@enrollments, @plans, row[:categories], @courses_by_key)
-                    primary_actual_check = find_check(@assessment.actual, row[:check_ids].first)
-                    primary_projected_check = find_check(@assessment.projected, row[:check_ids].first)
-                    row_custom = custom_plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-                                             .sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
-
-                    if %w[general_subtotal fusion].include?(row[:id]) && primary_actual_check&.counted_credits && primary_projected_check&.counted_credits
-                      earned_val = primary_actual_check.counted_credits
-                      planned_val = (primary_projected_check.counted_credits - earned_val) + row_custom
-                    else
-                      earned_val = row_cred[:earned]
-                      planned_val = row_cred[:planned]
-                    end
-
-                    target_req = row[:req] || (row[:id] == 'free' ? 37 : 22)
-                    earned_pct = [[(earned_val.to_f / target_req * 100).round, 100].min, 0].max
-                    planned_pct = [[(planned_val.to_f / target_req * 100).round, 100 - earned_pct].min, 0].max
-                    status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_custom.positive?)
-                    missing_list = @assessment.projected.checks.select { |c| row[:check_ids].include?(c.id) }.flat_map(&:missing_courses).uniq
-                  %>
-                  <div class="flex flex-col sm:flex-row sm:items-center gap-3" data-dashboard-row="<%= row[:id] %>">
-                    <div class="sm:w-2/5">
-                      <div class="text-sm font-semibold text-slate-800 flex flex-wrap items-center gap-2">
-                        <span data-sync-row-title="<%= row[:id] %>"><%= row[:name] %></span>
-                        <% if status == :satisfied %>
-                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700">CLEAR</span>
-                        <% elsif status == :projected %>
-                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700">見込み達成</span>
-                        <% elsif status == :needs_review %>
-                          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">要確認</span>
-                        <% end %>
-                      </div>
-                      <p class="text-[11px] text-slate-400 mt-0.5"><%= row[:subtitle] %></p>
-                      <% if missing_list.any? %>
-                        <p class="text-[11px] text-rose-600 font-medium mt-0.5">未計画の必修・指定科目: <%= missing_list.join('、') %></p>
-                      <% end %>
-                    </div>
-
-                    <!-- 横線グラフ本体 -->
-                    <div class="sm:w-3/5 flex items-center gap-4">
-                      <div class="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden flex">
-                        <div class="<%= status == :satisfied ? 'bg-emerald-500' : (status == :needs_review ? 'bg-amber-500' : 'bg-indigo-600') %> h-full transition-all duration-300"
-                             data-bar-earned="<%= row[:id] %>"
-                             data-earned-value="<%= earned_val.to_f %>"
-                             style="width: <%= earned_pct %>%"></div>
-                        <% if planned_pct.positive? %>
-                          <div class="<%= status == :needs_review ? 'bg-amber-300' : 'bg-sky-300' %> h-full transition-all duration-300"
-                               data-bar-planned="<%= row[:id] %>"
-                               data-planned-value="<%= planned_val.to_f %>"
-                               style="width: <%= planned_pct %>%"></div>
-                        <% end %>
-                      </div>
-                      <div class="w-32 text-right text-xs tabular-nums shrink-0">
-                        <span class="font-bold text-slate-900 text-sm"><%= credit_number(earned_val) %></span>
-                        <% if planned_val.positive? %>
-                          <span class="text-sky-600 font-semibold">(+<%= credit_number(planned_val) %>)</span>
-                        <% end %>
-                        <span class="text-slate-400">
-                          /
-                          <% if row[:req] %>
-                            <span data-sync-row-req="<%= row[:id] %>"><%= row[:req] %></span>単位
-                          <% else %>
-                            <%= row[:req_label] %>
-                          <% end %>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            </div>
           <% end %>
         </div>
       </div>
 
-      <!-- 実績判定・見込み判定の詳細カード (不足科目・算入理由の確認) -->
-      <div id="assessments" class="grid items-start gap-6 lg:grid-cols-2">
-        <%= render 'shared/snapshot', snapshot: @assessment.actual, kind: 'actual',
-                               heading: '実績判定（現在の修得状況）',
-                               description: '修得済みの科目のみで算入単位と必修条件を判定しています。' %>
-        <%= render 'shared/snapshot', snapshot: @assessment.projected, kind: 'projected',
-                               heading: '見込み判定（履修予定を含めた見込み）',
-                               description: '修得済み ＋ 履修中 ＋ 将来計画で判定しています。未確認事項がある場合は「要確認」となります。' %>
-      </div>
+      <%# 下段: 大項目ごとの充足状況。小項目はここには出さない %>
+      <ul class="divide-y divide-slate-200">
+        <% groups.each do |definition, summary| %>
+          <li class="px-5 py-4 sm:px-6"
+              data-check="<%= definition[:check_id] %>"
+              data-status="<%= summary[:status] %>"
+              data-actual-status="<%= find_check(@assessment.actual, definition[:check_id])&.status %>"
+              data-projected-status="<%= find_check(@assessment.projected, definition[:check_id])&.status %>">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <span class="shrink-0 text-sm font-bold text-slate-900 sm:w-44"><%= group_short_title(definition) %></span>
+              <%= render 'dashboard/bar', summary: summary %>
+            </div>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+
+    <p class="px-1 text-xs text-slate-500">
+      濃いバーが修得済みの算入単位、水色が履修中・履修計画による見込みです。
+    </p>
   </main>
 </div>

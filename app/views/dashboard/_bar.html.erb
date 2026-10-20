@@ -1,0 +1,16 @@
+<%# 大項目・小項目で共通の横棒。修得済みを濃く、見込みを水色で重ねる。 %>
+<div class="flex min-w-0 flex-1 items-center gap-3">
+  <div class="flex h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
+    <div class="h-full <%= summary[:status] == :needs_review ? 'bg-amber-500' : (summary[:status] == :satisfied ? 'bg-emerald-600' : 'bg-indigo-700') %>"
+         style="width: <%= summary[:earned_pct] %>%"></div>
+    <% if summary[:planned_pct].positive? %>
+      <div class="h-full <%= summary[:status] == :needs_review ? 'bg-amber-300' : 'bg-sky-400' %>"
+           style="width: <%= summary[:planned_pct] %>%"></div>
+    <% end %>
+  </div>
+  <p class="w-28 shrink-0 text-right text-sm tabular-nums">
+    <span class="font-bold text-slate-900"><%= credit_number(summary[:earned]) %></span><!--
+    --><% if summary[:planned].positive? %><span class="font-semibold text-sky-700">+<%= credit_number(summary[:planned]) %></span><% end %><!--
+    --><span class="text-slate-500">/<%= summary[:req] %></span>
+  </p>
+</div>
