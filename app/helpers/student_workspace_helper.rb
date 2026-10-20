@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module DemoHelper
+module StudentWorkspaceHelper
   CATEGORY_LABELS = { 'health' => '健康運動系', 'humanities' => '人文系', 'social' => '社会系', 'natural' => '自然系',
                       'integrated' => '総合科目', 'career' => 'キャリア関係', 'regional' => '琉大特色・地域創生', 'japanese' => '日本語表現法入門',
                       'english' => '英語', 'foreign_language' => '英語以外の外国語', 'basic' => '専門基礎科目',
@@ -83,7 +83,7 @@ module DemoHelper
   def category_credits(enrollments, plans, categories, courses_by_key)
     in_cat = filter_by_categories(enrollments, categories, courses_by_key)
     earned = in_cat.select { |i| i.enrollment_status == 'completed' }.sum(BigDecimal('0')) { |i| i.credits_earned.to_d }
-    current = in_cat.select { |i| DemoController::CURRENT_STATUSES.include?(i.enrollment_status) }
+    current = in_cat.select { |i| StudentWorkspace::CURRENT_STATUSES.include?(i.enrollment_status) }
                     .sum(BigDecimal('0')) { |i| i.course.credits.to_d }
     planned = filter_by_categories(plans, categories, courses_by_key)
               .sum(BigDecimal('0')) { |p| plan_credits(p, courses_by_key) }
