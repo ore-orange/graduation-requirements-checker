@@ -3,6 +3,8 @@
 class TimetableUploadRow < ApplicationRecord
   EDITABLE = %i[lecture_code course_number name credits requirement_type grade_text weekday period_text
                 term_type].freeze
+  # 「3・4・5」のような数字の並びで持つ欄。全角で打たれても受け付けられるようにそろえる。
+  DIGIT_FIELDS = %i[grade_text period_text].freeze
 
   belongs_to :timetable_upload
   belongs_to :course, optional: true
@@ -60,7 +62,7 @@ class TimetableUploadRow < ApplicationRecord
   # 画面から送られた値を反映する(保存はしない)。
   # 名前・番号を直したときは候補が変わるので、それまでの選択を捨てて既定から選び直す。
   def apply_edit(values)
-    EDITABLE.each { |field| self[field] = values[field].to_s.strip if values.key?(field) }
+    EDITABLE.each { |field| self[field] = edited_value(field, values[field]) if values.key?(field) }
     if course_number_changed? || name_changed?
       self.course = nil
       self.register_as_new = false
@@ -81,6 +83,11 @@ class TimetableUploadRow < ApplicationRecord
   # Importerに渡す行。確認済みでなければ「要確認」を残し、保存対象にしない。
   def importer_row
     importer_values(review: confirmed ? '' : (review_reason.presence || '未確認'))
+  end
+
+  def edited_value(field, value)
+    value = value.to_s.strip
+    DIGIT_FIELDS.include?(field) ? TimetableImport::Values.half_width(value) : value
   end
 
   def credits_mismatch_message

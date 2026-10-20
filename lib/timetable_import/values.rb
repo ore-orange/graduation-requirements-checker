@@ -8,6 +8,11 @@ module TimetableImport
     WEEKDAYS = %w[月 火 水 木 金 土].freeze
     # 「3・4」「2,3」のような数字の並び
     DIGIT_LIST = /\A\d([・,]\d)*\z/
+
+    # 全角で書かれた数字・中黒を半角・「・」にそろえる
+    def self.half_width(text)
+      text.to_s.tr('０-９･', '0-9・')
+    end
   end
 end
 

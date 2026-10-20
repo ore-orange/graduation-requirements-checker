@@ -42,10 +42,9 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
   end
 
   # 確認画面の「更新」と同じ形で送る。changesは { 行 => { 項目 => 値 } }、confirmedはチェックを入れる行。
-  def update_rows(upload, changes: {}, confirmed: [], page: nil, operation: 'update')
+  def update_rows(upload, changes: {}, confirmed: [], operation: 'update')
     rows = changes.to_h { |row, values| [row.id, row.slice(*TimetableUploadRow::EDITABLE).merge(values)] }
     params = { rows: rows, confirmed: confirmed.to_h { |row| [row.id, '1'] }, operation: operation }
-    params[:page] = page if page
     patch update_rows_timetable_upload_path(upload), params: params, env: ENV_LOCAL
   end
 
@@ -114,18 +113,19 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_match '科目の行を見つけられません', flash[:alert]
   end
 
-  test 'fixed-value fields are selects and the page has one save button in the footer' do
+  test 'fixed-value fields are selects, the period is free input, and the page has one save button in the footer' do
     upload = create_upload
     row = upload.rows.first
 
     get timetable_upload_path(upload), env: ENV_LOCAL
 
-    %w[requirement_type grade_text weekday period_text term_type].each do |field|
+    %w[requirement_type grade_text weekday term_type].each do |field|
       assert_select "select[name='rows[#{row.id}][#{field}]']"
     end
+    assert_select "[data-controller=combobox] input[name='rows[#{row.id}][period_text]']"
+    assert_select '[data-controller=combobox] li[data-value="3・4・5"]'
     assert_select "input[type=number][name='rows[#{row.id}][credits]']"
     assert_select 'button', text: '保存する', count: 1
-    assert_select 'button', text: 'チェックした行を確認済みにして更新'
     assert_select 'input[type=submit][value=更新]', 0
     assert_select 'thead.sticky'
     assert_select 'form#rows-form'
@@ -153,7 +153,6 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_predicate row.reload, :confirmed
     assert_equal '月', row.weekday
     follow_redirect!
-    assert_select '[role=status]', text: /1行を更新しました/
 
     get timetable_upload_path(upload), env: ENV_LOCAL
     assert_select 'button:not([disabled])', text: '保存する'
@@ -191,80 +190,71 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_select "tbody#row-#{row.id} td", text: /時限は「2・3」のように/
   end
 
-  test 'updating with no edits and no checks says nothing changed' do
+  test 'the period can be set freely, including a run of three that is not among the suggestions' do
     upload = create_upload
     row = upload.rows.first
 
-    update_rows(upload, changes: { row => {} })
+    update_rows(upload, changes: { row => { 'period_text' => '３・４・５' } }, confirmed: [row])
+
+    assert_equal '3・4・5', row.reload.period_text
+    assert_predicate row, :confirmed
+
+    post commit_timetable_upload_path(upload), env: ENV_LOCAL
+    assert_equal [3, 4, 5], CourseOffering.find_by!(lecture_code: '610000071').periods
+  end
+
+  test 'updating says nothing: the row colours and the counter are the feedback' do
+    upload = create_upload
+    row = upload.rows.first
+
+    get timetable_upload_path(upload), env: ENV_LOCAL # 取り込み直後の知らせを流しておく
+    update_rows(upload, changes: { row => { 'weekday' => '月' } }, confirmed: [row])
     follow_redirect!
 
-    assert_select '[role=status]', text: /変更はありません/
-    assert_select '[role=status]', text: /更新しました/, count: 0
+    assert_select '[role=status]', 0
+    assert_equal '月', row.reload.weekday
+    assert_predicate row, :confirmed
   end
 
   test 'success messages dismiss themselves and sit at the right edge' do
-    upload = create_upload
-    row = upload.rows.first
-
-    update_rows(upload, changes: { row => { 'weekday' => '月' } })
+    upload_pdf
     follow_redirect!
 
-    assert_select 'div.right-4 [role=status][data-toast-auto-dismiss-value="5000"]'
+    assert_select 'div.right-4 [role=status][data-toast-auto-dismiss-value="5000"]', text: /PDFを読み取りました/
   end
 
-  test 'confirm all covers every page but skips rows flagged for review' do
+  test 'confirm all covers every row but skips rows flagged for review' do
     upload = create_large_upload
     flagged = upload.rows.find_by!(position: 34)
     flagged.update!(review_reason: '時限が不明')
 
-    update_rows(upload, operation: 'confirm_all', page: 2)
+    update_rows(upload, operation: 'confirm_all')
 
-    assert_redirected_to timetable_upload_path(upload, page: 2)
+    assert_redirected_to timetable_upload_path(upload)
     assert_equal 34, upload.rows.where(confirmed: true).count
     assert_not flagged.reload.confirmed
   end
 
-  test 'confirmation screen shows 30 rows per page with pagination only at the bottom' do
+  test 'the confirmation screen lists every row at once, without pagination' do
     upload = create_large_upload
 
     get timetable_upload_path(upload), env: ENV_LOCAL
-    assert_select 'tbody[id^=row-]', 30
-    assert_select 'input[value=科目30]', 1
-    assert_select 'input[value=科目31]', 0
-    assert_select 'nav[aria-label=ページ送り]', 1
-    assert_select 'nav[aria-label=ページ送り] span[aria-disabled=true]', text: '<<'
-    assert_select 'nav[aria-label=ページ送り] span[aria-disabled=true]', text: '<'
-    assert_select 'nav[aria-label=ページ送り] a[href=?]', timetable_upload_path(upload, page: 2), text: '>'
-    assert_select 'nav[aria-label=ページ送り] a[href=?]', timetable_upload_path(upload, page: 2), text: '>>'
-
-    get timetable_upload_path(upload, page: 2), env: ENV_LOCAL
-    assert_select 'tbody[id^=row-]', 5
-    assert_select 'input[value=科目31]', 1
-    assert_select 'span[aria-current=page]', text: '2', minimum: 1
-    assert_select 'nav[aria-label=ページ送り] a[href=?]', timetable_upload_path(upload, page: 1), text: '<<'
-    assert_select 'nav[aria-label=ページ送り] a[href=?]', timetable_upload_path(upload, page: 1), text: '<'
-    assert_select 'nav[aria-label=ページ送り] span[aria-disabled=true]', text: '>>'
+    assert_select 'tbody[id^=row-]', 35
+    assert_select 'input[value=科目35]', 1
+    assert_select 'nav[aria-label=ページ送り]', 0
   end
 
-  test 'out of range page falls back to the last page' do
-    upload = create_large_upload
+  test 'checking a row submits right away, so there is no separate update button' do
+    upload = create_upload
+    row = upload.rows.first
 
-    get timetable_upload_path(upload, page: 99), env: ENV_LOCAL
-    assert_response :success
-    assert_select 'tbody[id^=row-]', 5
+    get timetable_upload_path(upload), env: ENV_LOCAL
+    assert_select "input[type=checkbox][name='confirmed[#{row.id}]'][data-action='change->checks#toggle']"
+    assert_select 'button', text: '問題のない行をまとめて確認済みにする'
+    assert_select 'button[form=rows-form][value=update]', 0
   end
 
-  test 'updating rows returns to the same page' do
-    upload = create_large_upload
-    row = upload.rows.find_by!(position: 32)
-
-    update_rows(upload, changes: { row => {} }, confirmed: [row], page: 2)
-
-    assert_redirected_to timetable_upload_path(upload, page: 2)
-    assert_predicate row.reload, :confirmed
-  end
-
-  test 'only rows sent from the page are touched' do
+  test 'only rows sent from the screen are touched' do
     upload = create_large_upload
     sent = upload.rows.find_by!(position: 0)
     other = upload.rows.find_by!(position: 33)
@@ -413,68 +403,37 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_equal course, row.reload.course
   end
 
-  # ほかのページで入れ外ししたまま更新していないチェック(ブラウザが覚えていて、更新時にまとめて送る)
-  def update_with_remembered(upload, remembered, changes: {}, confirmed: [], page: nil)
-    rows = changes.to_h { |row, values| [row.id, row.slice(*TimetableUploadRow::EDITABLE).merge(values)] }
-    params = { rows: rows, confirmed: confirmed.to_h do |row|
-      [row.id, '1']
-    end, remembered: remembered.transform_keys(&:id) }
-    params[:page] = page if page
-    patch update_rows_timetable_upload_path(upload), params: params, env: ENV_LOCAL
-  end
-
-  test 'checks remembered from other pages are applied together with the update' do
-    upload = create_large_upload
-    on_page = upload.rows.find_by!(position: 31)
-    page_one = upload.rows.find_by!(position: 0)
-    already_confirmed = upload.rows.find_by!(position: 1)
-    already_confirmed.update!(confirmed: true)
-
-    update_with_remembered(upload, { page_one => '1', already_confirmed => '0' },
-                           changes: { on_page => {} }, confirmed: [on_page], page: 2)
-
-    assert_predicate page_one.reload, :confirmed
-    assert_not already_confirmed.reload.confirmed
-    assert_predicate on_page.reload, :confirmed
-    assert_redirected_to timetable_upload_path(upload, page: 2)
-    follow_redirect!
-    assert_select '[role=status]', text: /3行を更新しました/
-  end
-
-  test 'a remembered row on another page that cannot be confirmed sends you to its page' do
+  test 'a row that cannot be confirmed is shown in red with the reason' do
     upload = create_large_upload
     broken = upload.rows.find_by!(position: 2)
     broken.update!(period_text: '4(・5)')
-    on_page = upload.rows.find_by!(position: 31)
 
-    update_with_remembered(upload, { broken => '1' }, changes: { on_page => {} }, confirmed: [on_page], page: 2)
+    update_rows(upload, changes: { broken => {} }, confirmed: [broken])
 
     assert_not broken.reload.confirmed
-    assert_predicate on_page.reload, :confirmed
-    assert_redirected_to timetable_upload_path(upload, page: 1)
+    assert_redirected_to timetable_upload_path(upload)
     follow_redirect!
-    assert_select '[role=alert]', text: /確認済みにできない行が1行あります（1ページ目）/
+    assert_select '[role=alert]', text: /確認済みにできない行が1行あります/
     assert_select "tbody#row-#{broken.id}[data-error-row].bg-red-50"
   end
 
-  test 'a remembered check for a row that is not on the page is ignored when absent' do
+  test 'rows that were not sent keep their state' do
     upload = create_large_upload
     untouched = upload.rows.find_by!(position: 3)
-    on_page = upload.rows.find_by!(position: 0)
+    sent = upload.rows.find_by!(position: 0)
 
-    update_rows(upload, changes: { on_page => { 'name' => '変更後' } })
+    update_rows(upload, changes: { sent => { 'name' => '変更後' } })
 
     assert_not untouched.reload.confirmed
   end
 
-  test 'the page offers select-all, remembered checks and the first error row to scroll to' do
+  test 'the screen offers select-all and the first error row to scroll to' do
     upload = create_large_upload
     row = upload.rows.first
 
     get timetable_upload_path(upload), env: ENV_LOCAL
 
     assert_select 'form#rows-form[data-controller~=checks][data-controller~=scroll-to-error]'
-    assert_select "form#rows-form[data-checks-key-value='timetable-upload-checks-#{upload.id}']"
     assert_select 'th input[type=checkbox][data-checks-target=all]', 1
     assert_select "input[type=checkbox][name='confirmed[#{row.id}]'][data-checks-target=box][data-row-id='#{row.id}']"
     assert_select 'tbody[data-error-row]', 0
