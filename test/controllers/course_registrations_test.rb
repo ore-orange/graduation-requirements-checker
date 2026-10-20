@@ -35,7 +35,10 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     file.rewind
     upload = Rack::Test::UploadedFile.new(file.path, 'application/pdf')
     TimetableImport::PdfParser.stub(:extract_xml, xml) do
-      post timetable_uploads_path, params: { semester: semester, pdf: upload }, env: ENV_LOCAL
+      # 画像化(gs)はテストでは動かさない。ページ画像を使うテストは自分で置く。
+      TimetableImport::PageImages.stub(:render, ->(_pdf, _dir) { 0 }) do
+        post timetable_uploads_path, params: { semester: semester, pdf: upload }, env: ENV_LOCAL
+      end
     end
   ensure
     file&.close!
@@ -124,6 +127,9 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_select "img[src='#{page_image_timetable_upload_path(upload, 2)}']"
     assert_select 'button', text: '幅に合わせる'
     assert_select 'button[data-page="2"]', text: '2'
+    # 更新のたびにペインが作り直されると、倍率や高さ、隠した状態が戻ってしまう
+    assert_select 'tr#pdf-pane-row[data-turbo-permanent]'
+    assert_select 'tr#pdf-pane-hidden-row[data-turbo-permanent]'
 
     without_images = create_upload
     get timetable_upload_path(without_images), env: ENV_LOCAL
@@ -278,6 +284,14 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_select 'nav[aria-label=ページ送り]', 0
   end
 
+  test 'the add target survives an update, so rows can be added one after another' do
+    upload = create_upload
+
+    get timetable_upload_path(upload), env: ENV_LOCAL
+
+    assert_select 'input[name=after_row_id][data-turbo-permanent]'
+  end
+
   test 'checking a row submits right away, so there is no separate update button' do
     upload = create_upload
     row = upload.rows.first
@@ -325,12 +339,23 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
 
     get timetable_upload_path(upload), env: ENV_LOCAL
     assert_select "tbody#row-#{added.id}", text: /手で追加した行/
-    assert_select "button[name=destroy_row_id][value='#{added.id}']"
+    assert_select "button[name=destroy_row_id][value='#{added.id}'][data-turbo-confirm]"
 
     assert_difference -> { upload.rows.reload.size }, -1 do
       update_rows(upload, changes: { first => { 'name' => '直した名前' } }, destroy_row_id: added.id)
     end
     assert_equal '直した名前', first.reload.name
+  end
+
+  test 'adding without a target goes to the very end, even after a row was deleted' do
+    upload = create_large_upload(3)
+    update_rows(upload, operation: 'add_row', after_row_id: upload.rows.first.id)
+    update_rows(upload, destroy_row_id: upload.rows.reload[1].id)
+
+    update_rows(upload, operation: 'add_row')
+
+    assert_predicate upload.rows.reload.last, :added_by_hand
+    assert_equal '科目3', upload.rows[-2].name
   end
 
   test 'a row id from another upload is not deleted' do

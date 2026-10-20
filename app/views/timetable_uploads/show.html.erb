@@ -29,7 +29,8 @@
   <%= form_with url: update_rows_timetable_upload_path(@upload), method: :patch, id: 'rows-form',
                 data: { controller: 'checks scroll-to-error',
                         action: 'focusin->add-row#select click->add-row#select' } do %>
-    <%= hidden_field_tag :after_row_id, nil, data: { add_row_target: 'rowId' } %>
+    <%# 更新をまたいでも行き先を覚えておく(morphで作り直されないようにする) %>
+    <%= hidden_field_tag :after_row_id, nil, data: { add_row_target: 'rowId', turbo_permanent: true } %>
     <table class="w-full table-fixed text-sm">
       <colgroup>
         <col class="w-28"><col class="w-24"><col><col class="w-14"><col class="w-24"><col class="w-24"><col class="w-20"><col class="w-24"><col class="w-24"><col class="w-16">
@@ -84,6 +85,7 @@
                 <div class="flex items-center gap-3 text-xs font-bold text-amber-900">
                   <span>手で追加した行 ― PDFを見ながら入力してください</span>
                   <%= button_tag 'この行を削除', type: 'submit', form: 'rows-form', name: 'destroy_row_id', value: row.id,
+                                 data: { turbo_confirm: 'この行を削除します。入力した内容も消えます。よろしいですか?' },
                                  class: 'font-semibold text-red-800 underline underline-offset-2' %>
                 </div>
               </td>

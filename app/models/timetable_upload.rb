@@ -10,6 +10,16 @@ class TimetableUpload < ApplicationRecord
   # 見比べ用のページ画像の置き場。取り込みを消すときに、ここごと消す。
   after_destroy { FileUtils.rm_rf(images_dir) }
 
+  class << self
+    # ページ画像の置き場の根。環境ごとに分ける(テストが開発用の画像を消さないように)。
+    # テストでは、並列の実行ごとに別の場所を割り当てる。
+    attr_writer :images_root
+
+    def images_root
+      @images_root ||= Rails.root.join('storage/timetable_uploads', Rails.env)
+    end
+  end
+
   def self.build_from_pdf(pdf_path, semester:, filename:)
     xml = TimetableImport::PdfParser.extract_xml(pdf_path)
     parsed = TimetableImport::PdfParser.new(xml, semester: semester).rows
@@ -29,7 +39,7 @@ class TimetableUpload < ApplicationRecord
   end
 
   def images_dir
-    Rails.root.join('storage/timetable_uploads', id.to_s)
+    self.class.images_root.join(id.to_s)
   end
 
   def page_count
@@ -64,7 +74,8 @@ class TimetableUpload < ApplicationRecord
   # 見比べ用の画像を作る。作れなくても取り込みは成立させる(ペインが出ないだけ)。
   def render_page_images(pdf_path)
     TimetableImport::PageImages.render(pdf_path, images_dir)
-  rescue TimetableImport::PageImages::Error
+  rescue StandardError => e
+    Rails.logger.warn("ページ画像を作れませんでした(取り込みは続けます): #{e.class}: #{e.message}")
     nil
   end
 
@@ -96,7 +107,7 @@ class TimetableUpload < ApplicationRecord
   # 行が見つからなければ末尾に足す。後ろの行は1つずつ下げる。
   def add_row_after(row_id)
     after = rows.find_by(id: row_id)
-    position = after ? after.position + 1 : rows.size
+    position = after ? after.position + 1 : rows.maximum(:position).to_i + 1
     transaction do
       rows.where(position: position..).reorder(position: :desc).each { |row| row.update!(position: row.position + 1) }
       rows.create!(position: position, added_by_hand: true)

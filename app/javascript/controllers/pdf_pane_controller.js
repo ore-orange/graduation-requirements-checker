@@ -12,12 +12,15 @@ export default class extends Controller {
     this.stick = this.stick.bind(this)
     this.observer = new ResizeObserver(this.stick)
     this.observer.observe(this.scrollTarget)
+    // 更新のたびに見出しの行は作り直される(ペインは data-turbo-permanent で残る)ので、貼り付け直す。
+    document.addEventListener("turbo:morph", this.stick)
     this.fit()
     this.stick()
   }
 
   disconnect() {
     this.observer.disconnect()
+    document.removeEventListener("turbo:morph", this.stick)
   }
 
   fit() {

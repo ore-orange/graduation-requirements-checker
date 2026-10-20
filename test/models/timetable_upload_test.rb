@@ -48,6 +48,20 @@ class TimetableUploadTest < ActiveSupport::TestCase
     assert_nil upload.page_width
   end
 
+  test 'page images live under the images root, which is set per environment and per test worker' do
+    upload = build_upload(method(:write_one_page))
+
+    assert_equal TimetableUpload.images_root.join(upload.id.to_s).to_s, upload.images_dir.to_s
+    assert_not_includes TimetableUpload.images_root.to_s, 'storage/timetable_uploads'
+  end
+
+  test 'an upload still works when the image folder cannot be written' do
+    upload = build_upload(->(_pdf, _dir) { raise Errno::EACCES, '/app/storage' })
+
+    assert_equal 1, upload.rows.size
+    assert_equal 0, upload.page_count
+  end
+
   test 'destroying an upload removes its page images' do
     upload = build_upload(method(:write_one_page))
     dir = upload.images_dir

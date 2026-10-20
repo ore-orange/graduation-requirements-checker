@@ -1,6 +1,6 @@
 <%# 取り込んだPDFを見比べるためのペイン。自分でスクロールして見る。 %>
 <% button_class = 'rounded border border-slate-400 bg-white px-2 py-0.5 font-semibold hover:bg-slate-50' %>
-<tr id="pdf-pane-row" data-pdf-pane-target="pane">
+<tr id="pdf-pane-row" data-turbo-permanent data-pdf-pane-target="pane">
   <th colspan="10" class="border-b-2 border-slate-400 bg-slate-200 p-0 font-normal">
     <div class="flex flex-wrap items-center gap-2 px-2 py-1 text-xs text-slate-700">
       <span class="font-bold text-slate-900">PDF</span>
@@ -30,7 +30,7 @@
     </div>
   </th>
 </tr>
-<tr hidden data-pdf-pane-target="hidden">
+<tr id="pdf-pane-hidden-row" hidden data-turbo-permanent data-pdf-pane-target="hidden">
   <th colspan="10" class="bg-slate-200 px-2 py-1 text-left text-xs font-normal">
     <button type="button" class="<%= button_class %>" data-action="pdf-pane#show">PDFを表示する</button>
   </th>
