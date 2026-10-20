@@ -1,0 +1,14 @@
+<% content_for :title, "デモの初期設定 | #{app_name}" %>
+<%# データがまだ無く、どの画面へ移動してもここに戻るため、ナビゲーションは出さない %>
+<% content_for :full_bleed, true %>
+<div class="px-4 py-10 sm:px-6 lg:px-8">
+  <section class="demo-panel mx-auto max-w-2xl" aria-labelledby="setup-heading" data-demo-setup>
+    <p class="text-xs font-bold tracking-wider text-slate-500">LOCAL DEMO</p>
+    <h1 id="setup-heading" class="mt-3 text-2xl font-bold text-slate-900"><%= app_name %> — デモの初期設定が必要です</h1>
+    <p class="mt-4 leading-7 text-slate-700">人工の履修データがまだ登録されていません。アプリを実行している開発環境で、次のコマンドを実行してから再読み込みしてください。</p>
+    <pre class="mt-5 overflow-x-auto rounded-lg bg-slate-900 p-4 text-sm text-white"><code>bin/rails db:prepare
+bin/rails db:seed</code></pre>
+    <p class="mt-4 text-sm leading-6 text-slate-600">Docker Compose を使用している場合は <code>docker compose exec web bin/rails db:seed</code> を実行してください。ページへのアクセスではデータを自動作成しません。</p>
+    <%= link_to 'デモを再読み込み', root_path, class: 'demo-button mt-6' %>
+  </section>
+</div>
