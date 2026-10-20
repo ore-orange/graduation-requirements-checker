@@ -5,7 +5,7 @@ class TimetableUploadsController < ApplicationController
 
   MAX_PDF_BYTES = 10.megabytes
 
-  before_action :load_upload, only: %i[show destroy commit update_rows]
+  before_action :load_upload, only: %i[show destroy commit update_rows page_image]
 
   # 保存済み・破棄済みの取り込みを開いたときは、エラー画面ではなく一覧に戻す
   rescue_from ActiveRecord::RecordNotFound do
@@ -16,6 +16,14 @@ class TimetableUploadsController < ApplicationController
     @preview = @upload.preview if @upload.all_confirmed?
     @rows = @upload.rows
     @row_errors = flash[:row_errors] || {}
+  end
+
+  # PDFと見比べるための、取り込んだPDFのページ画像
+  def page_image
+    data = @upload.page_image_data(params[:page])
+    return head :not_found unless data
+
+    send_data data, type: 'image/png', disposition: 'inline'
   end
 
   def create

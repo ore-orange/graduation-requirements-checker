@@ -33,13 +33,26 @@ class TimetableUpload < ApplicationRecord
   end
 
   def page_count
-    Dir.glob(images_dir.join('p*.png')).size
+    page_image_paths.size
   end
 
-  # 画面に出すページ画像。無ければ nil。
+  # 実際にあるページ画像をページ順に並べたもの。画面に出すのはこの中のものだけ。
+  def page_image_paths
+    Dir.glob(images_dir.join('p*.png')).sort_by { |path| File.basename(path)[/\d+/].to_i }
+  end
+
+  # 画面に出すページ画像。1始まりのページ番号で引く。無ければ nil。
   def page_image_path(page)
-    path = images_dir.join("p#{Integer(page.to_s, 10, exception: false) || 0}.png")
-    path if File.exist?(path)
+    number = Integer(page.to_s, 10, exception: false)
+    return unless number&.positive?
+
+    page_image_paths[number - 1]
+  end
+
+  # ページ画像の中身。画面には、この取り込みが実際に作った画像しか出さない。
+  def page_image_data(page)
+    path = page_image_path(page)
+    File.binread(path) if path
   end
 
   # 見比べ用の画像を作る。作れなくても取り込みは成立させる(ペインが出ないだけ)。

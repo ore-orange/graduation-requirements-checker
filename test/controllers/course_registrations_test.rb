@@ -97,6 +97,22 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_equal ['工学基礎演習', '必修', '2・3', false], [row.name, row.requirement_type, row.period_text, row.confirmed]
   end
 
+  test 'page images are served for the pages that exist only' do
+    upload = create_upload
+    FileUtils.mkdir_p(upload.images_dir)
+    File.binwrite(upload.images_dir.join('p1.png'), 'png')
+
+    get page_image_timetable_upload_path(upload, 1), env: ENV_LOCAL
+    assert_response :success
+    assert_equal 'image/png', response.media_type
+
+    get page_image_timetable_upload_path(upload, 2), env: ENV_LOCAL
+    assert_response :not_found
+
+    get page_image_timetable_upload_path(upload, 'one'), env: ENV_LOCAL
+    assert_response :not_found
+  end
+
   test 'upload rejects files that are not pdfs and unknown semesters' do
     assert_no_difference 'TimetableUpload.count' do
       upload_pdf(content: 'not a pdf')
@@ -496,6 +512,8 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     patch update_rows_timetable_upload_path(upload), env: remote
     assert_response :not_found
     post commit_timetable_upload_path(upload), env: remote
+    assert_response :not_found
+    get page_image_timetable_upload_path(upload, 1), env: remote
     assert_response :not_found
   end
 end

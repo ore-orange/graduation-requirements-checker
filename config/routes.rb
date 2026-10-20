@@ -23,6 +23,7 @@ Rails.application.routes.draw do
     member do
       post :commit
       patch :update_rows
+      get 'page_image/:page', action: :page_image, as: :page_image
     end
   end
 end
