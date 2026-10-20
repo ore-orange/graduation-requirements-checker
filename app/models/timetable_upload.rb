@@ -38,7 +38,7 @@ class TimetableUpload < ApplicationRecord
 
   # 実際にあるページ画像をページ順に並べたもの。画面に出すのはこの中のものだけ。
   def page_image_paths
-    Dir.glob(images_dir.join('p*.png')).sort_by { |path| File.basename(path)[/\d+/].to_i }
+    @page_image_paths ||= Dir.glob(images_dir.join('p*.png')).sort_by { |path| File.basename(path)[/\d+/].to_i }
   end
 
   # 画面に出すページ画像。1始まりのページ番号で引く。無ければ nil。

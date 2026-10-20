@@ -31,8 +31,11 @@
       <colgroup>
         <col class="w-28"><col class="w-24"><col><col class="w-14"><col class="w-24"><col class="w-24"><col class="w-20"><col class="w-24"><col class="w-24"><col class="w-16">
       </colgroup>
-      <thead class="sticky top-0 z-10 bg-slate-100 text-left text-slate-700 shadow-sm">
-        <tr>
+      <% with_pdf = @upload.page_count.positive? %>
+      <thead class="sticky top-0 z-10 bg-slate-100 text-left text-slate-700 shadow-sm"
+             <%= tag.attributes(data: { controller: 'pdf-pane' }) if with_pdf %>>
+        <%= render 'pdf_pane', upload: @upload if with_pdf %>
+        <tr data-pdf-pane-target="headRow">
           <% %w[講義コード 科目番号 科目名 単位 必修選択 年次 曜日 時限 開講区分].each do |label| %><th class="px-1.5 py-2"><%= label %></th><% end %>
           <th class="px-1.5 py-2 text-center">
             <label class="flex flex-col items-center gap-0.5 text-xs font-semibold">

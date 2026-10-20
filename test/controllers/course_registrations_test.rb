@@ -113,6 +113,24 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test 'the pdf pane shows every page, and is left out when there are no images' do
+    upload = create_upload
+    FileUtils.mkdir_p(upload.images_dir)
+    [1, 2].each { |page| File.binwrite(upload.images_dir.join("p#{page}.png"), 'png') }
+
+    get timetable_upload_path(upload), env: ENV_LOCAL
+    assert_select 'thead[data-controller=pdf-pane] tr#pdf-pane-row'
+    assert_select "img[src='#{page_image_timetable_upload_path(upload, 1)}']"
+    assert_select "img[src='#{page_image_timetable_upload_path(upload, 2)}']"
+    assert_select 'button', text: '幅に合わせる'
+    assert_select 'button[data-page="2"]', text: '2'
+
+    without_images = create_upload
+    get timetable_upload_path(without_images), env: ENV_LOCAL
+    assert_response :success
+    assert_select 'tr#pdf-pane-row', 0
+  end
+
   test 'upload rejects files that are not pdfs and unknown semesters' do
     assert_no_difference 'TimetableUpload.count' do
       upload_pdf(content: 'not a pdf')
