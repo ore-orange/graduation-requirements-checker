@@ -25,6 +25,32 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'the dashboard defers small-category rows to a lazily loaded frame' do
+    get root_path, env: local_env
+
+    assert_response :success
+    # 閉じている間は小項目を送らない。枠だけ置いて、開いたときに取りに行く。
+    assert_select '[data-check="required_research"]', count: 0
+    assert_select 'turbo-frame#dashboard-group-required[src=?][loading=?]',
+                  dashboard_group_path('required'), 'lazy', count: 1
+
+    get dashboard_group_path('required'), env: local_env
+
+    assert_response :success
+    assert_select '[data-check="required_research"][data-status="unmet"]', count: 1
+    assert_select '[data-check="required_core"][data-status="satisfied"]', count: 1
+    # 大項目に紐づく未修得の必修は、開いたときにここで見える
+    assert_select 'turbo-frame#dashboard-group-required', text: /卒業研究Ⅰ/
+    # 画面まるごとではなくフレームだけを返す
+    assert_select 'nav', count: 0
+  end
+
+  test 'an unknown dashboard group is not found' do
+    get dashboard_group_path('nope'), env: local_env
+
+    assert_response :not_found
+  end
+
   test 'reads persisted history and starts with an empty plan without creating data' do
     assert_no_difference ['Student.count', 'StudentCourse.count', 'PlannedCourse.count'] do
       get root_path, env: local_env
