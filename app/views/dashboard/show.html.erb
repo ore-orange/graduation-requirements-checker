@@ -55,10 +55,24 @@
               data-status="<%= summary[:status] %>"
               data-actual-status="<%= find_check(@assessment.actual, definition[:check_id])&.status %>"
               data-projected-status="<%= find_check(@assessment.projected, definition[:check_id])&.status %>">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-              <span class="shrink-0 text-sm font-bold text-slate-900 sm:w-44"><%= group_short_title(definition) %></span>
-              <%= render 'dashboard/bar', summary: summary %>
-            </div>
+            <%# 開いたときだけ小項目を取りに行く。閉じている間は読み込まない。 %>
+            <details class="group/detail">
+              <summary class="flex cursor-pointer list-none flex-col gap-2 rounded-lg sm:flex-row sm:items-center sm:gap-4">
+                <span class="flex shrink-0 items-center gap-1.5 text-sm font-bold text-slate-900 sm:w-44">
+                  <svg class="size-4 shrink-0 text-slate-400 transition-transform group-open/detail:rotate-90" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path d="M7.5 5.5 12 10l-4.5 4.5V5.5Z" />
+                  </svg>
+                  <%= group_short_title(definition) %>
+                </span>
+                <%= render 'dashboard/bar', summary: summary %>
+              </summary>
+              <div class="mt-3 sm:pl-5">
+                <%= turbo_frame_tag "dashboard-group-#{definition[:id]}",
+                                    src: dashboard_group_path(definition[:id]), loading: 'lazy' do %>
+                  <p class="border-t border-slate-200 pt-3 text-xs text-slate-500">読み込んでいます…</p>
+                <% end %>
+              </div>
+            </details>
           </li>
         <% end %>
       </ul>

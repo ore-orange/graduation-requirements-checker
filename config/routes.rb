@@ -12,6 +12,9 @@ Rails.application.routes.draw do
   # ルートは進捗ダッシュボード
   root 'dashboard#show'
 
+  # 大項目を開いたときだけ小項目を取りに来る（進捗ダッシュボードのドロップダウン）
+  get 'dashboard/groups/:id', to: 'dashboard_groups#show', as: :dashboard_group
+
   get 'requirements', to: 'requirements#show'
   get 'plan', to: 'plans#show'
   get 'profile', to: 'profiles#show'
