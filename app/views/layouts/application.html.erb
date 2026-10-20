@@ -24,9 +24,14 @@
   </head>
 
   <body>
-    <%= render 'shared/tabs' if local_demo_access? %>
-    <main class="mx-auto w-full <%= content_width_class %> px-4 py-10 sm:px-6 lg:px-8">
+    <%# full_bleed の画面は自前で shared/nav を描くので、ここでは残りの画面に付ける %>
+    <% if content_for?(:full_bleed) %>
       <%= yield %>
-    </main>
+    <% else %>
+      <%= render 'shared/nav' %>
+      <main class="mx-auto w-full <%= content_width_class %> px-4 py-10 sm:px-6 lg:px-8">
+        <%= yield %>
+      </main>
+    <% end %>
   </body>
 </html>

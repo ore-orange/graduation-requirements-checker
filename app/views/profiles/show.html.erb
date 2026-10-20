@@ -1,0 +1,80 @@
+<% content_for :title, app_name %>
+<% content_for :full_bleed, true %>
+
+<div class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
+  <%= render 'shared/nav' %>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+    <%= render 'shared/flash' %>
+
+    <h2 class="sr-only">マイページ</h2>
+
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div class="px-6 py-5 border-b border-slate-100 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-base">
+          3年
+        </div>
+        <div>
+          <h2 class="text-base font-bold text-slate-900">所属・カリキュラム基準</h2>
+          <p class="text-xs text-slate-500">卒業要件判定に適用されている所属コースと入学年度基準</p>
+        </div>
+      </div>
+
+      <dl class="divide-y divide-slate-100 px-6 py-2 text-sm">
+        <div class="py-4 flex flex-wrap justify-between items-center gap-2">
+          <dt class="font-medium text-slate-500">所属学部・学科・コース</dt>
+          <dd class="font-bold text-slate-900">琉球大学 工学部 工学科 知能情報コース</dd>
+        </div>
+        <div class="py-4 flex flex-wrap justify-between items-center gap-2">
+          <dt class="font-medium text-slate-500">現在の年次</dt>
+          <dd>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700">
+              学部 3年次
+            </span>
+          </dd>
+        </div>
+        <div class="py-4 flex flex-wrap justify-between items-center gap-2">
+          <dt class="font-medium text-slate-500">適用カリキュラム基準年度</dt>
+          <dd class="text-slate-800 font-semibold">令和6年度 (<%= @student.admission_year %>年度) 入学基準</dd>
+        </div>
+        <div class="py-4 flex flex-wrap justify-between items-center gap-2">
+          <dt class="font-medium text-slate-500">履修データの登録状況</dt>
+          <dd class="text-xs text-slate-700 flex flex-wrap gap-2">
+            <span class="px-2.5 py-1 rounded-md bg-slate-100 font-semibold">修得済み <%= @completed.size %> 科目</span>
+            <span class="px-2.5 py-1 rounded-md bg-sky-50 text-sky-800 font-semibold">履修中 <%= @current.size %> 科目</span>
+            <span class="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-800 font-semibold">将来計画 <%= @plans.size %> 科目</span>
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- 履修要項・出典リンク -->
+    <div id="sources" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6" aria-labelledby="sources-heading">
+      <h3 id="sources-heading" class="text-base font-bold text-slate-900">学生便覧・授業科目表（公式資料）</h3>
+      <p class="mt-1 text-xs leading-5 text-slate-500">
+        卒業要件の最終確認は、以下の公式学生便覧および教務窓口で行ってください。
+      </p>
+      <ul class="mt-4 divide-y divide-slate-100 text-sm">
+        <% @curriculum.fetch('sources').each do |source| %>
+          <li class="py-3 first:pt-0 last:pb-0">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <% if source_url(source) %>
+                <%= link_to source.fetch('title'), source_url(source),
+                            class: 'font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4',
+                            target: '_blank', rel: 'noopener noreferrer' %>
+              <% else %>
+                <span class="font-semibold text-slate-800"><%= source.fetch('title') %></span>
+              <% end %>
+              <% if source['pages'].present? %>
+                <span class="text-xs text-slate-400">対象ページ: <%= source['pages'] %></span>
+              <% end %>
+            </div>
+            <% if source['note'].present? %>
+              <p class="mt-1 text-xs leading-5 text-slate-500"><%= source['note'] %></p>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  </main>
+</div>

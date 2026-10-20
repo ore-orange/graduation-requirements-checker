@@ -9,8 +9,14 @@ Rails.application.routes.draw do
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
-  # Defines the root path route ("/")
-  root "home#index"
+  # ルートは進捗ダッシュボード
+  root 'dashboard#show'
+
+  get 'requirements', to: 'requirements#show'
+  get 'plan', to: 'plans#show'
+  get 'profile', to: 'profiles#show'
+
+  resources :plan_courses, only: %i[create destroy], path: 'plan/courses'
 
   resources :course_registrations, only: :index
   resources :timetable_uploads, only: %i[create show destroy] do
@@ -19,8 +25,4 @@ Rails.application.routes.draw do
       patch :update_rows
     end
   end
-
-  get 'demo', to: 'demo#show', as: :demo
-  post 'demo/planned_courses', to: 'demo#create', as: :demo_planned_courses
-  delete 'demo/planned_courses/:id', to: 'demo#destroy', as: :demo_planned_course
 end
