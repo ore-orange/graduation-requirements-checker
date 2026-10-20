@@ -49,6 +49,7 @@ class TimetableUploadsController < ApplicationController
   def update_rows
     result = @upload.apply_edits(submitted_edits, submitted_confirmed_ids,
                                  confirm_valid: params[:operation] == 'confirm_all')
+    @upload.add_row_after(params[:after_row_id]) if params[:operation] == 'add_row'
     unless result.failures.empty?
       flash[:row_errors] = result.failures
       flash[:alert] = "確認済みにできない行が#{result.failures.size}行あります。赤い行の内容を直してください。"

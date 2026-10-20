@@ -8,6 +8,7 @@
 <% savable = @preview&.ok? %>
 <% save_reason = savable ? nil : (@preview.nil? ? "あと#{@upload.unconfirmed_count}行を確認済みにすると保存できます" : '直す点があります。下の「保存の内容」を確認してください') %>
 <% field_class = 'w-full rounded border border-slate-300 bg-white px-1.5 py-1' %>
+<div data-controller="add-row">
 <div class="space-y-6 pb-32">
   <header>
     <%= link_to '← 講義登録', course_registrations_path, class: 'text-sm font-semibold text-slate-700 underline underline-offset-4' %>
@@ -26,7 +27,9 @@
   <%= render 'shared/toast' %>
 
   <%= form_with url: update_rows_timetable_upload_path(@upload), method: :patch, id: 'rows-form',
-                data: { controller: 'checks scroll-to-error' } do %>
+                data: { controller: 'checks scroll-to-error',
+                        action: 'focusin->add-row#select click->add-row#select' } do %>
+    <%= hidden_field_tag :after_row_id, nil, data: { add_row_target: 'rowId' } %>
     <table class="w-full table-fixed text-sm">
       <colgroup>
         <col class="w-28"><col class="w-24"><col><col class="w-14"><col class="w-24"><col class="w-24"><col class="w-20"><col class="w-24"><col class="w-24"><col class="w-16">
@@ -48,9 +51,9 @@
       <% @rows.each do |row| %>
         <% errors = @row_errors[row.id.to_s] %>
         <% key = "rows[#{row.id}]" %>
-        <tbody id="row-<%= row.id %>" <%= 'data-error-row' if errors %> class="border-b border-slate-200 <%= errors ? 'bg-red-50' : (row.confirmed ? 'bg-emerald-50' : (row.review_reason.present? ? 'bg-amber-50' : '')) %>">
+        <tbody id="row-<%= row.id %>" data-row-id="<%= row.id %>" <%= 'data-error-row' if errors %> class="border-b border-slate-200 <%= errors ? 'bg-red-50' : (row.confirmed ? 'bg-emerald-50' : (row.review_reason.present? ? 'bg-amber-50' : '')) %>">
           <tr class="align-top">
-            <td class="p-1.5"><%= text_field_tag "#{key}[lecture_code]", row.lecture_code, class: field_class, 'aria-label': "#{row.name} 講義コード" %></td>
+            <td class="p-1.5"><%= text_field_tag "#{key}[lecture_code]", row.lecture_code, class: field_class, 'aria-label': "#{row.name} 講義コード", data: { lecture_code: true } %></td>
             <td class="p-1.5"><%= text_field_tag "#{key}[course_number]", row.course_number, class: field_class, 'aria-label': "#{row.name} 科目番号" %></td>
             <td class="p-1.5">
               <%= text_field_tag "#{key}[name]", row.name, class: field_class, 'aria-label': "#{row.name} 科目名" %>
@@ -113,6 +116,9 @@
       <% if save_reason %><span id="save-reason" class="ml-2 text-slate-600"><%= save_reason %></span><% end %>
     </p>
     <div class="flex flex-wrap items-center gap-3">
+      <span class="text-xs text-slate-600" data-add-row-target="label">表のいちばん下に</span>
+      <%= button_tag '＋ 科目を追加', type: 'submit', form: 'rows-form', name: 'operation', value: 'add_row',
+                     class: 'rounded-lg border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50' %>
       <%= button_tag '問題のない行をまとめて確認済みにする', type: 'submit', form: 'rows-form', name: 'operation', value: 'confirm_all',
                      class: 'rounded-lg border border-slate-400 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50' %>
       <%# 無効のボタンはホバーを受け取れないので、外側の要素でツールチップを出す %>
@@ -125,4 +131,5 @@
       </span>
     </div>
   </div>
+</div>
 </div>

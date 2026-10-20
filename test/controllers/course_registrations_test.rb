@@ -42,10 +42,10 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
   end
 
   # 確認画面の「更新」と同じ形で送る。changesは { 行 => { 項目 => 値 } }、confirmedはチェックを入れる行。
-  def update_rows(upload, changes: {}, confirmed: [], operation: 'update')
+  def update_rows(upload, changes: {}, confirmed: [], operation: 'update', **extra)
     rows = changes.to_h { |row, values| [row.id, row.slice(*TimetableUploadRow::EDITABLE).merge(values)] }
     params = { rows: rows, confirmed: confirmed.to_h { |row| [row.id, '1'] }, operation: operation }
-    patch update_rows_timetable_upload_path(upload), params: params, env: ENV_LOCAL
+    patch update_rows_timetable_upload_path(upload), params: params.merge(extra), env: ENV_LOCAL
   end
 
   def create_upload
@@ -286,6 +286,35 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_select "input[type=checkbox][name='confirmed[#{row.id}]'][data-action='change->checks#toggle']"
     assert_select 'button', text: '問題のない行をまとめて確認済みにする'
     assert_select 'button[form=rows-form][value=update]', 0
+  end
+
+  test 'adding a row puts an empty row right after the chosen one and keeps the edits' do
+    upload = create_large_upload(3)
+    first = upload.rows.first
+
+    assert_difference -> { upload.rows.reload.size }, 1 do
+      update_rows(upload, changes: { first => { 'name' => '直した名前' } }, operation: 'add_row', after_row_id: first.id)
+    end
+
+    assert_equal '直した名前', first.reload.name
+    added = upload.rows.reload[1]
+    assert_predicate added, :added_by_hand
+    assert_equal '', added.name.to_s
+    assert_not added.confirmed
+    assert_equal [0, 1, 2, 3], upload.rows.map(&:position)
+  end
+
+  test 'adding a row without a target, or with a row from another upload, appends it to the end' do
+    upload = create_large_upload(3)
+    other = create_large_upload(1).rows.first
+
+    update_rows(upload, operation: 'add_row')
+    assert_predicate upload.rows.reload.last, :added_by_hand
+
+    update_rows(upload, operation: 'add_row', after_row_id: other.id)
+    assert_equal 5, upload.rows.reload.size
+    assert_predicate upload.rows.last, :added_by_hand
+    assert_equal [0, 1, 2, 3, 4], upload.rows.map(&:position)
   end
 
   test 'only rows sent from the screen are touched' do

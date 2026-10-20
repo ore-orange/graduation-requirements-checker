@@ -86,6 +86,17 @@ class TimetableUpload < ApplicationRecord
     result
   end
 
+  # PDFにあるのに読み取れなかった科目を、指定した行の次に足す。
+  # 行が見つからなければ末尾に足す。後ろの行は1つずつ下げる。
+  def add_row_after(row_id)
+    after = rows.find_by(id: row_id)
+    position = after ? after.position + 1 : rows.size
+    transaction do
+      rows.where(position: position..).reorder(position: :desc).each { |row| row.update!(position: row.position + 1) }
+      rows.create!(position: position, added_by_hand: true)
+    end
+  end
+
   def unconfirmed_count
     rows.count { |row| !row.confirmed }
   end

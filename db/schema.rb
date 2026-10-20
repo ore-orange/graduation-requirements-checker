@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_20_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -27,8 +27,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_000000) do
     t.datetime "updated_at", null: false
     t.index ["course_id"], name: "index_course_offerings_on_course_id"
     t.index ["semester", "lecture_code"], name: "index_course_offerings_on_semester_and_lecture_code", unique: true, where: "(lecture_code IS NOT NULL)"
-    t.check_constraint "requirement_type IS NULL OR (requirement_type::text = ANY (ARRAY['必修'::character varying::text, '選択'::character varying::text]))", name: "course_offerings_requirement_type"
-    t.check_constraint "semester::text = ANY (ARRAY['前期'::character varying::text, '後期'::character varying::text])", name: "course_offerings_semester"
+    t.check_constraint "requirement_type IS NULL OR (requirement_type::text = ANY (ARRAY['必修'::character varying, '選択'::character varying]::text[]))", name: "course_offerings_requirement_type"
+    t.check_constraint "semester::text = ANY (ARRAY['前期'::character varying, '後期'::character varying]::text[])", name: "course_offerings_semester"
   end
 
   create_table "courses", force: :cascade do |t|
@@ -91,7 +91,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_000000) do
     t.index ["student_id"], name: "index_student_courses_on_student_id"
     t.check_constraint "academic_year >= 1 AND academic_year <= 9999", name: "student_courses_year_range"
     t.check_constraint "credits_earned >= 0::numeric", name: "student_courses_nonnegative_credits"
-    t.check_constraint "enrollment_status::text = ANY (ARRAY['completed'::character varying::text, 'registered'::character varying::text, 'in_progress'::character varying::text, 'failed'::character varying::text, 'unknown'::character varying::text])", name: "student_courses_enrollment_status"
+    t.check_constraint "enrollment_status::text = ANY (ARRAY['completed'::character varying, 'registered'::character varying, 'in_progress'::character varying, 'failed'::character varying, 'unknown'::character varying]::text[])", name: "student_courses_enrollment_status"
   end
 
   create_table "student_program_assignments", force: :cascade do |t|
@@ -139,6 +139,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_000000) do
     t.datetime "updated_at", null: false
     t.bigint "course_id"
     t.boolean "register_as_new", default: false, null: false
+    t.boolean "added_by_hand", default: false, null: false
     t.index ["course_id"], name: "index_timetable_upload_rows_on_course_id"
     t.index ["timetable_upload_id", "position"], name: "idx_on_timetable_upload_id_position_b91dfae42d", unique: true
     t.index ["timetable_upload_id"], name: "index_timetable_upload_rows_on_timetable_upload_id"
@@ -149,7 +150,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_000000) do
     t.string "source_filename"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.check_constraint "semester::text = ANY (ARRAY['前期'::character varying::text, '後期'::character varying::text])", name: "timetable_uploads_semester"
+    t.check_constraint "semester::text = ANY (ARRAY['前期'::character varying, '後期'::character varying]::text[])", name: "timetable_uploads_semester"
   end
 
   create_table "users", force: :cascade do |t|
