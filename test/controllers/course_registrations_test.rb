@@ -358,6 +358,31 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_equal '科目3', upload.rows[-2].name
   end
 
+  test 'a hand-added row can be filled in, confirmed and committed with the rest' do
+    upload = create_upload
+    parsed = upload.rows.first
+    update_rows(upload, operation: 'add_row', after_row_id: parsed.id)
+    added = upload.rows.reload.last
+
+    # 空のままでは確認済みにできない
+    update_rows(upload, changes: { added => {} }, confirmed: [added])
+    assert_not added.reload.confirmed
+    follow_redirect!
+    assert_select "tbody#row-#{added.id} td", text: /科目名が空です/
+
+    filled = { 'lecture_code' => '610000099', 'course_number' => '工共199', 'name' => '読み落とした科目',
+               'credits' => '2', 'requirement_type' => '選択', 'grade_text' => '2', 'weekday' => '木',
+               'period_text' => '3・4・5', 'term_type' => '半年' }
+    update_rows(upload, changes: { added => filled, parsed => {} }, confirmed: [added, parsed])
+    assert_predicate added.reload, :confirmed
+
+    assert_difference ['Course.count', 'CourseOffering.count'], 2 do
+      post commit_timetable_upload_path(upload), env: ENV_LOCAL
+    end
+    offering = CourseOffering.find_by!(lecture_code: '610000099')
+    assert_equal [[3, 4, 5], '木', '読み落とした科目'], [offering.periods, offering.weekday, offering.course.name]
+  end
+
   test 'a row id from another upload is not deleted' do
     upload = create_large_upload(2)
     other = create_large_upload(1).rows.first

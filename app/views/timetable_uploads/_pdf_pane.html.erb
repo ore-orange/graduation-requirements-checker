@@ -31,7 +31,11 @@
   </th>
 </tr>
 <tr id="pdf-pane-hidden-row" hidden data-turbo-permanent data-pdf-pane-target="hidden">
-  <th colspan="10" class="bg-slate-200 px-2 py-1 text-left text-xs font-normal">
-    <button type="button" class="<%= button_class %>" data-action="pdf-pane#show">PDFを表示する</button>
+  <th colspan="10" class="bg-slate-200 p-0 font-normal">
+    <%# 「PDFを隠す」と同じ位置(バーの右端)に出す %>
+    <div class="flex flex-wrap items-center gap-2 px-2 py-1 text-xs text-slate-700">
+      <span class="font-bold text-slate-900">PDF</span>
+      <button type="button" class="<%= button_class %> ml-auto" data-action="pdf-pane#show">PDFを表示する</button>
+    </div>
   </th>
 </tr>
