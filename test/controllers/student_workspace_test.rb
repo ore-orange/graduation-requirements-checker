@@ -334,7 +334,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     Course.find_by!(curriculum_key: course.fetch('key'))
   end
 
-  # 進捗ダッシュボードの合計表示。実績と見込みを1要素にまとめて持つ。
+  # 卒業ダッシュボードの合計表示。実績と見込みを1要素にまとめて持つ。
   def assessment_attributes
     css_select('[data-assessment="total"]').first.attributes.slice(
       'data-status', 'data-actual-status', 'data-counted-credits', 'data-projected-credits'
@@ -365,8 +365,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test '各画面が固有のURLで表示される' do
-    { root_path => '進捗ダッシュボード',
-      requirements_path => '卒業要件の編集',
+    { root_path => '卒業ダッシュボード',
+      requirements_path => '卒業要件の確認',
       plan_path => '履修計画表',
       profile_path => 'マイページ' }.each do |path, label|
       get path, env: local_env
@@ -384,7 +384,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select 'a[href=?]', profile_path
   end
 
-  test '進捗ダッシュボードは履修計画表の中身を描画しない' do
+  test '卒業ダッシュボードは履修計画表の中身を描画しない' do
     get root_path, env: local_env
 
     assert_select '[data-catalogue-key]', count: 0
