@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# 進捗ダッシュボードで大項目を開いたときに、その小項目だけを返す。
-# 最初の表示に小項目のHTMLを含めないことで、送る量を小さく保つ。
+# 卒業ダッシュボードで区分のカードを開いたときに、その内訳だけを返す。
+# 最初の表示に内訳のHTMLを含めないことで、送る量を小さく保つ。
 class DashboardGroupsController < ApplicationController
   include StudentWorkspace
 

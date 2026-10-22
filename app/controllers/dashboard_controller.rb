@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# 進捗ダッシュボード。大項目ごとの充足状況を1枚のカードにまとめて表示する。
+# 卒業ダッシュボード。区分ごとの充足状況をカードで表示する。
 class DashboardController < ApplicationController
   include StudentWorkspace
 
