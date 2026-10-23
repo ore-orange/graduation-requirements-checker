@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_23_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -45,9 +45,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_000000) do
     t.bigint "course_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "academic_year"
+    t.string "semester"
     t.index ["course_id"], name: "index_planned_courses_on_course_id"
     t.index ["student_id", "course_id"], name: "index_planned_courses_on_student_id_and_course_id", unique: true
     t.index ["student_id"], name: "index_planned_courses_on_student_id"
+    t.check_constraint "(academic_year IS NULL) = (semester IS NULL)", name: "planned_courses_term_pair"
+    t.check_constraint "academic_year >= 1 AND academic_year <= 9999", name: "planned_courses_year_range"
+    t.check_constraint "semester::text = ANY (ARRAY['前期'::character varying, '後期'::character varying]::text[])", name: "planned_courses_semester"
   end
 
   create_table "programs", force: :cascade do |t|

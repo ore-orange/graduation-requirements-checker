@@ -84,6 +84,8 @@ class GraduationPlanningTest < ActiveSupport::TestCase
   test 'plans belong to their student and contain no invented year or semester' do
     plan = @student.planned_courses.create!(course: @course)
     assert_equal @student, plan.student
+    assert_nil plan.academic_year
+    assert_nil plan.semester
     assert_equal [@course], @student.future_courses.to_a
     assert_empty @other_student.planned_courses
     assert_empty @other_student.future_courses
@@ -105,6 +107,25 @@ class GraduationPlanningTest < ActiveSupport::TestCase
     [{ student_id: -1, course_id: @course.id }, { student_id: @student.id, course_id: -1 }].each do |attributes|
       assert_raises(ActiveRecord::InvalidForeignKey) do
         PlannedCourse.transaction(requires_new: true) { PlannedCourse.insert_all!([attributes]) }
+      end
+    end
+  end
+
+  test 'plans may carry a planned term as a year and semester pair' do
+    plan = @student.planned_courses.create!(course: @course, academic_year: 2027, semester: '後期')
+    assert_equal 2027, plan.reload.academic_year
+    assert_equal '後期', plan.semester
+  end
+
+  test 'planned terms are validated by model and database' do
+    [{ academic_year: 2027, semester: nil }, { academic_year: nil, semester: '前期' },
+     { academic_year: 2027, semester: '通年' }, { academic_year: 0, semester: '前期' }].each do |term|
+      assert_not @student.planned_courses.new(course: @course, **term).valid?, "#{term} は保存できない"
+
+      assert_raises(ActiveRecord::StatementInvalid, "#{term} はDBでも拒否する") do
+        PlannedCourse.transaction(requires_new: true) do
+          PlannedCourse.insert_all!([{ student_id: @student.id, course_id: @course.id, **term }])
+        end
       end
     end
   end
