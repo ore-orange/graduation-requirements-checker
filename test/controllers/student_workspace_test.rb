@@ -25,14 +25,40 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'the dashboard defers small-category rows to a lazily loaded frame' do
+    get root_path, env: local_env
+
+    assert_response :success
+    # 閉じている間は小項目を送らない。枠だけ置いて、開いたときに取りに行く。
+    assert_select '[data-check="required_research"]', count: 0
+    assert_select 'turbo-frame#dashboard-group-required[src=?][loading=?]',
+                  dashboard_group_path('required'), 'lazy', count: 1
+
+    get dashboard_group_path('required'), env: local_env
+
+    assert_response :success
+    assert_select '[data-check="required_research"][data-status="unmet"]', count: 1
+    assert_select '[data-check="required_core"][data-status="satisfied"]', count: 1
+    # 大項目に紐づく未修得の必修は、開いたときにここで見える
+    assert_select 'turbo-frame#dashboard-group-required', text: /卒業研究Ⅰ/
+    # 画面まるごとではなくフレームだけを返す
+    assert_select 'nav', count: 0
+  end
+
+  test 'an unknown dashboard group is not found' do
+    get dashboard_group_path('nope'), env: local_env
+
+    assert_response :not_found
+  end
+
   test 'reads persisted history and starts with an empty plan without creating data' do
     assert_no_difference ['Student.count', 'StudentCourse.count', 'PlannedCourse.count'] do
       get root_path, env: local_env
     end
 
     assert_response :success
-    assert_select '[data-assessment="actual"]', count: 1
-    assert_select '[data-assessment="projected"]', count: 1
+    assert_select '[data-assessment="total"]', count: 1
+    assert_select '[data-check="required_all"]', count: 1
     assert_select '[data-plan]', count: 0
 
     get plan_path, env: local_env
@@ -47,8 +73,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   test 'adds persists restores and removes a planned course without changing history' do
     original_history = @student.student_courses.order(:id).map(&:attributes)
     get root_path, env: local_env
-    original_actual = assessment_attributes('actual')
-    original_projected_credits = BigDecimal(assessment_attributes('projected').fetch('data-counted-credits'))
+    original_actual = assessment_attributes.fetch('data-counted-credits')
+    original_projected_credits = BigDecimal(assessment_attributes.fetch('data-projected-credits'))
 
     assert_difference '@student.planned_courses.count', 1 do
       post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
@@ -62,8 +88,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-plan='#{plan.id}'][data-course-key='#{@candidate.fetch('key')}']", count: 1
 
     get root_path, env: local_env
-    assert_equal original_actual, assessment_attributes('actual')
-    assert_operator BigDecimal(assessment_attributes('projected').fetch('data-counted-credits')), :>=,
+    assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')
+    assert_operator BigDecimal(assessment_attributes.fetch('data-projected-credits')), :>=,
                     original_projected_credits
 
     # A fresh request restores the persisted plan rather than relying on submitted state.
@@ -79,17 +105,17 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-plan]', count: 0
 
     get root_path, env: local_env
-    assert_equal original_actual, assessment_attributes('actual')
+    assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')
     assert_equal original_projected_credits,
-                 BigDecimal(assessment_attributes('projected').fetch('data-counted-credits'))
+                 BigDecimal(assessment_attributes.fetch('data-projected-credits'))
     assert_equal original_history, @student.student_courses.reload.order(:id).map(&:attributes)
   end
 
   test 'future mandatory courses improve the projected requirement but not actual history' do
     get root_path, env: local_env
-    assert_select '[data-assessment="projected"] [data-check="required_all"][data-status="unmet"]', count: 1
-    original_actual = assessment_attributes('actual')
-    initial_credits = BigDecimal(assessment_attributes('projected').fetch('data-counted-credits'))
+    assert_equal 'unmet', group_attributes('required_all').fetch('data-projected-status')
+    original_actual = assessment_attributes.fetch('data-counted-credits')
+    initial_credits = BigDecimal(assessment_attributes.fetch('data-projected-credits'))
     future_required = @courses.select { |course| course['required'] && @occupied_keys.exclude?(course.fetch('key')) }
 
     future_required.each do |course|
@@ -98,17 +124,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     end
 
     get root_path, env: local_env
-    assert_select '[data-assessment="projected"] [data-check="required_all"][data-status="satisfied"]', count: 1
-    assert_select '[data-assessment="actual"] [data-check="required_all"][data-status="unmet"]', count: 1
-    assert_select '[data-assessment="projected"][data-status="satisfied"]', count: 1
-    assert_equal original_actual, assessment_attributes('actual')
-    assert_operator BigDecimal(assessment_attributes('projected').fetch('data-counted-credits')), :>, initial_credits
+    required = group_attributes('required_all')
+    assert_equal 'satisfied', required.fetch('data-projected-status')
+    assert_equal 'unmet', required.fetch('data-actual-status')
+    assert_equal 'satisfied', assessment_attributes.fetch('data-status')
+    assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')
+    assert_operator BigDecimal(assessment_attributes.fetch('data-projected-credits')), :>, initial_credits
 
     plan = @student.planned_courses.find_by!(course: course_record(future_required.first))
     delete plan_course_path(plan), env: local_env
     get root_path, env: local_env
-    assert_select '[data-assessment="projected"] [data-check="required_all"][data-status="unmet"]', count: 1
-    assert_select '[data-assessment="projected"][data-status="unmet"]', count: 1
+    assert_equal 'unmet', group_attributes('required_all').fetch('data-projected-status')
+    assert_equal 'unmet', assessment_attributes.fetch('data-status')
   end
 
   test 'rejects completed current duplicate unknown and nonselectable courses' do
@@ -168,7 +195,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   test 'unknown history is shown and makes both assessments need review without earning credits' do
     get root_path, env: local_env
-    original_actual_credits = assessment_attributes('actual').fetch('data-counted-credits')
+    original_actual_credits = assessment_attributes.fetch('data-counted-credits')
     unknown = @student.student_courses.create!(course: course_record(@candidate), academic_year: 2026,
                                                enrollment_status: 'unknown', credits_earned: nil)
 
@@ -178,15 +205,14 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     get root_path, env: local_env
 
-    assert_select '[data-assessment="actual"][data-status="needs_review"]', count: 1
-    assert_select '[data-assessment="projected"][data-status="needs_review"]', count: 1
-    assert_equal original_actual_credits, assessment_attributes('actual').fetch('data-counted-credits')
+    assert_equal 'needs_review', assessment_attributes.fetch('data-actual-status')
+    assert_equal 'needs_review', assessment_attributes.fetch('data-status')
+    assert_equal original_actual_credits, assessment_attributes.fetch('data-counted-credits')
   end
 
   test 'failed history is not projected as earned and may be explicitly planned again' do
     get root_path, env: local_env
-    before_actual = assessment_attributes('actual')
-    before_projected = assessment_attributes('projected')
+    before = assessment_attributes
     failed = @student.student_courses.create!(
       course: course_record(@candidate), academic_year: 2025, enrollment_status: 'failed', credits_earned: 0
     )
@@ -197,8 +223,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     get root_path, env: local_env
 
-    assert_equal before_actual, assessment_attributes('actual')
-    assert_equal before_projected, assessment_attributes('projected')
+    assert_equal before, assessment_attributes
 
     assert_difference '@student.planned_courses.count', 1 do
       post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
@@ -209,7 +234,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   test 'custom free-text course persists marks projected as needs_review and cleans up on delete' do
     get root_path, env: local_env
-    original_actual = assessment_attributes('actual')
+    original_actual = assessment_attributes.fetch('data-counted-credits')
 
     assert_difference ['@student.planned_courses.count', 'Course.count'], 1 do
       post plan_courses_path,
@@ -225,8 +250,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-plan='#{plan.id}']", count: 1
 
     get root_path, env: local_env
-    assert_equal original_actual, assessment_attributes('actual')
-    assert_select '[data-assessment="projected"][data-status="needs_review"]', count: 1
+    assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')
+    assert_equal 'needs_review', assessment_attributes.fetch('data-status')
 
     assert_difference ['@student.planned_courses.count', 'Course.count'], -1 do
       delete plan_course_path(plan), env: local_env
@@ -309,9 +334,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     Course.find_by!(curriculum_key: course.fetch('key'))
   end
 
-  def assessment_attributes(kind)
-    css_select("[data-assessment='#{kind}']").first.attributes.slice('data-status',
-                                                                     'data-counted-credits').transform_values(&:value)
+  # 卒業ダッシュボードの合計表示。実績と見込みを1要素にまとめて持つ。
+  def assessment_attributes
+    css_select('[data-assessment="total"]').first.attributes.slice(
+      'data-status', 'data-actual-status', 'data-counted-credits', 'data-projected-credits'
+    ).transform_values(&:value)
+  end
+
+  # 大項目1行ぶんの判定結果
+  def group_attributes(check_id)
+    css_select("[data-check='#{check_id}']").first.attributes.slice(
+      'data-status', 'data-actual-status', 'data-projected-status'
+    ).transform_values(&:value)
   end
 
   def assert_demo_denied(request_env)
@@ -331,8 +365,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test '各画面が固有のURLで表示される' do
-    { root_path => '進捗ダッシュボード',
-      requirements_path => '卒業要件の編集',
+    { root_path => '卒業ダッシュボード',
+      requirements_path => '卒業要件の確認',
       plan_path => '履修計画表',
       profile_path => 'マイページ' }.each do |path, label|
       get path, env: local_env
@@ -350,7 +384,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select 'a[href=?]', profile_path
   end
 
-  test '進捗ダッシュボードは履修計画表の中身を描画しない' do
+  test '卒業ダッシュボードは履修計画表の中身を描画しない' do
     get root_path, env: local_env
 
     assert_select '[data-catalogue-key]', count: 0

@@ -1,0 +1,49 @@
+<%= turbo_frame_tag "dashboard-group-#{@definition[:id]}" do %>
+  <% missing = find_check(@assessment.projected, @definition[:check_id])&.missing_courses.to_a %>
+
+  <div class="overflow-hidden rounded-xl border border-slate-200">
+    <% if missing.any? %>
+      <p class="bg-indigo-50/60 px-4 py-2.5 text-xs font-medium text-indigo-900">
+        未修得・未計画の必修: <%= missing.join('、') %>
+      </p>
+    <% end %>
+
+    <div class="overflow-x-auto bg-white">
+      <table class="w-full min-w-xl border-collapse text-left">
+        <thead>
+          <tr class="<%= 'border-t border-slate-200' if missing.any? %> text-xs text-slate-500">
+            <th scope="col" class="px-4 py-2 font-medium">項目</th>
+            <th scope="col" class="px-4 py-2 font-medium">修得状況</th>
+            <th scope="col" class="px-4 py-2 text-right font-medium">修得 / 必要単位</th>
+            <th scope="col" class="px-4 py-2 text-right font-medium">判定</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @definition[:rows].each do |row| %>
+            <% detail = @metrics.row(row) %>
+            <tr class="border-t border-slate-100 align-middle"
+                data-check="<%= row[:id] %>" data-status="<%= detail[:status] %>">
+              <th scope="row" class="px-4 py-3 text-sm font-semibold text-slate-800">
+                <%= row[:name] %>
+                <span class="mt-0.5 block text-xs font-normal text-slate-500"><%= row[:subtitle] %></span>
+              </th>
+              <td class="px-4 py-3"><%= render 'dashboard/bar', summary: detail, size: 'h-2.5' %></td>
+              <td class="px-4 py-3 text-right text-sm tabular-nums">
+                <span class="font-bold text-slate-900"><%= credit_number(detail[:earned]) %></span><%
+                %><% if detail[:planned].positive? %><span class="font-semibold text-sky-600">+<%= credit_number(detail[:planned]) %></span><% end %><%
+                %><span class="text-slate-500"> / <%= row[:req] ? detail[:req] : row[:req_label] %></span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <span class="inline-flex flex-wrap justify-end gap-1.5">
+                  <% status_badges(detail).each do |label, klass| %>
+                    <span class="demo-status <%= klass %>"><%= label %></span>
+                  <% end %>
+                </span>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% end %>
