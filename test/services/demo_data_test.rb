@@ -39,7 +39,7 @@ class DemoDataTest < ActiveSupport::TestCase
                                               grade: 'manual-result', enrollment_status: 'unknown',
                                               credits_earned: '1.5', approval_confirmed: false)
     unrelated_user = User.create!(email: 'unrelated@example.test')
-    unrelated_course = Course.create!(course_number: course.course_number, name: course.name, credits: '9.5')
+    unrelated_course = Course.create!(course_number: course.course_number, name: course.name, credits: 9)
     unrelated_student = Student.create!(user: unrelated_user, department: student.department, admission_year: 2025)
     unrelated_plan = unrelated_student.planned_courses.create!(course: unrelated_course)
     before_counts = record_counts

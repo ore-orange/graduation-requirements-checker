@@ -1,0 +1,14 @@
+<%# 決まった値を選べて、一覧にない値も打ち込める欄。時限の「3・4・5」のような並びのために使う。 %>
+<div class="relative" data-controller="combobox" data-action="focusout->combobox#closeOnLeave">
+  <%= text_field_tag name, value, class: field_class, autocomplete: 'off',
+                     'aria-label': label, 'aria-expanded': 'false',
+                     data: { combobox_target: 'input',
+                             action: 'focus->combobox#open click->combobox#open input->combobox#filter keydown->combobox#keydown' } %>
+  <ul data-combobox-target="list" hidden
+      class="absolute inset-x-0 z-30 mt-0.5 max-h-48 overflow-auto rounded border border-slate-300 bg-white py-1 shadow-lg">
+    <% choices.each do |choice| %>
+      <li data-combobox-target="option" data-value="<%= choice %>" data-action="mousedown->combobox#pick"
+          class="cursor-pointer px-2 py-1 hover:bg-slate-100"><%= choice %></li>
+    <% end %>
+  </ul>
+</div>
