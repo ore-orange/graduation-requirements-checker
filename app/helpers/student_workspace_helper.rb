@@ -62,7 +62,6 @@ module StudentWorkspaceHelper
   def category_label(category) = CATEGORY_LABELS.fetch(category, category)
   def custom_course?(curriculum_key) = curriculum_key.to_s.start_with?('custom:')
   def find_check(snapshot, check_id) = snapshot.checks.find { |check| check.id == check_id }
-  def enrollment_grade_year(enrollment, student) = (enrollment.academic_year - student.admission_year + 1).clamp(1, 3)
   def source_url(source) = (source['url'].to_s if source['url'].to_s.start_with?('https://', 'http://'))
 
   def credit_number(val) = val.nil? ? '0' : number_with_precision(val, precision: 2, strip_insignificant_zeros: true)

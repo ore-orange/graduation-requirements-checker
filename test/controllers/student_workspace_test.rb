@@ -35,10 +35,10 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-assessment="projected"]', count: 1
     assert_select '[data-plan]', count: 0
 
-    get plan_path, env: local_env
+    @student.student_courses.group_by { |e| [e.academic_year, e.semester] }.each do |(year, semester), enrollments|
+      get plan_path(term: "#{year - @student.admission_year + 1}-#{semester}"), env: local_env
 
-    @student.student_courses.each do |enrollment|
-      assert_select "[data-enrollment='#{enrollment.id}']", count: 1
+      enrollments.each { |enrollment| assert_select "[data-enrollment='#{enrollment.id}']", count: 1 }
     end
     assert_select 'form input[name="student_id"]', count: 0
     assert_select 'form[action*="student_courses"]', count: 0
@@ -296,6 +296,61 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     Rails.stub(:env, ActiveSupport::EnvironmentInquirer.new('production')) do
       assert_demo_denied(local_env)
       assert_demo_denied('REMOTE_ADDR' => '172.19.0.1')
+    end
+  end
+
+  test '履修計画表は指定した学期の履修履歴だけを表示し、前後の学期へ移動できる' do
+    shown = @student.student_courses.where(academic_year: 2025, semester: '後期').to_a
+    hidden = @student.student_courses.where.not(academic_year: 2025).or(
+      @student.student_courses.where.not(semester: '後期')
+    ).to_a
+    assert shown.any? && hidden.any?, 'デモデータに2年後期とそれ以外の履修履歴がある前提'
+
+    get plan_path(term: '2-後期'), env: local_env
+
+    assert_select '[data-term="2-後期"]', count: 1
+    shown.each { |enrollment| assert_select "[data-enrollment='#{enrollment.id}']", count: 1 }
+    hidden.each { |enrollment| assert_select "[data-enrollment='#{enrollment.id}']", count: 0 }
+    assert_select '[data-term-nav="prev"][href=?]', plan_path(term: '2-前期')
+    assert_select '[data-term-nav="next"][href=?]', plan_path(term: '3-前期')
+  end
+
+  test '履修計画表は今の学期から始まり、読めない学期の指定も今の学期として扱う' do
+    travel_to Date.new(2026, 10, 20) do
+      get plan_path, env: local_env
+      assert_select '[data-term="3-後期"]', count: 1
+
+      get plan_path(term: '9-夏期'), env: local_env
+      assert_select '[data-term="3-後期"]', count: 1
+    end
+  end
+
+  test '最初と最後の学期では、その先へ進むボタンを出さない' do
+    get plan_path(term: '1-前期'), env: local_env
+    assert_select '[data-term-nav="prev"]', count: 0
+    assert_select '[data-term-nav="next"]', count: 1
+
+    get plan_path(term: '4-後期'), env: local_env
+    assert_select '[data-term-nav="prev"]', count: 1
+    assert_select '[data-term-nav="next"]', count: 0
+  end
+
+  test '学期が登録されていない履修履歴は、どの学期を見ても別枠に表示する' do
+    unplaced = @student.student_courses.create!(course: course_record(@candidate), academic_year: 2025,
+                                                semester: nil, enrollment_status: 'completed', credits_earned: 2)
+
+    %w[1-前期 2-後期 4-後期].each do |term|
+      get plan_path(term: term), env: local_env
+      assert_select "[data-enrollment='#{unplaced.id}']", count: 1
+    end
+  end
+
+  test '学期未定の履修予定は、どの学期を見ても表示する' do
+    plan = @student.planned_courses.create!(course: course_record(@candidate))
+
+    %w[1-前期 3-後期].each do |term|
+      get plan_path(term: term), env: local_env
+      assert_select "#unscheduled [data-plan='#{plan.id}']", count: 1
     end
   end
 
