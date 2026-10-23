@@ -61,6 +61,14 @@
         <% end %>
       </div>
 
+      <!-- 区分バッジの凡例 -->
+      <p class="px-4 sm:px-6 py-2 border-b border-slate-100 text-[11px] text-slate-500" data-credit-legend>
+        区分の単位は全学期の合計です。
+        <span class="font-semibold text-slate-600">修得</span>＝修得済みの単位、
+        <span class="font-semibold text-slate-600">予定</span>＝履修中と履修予定の単位、
+        <span class="font-semibold text-slate-600">必要</span>＝卒業に必要な単位。
+      </p>
+
       <!-- 区分 × この学期の科目 -->
       <div class="overflow-x-auto">
         <table class="w-full border-collapse text-left table-fixed min-w-[640px]">
@@ -95,23 +103,36 @@
                   row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_key)
                   row_has_custom = row_plans.any? { |p| custom_course?(p.course.curriculum_key) }
                   row_status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_has_custom)
+                  subtotal = planner_subtotal_for(row[:id])
                 %>
+                <% if subtotal && subtotal[:row_ids].first == row[:id] %>
+                  <%
+                    subtotal_categories = group[:rows].select { |r| subtotal[:row_ids].include?(r[:id]) }.flat_map { |r| r[:categories] }
+                    subtotal_plans = @plans.select { |p| subtotal_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+                    subtotal_status = row_check_status(@assessment, subtotal[:check_ids],
+                                                       has_custom_plan: subtotal_plans.any? { |p| custom_course?(p.course.curriculum_key) })
+                  %>
+                  <!-- 合計で数える区分のまとまり（必要単位はここにだけ出す） -->
+                  <tr class="align-top bg-indigo-50/30" data-planner-subtotal="<%= subtotal[:id] %>">
+                    <th class="p-3.5 border-r border-slate-200">
+                      <div class="font-bold text-slate-800 text-sm leading-snug"><%= subtotal[:name] %></div>
+                      <%= render 'plans/credit_badge', credits: category_credits(@enrollments, @plans, subtotal_categories, @courses_by_key),
+                                                       req: subtotal[:req], status: subtotal_status %>
+                    </th>
+                    <td class="p-3.5 text-[11px] text-slate-500 leading-relaxed">
+                      下の<%= subtotal[:row_ids].size %>区分の単位を合計して判定します。区分ごとの必要単位はありません。
+                    </td>
+                  </tr>
+                <% end %>
                 <tr class="align-top hover:bg-slate-50/40" data-planner-row="<%= row[:id] %>">
                   <!-- 区分名セル（単位は全学期の累計） -->
-                  <th class="p-3.5 border-r border-slate-200 bg-slate-50/30">
+                  <th class="p-3.5 border-r border-slate-200 bg-slate-50/30 <%= 'pl-8' if subtotal %>">
                     <div class="font-bold text-slate-800 text-sm leading-snug" data-sync-row-title="<%= row[:id] %>"><%= row[:name] %></div>
-                    <div class="mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold <%= row_status == :satisfied ? 'bg-emerald-50 text-emerald-700' : (row_status == :needs_review ? 'bg-amber-50 text-amber-800' : 'bg-sky-50 text-sky-700') %>">
-                      <span><%= credit_number(row_credits[:earned]) %></span>
-                      <% if row_credits[:planned].positive? %>
-                        <span class="ml-0.5">(+<%= credit_number(row_credits[:planned]) %>)</span>
-                      <% end %>
-                      <span class="mx-1">/</span>
-                      <% if row[:req] %>
-                        <span data-sync-row-req="<%= row[:id] %>"><%= row[:req] %></span> 単位
-                      <% else %>
-                        <span><%= row[:req_label] %></span>
-                      <% end %>
-                    </div>
+                    <% if subtotal %>
+                      <%= render 'plans/credit_badge', credits: row_credits, req: nil, status: nil %>
+                    <% else %>
+                      <%= render 'plans/credit_badge', credits: row_credits, req: row[:req], status: row_status, row_id: row[:id] %>
+                    <% end %>
                     <p class="mt-1.5 text-[11px] text-slate-400 font-normal leading-relaxed"><%= row[:subtitle] %></p>
                   </th>
 

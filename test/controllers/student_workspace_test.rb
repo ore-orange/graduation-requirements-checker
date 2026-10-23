@@ -345,6 +345,20 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test '合計で数える3区分は、必要単位を合計の行にだけ出す' do
+    get plan_path, env: local_env
+
+    assert_select '[data-planner-subtotal="elective_inner"]', count: 1 do
+      assert_select 'th', text: /必要 22/
+    end
+    %w[elective_math advanced related].each do |row_id|
+      assert_select "[data-planner-row='#{row_id}'] th", count: 1 do |cells|
+        assert_no_match(/必要/, cells.first.text, "#{row_id} には必要単位を出さない")
+      end
+    end
+    assert_select '[data-planner-row="required_research"] th', text: /修得 \d+.*必要 16/m
+  end
+
   test '学期未定の履修予定は、どの学期を見ても表示する' do
     plan = @student.planned_courses.create!(course: course_record(@candidate))
 
