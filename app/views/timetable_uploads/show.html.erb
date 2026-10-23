@@ -8,6 +8,7 @@
 <% savable = @preview&.ok? %>
 <% save_reason = savable ? nil : (@preview.nil? ? "あと#{@upload.unconfirmed_count}行を確認済みにすると保存できます" : '直す点があります。下の「保存の内容」を確認してください') %>
 <% field_class = 'w-full rounded border border-slate-300 bg-white px-1.5 py-1' %>
+<div data-controller="add-row">
 <div class="space-y-6 pb-32">
   <header>
     <%= link_to '← 講義登録', course_registrations_path, class: 'text-sm font-semibold text-slate-700 underline underline-offset-4' %>
@@ -19,35 +20,41 @@
       <%= button_to '取り込みを破棄する', @upload, method: :delete, class: 'text-sm font-semibold text-red-800 underline underline-offset-4',
                     form: { data: { turbo_confirm: 'この取り込みを破棄します。よろしいですか?' } } %>
     </div>
-    <p class="mt-3 text-sm font-bold text-red-700">必ず、PDFと見比べて内容を確認してください。違う値は直し、右端の「確認済み」にチェックして更新します。</p>
+    <p class="mt-3 text-sm font-bold text-red-700">必ず、PDFと見比べて内容を確認してください。違う値は直してから、右端の「確認済み」にチェックします（チェックした時点で保存されます）。</p>
     <p class="mt-1 text-sm text-slate-600">保存するまで、講義のデータは変わりません。</p>
   </header>
 
   <%= render 'shared/toast' %>
 
   <%= form_with url: update_rows_timetable_upload_path(@upload), method: :patch, id: 'rows-form',
-                data: { controller: 'checks scroll-to-error', checks_key_value: "timetable-upload-checks-#{@upload.id}", action: 'submit->checks#submit' } do %>
-    <%= hidden_field_tag :page, @paginator.page %>
+                data: { controller: 'checks scroll-to-error',
+                        action: 'focusin->add-row#select click->add-row#select' } do %>
+    <%# 更新をまたいでも行き先を覚えておく(morphで作り直されないようにする) %>
+    <%= hidden_field_tag :after_row_id, nil, data: { add_row_target: 'rowId', turbo_permanent: true } %>
     <table class="w-full table-fixed text-sm">
       <colgroup>
-        <col class="w-24"><col><col class="w-14"><col class="w-24"><col class="w-24"><col class="w-20"><col class="w-24"><col class="w-24"><col class="w-52"><col class="w-16">
+        <col class="w-28"><col class="w-24"><col><col class="w-14"><col class="w-24"><col class="w-24"><col class="w-20"><col class="w-24"><col class="w-24"><col class="w-16">
       </colgroup>
-      <thead class="sticky top-0 z-10 bg-slate-100 text-left text-slate-700 shadow-sm">
-        <tr>
-          <% %w[科目番号 科目名 単位 必修選択 年次 曜日 時限 開講区分 講義コード・備考].each do |label| %><th class="px-1.5 py-2"><%= label %></th><% end %>
+      <% with_pdf = @upload.page_count.positive? %>
+      <thead class="sticky top-0 z-10 bg-slate-100 text-left text-slate-700 shadow-sm"
+             <%= tag.attributes(data: { controller: 'pdf-pane', pdf_pane_page_width_value: @upload.page_width }) if with_pdf %>>
+        <%= render 'pdf_pane', upload: @upload if with_pdf %>
+        <tr data-pdf-pane-target="headRow">
+          <% %w[講義コード 科目番号 科目名 単位 必修選択 年次 曜日 時限 開講区分].each do |label| %><th class="px-1.5 py-2"><%= label %></th><% end %>
           <th class="px-1.5 py-2 text-center">
             <label class="flex flex-col items-center gap-0.5 text-xs font-semibold">
-              <input type="checkbox" data-checks-target="all" data-action="change->checks#toggleAll" class="size-4" aria-label="このページの全行を確認済みにする">
+              <input type="checkbox" data-checks-target="all" data-action="change->checks#toggleAll" class="size-4" aria-label="全部の行を確認済みにする">
               確認済み
             </label>
           </th>
         </tr>
       </thead>
-      <% @page_rows.each do |row| %>
+      <% @rows.each do |row| %>
         <% errors = @row_errors[row.id.to_s] %>
         <% key = "rows[#{row.id}]" %>
-        <tbody id="row-<%= row.id %>" <%= 'data-error-row' if errors %> class="border-b border-slate-200 <%= errors ? 'bg-red-50' : (row.confirmed ? 'bg-emerald-50' : (row.review_reason.present? ? 'bg-amber-50' : '')) %>">
+        <tbody id="row-<%= row.id %>" data-row-id="<%= row.id %>" <%= 'data-error-row' if errors %> class="border-b border-slate-200 <%= errors ? 'bg-red-50' : (row.confirmed ? 'bg-emerald-50' : ((row.review_reason.present? || row.added_by_hand) ? 'bg-amber-50' : '')) %>">
           <tr class="align-top">
+            <td class="p-1.5"><%= text_field_tag "#{key}[lecture_code]", row.lecture_code, class: field_class, 'aria-label': "#{row.name} 講義コード", data: { lecture_code: true } %></td>
             <td class="p-1.5"><%= text_field_tag "#{key}[course_number]", row.course_number, class: field_class, 'aria-label': "#{row.name} 科目番号" %></td>
             <td class="p-1.5">
               <%= text_field_tag "#{key}[name]", row.name, class: field_class, 'aria-label': "#{row.name} 科目名" %>
@@ -63,17 +70,27 @@
             <td class="p-1.5"><%= select_tag "#{key}[requirement_type]", choice_options(TimetableImport::Values::REQUIREMENT_TYPES, row.requirement_type), class: field_class, 'aria-label': "#{row.name} 必修選択" %></td>
             <td class="p-1.5"><%= select_tag "#{key}[grade_text]", choice_options(TimetableUploadsHelper::GRADE_CHOICES, row.grade_text), class: field_class, 'aria-label': "#{row.name} 年次" %></td>
             <td class="p-1.5"><%= select_tag "#{key}[weekday]", choice_options(TimetableImport::Values::WEEKDAYS, row.weekday), class: field_class, 'aria-label': "#{row.name} 曜日" %></td>
-            <td class="p-1.5"><%= select_tag "#{key}[period_text]", choice_options(TimetableUploadsHelper::PERIOD_CHOICES, row.period_text), class: field_class, 'aria-label': "#{row.name} 時限" %></td>
+            <td class="p-1.5"><%= render 'choice_input', name: "#{key}[period_text]", value: row.period_text,
+                                         choices: TimetableUploadsHelper::PERIOD_CHOICES, label: "#{row.name} 時限",
+                                         field_class: field_class %></td>
             <td class="p-1.5"><%= select_tag "#{key}[term_type]", choice_options(TimetableUploadsHelper::TERM_CHOICES, row.term_type), class: field_class, 'aria-label': "#{row.name} 開講区分" %></td>
-            <td class="p-1.5">
-              <%= text_field_tag "#{key}[lecture_code]", row.lecture_code, class: field_class, 'aria-label': "#{row.name} 講義コード" %>
-              <p class="mt-1 text-xs leading-5 text-slate-600"><%= row.note %></p>
-            </td>
             <td class="p-1.5 text-center">
               <%= check_box_tag "confirmed[#{row.id}]", '1', row.confirmed, class: 'mt-1.5 size-4', 'aria-label': "#{row.name} 確認済み",
                                                                  data: { checks_target: 'box', row_id: row.id, action: 'change->checks#toggle' } %>
             </td>
           </tr>
+          <% if row.added_by_hand %>
+            <tr>
+              <td colspan="10" class="px-2 pb-2">
+                <div class="flex items-center gap-3 text-xs font-bold text-amber-900">
+                  <span>手で追加した行 ― PDFを見ながら入力してください</span>
+                  <%= button_tag 'この行を削除', type: 'submit', form: 'rows-form', name: 'destroy_row_id', value: row.id,
+                                 data: { turbo_confirm: 'この行を削除します。入力した内容も消えます。よろしいですか?' },
+                                 class: 'font-semibold text-red-800 underline underline-offset-2' %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
           <% if errors || (row.review_reason.present? && !row.confirmed) %>
             <tr>
               <td colspan="10" class="px-2 pb-2 text-xs font-bold <%= errors ? 'text-red-800' : 'text-amber-900' %>">
@@ -89,8 +106,6 @@
       <% end %>
     </table>
   <% end %>
-
-  <%= render 'shared/pagination', paginator: @paginator, path: ->(page) { timetable_upload_path(@upload, page: page) } %>
 
   <section aria-labelledby="commit-heading" class="rounded-xl border border-slate-200 bg-white p-5">
     <h2 id="commit-heading" class="text-lg font-bold text-slate-900">保存の内容</h2>
@@ -114,10 +129,11 @@
       <% if save_reason %><span id="save-reason" class="ml-2 text-slate-600"><%= save_reason %></span><% end %>
     </p>
     <div class="flex flex-wrap items-center gap-3">
+      <span class="text-xs text-slate-600" data-add-row-target="label">表のいちばん下に</span>
+      <%= button_tag '＋ 科目を追加', type: 'submit', form: 'rows-form', name: 'operation', value: 'add_row',
+                     class: 'rounded-lg border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50' %>
       <%= button_tag '問題のない行をまとめて確認済みにする', type: 'submit', form: 'rows-form', name: 'operation', value: 'confirm_all',
                      class: 'rounded-lg border border-slate-400 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50' %>
-      <%= button_tag 'チェックした行を確認済みにして更新', type: 'submit', form: 'rows-form', name: 'operation', value: 'update',
-                     class: 'rounded-lg border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50' %>
       <%# 無効のボタンはホバーを受け取れないので、外側の要素でツールチップを出す %>
       <span class="group relative inline-block">
         <%= button_tag '保存する', type: 'submit', form: 'commit-form', disabled: !savable, 'aria-describedby': (save_reason ? 'save-reason' : nil),
@@ -128,4 +144,5 @@
       </span>
     </div>
   </div>
+</div>
 </div>

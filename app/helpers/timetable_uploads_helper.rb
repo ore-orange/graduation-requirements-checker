@@ -2,7 +2,7 @@
 
 module TimetableUploadsHelper
   GRADE_CHOICES = %w[1 2 3 4 1・2 2・3 3・4 1・2・3 2・3・4 1・2・3・4].freeze
-  PERIOD_CHOICES = %w[1 2 3 4 5 6 1・2 2・3 3・4 4・5 5・6].freeze
+  PERIOD_CHOICES = %w[1 2 3 4 5 6 1・2 2・3 3・4 4・5 5・6 1・2・3 2・3・4 3・4・5 4・5・6].freeze
   TERM_CHOICES = %w[半年 1Q 2Q 通年 集中].freeze
 
   # 決まった値から選ばせるプルダウン。PDFの値が選択肢に無いときも、値を失わないよう選択肢外として残す。

@@ -139,23 +139,19 @@ module TimetableImport
         '講義コード' => anchor.text,
         '科目番号' => cell(spans, :course_number),
         '科目名' => name(spans),
-        '単位' => half_width(cell(spans, :credits)),
+        '単位' => Values.half_width(cell(spans, :credits)),
         '必修選択' => REQUIREMENTS.fetch(cell(spans, :requirement), cell(spans, :requirement)),
-        '受講年次' => half_width(cell(spans, :grade)),
+        '受講年次' => Values.half_width(cell(spans, :grade)),
         '曜日' => cell(spans, :weekday),
-        '時限' => half_width(cell(spans, :periods)),
+        '時限' => Values.half_width(cell(spans, :periods)),
         '開講区分' => term_type(cell(spans, :term_type)),
         '備考' => note(spans)
       }
       row.merge('要確認' => review_reasons(row).join('、'))
     end
 
-    def half_width(text)
-      text.tr('０-９･', '0-9・')
-    end
-
     def term_type(text)
-      quarter = half_width(text).match(QUARTER)
+      quarter = Values.half_width(text).match(QUARTER)
       quarter ? "#{quarter[1]}Q" : text
     end
 
