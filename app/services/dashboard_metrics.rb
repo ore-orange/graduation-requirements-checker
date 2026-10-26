@@ -7,6 +7,10 @@ class DashboardMetrics
 
   GRADUATION_CREDITS = 130
 
+  # 判定側がまとめて数えている区分は、カテゴリ別の集計ではなく算入単位をそのまま使う。
+  # 知能情報アドバンストの必要22単位は3区分で1つの枠なので、ここも算入単位で揃える。
+  CHECK_DRIVEN_ROWS = %w[general_subtotal fusion advanced].freeze
+
   attr_reader :assessment, :enrollments, :plans, :courses_by_key
 
   def initialize(assessment:, enrollments:, plans:, courses_by_key:)
@@ -27,10 +31,8 @@ class DashboardMetrics
 
   # 卒業必要単位(130)に対する合計。カード上部のバーで使う。
   def total(earned, planned)
-    bar(GRADUATION_CREDITS, earned, planned).merge(
-      status: assessment.actual.status == :satisfied ? :satisfied : :unmet,
-      review: assessment.projected.status == :needs_review
-    )
+    bar(GRADUATION_CREDITS, earned, planned)
+      .merge(status: assessment.actual.status == :satisfied ? :satisfied : :unmet)
   end
 
   # 区分1つぶんの修得済み・見込み・ステータス
@@ -41,37 +43,27 @@ class DashboardMetrics
     extra = custom_credits(categories)
     earned = actual ? actual.counted_credits : BigDecimal('0')
     planned = ((projected ? projected.counted_credits : BigDecimal('0')) - earned) + extra
-    bar(definition[:req], earned, planned).merge(judgement(actual, projected, extra))
+    bar(definition[:req], earned, planned)
+      .merge(status: actual&.status == :satisfied ? :satisfied : :unmet)
   end
 
   # 内訳1行ぶんの修得済み・見込み・ステータス・不足科目
   def row(definition)
     extra = custom_credits(definition[:categories])
     earned, planned = row_credits(definition, extra)
-    target = definition[:req] || (definition[:id] == 'free' ? 37 : 22)
+    target = definition[:req]
     missing = assessment.projected.checks.select { |check| definition[:check_ids].include?(check.id) }
                         .flat_map(&:missing_courses).uniq
     raw = row_check_status(assessment, definition[:check_ids], has_custom_plan: extra.positive?)
-    bar(target, earned, planned).merge(
-      status: raw == :satisfied ? :satisfied : :unmet,
-      review: raw == :needs_review,
-      missing: missing
-    )
+    bar(target, earned, planned).merge(status: raw == :satisfied ? :satisfied : :unmet, missing: missing)
   end
 
   private
 
-  # 判定は充足か不足の二択。履修中と要確認は別の軸なので、判定とは分けて持つ。
-  def judgement(actual, projected, extra)
-    { status: actual&.status == :satisfied ? :satisfied : :unmet,
-      review: extra.positive? || projected&.status == :needs_review }
-  end
-
-  # 専門選択の内数3区分と自由科目は、区分単位の集計ではなく判定側の算入単位を使う
   def row_credits(definition, extra)
     actual = find_check(assessment.actual, definition[:check_ids].first)
     projected = find_check(assessment.projected, definition[:check_ids].first)
-    if %w[general_subtotal fusion].include?(definition[:id]) && actual&.counted_credits && projected&.counted_credits
+    if CHECK_DRIVEN_ROWS.include?(definition[:id]) && actual&.counted_credits && projected&.counted_credits
       [actual.counted_credits, (projected.counted_credits - actual.counted_credits) + extra]
     else
       credits = category_credits(enrollments, plans, definition[:categories], courses_by_key)
@@ -79,7 +71,10 @@ class DashboardMetrics
     end
   end
 
+  # 必要単位を持たない行は割合を出さない。描くバーがないので0で揃えておく。
   def bar(target, earned, planned)
+    return { earned: earned, planned: planned, req: nil, earned_pct: 0, planned_pct: 0 } if target.nil?
+
     earned_pct = (earned.to_f / target * 100).round.clamp(0, 100)
     { earned: earned, planned: planned, req: target, earned_pct: earned_pct,
       planned_pct: (planned.to_f / target * 100).round.clamp(0, 100 - earned_pct) }

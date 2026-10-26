@@ -30,7 +30,6 @@ class DashboardMetricsTest < ActiveSupport::TestCase
                       projected: [check('common_total', :satisfied, 30)]).group(GROUP)
 
     assert_equal :satisfied, summary[:status]
-    assert_not summary[:review]
     assert_equal BigDecimal('30'), summary[:earned]
     assert_equal BigDecimal('0'), summary[:planned]
     assert_equal 100, summary[:earned_pct]
@@ -56,12 +55,12 @@ class DashboardMetricsTest < ActiveSupport::TestCase
     assert_operator summary[:earned_pct] + summary[:planned_pct], :<, 100
   end
 
-  test '判定できない項目があれば要確認を立てる' do
+  test '判定できない項目も不足として返す' do
+    # 要確認はバッジにしないので、充足と言い切れないものはすべて不足になる
     summary = metrics(actual: [check('common_total', :unmet, 26)],
                       projected: [check('common_total', :needs_review, 26)]).group(GROUP)
 
     assert_equal :unmet, summary[:status]
-    assert summary[:review]
   end
 
   test 'バーは必要単位を超えても100%で止める' do
@@ -80,12 +79,11 @@ class DashboardMetricsTest < ActiveSupport::TestCase
     assert_equal 10, summary[:planned_pct]
   end
 
-  test '合計は実績で判定し、未確認があれば要確認を立てる' do
+  test '合計は見込みではなく実績で判定する' do
     subject = metrics(actual: [], projected: [], actual_status: :unmet, projected_status: :needs_review)
     total = subject.total(BigDecimal('118'), BigDecimal('4'))
 
     assert_equal :unmet, total[:status]
-    assert total[:review]
     assert_equal 130, total[:req]
     assert_equal 91, total[:earned_pct]
     assert_equal 3, total[:planned_pct]
@@ -96,16 +94,14 @@ class DashboardMetricsTest < ActiveSupport::TestCase
     total = subject.total(BigDecimal('130'), BigDecimal('0'))
 
     assert_equal :satisfied, total[:status]
-    assert_not total[:review]
   end
 
-  test '内訳の行も判定と要確認を分けて返す' do
+  test '内訳の行も充足か不足かだけを返す' do
     row = { id: 'health', name: '健康運動系', req: 2, categories: ['health'], check_ids: ['health'] }
     detail = metrics(actual: [check('health', :satisfied, 2)],
                      projected: [check('health', :satisfied, 2)]).row(row)
 
     assert_equal :satisfied, detail[:status]
-    assert_not detail[:review]
     assert_empty detail[:missing]
   end
 

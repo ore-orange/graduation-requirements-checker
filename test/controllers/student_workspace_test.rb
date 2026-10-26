@@ -38,7 +38,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select '[data-check="required_research"][data-status="unmet"]', count: 1
-    assert_select '[data-check="required_core"][data-status="satisfied"]', count: 1
+    assert_select '[data-check="required_math"][data-status="satisfied"]', count: 1
     # 大項目に紐づく未修得の必修は、開いたときにここで見える
     assert_select 'turbo-frame#dashboard-group-required', text: /卒業研究Ⅰ/
     # 画面まるごとではなくフレームだけを返す
@@ -127,7 +127,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     required = group_attributes('required_all')
     assert_equal 'satisfied', required.fetch('data-projected-status')
     assert_equal 'unmet', required.fetch('data-actual-status')
-    assert_equal 'satisfied', assessment_attributes.fetch('data-status')
+    # 必修を埋めても共通教育と専門選択が残るので、卒業要件そのものはまだ満たさない
+    assert_equal 'unmet', assessment_attributes.fetch('data-status')
     assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')
     assert_operator BigDecimal(assessment_attributes.fetch('data-projected-credits')), :>, initial_credits
 
@@ -135,7 +136,6 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     delete plan_course_path(plan), env: local_env
     get root_path, env: local_env
     assert_equal 'unmet', group_attributes('required_all').fetch('data-projected-status')
-    assert_equal 'unmet', assessment_attributes.fetch('data-status')
   end
 
   test 'rejects completed current duplicate unknown and nonselectable courses' do

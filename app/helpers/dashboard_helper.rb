@@ -13,8 +13,5 @@ module DashboardHelper
   }.freeze
 
   def group_icon_path(definition) = GROUP_ICONS.fetch(definition[:id], GROUP_ICONS['elective'])
-
-  # 色は3つだけ。充足は緑、まだ足りないぶんは青、履修中は水色(バー側で指定)。
-  def group_bar_color(status) = status == :satisfied ? 'bg-emerald-500' : 'bg-indigo-500'
 end
 

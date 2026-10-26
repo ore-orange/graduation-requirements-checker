@@ -62,8 +62,9 @@
           <h3 id="groups-heading" class="text-base font-bold text-slate-900">区分別の卒業要件</h3>
           <p class="text-xs text-slate-500">カードをクリックすると、内訳を確認できます。</p>
         </div>
+        <%# バーの読み方。足りているかどうかはバッジが出すので、ここは量の凡例だけ。 %>
         <ul class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-          <% [['bg-emerald-500', '充足'], ['bg-indigo-500', '不足'], ['bg-sky-400', '履修中'], ['bg-amber-500', '要確認']].each do |color, label| %>
+          <% [['bg-emerald-500', '修得済み'], ['bg-sky-400', '履修中'], ['bg-slate-200', '未修得']].each do |color, label| %>
             <li class="flex items-center gap-1.5"><span class="size-2 rounded-full <%= color %>" aria-hidden="true"></span><%= label %></li>
           <% end %>
         </ul>

@@ -1,5 +1,5 @@
 {
-  "description": "ローカル開発専用の人工的な履修データです。実在の学生の成績・履修登録・大学システムの取得結果ではありません。科目と単位は2024年度公式便覧のカタログに対応しますが、年度・学期・履修状態は動作説明用の架空設定であり、時間割や履修前提条件を保証しません。共通教育30・専門基礎6・専門必修49・専門選択の修得済33単位（実績118単位）、未修得の工学融合4単位を含む見込み122単位です。卒業研究Ⅰ・ⅡとセミナーⅠ・Ⅱの計8単位は未修得かつ未登録で、将来計画にも初期追加しません。",
+  "description": "ローカル開発専用の人工的な履修データです。実在の学生の成績・履修登録・大学システムの取得結果ではありません。科目と単位は2024年度公式便覧のカタログに対応しますが、年度・学期・履修状態は動作説明用の架空設定であり、時間割や履修前提条件を保証しません。3年後期を履修中の学生を想定し、共通教育24・専門基礎6・専門必修33・専門選択22の計85単位を修得済み、3年後期のED演習・工学倫理・工学融合1科目の計6単位を履修中としています（見込み91単位）。共通教育の教養・総合領域と外国語、専門必修の知能情報コア、専門選択のアドバンストはわざと未修得を残し、区分ごとに進捗の差が出るようにしています。卒業研究Ⅰ・ⅡとセミナーⅠ・Ⅱは未修得かつ未登録で、将来計画にも初期追加しません。",
   "enrollments": [
     {
       "course_key": "programming_practice_1",
@@ -93,8 +93,8 @@
       "course_key": "engineering_design_practice",
       "academic_year": 2026,
       "semester": "後期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
+      "enrollment_status": "in_progress",
+      "credits_earned": null,
       "approval_confirmed": null
     },
     {
@@ -141,8 +141,8 @@
       "course_key": "engineering_ethics",
       "academic_year": 2026,
       "semester": "後期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
+      "enrollment_status": "registered",
+      "credits_earned": null,
       "approval_confirmed": null
     },
     {
@@ -170,49 +170,9 @@
       "approval_confirmed": null
     },
     {
-      "course_key": "data_science_fundamentals",
-      "academic_year": 2025,
-      "semester": "後期",
-      "enrollment_status": "completed",
-      "credits_earned": 4,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "operating_systems",
-      "academic_year": 2025,
-      "semester": "後期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "computer_architecture",
-      "academic_year": 2025,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "database_systems",
-      "academic_year": 2025,
-      "semester": "後期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
       "course_key": "artificial_intelligence",
       "academic_year": 2025,
       "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "software_development_practice_1",
-      "academic_year": 2025,
-      "semester": "後期",
       "enrollment_status": "completed",
       "credits_earned": 2,
       "approval_confirmed": null
@@ -250,14 +210,6 @@
       "approval_confirmed": null
     },
     {
-      "course_key": "atmospheric_science",
-      "academic_year": 2024,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
       "course_key": "information_science_overview",
       "academic_year": 2024,
       "semester": "前期",
@@ -267,14 +219,6 @@
     },
     {
       "course_key": "career_formation_introduction",
-      "academic_year": 2024,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "peace_studies",
       "academic_year": 2024,
       "semester": "前期",
       "enrollment_status": "completed",
@@ -299,14 +243,6 @@
     },
     {
       "course_key": "english_reading_intermediate",
-      "academic_year": 2024,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "english_conversation_intermediate",
       "academic_year": 2024,
       "semester": "前期",
       "enrollment_status": "completed",
@@ -426,46 +362,6 @@
       "approval_confirmed": null
     },
     {
-      "course_key": "mathematical_programming_and_algorithms",
-      "academic_year": 2026,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "parallel_and_distributed_processing",
-      "academic_year": 2026,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "machine_learning",
-      "academic_year": 2026,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "human_computer_interaction",
-      "academic_year": 2026,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "digital_control",
-      "academic_year": 2026,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
       "course_key": "technical_english_1",
       "academic_year": 2026,
       "semester": "前期",
@@ -479,22 +375,6 @@
       "semester": "前期",
       "enrollment_status": "completed",
       "credits_earned": 2,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "internship_1",
-      "academic_year": 2026,
-      "semester": "前期",
-      "enrollment_status": "completed",
-      "credits_earned": 1,
-      "approval_confirmed": null
-    },
-    {
-      "course_key": "fusion_mechanical_materials_and_production_overview",
-      "academic_year": 2026,
-      "semester": "後期",
-      "enrollment_status": "registered",
-      "credits_earned": null,
       "approval_confirmed": null
     },
     {

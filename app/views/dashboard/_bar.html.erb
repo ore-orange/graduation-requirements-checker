@@ -1,6 +1,7 @@
-<%# 修得済みを濃く、履修中ぶんを水色で続けて描く横棒。 %>
+<%# バーは量だけを表す。修得済みは緑、履修中は水色、残りは灰色。 %>
+<%# 足りているかどうかは、判定バッジの色が受け持つ。 %>
 <div class="flex <%= local_assigns.fetch(:size, 'h-3') %> overflow-hidden rounded-full bg-slate-200">
-  <div class="h-full <%= group_bar_color(summary[:status]) %>" style="width: <%= summary[:earned_pct] %>%"></div>
+  <div class="h-full bg-emerald-500" style="width: <%= summary[:earned_pct] %>%"></div>
   <% if summary[:planned_pct].positive? %>
     <div class="h-full bg-sky-400" style="width: <%= summary[:planned_pct] %>%"></div>
   <% end %>
