@@ -9,10 +9,23 @@ module ActiveSupport
     # Run tests in parallel with specified workers
     parallelize(workers: :number_of_processors)
 
+    # ページ画像の置き場は、実行ごと・並列のワーカーごとに分ける。
+    # 共有すると、別のワーカーや開発環境の画像を消し合う。
+    TimetableUpload.images_root = Rails.root.join('tmp/test_images/0')
+
+    parallelize_setup { |worker| TimetableUpload.images_root = Rails.root.join('tmp/test_images', worker.to_s) }
+    parallelize_teardown { |worker| FileUtils.rm_rf(Rails.root.join('tmp/test_images', worker.to_s)) }
+
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all
 
     # Add more helper methods to be used by all tests here...
+
+    # 講義の分類に使う学科。1つのテストの中では同じものを返す。
+    # test_ で始める名前にすると、Minitestがテストメソッドとして拾ってしまうので避ける。
+    def sample_department
+      @sample_department ||= Faculty.create!(name: 'テスト学部').departments.create!(name: 'テスト学科')
+    end
   end
 end
 

@@ -1,8 +1,6 @@
 #!/bin/bash -e
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
-  ./bin/rails db:prepare
-fi
+# 共有DB（Supabase）に対して起動のたびにdb:prepareを走らせない。
+# Migrationは明示的に実行する（docs/supabase.md）。
 
 exec "${@}"

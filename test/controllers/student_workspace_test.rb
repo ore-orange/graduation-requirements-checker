@@ -51,6 +51,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test 'a non-local host is refused unless PUBLIC_DEMO is set' do
+    host! 'grc.example.com'
+    get root_path, env: { 'REMOTE_ADDR' => '203.0.113.10' }
+    assert_response :not_found
+
+    ENV['PUBLIC_DEMO'] = '1'
+    get root_path, env: { 'REMOTE_ADDR' => '203.0.113.10' }
+    assert_response :success
+  ensure
+    ENV.delete('PUBLIC_DEMO')
+  end
+
   test 'reads persisted history and starts with an empty plan without creating data' do
     assert_no_difference ['Student.count', 'StudentCourse.count', 'PlannedCourse.count'] do
       get root_path, env: local_env

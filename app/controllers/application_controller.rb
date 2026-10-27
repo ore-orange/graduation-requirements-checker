@@ -15,6 +15,11 @@ class ApplicationController < ActionController::Base
 
   def local_demo_access?
     return false unless DemoAccount.enabled?
+
+    DemoAccount.public_demo? || local_request?
+  end
+
+  def local_request?
     return false unless %w[localhost 127.0.0.1 ::1 [::1]].include?(request.host)
     return true if request.local?
     return false unless ENV['LOCAL_DEMO_PROXY'] == '1'

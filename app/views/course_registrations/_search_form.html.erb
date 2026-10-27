@@ -1,0 +1,45 @@
+<%# 保存済みの講義の絞り込み。GETなので条件はURLに残り、ページ送りにも引き継げる %>
+<% field_class = 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm' %>
+<%= form_with url: course_registrations_path, method: :get, data: { controller: 'dependent-select' },
+              class: 'rounded-xl border border-slate-200 bg-slate-50 p-4' do |form| %>
+  <p class="text-sm font-semibold text-slate-700">保存済みの講義をしぼりこむ</p>
+  <div class="mt-3 grid gap-3 sm:grid-cols-3">
+    <label class="block">
+      <span class="text-xs font-semibold text-slate-600">年度</span>
+      <%= form.select :year, years.map { |year| ["#{year}年度", year] },
+                      { include_blank: 'すべて', selected: search.conditions[:year] }, class: field_class %>
+    </label>
+    <label class="block">
+      <span class="text-xs font-semibold text-slate-600">開講学部</span>
+      <%= form.select :faculty_id, faculties.map { |faculty| [faculty.name, faculty.id] },
+                      { include_blank: 'すべて', selected: search.conditions[:faculty_id] }, class: field_class,
+                      data: { dependent_select_target: 'parent', action: 'change->dependent-select#filter' } %>
+    </label>
+    <label class="block">
+      <span class="text-xs font-semibold text-slate-600">開講学科</span>
+      <%= form.select :department_id,
+                      faculties.map { |faculty| [faculty.name, faculty.departments.map { |d| [d.name, d.id] }] },
+                      { include_blank: 'すべて', selected: search.conditions[:department_id] }, class: field_class,
+                      data: { dependent_select_target: 'child' } %>
+    </label>
+    <label class="block">
+      <span class="text-xs font-semibold text-slate-600">科目番号</span>
+      <%= form.text_field :course_number, value: search.conditions[:course_number], class: field_class %>
+    </label>
+    <label class="block">
+      <span class="text-xs font-semibold text-slate-600">講義コード</span>
+      <%= form.text_field :lecture_code, value: search.conditions[:lecture_code], class: field_class %>
+    </label>
+    <label class="block">
+      <span class="text-xs font-semibold text-slate-600">科目名</span>
+      <%= form.text_field :name, value: search.conditions[:name], class: field_class %>
+    </label>
+  </div>
+  <div class="mt-4 flex items-center gap-4">
+    <%= form.submit 'しぼりこむ', class: 'demo-button' %>
+    <% if search.filtered? %>
+      <%= link_to '条件を消す', course_registrations_path,
+                  class: 'text-sm font-semibold text-slate-700 underline underline-offset-4' %>
+    <% end %>
+  </div>
+<% end %>
