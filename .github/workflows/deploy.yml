@@ -13,7 +13,12 @@ concurrency:
 
 jobs:
   build:
-    if: github.event.workflow_run.conclusion == 'success'
+    # branches はヘッドブランチ名でしか絞れず、フォークのmainも一致してしまう。
+    # フォーク由来のコミットがビルド・デプロイされないよう、イベントとリポジトリも確認する。
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,6 +44,11 @@ jobs:
 
   deploy:
     needs: build
+    # needs だけに頼らず、self-hostedランナーで動くジョブ自身にも同じ条件を付ける。
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     # VM上のself-hosted runner。VMから外向きに接続するだけでよい。
     runs-on: self-hosted
     permissions:
