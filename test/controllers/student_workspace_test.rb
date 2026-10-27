@@ -493,11 +493,35 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-enrollment]', count: 0
   end
 
-  test '科目検索のフォームとリセットは履修計画表に留まる' do
-    get plan_path, env: local_env
+  test '科目検索のフォームとリセットは履修計画表の見ている学期に留まる' do
+    get plan_path(term: '2-後期'), env: local_env
 
-    assert_select 'form[action=?][method=?]', plan_path, 'get'
-    assert_select 'a[href=?]', plan_path, text: 'リセット'
+    assert_select 'form[action=?][method=?]', plan_path, 'get' do
+      assert_select "input[name='term'][value='2-後期']"
+    end
+    assert_select 'a[href=?]', plan_path(term: '2-後期'), text: 'リセット'
+  end
+
+  test '便覧カタログから追加すると、見ている学期の予定になる' do
+    travel_to Date.new(2026, 10, 26) do
+      get plan_path(term: '4-前期'), env: local_env
+      assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[type='submit'][value='4年 前期に追加']"
+      assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[name='term'][value='4-前期']"
+
+      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期' }, env: local_env
+      assert_redirected_to plan_path(term: '4-前期')
+      plan = @student.planned_courses.find_by!(course: course_record(@candidate))
+      assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
+    end
+  end
+
+  test '過去の学期では便覧カタログから追加できない' do
+    travel_to Date.new(2026, 10, 26) do
+      get plan_path(term: '2-後期'), env: local_env
+
+      assert_select '#catalogue form[action=?]', plan_courses_path, count: 0
+      assert_select '[data-catalogue-term]', text: /今の学期以降を表示すると追加できます/
+    end
   end
 end
 
