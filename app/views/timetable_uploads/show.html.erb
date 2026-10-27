@@ -15,7 +15,8 @@
     <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-3xl font-bold tracking-tight text-slate-900">取り込みの確認</h1>
-        <p class="mt-2 text-slate-600"><%= @upload.source_filename %>（<%= @upload.semester %>）/ <%= @upload.rows.size %>行</p>
+        <p class="mt-2 text-slate-600"><%= @upload.classification_label %></p>
+        <p class="mt-1 text-sm text-slate-600"><%= @upload.source_filename %> / <%= @upload.rows.size %>行</p>
       </div>
       <%= button_to '取り込みを破棄する', @upload, method: :delete, class: 'text-sm font-semibold text-red-800 underline underline-offset-4',
                     form: { data: { turbo_confirm: 'この取り込みを破棄します。よろしいですか?' } } %>

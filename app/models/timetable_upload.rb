@@ -4,6 +4,7 @@
 class TimetableUpload < ApplicationRecord
   has_many :rows, -> { order(:position) }, class_name: 'TimetableUploadRow', dependent: :destroy,
                                            inverse_of: :timetable_upload
+  belongs_to :department
 
   validates :semester, inclusion: { in: TimetableImport::Values::SEMESTERS }
 
@@ -20,13 +21,13 @@ class TimetableUpload < ApplicationRecord
     end
   end
 
-  def self.build_from_pdf(pdf_path, semester:, filename:)
+  def self.build_from_pdf(pdf_path, semester:, year:, department_id:, filename:)
     xml = TimetableImport::PdfParser.extract_xml(pdf_path)
     parsed = TimetableImport::PdfParser.new(xml, semester: semester).rows
     raise TimetableImport::PdfParser::Error, 'PDFから科目の行を見つけられませんでした。授業時間配当表のPDFか確認してください。' if parsed.empty?
 
     import = transaction do
-      import = create!(semester: semester, source_filename: filename)
+      import = create!(semester: semester, year: year, department_id: department_id, source_filename: filename)
       parsed.each_with_index do |row, index|
         upload_row = import.rows.build(TimetableUploadRow.attributes_from_parsed(row, index))
         upload_row.assign_default_course_choice
@@ -122,21 +123,30 @@ class TimetableUpload < ApplicationRecord
     rows.any? && unconfirmed_count.zero?
   end
 
+  # 「2026年度 工学部 工学科 前期」。何を取り込んでいるかを画面に出すため。
+  def classification_label
+    "#{year}年度 #{department.faculty.name} #{department.name} #{semester}"
+  end
+
   # 取り込み前の件数・エラーの確認(DBは変更しない)
   def preview
-    TimetableImport::Importer.new(rows.map(&:importer_row)).call
+    importer.call
   end
 
   # 全行が確認済みのときだけ保存する。エラーがあれば何も保存しない。
   def commit!
     return nil unless all_confirmed?
 
-    result = TimetableImport::Importer.new(rows.map(&:importer_row)).call(apply: true)
+    result = importer.call(apply: true)
     destroy! if result.applied
     result
   end
 
   private
+
+  def importer
+    TimetableImport::Importer.new(rows.map(&:importer_row), year: year, department_id: department_id)
+  end
 
   # 画面から送られた行はチェックの有無、それ以外は今の状態
   def checked_state(row, values, confirmed_ids)

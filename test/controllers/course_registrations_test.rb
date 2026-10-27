@@ -29,7 +29,7 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     %(<span bbox="#{left} #{top} #{left + (text.size * 5)} #{top}" font="F" size="10">#{chars.join}</span>)
   end
 
-  def upload_pdf(semester: '前期', xml: timetable_xml, content: "%PDF-1.4\nbody")
+  def upload_pdf(xml: timetable_xml, content: "%PDF-1.4\nbody", **params)
     file = Tempfile.new(['timetable', '.pdf'])
     file.write(content)
     file.rewind
@@ -37,11 +37,31 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     TimetableImport::PdfParser.stub(:extract_xml, xml) do
       # 画像化(gs)はテストでは動かさない。ページ画像を使うテストは自分で置く。
       TimetableImport::PageImages.stub(:render, ->(_pdf, _dir) { 0 }) do
-        post timetable_uploads_path, params: { semester: semester, pdf: upload }, env: ENV_LOCAL
+        post timetable_uploads_path, params: upload_params(pdf: upload, **params), env: ENV_LOCAL
       end
     end
   ensure
     file&.close!
+  end
+
+  # 取り込みのモーダルが送る内容。引数で一部だけ差し替えられる。
+  def upload_params(**overrides)
+    { semester: '前期', year: 2026, department_id: sample_department.id }.merge(overrides)
+  end
+
+  ROW_LABELS = { lecture_code: '講義コード', name: '科目名', course_number: '科目番号' }.freeze
+
+  # Importerに渡す1行。保存済みの講義を用意するのに使う。
+  def offering_row(**overrides)
+    { '学期' => '前期', '講義コード' => '610000071', '科目番号' => '工共100', '科目名' => '工学基礎演習',
+      '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '金', '時限' => '2・3',
+      '開講区分' => '1Q', '要確認' => '' }
+      .merge(overrides.transform_keys { |key| ROW_LABELS.fetch(key) })
+  end
+
+  # 画面を経由せずに講義を保存する。年度・学科は取り込み全体で1つ。
+  def import_rows(rows, year: 2026)
+    TimetableImport::Importer.new(rows, year: year, department_id: sample_department.id).call(apply: true)
   end
 
   # 確認画面の「更新」と同じ形で送る。changesは { 行 => { 項目 => 値 } }、confirmedはチェックを入れる行。
@@ -57,7 +77,8 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
   end
 
   def create_large_upload(count = 35)
-    upload = TimetableUpload.create!(semester: '前期', source_filename: 'big.pdf')
+    upload = TimetableUpload.create!(semester: '前期', year: 2026, department: sample_department,
+                                     source_filename: 'big.pdf')
     count.times do |index|
       upload.rows.create!(position: index, lecture_code: format('%09d', index), course_number: "工共#{100 + index}",
                           name: "科目#{index + 1}", credits: '2', requirement_type: '必修', grade_text: '1',
@@ -71,9 +92,9 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
   end
 
   test 'tab is shown in the navigation and lists registered offerings' do
-    TimetableImport::Importer.new([{ '学期' => '前期', '講義コード' => '1', '科目番号' => '工共100', '科目名' => '工学基礎演習',
-                                     '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '金', '時限' => '2・3',
-                                     '開講区分' => '1Q', '要確認' => '' }]).call(apply: true)
+    import_rows([{ '学期' => '前期', '講義コード' => '1', '科目番号' => '工共100', '科目名' => '工学基礎演習',
+                   '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '金', '時限' => '2・3',
+                   '開講区分' => '1Q', '要確認' => '' }])
 
     get course_registrations_path, env: ENV_LOCAL
 
@@ -143,6 +164,114 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
       assert_match 'PDFファイル', flash[:alert]
       upload_pdf(semester: '通年')
       assert_match '前期か後期', flash[:alert]
+    end
+  end
+
+  test '絞り込むと当たった講義だけが出る' do
+    import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100'),
+                 offering_row(lecture_code: 'k002', name: '線形代数', course_number: '工共200')])
+
+    get course_registrations_path(name: '情報'), env: ENV_LOCAL
+
+    assert_response :success
+    assert_select 'td', text: '情報処理概論'
+    assert_select 'td', text: '線形代数', count: 0
+  end
+
+  test '絞り込んだままページを送っても、条件が消えて全件に戻らない' do
+    import_rows(Array.new(31) do |index|
+      offering_row(lecture_code: format('%09d', index), name: "情報処理概論#{index}", course_number: "工共#{index}")
+    end)
+    import_rows([offering_row(lecture_code: 'zzz', name: '線形代数', course_number: '工共999')])
+
+    get course_registrations_path(name: '情報'), env: ENV_LOCAL
+    assert_select 'nav[aria-label=ページ送り] a[href*="name=%E6%83%85%E5%A0%B1"]'
+
+    get course_registrations_path(name: '情報', page: 2), env: ENV_LOCAL
+    assert_select 'tbody tr', 1
+    assert_select 'p', text: /32件中/, count: 0
+    assert_select 'td', text: '線形代数', count: 0
+  end
+
+  test '学部と学科が矛盾するURLでは0件になる' do
+    import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100')])
+    other = Faculty.create!(name: '別学部').departments.create!(name: '別学科')
+
+    get course_registrations_path(faculty_id: other.faculty_id, department_id: sample_department.id), env: ENV_LOCAL
+
+    assert_select 'td', text: '情報処理概論', count: 0
+    assert_select 'p', text: /条件に当たる講義がありません/
+  end
+
+  test '条件に当たる講義が無いときは、まだ1件も無いときと違う案内を出す' do
+    import_rows([offering_row(lecture_code: 'k001', name: '線形代数', course_number: '工共100')])
+
+    get course_registrations_path(name: '当たらない'), env: ENV_LOCAL
+    assert_select 'p', text: /条件に当たる講義がありません/
+
+    get course_registrations_path, env: ENV_LOCAL
+    assert_select 'p', text: /まだ保存された講義はありません/, count: 0
+  end
+
+  test 'まだ1件も保存されていないときは、その案内を出す' do
+    get course_registrations_path, env: ENV_LOCAL
+
+    assert_select 'p', text: /まだ保存された講義はありません/
+  end
+
+  test '保存済みの講義には年度と学部・学科が出る' do
+    import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100')])
+
+    get course_registrations_path, env: ENV_LOCAL
+
+    assert_select 'td', text: '2026'
+    assert_select 'td', text: "#{sample_department.faculty.name} #{sample_department.name}"
+  end
+
+  test '年度・学部・学科で絞り込むプルダウンが検索バーにある' do
+    import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100')])
+
+    get course_registrations_path, env: ENV_LOCAL
+
+    assert_select 'form[method=get] select[name=year]'
+    assert_select 'form[method=get] select[name=faculty_id]'
+    assert_select 'form[method=get] select[name=department_id]'
+    assert_select 'form[method=get] input[name=course_number]'
+    assert_select 'form[method=get] input[name=lecture_code]'
+    assert_select 'form[method=get] input[name=name]'
+  end
+
+  test '年度・学部・学科を選んで取り込むと、取り込みに残る' do
+    upload_pdf
+
+    upload = TimetableUpload.sole
+    assert_equal 2026, upload.year
+    assert_equal sample_department.id, upload.department_id
+  end
+
+  test '年度が数字でないときは取り込まない' do
+    assert_no_difference 'TimetableUpload.count' do
+      upload_pdf(year: 'あ')
+    end
+    assert_redirected_to course_registrations_path
+    assert_match '年度', flash[:alert]
+  end
+
+  test '学科が選んだ学部のものでないときは取り込まない' do
+    other = Faculty.create!(name: '別学部').departments.create!(name: '別学科')
+
+    assert_no_difference 'TimetableUpload.count' do
+      upload_pdf(faculty_id: sample_department.faculty_id, department_id: other.id)
+    end
+    assert_match '学科', flash[:alert]
+  end
+
+  test '学科が選ばれていない、または存在しないときは取り込まない' do
+    assert_no_difference 'TimetableUpload.count' do
+      upload_pdf(department_id: '')
+      assert_match '学科', flash[:alert]
+      upload_pdf(department_id: '999999')
+      assert_match '学科', flash[:alert]
     end
   end
 
@@ -411,7 +540,7 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
         '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '月', '時限' => '1', '開講区分' => '半年',
         '要確認' => '' }
     end
-    TimetableImport::Importer.new(rows).call(apply: true)
+    import_rows(rows)
 
     get course_registrations_path, env: ENV_LOCAL
     assert_select 'nav[aria-label=ページ送り]', 1

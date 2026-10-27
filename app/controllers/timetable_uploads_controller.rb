@@ -32,7 +32,8 @@ class TimetableUploadsController < ApplicationController
     error = upload_error(semester, pdf)
     return redirect_to course_registrations_path, alert: error, status: :see_other if error
 
-    upload = TimetableUpload.build_from_pdf(pdf.path, semester: semester,
+    upload = TimetableUpload.build_from_pdf(pdf.path, semester: semester, year: upload_year,
+                                                      department_id: params[:department_id],
                                                       filename: File.basename(pdf.original_filename))
     redirect_to upload, notice: 'PDFを読み取りました。内容をPDFと見比べて、行ごとに確認してください。', status: :see_other
   rescue TimetableImport::PdfParser::Error => e
@@ -91,8 +92,25 @@ class TimetableUploadsController < ApplicationController
     raw.respond_to?(:keys) ? raw.keys.map(&:to_s) : []
   end
 
+  # 「2026」のような年度。数字でなければ nil。
+  def upload_year
+    year = Integer(params[:year].to_s, 10, exception: false)
+    year if year&.between?(1, 9999)
+  end
+
+  # 学科が実在し、学部も選ばれているならその学部のものであること。
+  # JavaScriptが効かない環境では学科が絞られないので、選んだ学部と食い違う組み合わせを
+  # そのまま保存しないよう、ここで確かめる。
+  def chosen_department?
+    conditions = { id: params[:department_id] }
+    conditions[:faculty_id] = params[:faculty_id] if params[:faculty_id].present?
+    Department.exists?(conditions)
+  end
+
   def upload_error(semester, pdf)
     return '前期か後期を選んでください。' unless TimetableImport::Values::SEMESTERS.include?(semester)
+    return '年度を選んでください。' unless upload_year
+    return '開講学部と開講学科を選んでください。' unless chosen_department?
     return 'PDFファイルを選んでください。' unless pdf.respond_to?(:path)
     return "PDFは#{MAX_PDF_BYTES / 1.megabyte}MB以下にしてください。" if pdf.size > MAX_PDF_BYTES
 
