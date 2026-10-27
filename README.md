@@ -32,6 +32,8 @@ git clone git@github.com:ore-orange/graduation-requirements-checker.git
 cd graduation-requirements-checker
 
 docker compose build
+# gem はコンテナ側のボリュームに入るので、build だけでは更新されない
+docker compose run --rm web bundle install
 docker compose run --rm web bin/rails db:prepare
 docker compose run --rm web bin/rails db:seed
 docker compose up
@@ -254,6 +256,9 @@ docker compose restart web
 - **DB に繋がらない** → `docker compose logs db` を確認。DB を作り直すなら `docker compose down -v`（**データが消えます**）してから `db:prepare`。
 - **`LoadError: cannot load such file -- /app/rakefile` が出る** → git のブランチ切り替えやリベースでファイルが一斉に書き換わった直後に、
   Docker のファイル共有キャッシュが不整合を起こすことがあります。`docker compose restart web` で直ります。
+- **`Could not find <gem>-x.y.z in locally installed gems (Bundler::GemNotFound)` で起動しない** → `Gemfile` が変わったブランチをチェックアウトすると出ます。
+  `compose.yml` が `bundle_data` ボリュームを `/usr/local/bundle` にマウントしているため、イメージを作り直してもボリューム内の古い gem が使われます。
+  `docker compose run --rm web bundle install` で入れ直してください。
 - **Gemfile.lock がコンフリクトした** → lock は手で直さず、Gemfile を解決してから `docker compose exec web bundle install` で再生成する。
 - **消したはずの Tailwind クラスが残っている** → `tailwindcss:watch` は増分ビルドのため残り続けます。
   `docker compose exec web bin/rails tailwindcss:build` でフルビルドしてください（本番は常にフルビルドなので影響しません）。
