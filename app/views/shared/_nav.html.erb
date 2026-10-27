@@ -1,16 +1,19 @@
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
   <div class="<%= content_width_class %> mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-0 sm:h-16 flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h1 class="text-base font-bold text-slate-900 leading-tight"><%= app_name %></h1>
-      <%# 講義登録のようにマスタだけを扱う画面は学生を読み込まない %>
-      <% if @student %>
-        <p class="text-xs text-slate-500">工学部 知能情報コース (<%= @student.admission_year %>年度基準)</p>
-      <% end %>
+    <%# 学生に依存しない見出しにしてある。講義登録のようにマスタだけを扱う画面でも同じものを出す。 %>
+    <div class="flex items-center gap-2.5">
+      <span class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600" aria-hidden="true">
+        <svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2 1 6l9 4 7-3.111V12h2V6l-9-4Zm-5 8.889V14c0 1.105 2.239 2 5 2s5-.895 5-2v-3.111l-5 2.222-5-2.222Z"/></svg>
+      </span>
+      <div>
+        <h1 class="text-base font-bold leading-tight text-slate-900"><%= app_name %></h1>
+        <p class="text-xs text-slate-500">卒業までの道のりを、ひと目で。</p>
+      </div>
     </div>
 
     <nav class="flex overflow-x-auto max-w-full space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60" aria-label="画面の切り替え">
-      <% [[root_path, '進捗ダッシュボード'],
-          [requirements_path, '卒業要件の編集'],
+      <% [[root_path, '卒業ダッシュボード'],
+          [requirements_path, '卒業要件の確認'],
           [plan_path, '履修計画表'],
           [course_registrations_path, '講義登録'],
           [profile_path, 'マイページ']].each do |path, label| %>

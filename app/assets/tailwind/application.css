@@ -32,18 +32,18 @@
   }
 
   .demo-status {
-    @apply inline-flex shrink-0 rounded-full px-3 py-1 text-xs font-bold;
+    @apply inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
   }
 
   .status-satisfied {
-    @apply bg-emerald-100 text-emerald-900;
+    @apply bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200;
   }
 
   .status-unmet {
-    @apply bg-red-100 text-red-900;
+    @apply bg-amber-100 text-amber-900 ring-1 ring-amber-300;
   }
 
-  .status-review {
-    @apply bg-amber-100 text-amber-950;
+  .status-in-progress {
+    @apply bg-sky-50 text-sky-800 ring-1 ring-sky-200;
   }
 }

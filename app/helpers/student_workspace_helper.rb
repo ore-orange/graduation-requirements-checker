@@ -50,13 +50,9 @@ module StudentWorkspaceHelper
         req_label: '選択全体 37単位枠', categories: ['free'], check_ids: ['elective_total'] }
     ] }
   ].freeze
-  STATUS_LABELS = { satisfied: '充足', unmet: '不足あり', needs_review: '要確認' }.freeze
-  STATUS_CLASSES = { satisfied: 'status-satisfied', unmet: 'status-unmet', needs_review: 'status-review' }.freeze
   ENROLLMENT_LABELS = { 'completed' => '修得済み', 'registered' => '履修登録済み', 'in_progress' => '履修中',
                         'failed' => '未修得', 'unknown' => '状態未確認' }.freeze
 
-  def assessment_status_label(status) = STATUS_LABELS.fetch(status)
-  def assessment_status_class(status) = STATUS_CLASSES.fetch(status)
   def enrollment_status_label(status) = ENROLLMENT_LABELS.fetch(status, '状態未確認')
   def credit_label(credits) = credits.nil? ? '未確認' : "#{credit_number(credits)} 単位"
   def category_label(category) = CATEGORY_LABELS.fetch(category, category)
