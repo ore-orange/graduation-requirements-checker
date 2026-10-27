@@ -29,11 +29,9 @@ class DatabaseSafetyTest < ActiveSupport::TestCase
     assert_boot_rejected(environment, 'Production PostgreSQL connections must require SSL')
   end
 
-  test 'production rejects shared URLs until Solid consolidation is approved' do
-    environment = production_environment.merge(
-      'CACHE_DATABASE_URL' => 'postgres://production.example.invalid/production_primary'
-    )
-    assert_boot_rejected(environment, 'Shared production databases require an approved')
+  test 'production has only the primary database' do
+    configs = ActiveRecord::DatabaseConfigurations.new(Rails.application.config.database_configuration)
+    assert_equal %w[primary], configs.configs_for(env_name: 'production').map(&:name)
   end
 
   private
@@ -42,10 +40,7 @@ class DatabaseSafetyTest < ActiveSupport::TestCase
     {
       'RAILS_ENV' => 'production', 'SECRET_KEY_BASE' => '0' * 128, 'SECRET_KEY_BASE_DUMMY' => nil,
       'DATABASE_SSLMODE' => 'require', 'DATABASE_SSLROOTCERT' => nil,
-      'DATABASE_URL' => 'postgres://production.example.invalid/production_primary',
-      'CACHE_DATABASE_URL' => 'postgres://production.example.invalid/production_cache',
-      'QUEUE_DATABASE_URL' => 'postgres://production.example.invalid/production_queue',
-      'CABLE_DATABASE_URL' => 'postgres://production.example.invalid/production_cable'
+      'DATABASE_URL' => 'postgres://production.example.invalid/production_primary'
     }
   end
 

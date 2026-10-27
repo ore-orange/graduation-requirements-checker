@@ -10,8 +10,7 @@ class DatabaseConfigurationTest < ActiveSupport::TestCase
       assert_equal 'production.example.invalid', primary[:host]
       assert_equal 'production_primary', primary[:database]
       assert_equal 'require', primary[:sslmode]
-      assert_equal 4, configurations.configs_for(env_name: 'production').size
-      assert_equal 'production_cache', configurations.configs_for(env_name: 'production', name: 'cache').database
+      assert_equal 1, configurations.configs_for(env_name: 'production').size
     end
   end
 
@@ -38,9 +37,6 @@ class DatabaseConfigurationTest < ActiveSupport::TestCase
   def with_production_settings
     settings = {
       'DATABASE_URL' => 'postgresql://production.example.invalid/production_primary',
-      'CACHE_DATABASE_URL' => 'postgresql://production.example.invalid/production_cache',
-      'QUEUE_DATABASE_URL' => 'postgresql://production.example.invalid/production_queue',
-      'CABLE_DATABASE_URL' => 'postgresql://production.example.invalid/production_cable',
       'DATABASE_SSLMODE' => 'require', 'DATABASE_SSLROOTCERT' => nil
     }
     original = ENV.to_h.slice(*settings.keys)
