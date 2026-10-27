@@ -59,6 +59,35 @@ class CourseOfferingSearchTest < ActiveSupport::TestCase
     assert_equal [hit], CourseOfferingSearch.new(course_number: 'T_1').relation.to_a
   end
 
+  test '講義コードの「%」も文字そのものとして扱う' do
+    hit = create_offering(lecture_code: 'a%b')
+    create_offering(lecture_code: 'azzb')
+
+    assert_equal [hit], CourseOfferingSearch.new(lecture_code: 'a%b').relation.to_a
+  end
+
+  test '科目名の「%」も文字そのものとして扱う' do
+    hit = create_offering(lecture_code: 'k001', course_name: '情報%論')
+    create_offering(lecture_code: 'k002', course_name: '情報理論')
+
+    assert_equal [hit], CourseOfferingSearch.new(name: '情報%論').relation.to_a
+  end
+
+  test '年度が空の講義は、年度の新しい順の最後に並ぶ' do
+    create_offering(year: 2025, lecture_code: 'k001')
+    create_offering(year: nil, lecture_code: 'k002')
+    create_offering(year: 2026, lecture_code: 'k003')
+
+    assert_equal [2026, 2025, nil], CourseOfferingSearch.new({}).relation.map(&:year)
+  end
+
+  test '学部で絞り込むと、学科が空の講義は外れる' do
+    create_offering(lecture_code: 'k001', department: nil)
+    hit = create_offering(lecture_code: 'k002', department: sample_department)
+
+    assert_equal [hit], CourseOfferingSearch.new(faculty_id: sample_department.faculty_id.to_s).relation.to_a
+  end
+
   test '年度・学科が空の講義も、条件が無ければ出る' do
     blank = create_offering(lecture_code: 'k001', year: nil, department: nil)
 

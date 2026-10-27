@@ -27,6 +27,16 @@ class AddClassificationToCourseOfferings < ActiveRecord::Migration[8.1]
   end
 
   def down
+    # 年度をまたいで同じ講義コードを登録できるのがこの変更の目的なので、戻すと
+    # 古い「学期＋講義コード」の一意制約に引っかかる行が残りうる。
+    # PG::UniqueViolation を素で出すより、理由を出して止める。
+    if select_value('SELECT 1 FROM course_offerings LIMIT 1')
+      raise ActiveRecord::IrreversibleMigration,
+            'course_offerings に行があるため戻せません。年度が違う同じ講義コードは、' \
+            '戻したあとの「学期＋講義コード」の一意制約を満たせません。' \
+            '戻す場合は course_offerings の行を消してから実行してください。'
+    end
+
     remove_check_constraint :timetable_uploads, name: 'timetable_uploads_year_range'
     remove_reference :timetable_uploads, :department, foreign_key: true
     remove_column :timetable_uploads, :year

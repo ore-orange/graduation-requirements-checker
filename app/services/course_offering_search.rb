@@ -26,7 +26,9 @@ class CourseOfferingSearch
     scope = scope.where(year: conditions[:year]) if conditions[:year]
     scope = narrow_by_organization(scope)
     scope = narrow_by_text(scope)
-    scope.order(year: :desc).order(:semester, :weekday, :periods, :id)
+    # PostgreSQLは降順だとNULLを先頭に置く。年度の無い講義(#53 のあとに残るもの)が
+    # 新しい年度より前に並ばないよう、最後に送る。
+    scope.order(Arel.sql('course_offerings.year DESC NULLS LAST')).order(:semester, :weekday, :periods, :id)
   end
 
   private

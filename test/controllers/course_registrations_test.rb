@@ -178,14 +178,29 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_select 'td', text: '線形代数', count: 0
   end
 
-  test '絞り込みの条件はページ送りのリンクに残る' do
+  test '絞り込んだままページを送っても、条件が消えて全件に戻らない' do
     import_rows(Array.new(31) do |index|
       offering_row(lecture_code: format('%09d', index), name: "情報処理概論#{index}", course_number: "工共#{index}")
     end)
+    import_rows([offering_row(lecture_code: 'zzz', name: '線形代数', course_number: '工共999')])
 
     get course_registrations_path(name: '情報'), env: ENV_LOCAL
+    assert_select 'nav[aria-label=ページ送り] a[href*="name=%E6%83%85%E5%A0%B1"]'
 
-    assert_select 'nav[aria-label=ページ送り] a[href*="name="]'
+    get course_registrations_path(name: '情報', page: 2), env: ENV_LOCAL
+    assert_select 'tbody tr', 1
+    assert_select 'p', text: /32件中/, count: 0
+    assert_select 'td', text: '線形代数', count: 0
+  end
+
+  test '学部と学科が矛盾するURLでは0件になる' do
+    import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100')])
+    other = Faculty.create!(name: '別学部').departments.create!(name: '別学科')
+
+    get course_registrations_path(faculty_id: other.faculty_id, department_id: sample_department.id), env: ENV_LOCAL
+
+    assert_select 'td', text: '情報処理概論', count: 0
+    assert_select 'p', text: /条件に当たる講義がありません/
   end
 
   test '条件に当たる講義が無いときは、まだ1件も無いときと違う案内を出す' do
@@ -240,6 +255,15 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     end
     assert_redirected_to course_registrations_path
     assert_match '年度', flash[:alert]
+  end
+
+  test '学科が選んだ学部のものでないときは取り込まない' do
+    other = Faculty.create!(name: '別学部').departments.create!(name: '別学科')
+
+    assert_no_difference 'TimetableUpload.count' do
+      upload_pdf(faculty_id: sample_department.faculty_id, department_id: other.id)
+    end
+    assert_match '学科', flash[:alert]
   end
 
   test '学科が選ばれていない、または存在しないときは取り込まない' do

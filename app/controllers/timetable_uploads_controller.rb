@@ -98,10 +98,19 @@ class TimetableUploadsController < ApplicationController
     year if year&.between?(1, 9999)
   end
 
+  # 学科が実在し、学部も選ばれているならその学部のものであること。
+  # JavaScriptが効かない環境では学科が絞られないので、選んだ学部と食い違う組み合わせを
+  # そのまま保存しないよう、ここで確かめる。
+  def chosen_department?
+    conditions = { id: params[:department_id] }
+    conditions[:faculty_id] = params[:faculty_id] if params[:faculty_id].present?
+    Department.exists?(conditions)
+  end
+
   def upload_error(semester, pdf)
     return '前期か後期を選んでください。' unless TimetableImport::Values::SEMESTERS.include?(semester)
     return '年度を選んでください。' unless upload_year
-    return '開講学部と開講学科を選んでください。' unless Department.exists?(id: params[:department_id])
+    return '開講学部と開講学科を選んでください。' unless chosen_department?
     return 'PDFファイルを選んでください。' unless pdf.respond_to?(:path)
     return "PDFは#{MAX_PDF_BYTES / 1.megabyte}MB以下にしてください。" if pdf.size > MAX_PDF_BYTES
 
