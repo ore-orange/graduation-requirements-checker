@@ -1,0 +1,39 @@
+# 学科サーバーVM用。/opt/grc/ に置いて使う（CDが配置する）。
+# 秘密情報は同じディレクトリの .env から読む（Gitに入れない）。
+services:
+  web:
+    image: ghcr.io/ore-orange/graduation-requirements-checker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # パスワードの入口をDB_PASSWORDの1か所にするため、ここで組み立てる。
+      DATABASE_URL: postgres://app:${DB_PASSWORD}@db:5432/app_production?sslmode=require
+    ports:
+      - "127.0.0.1:3000:80"
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: app_production
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    # 本番のDB接続はSSL必須（config/initializers/database_safety.rb）。自己署名証明書でSSLを有効にする。
+    command: >
+      postgres
+      -c ssl=on
+      -c ssl_cert_file=/certs/server.crt
+      -c ssl_key_file=/certs/server.key
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app_production"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
