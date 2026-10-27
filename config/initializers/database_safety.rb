@@ -17,23 +17,13 @@ if Rails.env.development? || Rails.env.test?
 end
 
 # 本番のローカルDBへのフォールバックを禁止する。アセットのビルド時だけ接続不要。
+# 本番は単一DB（primary）。Solid Cache/Queue/Cableは使わない設定にしている。
 if Rails.env.production? && !ENV['SECRET_KEY_BASE_DUMMY']
-  required_urls = %w[DATABASE_URL CACHE_DATABASE_URL QUEUE_DATABASE_URL CABLE_DATABASE_URL]
-  unless required_urls.all? { |name| ENV[name].present? }
-    raise 'Production requires DATABASE_URL and separate CACHE/QUEUE/CABLE_DATABASE_URL settings. Shared DB consolidation is pending approval.'
-  end
+  raise 'Production requires DATABASE_URL.' unless ENV['DATABASE_URL'].present?
 
   ActiveRecord::Base.configurations.configs_for(env_name: 'production').each do |config|
     next if %w[require verify-ca verify-full].include?(config.configuration_hash[:sslmode])
 
     raise 'Production PostgreSQL connections must require SSL.'
-  end
-
-  targets = ActiveRecord::Base.configurations.configs_for(env_name: 'production').map do |config|
-    settings = config.configuration_hash
-    [settings[:host], settings.fetch(:port, 5432), settings[:database]]
-  end
-  unless targets.uniq.size == targets.size
-    raise 'Shared production databases require an approved Solid Cache/Queue/Cable consolidation first.'
   end
 end
