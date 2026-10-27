@@ -5,6 +5,8 @@ require 'test_helper'
 # DB制約を検証するため、該当テストではModelの検証を意図的に迂回する。
 # rubocop:disable-next Rails/SkipsModelValidations
 class GraduationPlanningTest < ActiveSupport::TestCase
+  TERM = { academic_year: 2026, semester: '後期' }.freeze
+
   setup do
     faculty = Faculty.create!(name: '計画テスト学部')
     department = faculty.departments.create!(name: '計画テスト学科')
@@ -81,11 +83,9 @@ class GraduationPlanningTest < ActiveSupport::TestCase
     assert_equal 2, @student.student_courses.where(course: @course).count
   end
 
-  test 'plans belong to their student and contain no invented year or semester' do
-    plan = @student.planned_courses.create!(course: @course)
+  test 'plans belong to their student' do
+    plan = @student.planned_courses.create!(course: @course, **TERM)
     assert_equal @student, plan.student
-    assert_nil plan.academic_year
-    assert_nil plan.semester
     assert_equal [@course], @student.future_courses.to_a
     assert_empty @other_student.planned_courses
     assert_empty @other_student.future_courses
@@ -93,12 +93,12 @@ class GraduationPlanningTest < ActiveSupport::TestCase
   end
 
   test 'duplicate plans are rejected but another student can choose the same course' do
-    @student.planned_courses.create!(course: @course)
-    assert_not @student.planned_courses.new(course: @course).valid?
-    assert @other_student.planned_courses.create!(course: @course).persisted?
+    @student.planned_courses.create!(course: @course, **TERM)
+    assert_not @student.planned_courses.new(course: @course, **TERM).valid?
+    assert @other_student.planned_courses.create!(course: @course, **TERM).persisted?
     assert_raises(ActiveRecord::RecordNotUnique) do
       PlannedCourse.transaction(requires_new: true) do
-        PlannedCourse.insert_all!([{ student_id: @student.id, course_id: @course.id }])
+        PlannedCourse.insert_all!([{ student_id: @student.id, course_id: @course.id, **TERM }])
       end
     end
   end
@@ -106,20 +106,21 @@ class GraduationPlanningTest < ActiveSupport::TestCase
   test 'planned course foreign keys reject missing owners and courses' do
     [{ student_id: -1, course_id: @course.id }, { student_id: @student.id, course_id: -1 }].each do |attributes|
       assert_raises(ActiveRecord::InvalidForeignKey) do
-        PlannedCourse.transaction(requires_new: true) { PlannedCourse.insert_all!([attributes]) }
+        PlannedCourse.transaction(requires_new: true) { PlannedCourse.insert_all!([attributes.merge(TERM)]) }
       end
     end
   end
 
-  test 'plans may carry a planned term as a year and semester pair' do
+  test 'plans keep their planned year and semester' do
     plan = @student.planned_courses.create!(course: @course, academic_year: 2027, semester: '後期')
     assert_equal 2027, plan.reload.academic_year
     assert_equal '後期', plan.semester
   end
 
   test 'planned terms are validated by model and database' do
-    [{ academic_year: 2027, semester: nil }, { academic_year: nil, semester: '前期' },
-     { academic_year: 2027, semester: '通年' }, { academic_year: 0, semester: '前期' }].each do |term|
+    [{ academic_year: nil, semester: nil }, { academic_year: 2027, semester: nil },
+     { academic_year: nil, semester: '前期' }, { academic_year: 2027, semester: '通年' },
+     { academic_year: 0, semester: '前期' }].each do |term|
       assert_not @student.planned_courses.new(course: @course, **term).valid?, "#{term} は保存できない"
 
       assert_raises(ActiveRecord::StatementInvalid, "#{term} はDBでも拒否する") do
@@ -133,8 +134,8 @@ class GraduationPlanningTest < ActiveSupport::TestCase
   test 'removing a plan never removes enrollment history or other students plans' do
     enrollment = @student.student_courses.create!(course: @course, academic_year: 2024,
                                                   enrollment_status: 'failed', credits_earned: 0)
-    plan = @student.planned_courses.create!(course: @course)
-    other_plan = @other_student.planned_courses.create!(course: @course)
+    plan = @student.planned_courses.create!(course: @course, **TERM)
+    other_plan = @other_student.planned_courses.create!(course: @course, **TERM)
     assert_not @course.destroy
     plan.destroy!
     assert_equal enrollment, @student.student_courses.find(enrollment.id)

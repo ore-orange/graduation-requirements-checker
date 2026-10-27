@@ -13,7 +13,6 @@
       mapped_categories = StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
       unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course.curriculum_key, @courses_by_key)) }
       unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-      unmapped_unscheduled_plans = @unscheduled_plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
       term_earned = @term_enrollments.select { |e| e.enrollment_status == 'completed' }.sum(BigDecimal('0')) { |e| e.credits_earned || BigDecimal('0') }
       term_current = @term_enrollments.select { |e| StudentWorkspace::CURRENT_STATUSES.include?(e.enrollment_status) }.sum(BigDecimal('0')) { |e| e.course.credits || BigDecimal('0') }
       term_planned = @term_plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
@@ -195,38 +194,6 @@
         <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
           <% @unplaced_enrollments.each do |enrollment| %>
             <%= render 'plans/enrollment_card', enrollment: enrollment %>
-          <% end %>
-        </div>
-      </section>
-    <% end %>
-
-    <% if @unscheduled_plans.any? %>
-      <!-- 学期未定の履修予定（学期を入れる前に追加された予定。新しい予定は学期の表から追加する） -->
-      <section id="unscheduled" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6" aria-labelledby="unscheduled-heading">
-        <h2 id="unscheduled-heading" class="text-base font-bold text-slate-900">学期未定の履修予定</h2>
-        <p class="text-xs text-slate-500 mt-0.5">履修する学期が決まっていない予定です。卒業要件の判定には含めています。新しい予定は、上の表で学期を選んで追加してください。</p>
-        <div class="mt-4 space-y-4 text-xs">
-          <% StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |g| g[:rows] }.each do |row| %>
-            <% row_plans = @unscheduled_plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) } %>
-            <% next if row_plans.empty? %>
-            <div data-unscheduled-row="<%= row[:id] %>">
-              <h3 class="text-xs font-bold text-slate-700 mb-1.5"><%= row[:name] %></h3>
-              <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <% row_plans.each do |plan| %>
-                  <%= render 'plans/plan_card', plan: plan %>
-                <% end %>
-              </div>
-            </div>
-          <% end %>
-          <% if unmapped_unscheduled_plans.any? %>
-            <div data-unscheduled-row="unmapped">
-              <h3 class="text-xs font-bold text-slate-700 mb-1.5">その他・卒業算入対象外</h3>
-              <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <% unmapped_unscheduled_plans.each do |plan| %>
-                  <%= render 'plans/plan_card', plan: plan %>
-                <% end %>
-              </div>
-            </div>
           <% end %>
         </div>
       </section>

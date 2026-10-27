@@ -27,7 +27,6 @@ class PlansController < ApplicationController
     @term_enrollments = @enrollments.select { |enrollment| term_of(enrollment) == @term }
     @term_plans = @plans.select { |plan| term_of(plan) == @term }
     @unplaced_enrollments = @enrollments.reject { |enrollment| SEMESTERS.include?(enrollment.semester) }
-    @unscheduled_plans = @plans.select { |plan| plan.semester.nil? }
   end
 
   def load_catalogue

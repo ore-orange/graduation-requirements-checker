@@ -34,14 +34,15 @@ class DemoDataTest < ActiveSupport::TestCase
   test 'loading repeatedly preserves plans unrelated data and non-seeded history' do
     student = DemoData.load!
     course = student.student_courses.first.course
-    plan = student.planned_courses.create!(course: course)
+    plan = student.planned_courses.create!(course: course, academic_year: 2026, semester: '後期')
     history = student.student_courses.create!(course: course, academic_year: 2023, semester: 'manual-test',
                                               grade: 'manual-result', enrollment_status: 'unknown',
                                               credits_earned: '1.5', approval_confirmed: false)
     unrelated_user = User.create!(email: 'unrelated@example.test')
     unrelated_course = Course.create!(course_number: course.course_number, name: course.name, credits: '9.5')
     unrelated_student = Student.create!(user: unrelated_user, department: student.department, admission_year: 2025)
-    unrelated_plan = unrelated_student.planned_courses.create!(course: unrelated_course)
+    unrelated_plan = unrelated_student.planned_courses.create!(course: unrelated_course,
+                                                               academic_year: 2026, semester: '後期')
     before_counts = record_counts
     before_history = history.attributes
     before_course = unrelated_course.attributes
