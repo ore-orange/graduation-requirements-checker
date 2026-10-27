@@ -19,7 +19,9 @@ class DemoDataTest < ActiveSupport::TestCase
   end
 
   test 'disabled environments neither expose nor seed the demo account' do
-    DemoData.load!
+    # 学部・学科のマスタは環境を問わず作られるので、先にseed全体を流しておく。
+    # そのうえで、無効な環境で流してもレコードが1件も増えないことを確かめる。
+    load Rails.root.join('db/seeds.rb')
     before = record_counts
     %w[production staging].each do |environment|
       Rails.stub(:env, ActiveSupport::EnvironmentInquirer.new(environment)) do

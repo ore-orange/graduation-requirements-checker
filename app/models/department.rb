@@ -5,6 +5,6 @@ class Department < ApplicationRecord
   has_many :programs, dependent: :restrict_with_error
   has_many :students, dependent: :restrict_with_error
 
-  validates :name, presence: true
+  validates :name, presence: true, uniqueness: { scope: :faculty_id }
 end
 
