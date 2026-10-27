@@ -49,6 +49,16 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     { semester: '前期', year: 2026, department_id: sample_department.id }.merge(overrides)
   end
 
+  ROW_LABELS = { lecture_code: '講義コード', name: '科目名', course_number: '科目番号' }.freeze
+
+  # Importerに渡す1行。保存済みの講義を用意するのに使う。
+  def offering_row(**overrides)
+    { '学期' => '前期', '講義コード' => '610000071', '科目番号' => '工共100', '科目名' => '工学基礎演習',
+      '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '金', '時限' => '2・3',
+      '開講区分' => '1Q', '要確認' => '' }
+      .merge(overrides.transform_keys { |key| ROW_LABELS.fetch(key) })
+  end
+
   # 画面を経由せずに講義を保存する。年度・学科は取り込み全体で1つ。
   def import_rows(rows, year: 2026)
     TimetableImport::Importer.new(rows, year: year, department_id: sample_department.id).call(apply: true)
@@ -155,6 +165,65 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
       upload_pdf(semester: '通年')
       assert_match '前期か後期', flash[:alert]
     end
+  end
+
+  test '絞り込むと当たった講義だけが出る' do
+    import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100'),
+                 offering_row(lecture_code: 'k002', name: '線形代数', course_number: '工共200')])
+
+    get course_registrations_path(name: '情報'), env: ENV_LOCAL
+
+    assert_response :success
+    assert_select 'td', text: '情報処理概論'
+    assert_select 'td', text: '線形代数', count: 0
+  end
+
+  test '絞り込みの条件はページ送りのリンクに残る' do
+    import_rows(Array.new(31) do |index|
+      offering_row(lecture_code: format('%09d', index), name: "情報処理概論#{index}", course_number: "工共#{index}")
+    end)
+
+    get course_registrations_path(name: '情報'), env: ENV_LOCAL
+
+    assert_select 'nav[aria-label=ページ送り] a[href*="name="]'
+  end
+
+  test '条件に当たる講義が無いときは、まだ1件も無いときと違う案内を出す' do
+    import_rows([offering_row(lecture_code: 'k001', name: '線形代数', course_number: '工共100')])
+
+    get course_registrations_path(name: '当たらない'), env: ENV_LOCAL
+    assert_select 'p', text: /条件に当たる講義がありません/
+
+    get course_registrations_path, env: ENV_LOCAL
+    assert_select 'p', text: /まだ保存された講義はありません/, count: 0
+  end
+
+  test 'まだ1件も保存されていないときは、その案内を出す' do
+    get course_registrations_path, env: ENV_LOCAL
+
+    assert_select 'p', text: /まだ保存された講義はありません/
+  end
+
+  test '保存済みの講義には年度と学部・学科が出る' do
+    import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100')])
+
+    get course_registrations_path, env: ENV_LOCAL
+
+    assert_select 'td', text: '2026'
+    assert_select 'td', text: "#{sample_department.faculty.name} #{sample_department.name}"
+  end
+
+  test '年度・学部・学科で絞り込むプルダウンが検索バーにある' do
+    import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100')])
+
+    get course_registrations_path, env: ENV_LOCAL
+
+    assert_select 'form[method=get] select[name=year]'
+    assert_select 'form[method=get] select[name=faculty_id]'
+    assert_select 'form[method=get] select[name=department_id]'
+    assert_select 'form[method=get] input[name=course_number]'
+    assert_select 'form[method=get] input[name=lecture_code]'
+    assert_select 'form[method=get] input[name=name]'
   end
 
   test '年度・学部・学科を選んで取り込むと、取り込みに残る' do

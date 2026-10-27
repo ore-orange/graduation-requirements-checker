@@ -11,9 +11,12 @@ class CourseRegistrationsController < ApplicationController
     @faculties = Faculty.includes(:departments).order(:id)
     @year_options = YEAR_RANGE.map { |offset| current_academic_year + offset }
     @uploads = TimetableUpload.includes(:rows, department: :faculty).order(:id)
-    @paginator = Paginator.new(total: CourseOffering.count, page: params[:page])
-    @offerings = CourseOffering.includes(:course).order(:semester, :weekday, :periods, :id)
-                               .offset(@paginator.offset).limit(@paginator.per).group_by(&:semester)
+    @search = CourseOfferingSearch.new(params)
+    @paginator = Paginator.new(total: @search.relation.count, page: params[:page])
+    @offerings = @search.relation.offset(@paginator.offset).limit(@paginator.per)
+    @any_offering = CourseOffering.exists?
+    # 絞り込みの年度は、保存済みの講義にある年度だけを出す
+    @search_years = CourseOffering.distinct.order(year: :desc).pluck(:year).compact
   end
 
   private

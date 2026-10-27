@@ -88,34 +88,42 @@
 
   <section class="demo-panel" aria-labelledby="registered-heading">
     <h2 id="registered-heading" class="text-xl font-bold text-slate-900">保存済みの講義</h2>
-    <% if @offerings.empty? %>
+
+    <% if @any_offering %>
+      <div class="mt-4"><%= render 'search_form', search: @search, faculties: @faculties, years: @search_years %></div>
+    <% end %>
+
+    <% if !@any_offering %>
       <p class="mt-4 rounded-lg bg-slate-50 p-4 text-slate-600">まだ保存された講義はありません。「講義を追加」からPDFを取り込んでください。</p>
+    <% elsif @offerings.empty? %>
+      <p class="mt-4 rounded-lg bg-slate-50 p-4 text-slate-600">条件に当たる講義がありません。条件を変えるか、「条件を消す」で全件に戻してください。</p>
     <% else %>
-      <% @offerings.each do |semester, offerings| %>
-        <h3 class="mt-6 font-bold text-slate-900"><%= semester %></h3>
-        <div class="mt-2 overflow-x-auto">
-          <table class="w-full min-w-[40rem] text-left text-sm">
-            <thead class="border-b border-slate-300 text-slate-600">
-              <tr><th class="py-2 pr-3">科目番号</th><th class="pr-3">科目名</th><th class="pr-3">単位</th><th class="pr-3">必修/選択</th><th class="pr-3">年次</th><th class="pr-3">曜日</th><th class="pr-3">時限</th><th>開講区分</th></tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              <% offerings.each do |offering| %>
-                <tr>
-                  <td class="py-2 pr-3"><%= offering.course.course_number %></td>
-                  <td class="pr-3"><%= offering.course.name %></td>
-                  <td class="pr-3"><%= offering.course.credits %></td>
-                  <td class="pr-3"><%= offering.requirement_type %></td>
-                  <td class="pr-3"><%= offering.grade_years.join('・') %></td>
-                  <td class="pr-3"><%= offering.weekday %></td>
-                  <td class="pr-3"><%= offering.periods.join('・') %></td>
-                  <td><%= offering.term_type %></td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      <% end %>
-      <div class="mt-6"><%= render 'shared/pagination', paginator: @paginator, path: ->(page) { course_registrations_path(page: page) } %></div>
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full min-w-[60rem] text-left text-sm">
+          <thead class="border-b border-slate-300 text-slate-600">
+            <tr><th class="py-2 pr-3">年度</th><th class="pr-3">学期</th><th class="pr-3">学部・学科</th><th class="pr-3">科目番号</th><th class="pr-3">講義コード</th><th class="pr-3">科目名</th><th class="pr-3">単位</th><th class="pr-3">必修/選択</th><th class="pr-3">年次</th><th class="pr-3">曜日</th><th class="pr-3">時限</th><th>開講区分</th></tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% @offerings.each do |offering| %>
+              <tr>
+                <td class="py-2 pr-3"><%= offering.year || '—' %></td>
+                <td class="pr-3"><%= offering.semester %></td>
+                <td class="pr-3"><%= offering.department ? "#{offering.department.faculty.name} #{offering.department.name}" : '—' %></td>
+                <td class="pr-3"><%= offering.course.course_number %></td>
+                <td class="pr-3"><%= offering.lecture_code %></td>
+                <td class="pr-3"><%= offering.course.name %></td>
+                <td class="pr-3"><%= offering.course.credits %></td>
+                <td class="pr-3"><%= offering.requirement_type %></td>
+                <td class="pr-3"><%= offering.grade_years.join('・') %></td>
+                <td class="pr-3"><%= offering.weekday %></td>
+                <td class="pr-3"><%= offering.periods.join('・') %></td>
+                <td><%= offering.term_type %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-6"><%= render 'shared/pagination', paginator: @paginator, path: ->(page) { course_registrations_path(@search.conditions.merge(page: page)) } %></div>
     <% end %>
   </section>
 </div>
