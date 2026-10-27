@@ -24,10 +24,12 @@
   </head>
 
   <body>
+    <%# full_bleed の画面は自前で shared/nav を描くので、ここでは残りの画面に付ける %>
     <% if content_for?(:full_bleed) %>
       <%= yield %>
     <% else %>
-      <main class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <%= render 'shared/nav' %>
+      <main class="mx-auto w-full <%= content_width_class %> px-4 py-10 sm:px-6 lg:px-8">
         <%= yield %>
       </main>
     <% end %>

@@ -70,12 +70,20 @@ class PlanCoursesController < ApplicationController
     raw = params.expect(custom_course: %i[name course_number credits category])
     name = raw[:name].to_s.strip
     category = raw[:category].to_s.strip
-    credits = BigDecimal(raw[:credits].to_s, exception: false)
-    return unless name.present? && CUSTOM_CATEGORIES.include?(category) && credits&.positive? && credits < 100
+    credits = custom_credits(raw[:credits])
+    return unless name.present? && CUSTOM_CATEGORIES.include?(category) && credits
 
     { name: name, number: raw[:course_number].to_s.strip.presence, category: category, credits: credits }
   rescue ActionController::ParameterMissing, ActionController::UnpermittedParameters
     nil
+  end
+
+  # 単位数は整数カラムなので、小数は切り捨てずに入力ごと受け付けない
+  def custom_credits(raw_credits)
+    value = BigDecimal(raw_credits.to_s, exception: false)
+    return unless value&.positive? && value < 100 && value.frac.zero?
+
+    value.to_i
   end
 
   def match_catalogue_course(name, number)

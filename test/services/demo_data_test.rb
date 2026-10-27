@@ -19,7 +19,9 @@ class DemoDataTest < ActiveSupport::TestCase
   end
 
   test 'disabled environments neither expose nor seed the demo account' do
-    DemoData.load!
+    # 学部・学科のマスタは環境を問わず作られるので、先にseed全体を流しておく。
+    # そのうえで、無効な環境で流してもレコードが1件も増えないことを確かめる。
+    load Rails.root.join('db/seeds.rb')
     before = record_counts
     %w[production staging].each do |environment|
       Rails.stub(:env, ActiveSupport::EnvironmentInquirer.new(environment)) do
@@ -39,7 +41,7 @@ class DemoDataTest < ActiveSupport::TestCase
                                               grade: 'manual-result', enrollment_status: 'unknown',
                                               credits_earned: '1.5', approval_confirmed: false)
     unrelated_user = User.create!(email: 'unrelated@example.test')
-    unrelated_course = Course.create!(course_number: course.course_number, name: course.name, credits: '9.5')
+    unrelated_course = Course.create!(course_number: course.course_number, name: course.name, credits: 9)
     unrelated_student = Student.create!(user: unrelated_user, department: student.department, admission_year: 2025)
     unrelated_plan = unrelated_student.planned_courses.create!(course: unrelated_course,
                                                                academic_year: 2026, semester: '後期')

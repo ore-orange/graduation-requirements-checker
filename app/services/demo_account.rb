@@ -7,8 +7,14 @@ class DemoAccount
   ADMISSION_YEAR = 2024
   DEPARTMENT = 'intelligent_informatics'
 
+  # PUBLIC_DEMO=1 は、認証が入るまでの仮公開用。ローカル限定の制限を外し、固定のデモ学生を誰にでも見せる。
+  # 実際の成績データを入れた環境では設定しない。
+  def self.public_demo?
+    ENV['PUBLIC_DEMO'] == '1'
+  end
+
   def self.enabled?
-    Rails.env.local?
+    Rails.env.local? || public_demo?
   end
 
   def self.student
