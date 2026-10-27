@@ -1,0 +1,70 @@
+name: Deploy
+
+# CIがmainで成功したあとに、イメージをビルドして学科サーバーVMへ反映する。
+on:
+  workflow_run:
+    workflows: [ CI ]
+    types: [ completed ]
+    branches: [ main ]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.event.workflow_run.head_sha }}
+
+  deploy:
+    needs: build
+    # VM上のself-hosted runner。VMから外向きに接続するだけでよい。
+    runs-on: self-hosted
+    permissions:
+      contents: read
+    env:
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Compose定義を配置
+        run: install -m 644 deploy/compose.prod.yml /opt/grc/compose.prod.yml
+
+      - name: 反映
+        working-directory: /opt/grc
+        run: |
+          docker compose -f compose.prod.yml pull
+          docker compose -f compose.prod.yml run --rm web ./bin/rails db:migrate
+          docker compose -f compose.prod.yml up -d --remove-orphans
+
+      - name: ヘルスチェック
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3000/up && exit 0
+            sleep 2
+          done
+          docker compose -f /opt/grc/compose.prod.yml logs --tail=100 web
+          exit 1
