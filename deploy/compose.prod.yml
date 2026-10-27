@@ -5,6 +5,9 @@ services:
     image: ghcr.io/ore-orange/graduation-requirements-checker:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
+    environment:
+      # パスワードの入口をDB_PASSWORDの1か所にするため、ここで組み立てる。
+      DATABASE_URL: postgres://app:${DB_PASSWORD}@db:5432/app_production?sslmode=require
     ports:
       - "127.0.0.1:3000:80"
     depends_on:
