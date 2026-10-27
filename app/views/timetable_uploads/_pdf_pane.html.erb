@@ -1,0 +1,41 @@
+<%# 取り込んだPDFを見比べるためのペイン。自分でスクロールして見る。 %>
+<% button_class = 'rounded border border-slate-400 bg-white px-2 py-0.5 font-semibold hover:bg-slate-50' %>
+<tr id="pdf-pane-row" data-turbo-permanent data-pdf-pane-target="pane">
+  <th colspan="10" class="border-b-2 border-slate-400 bg-slate-200 p-0 font-normal">
+    <div class="flex flex-wrap items-center gap-2 px-2 py-1 text-xs text-slate-700">
+      <span class="font-bold text-slate-900">PDF</span>
+      <span>ページ</span>
+      <% (1..upload.page_count).each do |page| %>
+        <button type="button" class="<%= button_class %>" data-page="<%= page %>" data-action="pdf-pane#jump"><%= page %></button>
+      <% end %>
+      <span class="ml-2">大きさ</span>
+      <button type="button" class="<%= button_class %>" data-action="pdf-pane#zoomOut" aria-label="小さくする">−</button>
+      <input type="range" min="25" max="250" step="1" value="100" class="w-32" aria-label="PDFの大きさ"
+             data-pdf-pane-target="zoom" data-action="input->pdf-pane#slide">
+      <button type="button" class="<%= button_class %>" data-action="pdf-pane#zoomIn" aria-label="大きくする">＋</button>
+      <input type="number" min="25" max="250" step="1" value="100" aria-label="PDFの大きさ(%)"
+             class="w-16 rounded border border-slate-400 px-1 py-0.5 text-right"
+             data-pdf-pane-target="zoomValue" data-action="change->pdf-pane#type">
+      <span>%</span>
+      <button type="button" class="<%= button_class %>" data-action="pdf-pane#fit">幅に合わせる</button>
+      <button type="button" class="<%= button_class %> ml-auto" data-action="pdf-pane#hide">PDFを隠す</button>
+      <span class="w-full text-slate-600">PDFは自分でスクロールして見比べます。枠の右下をつかむと高さを変えられます。</span>
+    </div>
+    <div class="overflow-auto border-t border-slate-300 bg-slate-500" style="height:300px;resize:vertical"
+         data-pdf-pane-target="scroll">
+      <% upload.page_count.times do |index| %>
+        <%= image_tag page_image_timetable_upload_path(upload, index + 1), alt: "PDF #{index + 1}ページ目",
+                      class: 'block max-w-none', style: 'margin:0 auto 10px', data: { pdf_pane_target: 'page' } %>
+      <% end %>
+    </div>
+  </th>
+</tr>
+<tr id="pdf-pane-hidden-row" hidden data-turbo-permanent data-pdf-pane-target="hidden">
+  <th colspan="10" class="bg-slate-200 p-0 font-normal">
+    <%# 「PDFを隠す」と同じ位置(バーの右端)に出す %>
+    <div class="flex flex-wrap items-center gap-2 px-2 py-1 text-xs text-slate-700">
+      <span class="font-bold text-slate-900">PDF</span>
+      <button type="button" class="<%= button_class %> ml-auto" data-action="pdf-pane#show">PDFを表示する</button>
+    </div>
+  </th>
+</tr>

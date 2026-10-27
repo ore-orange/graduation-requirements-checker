@@ -1,0 +1,37 @@
+<%# paginator: Paginator / path: ページ番号を受け取るURL生成用のlambda。表示は « ‹ 1 2 3 4 5 › » %>
+<% link_class = 'inline-block min-w-9 rounded border border-slate-300 px-3 py-1 text-center font-semibold hover:bg-slate-50' %>
+<% off_class = 'inline-block min-w-9 rounded border border-slate-200 px-3 py-1 text-center font-semibold text-slate-300' %>
+<nav aria-label="ページ送り" class="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-700">
+  <p><%= paginator.total %>件中 <%= paginator.first_item %>〜<%= paginator.last_item %>件を表示</p>
+  <% if paginator.paginated? %>
+    <ul class="flex flex-wrap items-center gap-1">
+      <% [['<<', '最初のページ', (1 unless paginator.page == 1), nil], ['<', '前のページ', paginator.previous_page, 'prev']].each do |label, title, target, rel| %>
+        <li>
+          <% if target %>
+            <%= link_to label, path.call(target), title: title, 'aria-label': title, rel: rel, class: link_class %>
+          <% else %>
+            <span aria-disabled="true" aria-label="<%= title %>" class="<%= off_class %>"><%= label %></span>
+          <% end %>
+        </li>
+      <% end %>
+      <% paginator.window.each do |number| %>
+        <li>
+          <% if number == paginator.page %>
+            <span aria-current="page" class="inline-block min-w-9 rounded border border-slate-900 bg-slate-900 px-3 py-1 text-center font-semibold text-white"><%= number %></span>
+          <% else %>
+            <%= link_to number, path.call(number), class: link_class %>
+          <% end %>
+        </li>
+      <% end %>
+      <% [['>', '次のページ', paginator.next_page, 'next'], ['>>', '最後のページ', (paginator.pages unless paginator.page == paginator.pages), nil]].each do |label, title, target, rel| %>
+        <li>
+          <% if target %>
+            <%= link_to label, path.call(target), title: title, 'aria-label': title, rel: rel, class: link_class %>
+          <% else %>
+            <span aria-disabled="true" aria-label="<%= title %>" class="<%= off_class %>"><%= label %></span>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+</nav>

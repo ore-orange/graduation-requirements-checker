@@ -47,3 +47,6 @@
 # Ignore editor and OS files.
 .DS_Store
 /.idea
+
+# ブレインストーミングのモックや計画の作業場(使い捨て)
+/.superpowers/

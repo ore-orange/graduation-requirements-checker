@@ -1,0 +1,19 @@
+<%# notice / alert を画面の右上に固定表示する。スクロールしていても見える。成功は消え、失敗は閉じるまで残る %>
+<% if flash[:notice] || flash[:alert] %>
+  <div class="pointer-events-none fixed right-4 top-4 z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
+    <% if flash[:notice] %>
+      <div role="status" data-controller="toast" data-toast-auto-dismiss-value="5000"
+           class="pointer-events-auto flex items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950 shadow-lg">
+        <p class="flex-1"><%= flash[:notice] %></p>
+        <button type="button" data-action="toast#close" aria-label="メッセージを閉じる" class="font-bold leading-none">×</button>
+      </div>
+    <% end %>
+    <% if flash[:alert] %>
+      <div role="alert" data-controller="toast"
+           class="pointer-events-auto flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-950 shadow-lg">
+        <p class="flex-1"><%= flash[:alert] %></p>
+        <button type="button" data-action="toast#close" aria-label="メッセージを閉じる" class="font-bold leading-none">×</button>
+      </div>
+    <% end %>
+  </div>
+<% end %>
