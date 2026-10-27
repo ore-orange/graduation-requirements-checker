@@ -359,6 +359,73 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-planner-row="required_research"] th', text: /修得 \d+.*必要 16/m
   end
 
+  test '学期を指定して追加した予定は、その学期の表にだけ出る' do
+    travel_to Date.new(2026, 10, 26) do
+      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期' }, env: local_env
+      assert_redirected_to plan_path(term: '4-前期')
+      plan = @student.planned_courses.find_by!(course: course_record(@candidate))
+      assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
+
+      get plan_path(term: '4-前期'), env: local_env
+      assert_select "[data-planner-row] [data-plan='#{plan.id}']", count: 1
+      assert_select '#unscheduled', count: 0
+
+      get plan_path(term: '4-後期'), env: local_env
+      assert_select "[data-plan='#{plan.id}']", count: 0
+    end
+  end
+
+  test '今の学期には予定を追加でき、過去の学期と読めない学期には追加できない' do
+    travel_to Date.new(2026, 10, 26) do
+      assert_no_difference '@student.planned_courses.count' do
+        post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-前期' }, env: local_env
+        assert_redirected_to plan_path(term: '3-前期')
+        post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '9-夏期' }, env: local_env
+        assert_redirected_to plan_path
+      end
+
+      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-後期' }, env: local_env
+      plan = @student.planned_courses.find_by!(course: course_record(@candidate))
+      assert_equal [2026, '後期'], [plan.academic_year, plan.semester]
+    end
+  end
+
+  test '追加の欄は今の学期以降にだけ出る' do
+    travel_to Date.new(2026, 10, 26) do
+      get plan_path(term: '3-前期'), env: local_env
+      assert_select '[data-add-course]', count: 0
+
+      %w[3-後期 4-後期].each do |term|
+        get plan_path(term: term), env: local_env
+        assert_select '[data-add-course]', minimum: 1
+        assert_select "[data-add-course] input[name='term'][value='#{term}']", minimum: 1
+      end
+    end
+  end
+
+  test '予定を削除したあとは見ていた学期に戻る' do
+    plan = @student.planned_courses.create!(course: course_record(@candidate), academic_year: 2027, semester: '前期')
+
+    delete plan_course_path(plan), params: { term: '4-前期' }, env: local_env
+
+    assert_redirected_to plan_path(term: '4-前期')
+    assert_not PlannedCourse.exists?(plan.id)
+  end
+
+  test '区分が複数ある行の自由入力では区分を選べ、選んだ区分で保存される' do
+    travel_to Date.new(2026, 10, 26) do
+      get plan_path(term: '4-前期'), env: local_env
+      assert_select "[data-add-course='general_subtotal'] select[name='custom_course[category]'] option[value='social']"
+      assert_select "[data-add-course='health'] input[type='hidden'][name='custom_course[category]'][value='health']"
+
+      custom = { name: '他学部の社会系特論', credits: '2', category: 'social' }
+      post plan_courses_path, params: { term: '4-前期', custom_course: custom }, env: local_env
+      plan = @student.planned_courses.joins(:course).find_by!(courses: { name: '他学部の社会系特論' })
+      assert_match(/\Acustom:social:/, plan.course.curriculum_key)
+      assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
+    end
+  end
+
   test '学期未定の履修予定は、どの学期を見ても表示する' do
     plan = @student.planned_courses.create!(course: course_record(@candidate))
 

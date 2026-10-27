@@ -12,10 +12,11 @@
     <%
       mapped_categories = StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
       unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course.curriculum_key, @courses_by_key)) }
-      unmapped_plans = @plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+      unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+      unmapped_unscheduled_plans = @unscheduled_plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
       term_earned = @term_enrollments.select { |e| e.enrollment_status == 'completed' }.sum(BigDecimal('0')) { |e| e.credits_earned || BigDecimal('0') }
       term_current = @term_enrollments.select { |e| StudentWorkspace::CURRENT_STATUSES.include?(e.enrollment_status) }.sum(BigDecimal('0')) { |e| e.course.credits || BigDecimal('0') }
-      planned_total = @plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
+      term_planned = @term_plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
       is_current_term = @term == @current_term
       nav_class = 'w-9 h-9 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-lg text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
     %>
@@ -40,6 +41,7 @@
           <p class="text-xs text-slate-500 mt-0.5">
             修得 <%= credit_number(term_earned) %>単位
             <% if term_current.positive? %> ・ 履修中 <%= credit_number(term_current) %>単位<% end %>
+            <% if term_planned.positive? %> ・ 予定 <%= credit_number(term_planned) %>単位<% end %>
           </p>
           <ol class="mt-2 flex items-center justify-center gap-1.5" aria-label="学期の一覧">
             <% @terms.each do |term| %>
@@ -99,6 +101,7 @@
               <% group[:rows].each do |row| %>
                 <%
                   cell_enrollments = @term_enrollments.select { |e| row[:categories].include?(course_category(e.course.curriculum_key, @courses_by_key)) }
+                  cell_plans = @term_plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
                   row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
                   row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_key)
                   row_has_custom = row_plans.any? { |p| custom_course?(p.course.curriculum_key) }
@@ -138,21 +141,27 @@
 
                   <!-- この学期の科目 -->
                   <td class="p-2.5">
-                    <% if cell_enrollments.empty? %>
+                    <% if cell_enrollments.empty? && cell_plans.empty? %>
                       <div class="text-slate-300 py-2">—</div>
                     <% else %>
                       <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         <% cell_enrollments.each do |enrollment| %>
                           <%= render 'plans/enrollment_card', enrollment: enrollment %>
                         <% end %>
+                        <% cell_plans.each do |plan| %>
+                          <%= render 'plans/plan_card', plan: plan %>
+                        <% end %>
                       </div>
+                    <% end %>
+                    <% if @term_open %>
+                      <%= render 'plans/add_course_box', row: row %>
                     <% end %>
                   </td>
                 </tr>
               <% end %>
             <% end %>
 
-            <% if unmapped_enrollments.any? %>
+            <% if unmapped_enrollments.any? || unmapped_term_plans.any? %>
               <tr class="bg-slate-100/80 border-y border-slate-200">
                 <td colspan="2" class="py-2 px-4 font-bold text-slate-700 text-xs">その他・卒業算入対象外</td>
               </tr>
@@ -165,6 +174,9 @@
                   <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     <% unmapped_enrollments.each do |enrollment| %>
                       <%= render 'plans/enrollment_card', enrollment: enrollment %>
+                    <% end %>
+                    <% unmapped_term_plans.each do |plan| %>
+                      <%= render 'plans/plan_card', plan: plan %>
                     <% end %>
                   </div>
                 </td>
@@ -188,32 +200,14 @@
       </section>
     <% end %>
 
-    <!-- 学期未定の履修予定（将来計画） -->
-    <section id="unscheduled" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6" aria-labelledby="unscheduled-heading">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 id="unscheduled-heading" class="text-base font-bold text-slate-900">学期未定の履修予定</h2>
-          <p class="text-xs text-slate-500 mt-0.5">今後履修する予定の科目（将来計画）です。履修する学期はまだ指定できないため、ここにまとめて表示しています。</p>
-        </div>
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="text-xs font-semibold bg-sky-50 border border-sky-200 text-sky-800 px-3 py-1.5 rounded-xl">
-            <%= @plans.size %> 科目 (<%= credit_label(planned_total) %>)
-          </span>
-          <!-- 編集モード切替トグル -->
-          <label class="inline-flex items-center cursor-pointer bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-            <input type="checkbox" id="planner-edit-toggle" onchange="togglePlannerEdit(this.checked)" class="sr-only peer" checked>
-            <div class="w-8 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all relative peer-checked:bg-indigo-600"></div>
-            <span class="ml-2 text-xs font-semibold text-slate-700">編集モード (追加・削除を表示)</span>
-          </label>
-        </div>
-      </div>
-
-      <% if @plans.empty? %>
-        <p class="mt-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">まだ履修予定の科目はありません。下の「＋ 科目を追加」か、便覧カタログの検索から追加できます。</p>
-      <% else %>
+    <% if @unscheduled_plans.any? %>
+      <!-- 学期未定の履修予定（学期を入れる前に追加された予定。新しい予定は学期の表から追加する） -->
+      <section id="unscheduled" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6" aria-labelledby="unscheduled-heading">
+        <h2 id="unscheduled-heading" class="text-base font-bold text-slate-900">学期未定の履修予定</h2>
+        <p class="text-xs text-slate-500 mt-0.5">履修する学期が決まっていない予定です。卒業要件の判定には含めています。新しい予定は、上の表で学期を選んで追加してください。</p>
         <div class="mt-4 space-y-4 text-xs">
           <% StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |g| g[:rows] }.each do |row| %>
-            <% row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) } %>
+            <% row_plans = @unscheduled_plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) } %>
             <% next if row_plans.empty? %>
             <div data-unscheduled-row="<%= row[:id] %>">
               <h3 class="text-xs font-bold text-slate-700 mb-1.5"><%= row[:name] %></h3>
@@ -224,95 +218,19 @@
               </div>
             </div>
           <% end %>
-          <% if unmapped_plans.any? %>
+          <% if unmapped_unscheduled_plans.any? %>
             <div data-unscheduled-row="unmapped">
               <h3 class="text-xs font-bold text-slate-700 mb-1.5">その他・卒業算入対象外</h3>
               <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <% unmapped_plans.each do |plan| %>
+                <% unmapped_unscheduled_plans.each do |plan| %>
                   <%= render 'plans/plan_card', plan: plan %>
                 <% end %>
               </div>
             </div>
           <% end %>
         </div>
-      <% end %>
-
-      <!-- 追加UI (カタログ選択 + 自由入力切替) -->
-      <%
-        selectable_courses = @curriculum.fetch('courses').select { |c| c['selectable'] == true && @unavailable_keys.exclude?(c['key']) }
-      %>
-      <div class="planner-edit-ui mt-4 text-xs">
-        <button type="button" onclick="toggleRowAddBox('unscheduled')"
-                id="add-trigger-unscheduled"
-                class="w-full py-2 px-2 border border-dashed border-slate-300 rounded-lg text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-white text-xs font-medium transition cursor-pointer">
-          ＋ 科目を追加
-        </button>
-
-        <div id="add-box-unscheduled" class="hidden p-3 rounded-xl border border-indigo-200 bg-white shadow-xs space-y-2 max-w-xl">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
-            <div class="flex gap-1">
-              <button type="button" onclick="switchRowAddMode('unscheduled', 'catalogue')"
-                      id="mode-btn-cat-unscheduled"
-                      class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white cursor-pointer">
-                便覧から選択
-              </button>
-              <button type="button" onclick="switchRowAddMode('unscheduled', 'custom')"
-                      id="mode-btn-cus-unscheduled"
-                      class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer">
-                自由入力
-              </button>
-            </div>
-            <button type="button" onclick="toggleRowAddBox('unscheduled')" class="text-slate-400 hover:text-slate-600 text-xs cursor-pointer" aria-label="追加を閉じる">✕</button>
-          </div>
-
-          <!-- モードA: カタログから選択 -->
-          <div id="add-mode-cat-unscheduled">
-            <% if selectable_courses.any? %>
-              <%= form_with url: plan_courses_path, class: 'space-y-2' do |f| %>
-                <select name="course_key" aria-label="追加する科目を選択"
-                        class="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
-                  <% selectable_courses.group_by { |c| c['category'] }.each do |category, courses| %>
-                    <optgroup label="<%= category_label(category) %>">
-                      <% courses.each do |c| %>
-                        <option value="<%= c.fetch('key') %>">
-                          <%= [c['number'], c.fetch('name'), "(#{credit_label(c['credits'])})"].compact.join(' ') %>
-                        </option>
-                      <% end %>
-                    </optgroup>
-                  <% end %>
-                </select>
-                <div class="flex justify-end">
-                  <%= f.submit '予定に追加', class: 'px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer' %>
-                </div>
-              <% end %>
-            <% else %>
-              <p class="text-[11px] text-slate-500 py-1">便覧掲載科目はすべて修得・追加済みです。「自由入力」タブから追加できます。</p>
-            <% end %>
-          </div>
-
-          <!-- モードB: 自由入力で追加 (自由入力計画科目) -->
-          <div id="add-mode-cus-unscheduled" class="hidden">
-            <%= form_with url: plan_courses_path, scope: :custom_course, class: 'space-y-1.5' do |f| %>
-              <%= f.select :category, PlanCoursesController::CUSTOM_CATEGORIES.map { |category| [category_label(category), category] }, {},
-                           id: nil, aria: { label: '卒業要件の区分' },
-                           class: 'w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-indigo-500' %>
-              <div class="flex gap-1.5">
-                <%= f.text_field :course_number, placeholder: '科目番号 (任意)', id: nil,
-                                 class: 'w-2/3 border border-slate-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-indigo-500' %>
-                <%= f.number_field :credits, value: 2, min: 0.5, step: 0.5, placeholder: '単位', required: true, id: nil,
-                                   class: 'w-1/3 border border-slate-200 rounded-md px-2 py-1 text-xs text-right focus:outline-none focus:border-indigo-500' %>
-              </div>
-              <%= f.text_field :name, placeholder: '授業科目名を入力...', required: true, id: nil,
-                               class: 'w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-indigo-500' %>
-              <p class="text-[10px] text-amber-700 leading-tight">※便覧外の科目は「要確認」として計画に保存されます</p>
-              <div class="flex justify-end pt-0.5">
-                <%= f.submit '自由入力で追加', class: 'px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer' %>
-              </div>
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </section>
+      </section>
+    <% end %>
 
     <!-- 全科目横断検索カタログ (#catalogue) -->
     <section id="catalogue" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6" aria-labelledby="catalogue-heading">
@@ -343,7 +261,7 @@
       <% end %>
 
       <% if @catalogue.empty? %>
-        <p class="mt-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語や区分を変更するか、上の「学期未定の履修予定」から「自由入力」で追加してください。</p>
+        <p class="mt-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語や区分を変更するか、上の表の各区分の「自由入力」で追加してください。</p>
       <% else %>
         <ul class="mt-4 divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1">
           <% @catalogue.each do |course| %>
@@ -387,12 +305,6 @@
 </div>
 
 <script>
-  function togglePlannerEdit(isEditing) {
-    document.querySelectorAll('.planner-edit-ui').forEach(el => {
-      el.style.display = isEditing ? '' : 'none';
-    });
-  }
-
   function toggleRowAddBox(rowId) {
     const box = document.getElementById('add-box-' + rowId);
     const trigger = document.getElementById('add-trigger-' + rowId);

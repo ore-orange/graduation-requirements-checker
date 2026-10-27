@@ -20,8 +20,8 @@
   </div>
   <div class="mt-0.5 flex items-start justify-between gap-1.5">
     <div class="font-semibold text-slate-800 leading-snug"><%= plan.course.name %></div>
-    <div class="planner-edit-ui shrink-0">
-      <%= button_to '削除', plan_course_path(plan), method: :delete,
+    <div class="shrink-0">
+      <%= button_to '削除', plan_course_path(plan), method: :delete, params: { term: term_param(@term) },
                     class: 'px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 cursor-pointer',
                     form: { class: 'inline' },
                     aria: { label: "#{plan.course.name}を今後の履修予定から削除" } %>
