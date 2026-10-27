@@ -15,7 +15,8 @@ class TimetableUploadTest < ActiveSupport::TestCase
   def build_upload(renderer)
     TimetableImport::PdfParser.stub(:extract_xml, XML) do
       TimetableImport::PageImages.stub(:render, renderer) do
-        TimetableUpload.build_from_pdf('dummy.pdf', semester: '前期', filename: 'a.pdf')
+        TimetableUpload.build_from_pdf('dummy.pdf', semester: '前期', year: 2026,
+                                                    department_id: sample_department.id, filename: 'a.pdf')
       end
     end
   end
@@ -69,6 +70,23 @@ class TimetableUploadTest < ActiveSupport::TestCase
     assert_path_exists dir
     upload.destroy!
     assert_not File.exist?(dir)
+  end
+
+  test '講義コードが空の行は確認済みにできない' do
+    upload = build_upload(->(_pdf, _dir) { 0 })
+    row = upload.rows.create!(position: 99, name: '情報処理概論', credits: '2', lecture_code: '')
+
+    result = upload.apply_edits({ row.id.to_s => {} }, [row.id.to_s])
+
+    assert_includes result.failures[row.id.to_s].join, '講義コード'
+    assert_not row.reload.confirmed
+  end
+
+  test '分類は「2026年度 学部 学科 前期」の形で出せる' do
+    upload = build_upload(->(_pdf, _dir) { 0 })
+
+    assert_equal "2026年度 #{sample_department.faculty.name} #{sample_department.name} 前期",
+                 upload.classification_label
   end
 end
 

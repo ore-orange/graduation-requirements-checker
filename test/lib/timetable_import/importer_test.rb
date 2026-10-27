@@ -14,10 +14,15 @@ module TimetableImport
       row({ '既存講義ID' => Course.find_by!(course_number: '工共100').id.to_s }.merge(overrides))
     end
 
+    # 年度と学科は行ごとではなく取り込み全体で1つなので、Importerの引数で渡す。
+    def importer(rows, year: 2026)
+      Importer.new(rows, year: year, department_id: sample_department.id)
+    end
+
     test 'dry run reports counts but saves nothing' do
       result = nil
       assert_no_difference ['Course.count', 'CourseOffering.count'] do
-        result = Importer.new([row]).call
+        result = importer([row]).call
       end
 
       assert_predicate result, :ok?
@@ -27,7 +32,7 @@ module TimetableImport
     end
 
     test 'apply saves the course and its offering' do
-      result = Importer.new([row]).call(apply: true)
+      result = importer([row]).call(apply: true)
 
       assert result.applied
       offering = CourseOffering.find_by!(lecture_code: '610000071')
@@ -39,7 +44,7 @@ module TimetableImport
     end
 
     test 'stores intensive courses without weekday or periods' do
-      Importer.new([row('曜日' => '', '時限' => '', '開講区分' => '集中', '受講年次' => '2・3・4')]).call(apply: true)
+      importer([row('曜日' => '', '時限' => '', '開講区分' => '集中', '受講年次' => '2・3・4')]).call(apply: true)
 
       offering = CourseOffering.find_by!(lecture_code: '610000071')
       assert_nil offering.weekday
@@ -48,8 +53,8 @@ module TimetableImport
     end
 
     test 'running twice with the existing course chosen does not duplicate and reports unchanged' do
-      Importer.new([row]).call(apply: true)
-      result = Importer.new([linked_row]).call(apply: true)
+      importer([row]).call(apply: true)
+      result = importer([linked_row]).call(apply: true)
 
       assert_equal 0, result.created_courses
       assert_equal 1, result.unchanged_offerings
@@ -57,16 +62,16 @@ module TimetableImport
     end
 
     test 'changed values update the existing offering' do
-      Importer.new([row]).call(apply: true)
-      result = Importer.new([linked_row('曜日' => '月')]).call(apply: true)
+      importer([row]).call(apply: true)
+      result = importer([linked_row('曜日' => '月')]).call(apply: true)
 
       assert_equal 1, result.updated_offerings
       assert_equal '月', CourseOffering.find_by!(lecture_code: '610000071').weekday
     end
 
     test 'same course in the other semester reuses the chosen course' do
-      Importer.new([row]).call(apply: true)
-      Importer.new([linked_row('学期' => '後期')]).call(apply: true)
+      importer([row]).call(apply: true)
+      importer([linked_row('学期' => '後期')]).call(apply: true)
 
       assert_equal 1, Course.where(course_number: '工共100').count
       assert_equal %w[前期 後期], CourseOffering.order(:semester).pluck(:semester).sort
@@ -75,7 +80,7 @@ module TimetableImport
     test 'unresolved review flag blocks the whole import' do
       result = nil
       assert_no_difference ['Course.count', 'CourseOffering.count'] do
-        result = Importer.new([row, row('講義コード' => '610002071', '要確認' => '時限が不明')]).call(apply: true)
+        result = importer([row, row('講義コード' => '610002071', '要確認' => '時限が不明')]).call(apply: true)
       end
 
       assert_not result.ok?
@@ -84,7 +89,7 @@ module TimetableImport
     end
 
     test 'rejects malformed values with the row number' do
-      result = Importer.new([row('必修選択' => '必', '曜日' => '日', '時限' => '4(・5)', '単位' => 'abc')]).call
+      result = importer([row('必修選択' => '必', '曜日' => '日', '時限' => '4(・5)', '単位' => 'abc')]).call
 
       assert_equal 4, result.errors.size
       assert(result.errors.all? { |message| message.start_with?('1行目') })
@@ -93,7 +98,7 @@ module TimetableImport
 
     test 'credits must be whole numbers' do
       ['1.5', '2.0', '-1', '1000', ''].each do |value|
-        result = Importer.new([row('単位' => value)]).call
+        result = importer([row('単位' => value)]).call
         assert_not result.ok?, "単位 #{value.inspect} は拒否されるはず"
         assert_includes result.errors.first, '整数'
       end
@@ -104,7 +109,7 @@ module TimetableImport
 
       result = nil
       assert_no_difference ['Course.count', 'CourseOffering.count'] do
-        result = Importer.new([row]).call(apply: true)
+        result = importer([row]).call(apply: true)
       end
 
       assert_not result.ok?
@@ -116,7 +121,7 @@ module TimetableImport
 
       result = nil
       assert_difference 'Course.count', 1 do
-        result = Importer.new([row('新規登録' => '1')]).call(apply: true)
+        result = importer([row('新規登録' => '1')]).call(apply: true)
       end
 
       assert_predicate result, :ok?
@@ -127,7 +132,7 @@ module TimetableImport
       Course.create!(course_number: nil, name: '工学基礎演習', credits: 2)
 
       assert_difference 'Course.count', 1 do
-        assert_predicate Importer.new([row('科目番号' => '')]).call(apply: true), :ok?
+        assert_predicate importer([row('科目番号' => '')]).call(apply: true), :ok?
       end
     end
 
@@ -135,21 +140,58 @@ module TimetableImport
       rows = [row, row('講義コード' => '610000072', '時限' => '4')]
 
       assert_difference 'Course.count', 1 do
-        result = Importer.new(rows).call(apply: true)
+        result = importer(rows).call(apply: true)
         assert_equal [1, 2], [result.created_courses, result.created_offerings]
       end
     end
 
     test 'a chosen course that no longer exists is an error' do
-      result = Importer.new([row('既存講義ID' => '0')]).call
+      result = importer([row('既存講義ID' => '0')]).call
 
       assert_not result.ok?
       assert_includes result.errors.first, '選ばれた既存の講義が見つかりません'
     end
 
+    test '年度と学科が開講情報に入る' do
+      result = importer([row], year: 2026).call(apply: true)
+
+      assert result.applied
+      offering = CourseOffering.sole
+      assert_equal 2026, offering.year
+      assert_equal sample_department.id, offering.department_id
+    end
+
+    test '同じ年度・学期・講義コードの取り込みは更新になる' do
+      importer([row('曜日' => '月')], year: 2026).call(apply: true)
+      result = importer([linked_row('曜日' => '火')], year: 2026).call(apply: true)
+
+      assert_equal 1, CourseOffering.count
+      assert_equal 1, result.updated_offerings
+      assert_equal '火', CourseOffering.sole.weekday
+    end
+
+    test '年度が違えば別の行として増える' do
+      importer([row], year: 2026).call(apply: true)
+      result = importer([linked_row], year: 2027).call(apply: true)
+
+      assert_equal 2, CourseOffering.count
+      assert_equal 1, result.created_offerings
+      assert_equal [2026, 2027], CourseOffering.order(:year).pluck(:year)
+    end
+
+    test '講義コードが空の行はエラーになり、何も保存しない' do
+      result = nil
+      assert_no_difference ['Course.count', 'CourseOffering.count'] do
+        result = importer([row('講義コード' => '')]).call(apply: true)
+      end
+
+      assert_not result.applied
+      assert_includes result.errors.join, '講義コード'
+    end
+
     test 'credit mismatch with a chosen course is an error, not an overwrite' do
       course = Course.create!(course_number: '工共100', name: '工学基礎演習', credits: 1)
-      result = Importer.new([row('既存講義ID' => course.id.to_s)]).call(apply: true)
+      result = importer([row('既存講義ID' => course.id.to_s)]).call(apply: true)
 
       assert_not result.ok?
       assert_equal 1, Course.find_by!(course_number: '工共100').credits

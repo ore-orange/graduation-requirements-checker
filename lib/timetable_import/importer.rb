@@ -16,8 +16,11 @@ module TimetableImport
 
     UNRESOLVED_MESSAGE = '同じ名前・番号の講義が登録済みです。同じ講義として扱うか、別の講義として登録するかを選んでください。'
 
-    def initialize(rows)
+    # 年度と学科は行ごとではなく取り込み全体で1つなので、行のハッシュには入れず引数で受ける。
+    def initialize(rows, year:, department_id:)
       @rows = rows
+      @year = year
+      @department_id = department_id
     end
 
     def call(apply: false)
@@ -90,20 +93,19 @@ module TimetableImport
         return result.errors << "#{line}行目(#{attrs.name}): 講義コード#{attrs.lecture_code}は別の科目で登録済みです。"
       end
 
-      offering.assign_attributes(attrs.offering_attributes.merge(course: course))
+      offering.assign_attributes(attrs.offering_attributes.merge(course: course, year: @year,
+                                                                 department_id: @department_id))
       return result.unchanged_offerings += 1 unless offering.changed?
 
       offering.new_record? ? result.created_offerings += 1 : result.updated_offerings += 1
       offering.save!
     end
 
-    def find_offering(course, attrs)
-      if attrs.lecture_code
-        CourseOffering.find_or_initialize_by(semester: attrs.semester, lecture_code: attrs.lecture_code)
-      else
-        CourseOffering.find_or_initialize_by(course: course, semester: attrs.semester,
-                                             weekday: attrs.weekday, periods: attrs.periods)
-      end
+    # 講義コードは必須なので、引き当てのキーは年度・学期・講義コードの1つだけ。
+    # 学科はキーに入れない。講義コードは全学で一意なので、学科を間違えて取り込んだときは、
+    # 重複行を作らずに同じ行の学科が直るほうが望ましい。
+    def find_offering(_course, attrs)
+      CourseOffering.find_or_initialize_by(year: @year, semester: attrs.semester, lecture_code: attrs.lecture_code)
     end
 
     # 1行ぶんの検証と型変換
@@ -138,6 +140,7 @@ module TimetableImport
       def validate(review)
         errors << "「要確認」が未解消です(#{review})。PDFと見比べて直し、列を空にしてください。" if review.present?
         errors << "学期は#{Values::SEMESTERS.join('か')}にしてください。" unless Values::SEMESTERS.include?(semester)
+        errors << '講義コードが空です。' if lecture_code.nil?
         errors << '科目名が空です。' if name.blank?
         errors << '単位は0以上1000未満の整数にしてください。' unless credits
         validate_choice('必修選択', requirement_type, Values::REQUIREMENT_TYPES)

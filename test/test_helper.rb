@@ -20,6 +20,12 @@ module ActiveSupport
     fixtures :all
 
     # Add more helper methods to be used by all tests here...
+
+    # 講義の分類に使う学科。1つのテストの中では同じものを返す。
+    # test_ で始める名前にすると、Minitestがテストメソッドとして拾ってしまうので避ける。
+    def sample_department
+      @sample_department ||= Faculty.create!(name: 'テスト学部').departments.create!(name: 'テスト学科')
+    end
   end
 end
 

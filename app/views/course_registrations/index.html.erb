@@ -17,6 +17,30 @@
       <p class="text-sm font-bold text-red-700">必ず、読み取った内容をPDFと見比べてください。</p>
       <p class="text-sm font-bold text-red-700">現時点では、知能情報コースの授業時間配当表にのみ対応しています。</p>
 
+      <div class="grid gap-4 sm:grid-cols-2" data-controller="dependent-select">
+        <label class="block">
+          <span class="text-sm font-semibold text-slate-700">年度</span>
+          <%= form.select :year, @year_options.map { |year| ["#{year}年度", year] }, { selected: @year_options[2] },
+                          class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
+        </label>
+        <div class="hidden sm:block"></div>
+        <label class="block">
+          <span class="text-sm font-semibold text-slate-700">開講学部</span>
+          <%= form.select :faculty_id, @faculties.map { |faculty| [faculty.name, faculty.id] },
+                          { include_blank: '選んでください' },
+                          class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5',
+                          data: { dependent_select_target: 'parent', action: 'change->dependent-select#filter' } %>
+        </label>
+        <label class="block">
+          <span class="text-sm font-semibold text-slate-700">開講学科</span>
+          <%= form.select :department_id,
+                          @faculties.map { |faculty| [faculty.name, faculty.departments.map { |d| [d.name, d.id] }] },
+                          { include_blank: '選んでください' },
+                          class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5',
+                          data: { dependent_select_target: 'child' } %>
+        </label>
+      </div>
+
       <fieldset>
         <legend class="text-sm font-semibold text-slate-700">学期</legend>
         <div class="mt-2 flex gap-6">
@@ -51,7 +75,8 @@
         <% @uploads.each do |upload| %>
           <li class="flex flex-wrap items-center justify-between gap-3 py-3">
             <div>
-              <p class="font-semibold text-slate-900"><%= upload.source_filename %>（<%= upload.semester %>）</p>
+              <p class="font-semibold text-slate-900"><%= upload.source_filename %></p>
+              <p class="text-sm text-slate-700"><%= upload.classification_label %></p>
               <p class="text-sm text-slate-600"><%= upload.rows.size %>行 / 未確認 <%= upload.unconfirmed_count %>行</p>
             </div>
             <%= link_to '確認する', upload, class: 'text-sm font-semibold text-slate-800 underline underline-offset-4' %>

@@ -4,11 +4,24 @@
 class CourseRegistrationsController < ApplicationController
   include LocalAccessOnly
 
+  # 取り込みで選べる年度。今年度を中心に前後2年。
+  YEAR_RANGE = -2..2
+
   def index
-    @uploads = TimetableUpload.includes(:rows).order(:id)
+    @faculties = Faculty.includes(:departments).order(:id)
+    @year_options = YEAR_RANGE.map { |offset| current_academic_year + offset }
+    @uploads = TimetableUpload.includes(:rows, department: :faculty).order(:id)
     @paginator = Paginator.new(total: CourseOffering.count, page: params[:page])
     @offerings = CourseOffering.includes(:course).order(:semester, :weekday, :periods, :id)
                                .offset(@paginator.offset).limit(@paginator.per).group_by(&:semester)
+  end
+
+  private
+
+  # 年度は4月から翌年3月まで。3月以前は前の年度として扱う。
+  def current_academic_year
+    today = Time.zone.today
+    today.month < 4 ? today.year - 1 : today.year
   end
 end
 

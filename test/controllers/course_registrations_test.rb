@@ -29,7 +29,7 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     %(<span bbox="#{left} #{top} #{left + (text.size * 5)} #{top}" font="F" size="10">#{chars.join}</span>)
   end
 
-  def upload_pdf(semester: '前期', xml: timetable_xml, content: "%PDF-1.4\nbody")
+  def upload_pdf(xml: timetable_xml, content: "%PDF-1.4\nbody", **params)
     file = Tempfile.new(['timetable', '.pdf'])
     file.write(content)
     file.rewind
@@ -37,11 +37,21 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     TimetableImport::PdfParser.stub(:extract_xml, xml) do
       # 画像化(gs)はテストでは動かさない。ページ画像を使うテストは自分で置く。
       TimetableImport::PageImages.stub(:render, ->(_pdf, _dir) { 0 }) do
-        post timetable_uploads_path, params: { semester: semester, pdf: upload }, env: ENV_LOCAL
+        post timetable_uploads_path, params: upload_params(pdf: upload, **params), env: ENV_LOCAL
       end
     end
   ensure
     file&.close!
+  end
+
+  # 取り込みのモーダルが送る内容。引数で一部だけ差し替えられる。
+  def upload_params(**overrides)
+    { semester: '前期', year: 2026, department_id: sample_department.id }.merge(overrides)
+  end
+
+  # 画面を経由せずに講義を保存する。年度・学科は取り込み全体で1つ。
+  def import_rows(rows, year: 2026)
+    TimetableImport::Importer.new(rows, year: year, department_id: sample_department.id).call(apply: true)
   end
 
   # 確認画面の「更新」と同じ形で送る。changesは { 行 => { 項目 => 値 } }、confirmedはチェックを入れる行。
@@ -57,7 +67,8 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
   end
 
   def create_large_upload(count = 35)
-    upload = TimetableUpload.create!(semester: '前期', source_filename: 'big.pdf')
+    upload = TimetableUpload.create!(semester: '前期', year: 2026, department: sample_department,
+                                     source_filename: 'big.pdf')
     count.times do |index|
       upload.rows.create!(position: index, lecture_code: format('%09d', index), course_number: "工共#{100 + index}",
                           name: "科目#{index + 1}", credits: '2', requirement_type: '必修', grade_text: '1',
@@ -71,9 +82,9 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
   end
 
   test 'tab is shown in the navigation and lists registered offerings' do
-    TimetableImport::Importer.new([{ '学期' => '前期', '講義コード' => '1', '科目番号' => '工共100', '科目名' => '工学基礎演習',
-                                     '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '金', '時限' => '2・3',
-                                     '開講区分' => '1Q', '要確認' => '' }]).call(apply: true)
+    import_rows([{ '学期' => '前期', '講義コード' => '1', '科目番号' => '工共100', '科目名' => '工学基礎演習',
+                   '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '金', '時限' => '2・3',
+                   '開講区分' => '1Q', '要確認' => '' }])
 
     get course_registrations_path, env: ENV_LOCAL
 
@@ -143,6 +154,31 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
       assert_match 'PDFファイル', flash[:alert]
       upload_pdf(semester: '通年')
       assert_match '前期か後期', flash[:alert]
+    end
+  end
+
+  test '年度・学部・学科を選んで取り込むと、取り込みに残る' do
+    upload_pdf
+
+    upload = TimetableUpload.sole
+    assert_equal 2026, upload.year
+    assert_equal sample_department.id, upload.department_id
+  end
+
+  test '年度が数字でないときは取り込まない' do
+    assert_no_difference 'TimetableUpload.count' do
+      upload_pdf(year: 'あ')
+    end
+    assert_redirected_to course_registrations_path
+    assert_match '年度', flash[:alert]
+  end
+
+  test '学科が選ばれていない、または存在しないときは取り込まない' do
+    assert_no_difference 'TimetableUpload.count' do
+      upload_pdf(department_id: '')
+      assert_match '学科', flash[:alert]
+      upload_pdf(department_id: '999999')
+      assert_match '学科', flash[:alert]
     end
   end
 
@@ -411,7 +447,7 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
         '単位' => '2', '必修選択' => '必修', '受講年次' => '1', '曜日' => '月', '時限' => '1', '開講区分' => '半年',
         '要確認' => '' }
     end
-    TimetableImport::Importer.new(rows).call(apply: true)
+    import_rows(rows)
 
     get course_registrations_path, env: ENV_LOCAL
     assert_select 'nav[aria-label=ページ送り]', 1
