@@ -350,6 +350,13 @@
       "label": "専門必修31科目すべて",
       "expected_course_count": 31,
       "required_credits": 57,
+      "required_categories": [
+        "required_information",
+        "required_comprehensive",
+        "required_research",
+        "required_math",
+        "required_core"
+      ],
       "source_page": "docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）",
       "detail": "余剰単位による代用は不可。"
     },

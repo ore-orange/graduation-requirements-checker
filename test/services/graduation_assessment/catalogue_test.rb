@@ -26,7 +26,9 @@ class GraduationAssessment
     end
 
     test 'counted_category_keys は counts_toward_total の無い区分を算入する' do
-      document = format2_document.merge('categories' => [{ 'key' => 'a', 'label' => 'A' }], 'rules' => [])
+      rule = { 'type' => 'credit_sum', 'id' => 'a_total', 'label' => 'A', 'categories' => ['a'],
+               'required_credits' => 2 }
+      document = format2_document.merge('categories' => [{ 'key' => 'a', 'label' => 'A' }], 'rules' => [rule])
 
       assert_equal ['a'], Catalogue.new(document).counted_category_keys
     end
@@ -148,6 +150,32 @@ class GraduationAssessment
 
       error = assert_raises(ArgumentError) { Catalogue.new(format2_document.merge('rules' => [rule])) }
       assert_includes error.message, 'nowhere'
+    end
+
+    test '条件が1つも無い便覧は読み込み時に例外になる' do
+      assert_raises(ArgumentError) { Catalogue.new(format2_document.merge('rules' => [])) }
+      assert_raises(ArgumentError) { Catalogue.new(format2_document.except('rules')) }
+    end
+
+    test '調整しか無い便覧も条件が無いので例外になる' do
+      cap = { 'type' => 'cap', 'id' => 'natural_cap', 'category' => 'foundation', 'credits' => 2 }
+
+      assert_raises(ArgumentError) { Catalogue.new(format2_document.merge('rules' => [cap])) }
+    end
+
+    test 'required_categories の無い all_required は読み込み時に例外になる' do
+      rule = { 'type' => 'all_required', 'id' => 'required_all', 'label' => '必修',
+               'expected_course_count' => 1, 'required_credits' => 2 }
+
+      error = assert_raises(ArgumentError) { Catalogue.new(format2_document.merge('rules' => [rule])) }
+      assert_includes error.message, 'required_all'
+    end
+
+    test 'format_version が無くても categories や rules があれば検める' do
+      duplicated = courses + [course('another', '知能103')]
+      document = format2_document.except('format_version').merge('courses' => duplicated)
+
+      assert_raises(ArgumentError) { Catalogue.new(document) }
     end
 
     test 'paths の無い one_of_paths は学生の判定中ではなく読み込み時に落ちる' do

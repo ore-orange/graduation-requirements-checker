@@ -46,7 +46,7 @@ Repositoryの形式検証はJSONオブジェクトであることまでであり
 | `type` | 判定 | 主な欄 |
 | --- | --- | --- |
 | `credit_sum` | 指定した区分の算入単位の合計が`required_credits`に届くか | `categories`・`required_credits` |
-| `all_required` | `courses[].required`の科目をすべて修得しているか。余剰単位による代用は不可 | `expected_course_count`・`required_credits` |
+| `all_required` | `courses[].required`の科目をすべて修得しているか。余剰単位による代用は不可 | `expected_course_count`・`required_credits`・`required_categories` |
 | `one_of_paths` | roleの組で表した経路のうち、どれか1つを丸ごと満たすか | `paths`（roleの配列の配列）・`review_note` |
 | `grouped_max` | 区分の算入単位を`group_by`でグループに分け、最大のグループが`required_credits`に届くか。グループを合算しない | `category`・`group_by`・`group_label`・`required_credits` |
 | `any_of` | `options`のどれか1つを満たせばよい | `options` |
@@ -57,7 +57,7 @@ Repositoryの形式検証はJSONオブジェクトであることまでであり
 
 入れ子は`any_of` → `all_of`の2段まで。`any_of`の選択肢に置けるのは`credit_sum`・`grouped_max`・`all_of`、`all_of`の条件に置けるのは`credit_sum`・`grouped_max`。それより深い位置や置けない`type`の規則は、例外にはせず要確認にする（解釈できない規則を充足と答えないため）。
 
-`all_required`の`expected_course_count`・`required_credits`は、科目表の転記漏れを見張るための控え。科目表の必修の数・単位合計がこの値と合わなければ、不足ではなく要確認にする。
+`all_required`の`expected_course_count`・`required_credits`・`required_categories`は、科目表の転記漏れを見張るための控え。科目表の必修の数・単位合計がこの値と合わないとき、または必修の科目が`required_categories`の外の区分に入っているときは、不足ではなく要確認にする。区分の取り違えは科目数も単位合計も合ったまま通ってしまい、その単位が選択の集計にも流れ込んで二重に数えられる。
 
 `one_of_paths`で複数の経路に算入済みの役割があるときは、組合せと重複算入を確認できるまで、その経路の全役割を算入から外して`review_note`の文面を残す。
 
@@ -79,6 +79,8 @@ Repositoryの形式検証はJSONオブジェクトであることまでであり
 `total_credits`は卒業に必要な総単位。`groups`は画面の章で、章ごとに`title`・`required_credits`・`check_id`と、行`rows`を持つ。行は`name`・`subtitle`・`required_credits`・`required_label`・`categories`（その行に集める区分）・`check_ids`（その行に出す判定）・`credits_from_check`（単位を区分の合計ではなく判定の値から取るか）を持つ。`subtotals`は複数の行にまたがる小計。
 
 `display`は見せ方だけを持ち、卒業要件そのものは`rules`にある。両者の対応（`check_ids`の綴り、どの行にも出ない区分）は`test/services/graduation_assessment/handbook_integrity_test.rb`が見張る。
+
+**`display`はまだどの画面からも読まれていない。** 画面の章・行・小計は現在もRubyの定数（`StudentWorkspaceHelper::PLANNER_GROUPS`ほか）が組み立てており、`display`を編集しても表示は変わらない。画面をこのデータから組み立てる差し替えは別のタスクで行う。
 
 ### 読み込み時に弾くもの
 

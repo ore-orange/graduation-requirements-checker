@@ -21,7 +21,10 @@ class GraduationAssessment
 
     private
 
+    # 条件が1つも無い便覧（規則をまだ書いていない年度、旧形式のファイル）では checks が空になる。
+    # 空の all? は true なので、何も確かめないまま充足と答えてしまう。確かめた条件が無いなら要確認。
     def status(checks)
+      return :needs_review if checks.empty?
       return :needs_review if @ledger.notes.any? || checks.any? { |check| check.status == :needs_review }
 
       Rules.status(checks.all? { |check| check.status == :satisfied }, false)

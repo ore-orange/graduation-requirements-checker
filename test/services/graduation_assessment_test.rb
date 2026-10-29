@@ -393,6 +393,23 @@ class GraduationAssessmentTest < ActiveSupport::TestCase
     assert_equal 0, course(assess.actual, 'free').counted_credits
   end
 
+  # 条件が1つも無いと checks は空になり、空の all? は true なので旧来の組み立てなら充足と答えてしまう。
+  test 'a handbook without rules never reports satisfied even with nothing to object to' do
+    result = GraduationAssessment.new(curriculum: { 'courses' => @courses }).call(completed: [])
+
+    assert_empty result.actual.checks
+    assert_equal :needs_review, result.actual.status
+    assert_equal :needs_review, result.projected.status
+  end
+
+  test 'a required course filed outside the required categories is review not satisfied' do
+    @courses.find { |row| row['key'] == 'required_core_0' }['category'] = 'advanced'
+    snapshot = assess.actual
+
+    assert_equal :needs_review, check(snapshot, 'required_all').status
+    assert_equal :needs_review, snapshot.status
+  end
+
   test 'unknown required course catalogue metadata prevents a false pass' do
     @courses.find { |row| row['key'] == 'required_core_0' }['required'] = false
     snapshot = assess.actual
@@ -611,7 +628,8 @@ class GraduationAssessmentTest < ActiveSupport::TestCase
 
   def required_rules
     [{ 'id' => 'required_all', 'type' => 'all_required', 'label' => 'required_all',
-       'expected_course_count' => 31, 'required_credits' => 57, 'source_page' => 'テスト専用',
+       'expected_course_count' => 31, 'required_credits' => 57,
+       'required_categories' => REQUIRED_CREDITS.keys, 'source_page' => 'テスト専用',
        'detail' => '余剰単位による代用は不可。' }] +
       REQUIRED_CREDITS.map { |category, credits| credit_sum(category, [category], credits) } +
       [credit_sum('required_total', REQUIRED_CREDITS.keys, 57)]

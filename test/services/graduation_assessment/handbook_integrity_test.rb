@@ -35,15 +35,14 @@ class GraduationAssessment
     end
 
     # ゴールデンマスターの7ケースは、どれも selectable: false のこの6科目を入力に含まない。
-    # 算入対象外の判定はゴールデンでは守れないので、ここで固定する。
-    test 'exclude 規則は算入対象外の区分と自コース提供の工学融合にだけ当たる' do
-      expected = @document.fetch('courses').select do |course|
-        course['category'] == 'excluded' ||
-          (course['category'] == 'fusion' && CourseNumber.prefix(course['number']) == '知能')
-      end
+    # 算入対象外の判定はゴールデンでは守れないので、当たる科目と理由の文面をここで固定する。
+    test 'exclude 規則は算入対象外の区分と自コース提供の工学融合にだけ、その理由で当たる' do
+      expected = @document.fetch('courses').filter_map { |course| [course.fetch('key'), expected_exclusion(course)] }
+                          .to_h.compact
+      actual = @document.fetch('courses').to_h { |course| [course.fetch('key'), @catalogue.exclusion(course)] }.compact
 
       assert_equal 6, expected.size
-      assert_equal expected.pluck('key'), @document.fetch('courses').select { |c| @catalogue.exclusion(c) }.pluck('key')
+      assert_equal expected, actual
     end
 
     test 'display の行の check_ids は存在する規則を指す' do
@@ -74,6 +73,16 @@ class GraduationAssessment
       assert_equal 22, @catalogue.category_keys.size
       assert_equal 21, @catalogue.counted_category_keys.size
       assert_equal ['excluded'], @catalogue.category_keys - @catalogue.counted_category_keys
+    end
+
+    private
+
+    # 便覧のデータではなく、2024年度の便覧がこう書いてあるべきという期待を直に書く。
+    def expected_exclusion(course)
+      return '卒業単位への算入対象外' if course['category'] == 'excluded'
+      return unless course['category'] == 'fusion' && CourseNumber.prefix(course['number']) == '知能'
+
+      '自コース提供の工学融合科目は登録・算入不可'
     end
   end
 end

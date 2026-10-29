@@ -225,9 +225,15 @@ class GraduationAssessment
       end
     end
 
+    # 区分の和名を引くためだけの便覧。categories を持つ便覧は規則で判定する便覧として検められるので、
+    # 読み込めるように条件を1つ置く。
     def catalogue_with(categories: nil)
       document = { 'courses' => @courses }
-      document['categories'] = categories if categories
+      if categories
+        document['categories'] = categories
+        document['rules'] = [{ 'type' => 'credit_sum', 'id' => 'total', 'label' => '合計',
+                               'categories' => categories.pluck('key'), 'required_credits' => 2 }]
+      end
       Catalogue.new(document)
     end
 

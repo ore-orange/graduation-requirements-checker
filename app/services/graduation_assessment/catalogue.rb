@@ -17,8 +17,10 @@ class GraduationAssessment
       @categories = Array(document['categories'])
       @category_labels = @categories.to_h { |category| [category['key'], category['label']] }
       @display = document['display'] || {}
-      validate(document) if document['format_version'] == 2
+      rules_document = rules_document?(document)
+      validate(document) if rules_document
       @conditions, @adjustments = build_rules(Array(document['rules']))
+      validate_conditions if rules_document
       @exclusions = @adjustments.grep(Rules::Exclude)
       @required_roles = roles_from_rules.uniq
     end
@@ -84,10 +86,28 @@ class GraduationAssessment
        adjustments.map { |definition| Rules.adjustment(definition) }]
     end
 
+    # categories・rules のどちらかを持つ便覧は、規則で判定する便覧として検める。
+    # format_version の記載には頼らない。欄だけ format 2 で version が 1 のままの便覧を素通りさせないため。
+    def rules_document?(document)
+      document['categories'].present? || document['rules'].present?
+    end
+
     def validate(document)
       validate_course_numbers
       validate_categories
       validate_rule_categories(Array(document['rules']))
+    end
+
+    # 条件が1つも無い便覧は、何も確かめないまま判定を返す。規則を書く前の年度のファイルがこれになる。
+    def validate_conditions
+      raise ArgumentError, '規則で判定する便覧に条件が1つもありません' if conditions.empty?
+
+      pending = conditions.grep(Rules::AllRequired)
+                          .reject { |rule| rule.definition.key?('required_categories') }
+                          .map { |rule| rule.definition['id'] }
+      return if pending.empty?
+
+      raise ArgumentError, "all_required に required_categories がありません: #{pending.join('、')}"
     end
 
     # 科目番号の重複は、course_for が黙って片方を返し、学生の履修が違う科目に解決される。
@@ -121,7 +141,7 @@ class GraduationAssessment
     def referenced_categories(definition)
       return [] unless definition.is_a?(Hash)
 
-      Array(definition['category']) + Array(definition['categories']) +
+      Array(definition['category']) + Array(definition['categories']) + Array(definition['required_categories']) +
         NESTED_RULES.flat_map { |field| Array(definition[field]).flat_map { |child| referenced_categories(child) } }
     end
   end
