@@ -17,6 +17,12 @@ class GraduationAssessment
       'all_of' => 'AllOf'
     }.freeze
 
+    # 判定を作らず、条件を評価する前に算入を変える型。condition とは別の入口で作る。
+    ADJUSTMENTS = {
+      'cap' => 'Cap',
+      'exclude' => 'Exclude'
+    }.freeze
+
     # 単独の規則として置ける型。all_of は any_of の選択肢としてだけ現れるので含めない。
     TOP_LEVEL = (TYPES.keys - %w[all_of]).freeze
 
@@ -36,6 +42,14 @@ class GraduationAssessment
       return Unknown.new(definition) unless allowed.include?(definition['type'])
 
       const_get(TYPES.fetch(definition['type'])).new(definition)
+    end
+
+    # cap・exclude だけを作る。条件の型や未知の型は例外にする。調整を黙って落とすと、算入してはいけない単位を数えてしまうため。
+    def self.adjustment(definition)
+      type = definition['type'] if definition.is_a?(Hash)
+      raise ArgumentError, "調整の型ではありません: #{type.inspect}" unless ADJUSTMENTS.key?(type)
+
+      const_get(ADJUSTMENTS.fetch(type)).new(definition)
     end
   end
 end

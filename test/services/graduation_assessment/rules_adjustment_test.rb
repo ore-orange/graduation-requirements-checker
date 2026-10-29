@@ -1,0 +1,153 @@
+# frozen_string_literal: true
+
+require 'test_helper'
+
+class GraduationAssessment
+  class RulesAdjustmentTest < ActiveSupport::TestCase
+    setup do
+      # 人工の科目で、手書きの定義だけを評価する。実際の便覧は読み込まない。
+      # 挿入順とキー順が食い違うよう、n_c・n_a・n_b の順に台帳へ入れる。
+      @courses = [
+        course('n_a', 'natural', 2),
+        course('n_b', 'natural', 2),
+        course('n_c', 'natural', 2),
+        course('half', 'natural', 1),
+        course('en_1', 'english', 4)
+      ]
+      @catalogue = Catalogue.new('courses' => @courses, 'requirements' => {})
+      @ledger = Ledger.new(@catalogue)
+    end
+
+    test 'adjustment は cap と exclude を作る' do
+      assert_instance_of Rules::Cap, cap
+      assert_instance_of Rules::Exclude,
+                         Rules.adjustment('type' => 'exclude', 'category' => 'excluded', 'reason' => 'r')
+    end
+
+    test 'cap と exclude は条件としては作れず Unknown になる' do
+      assert_instance_of Rules::Unknown, Rules.condition(cap_definition)
+      assert_instance_of Rules::Unknown, Rules.condition('type' => 'exclude', 'category' => 'excluded', 'reason' => 'r')
+    end
+
+    test '条件の型は調整としては作れず例外になる' do
+      assert_raises(ArgumentError) { Rules.adjustment('type' => 'credit_sum', 'id' => 'x') }
+      assert_raises(ArgumentError) { Rules.adjustment('type' => 'gpa') }
+      assert_raises(ArgumentError) { Rules.adjustment(nil) }
+    end
+
+    test 'cap は区分の算入をキー順に打ち切る' do
+      count('n_c', 'n_a', 'n_b')
+
+      cap.apply(@catalogue, @ledger)
+
+      assert_equal BigDecimal('2'), @ledger.sum(['natural'])
+      assert_equal BigDecimal('2'), @ledger.items['n_a'].counted
+      assert_equal BigDecimal('0'), @ledger.items['n_b'].counted
+      assert_equal BigDecimal('0'), @ledger.items['n_c'].counted
+    end
+
+    test 'cap は上限に収まらない科目に、残りだけを算入する' do
+      count('n_c', 'half', 'n_a')
+
+      cap.apply(@catalogue, @ledger)
+
+      assert_equal BigDecimal('2'), @ledger.sum(['natural'])
+      assert_equal BigDecimal('1'), @ledger.items['half'].counted
+      assert_equal BigDecimal('1'), @ledger.items['n_a'].counted
+      assert_equal BigDecimal('0'), @ledger.items['n_c'].counted
+    end
+
+    test 'cap は打ち切った科目に理由を残す' do
+      count('n_c', 'half', 'n_a')
+
+      cap.apply(@catalogue, @ledger)
+
+      assert_equal '自然系は卒業算入上限2単位（この科目は1.0単位を算入）', @ledger.items['n_a'].reason
+      assert_equal '自然系は卒業算入上限2単位（この科目は0.0単位を算入）', @ledger.items['n_c'].reason
+    end
+
+    test 'cap は上限に収まった科目と他の区分を変えない' do
+      count('half', 'en_1')
+
+      cap.apply(@catalogue, @ledger)
+
+      assert_equal BigDecimal('1'), @ledger.items['half'].counted
+      assert_equal '卒業単位に算入', @ledger.items['half'].reason
+      assert_equal BigDecimal('4'), @ledger.items['en_1'].counted
+      assert_equal '卒業単位に算入', @ledger.items['en_1'].reason
+    end
+
+    test 'cap は算入されていない科目に上限を使わせない' do
+      @ledger.add(@catalogue.find('n_a'), BigDecimal('2'))
+      count('n_b')
+
+      cap.apply(@catalogue, @ledger)
+
+      assert_equal BigDecimal('2'), @ledger.items['n_b'].counted
+      assert_equal BigDecimal('0'), @ledger.items['n_a'].counted
+      assert_equal '卒業単位に算入', @ledger.items['n_a'].reason
+    end
+
+    test 'cap の理由は定義の上限と区分名から作る' do
+      count('half', 'n_a')
+
+      Rules.adjustment('type' => 'cap', 'id' => 'c', 'category' => 'natural', 'label' => '自然系', 'credits' => 1.5)
+           .apply(@catalogue, @ledger)
+
+      assert_equal BigDecimal('1.5'), @ledger.sum(['natural'])
+      assert_equal '自然系は卒業算入上限1.5単位（この科目は0.5単位を算入）', @ledger.items['n_a'].reason
+    end
+
+    test 'exclude は区分だけの指定で理由を返す' do
+      rule = Rules.adjustment('type' => 'exclude', 'category' => 'excluded', 'reason' => '卒業単位への算入対象外')
+      assert_equal '卒業単位への算入対象外', rule.reason_for('category' => 'excluded', 'number' => '情101')
+      assert_nil rule.reason_for('category' => 'fusion', 'number' => '機械991')
+    end
+
+    test 'exclude は number_prefix があれば接頭辞も一致したときだけ返す' do
+      rule = own_fusion_rule
+      assert_equal '自コース提供', rule.reason_for('category' => 'fusion', 'number' => '知能993')
+      assert_nil rule.reason_for('category' => 'fusion', 'number' => '機械991')
+      assert_nil rule.reason_for('category' => 'basic', 'number' => '知能993')
+    end
+
+    test 'exclude は全角などで書かれた科目番号も接頭辞で読む' do
+      assert_equal '自コース提供', own_fusion_rule.reason_for('category' => 'fusion', 'number' => '知能９９３')
+    end
+
+    test 'exclude は科目番号が読めない科目には当たらない' do
+      rule = own_fusion_rule
+      assert_nil rule.reason_for('category' => 'fusion', 'number' => nil)
+      assert_nil rule.reason_for('category' => 'fusion', 'number' => '')
+      assert_nil rule.reason_for('category' => 'fusion', 'number' => 'ドイツ語')
+      assert_nil rule.reason_for('category' => 'fusion')
+    end
+
+    private
+
+    def course(key, category, credits)
+      { 'key' => key, 'name' => "人工科目 #{key}", 'category' => category, 'credits' => credits,
+        'number' => nil, 'required' => false, 'roles' => [] }
+    end
+
+    def count(*keys)
+      keys.each do |key|
+        course = @catalogue.find(key)
+        @ledger.add(course, BigDecimal(course['credits'].to_s)).counted = BigDecimal(course['credits'].to_s)
+      end
+    end
+
+    def cap_definition
+      { 'type' => 'cap', 'id' => 'natural_cap', 'category' => 'natural', 'label' => '自然系', 'credits' => 2 }
+    end
+
+    def cap
+      Rules.adjustment(cap_definition)
+    end
+
+    def own_fusion_rule
+      Rules.adjustment('type' => 'exclude', 'category' => 'fusion', 'number_prefix' => '知能', 'reason' => '自コース提供')
+    end
+  end
+end
+
