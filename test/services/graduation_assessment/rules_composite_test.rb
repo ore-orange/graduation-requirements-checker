@@ -23,10 +23,25 @@ class GraduationAssessment
       @ledger = Ledger.new(@catalogue)
     end
 
-    test 'condition は grouped_max・any_of・all_of の型を返す' do
+    test 'condition は grouped_max・any_of の型を返す' do
       assert_instance_of Rules::GroupedMax, grouped_max('number_prefix', 4)
       assert_instance_of Rules::AnyOf, foreign_language_rule
-      assert_instance_of Rules::AllOf, Rules.condition('type' => 'all_of', 'conditions' => [])
+    end
+
+    test 'any_of の選択肢の all_of は AllOf になる' do
+      assert_instance_of Rules::AllOf, foreign_language_rule.instance_variable_get(:@options).last
+    end
+
+    test '単独の all_of は構築せず Unknown にして、充足にしない' do
+      count('en_1', 'en_2')
+      rule = Rules.condition('type' => 'all_of', 'id' => 'solo', 'label' => '単独',
+                             'conditions' => [english_sum_definition(8)])
+
+      assert_instance_of Rules::Unknown, rule
+      outcome = rule.evaluate(@catalogue, @ledger)
+      assert_not_predicate outcome, :satisfied
+      assert outcome.review
+      assert_equal 'solo', rule.check(@catalogue, @ledger).id
     end
 
     test 'grouped_max は最大のグループの単位を数える' do
@@ -193,6 +208,25 @@ class GraduationAssessment
       assert(@ledger.notes.any? { |note| note.include?('any_of') })
     end
 
+    test '置けない位置の既知の型は、解釈できないのではなく置けないと注記する' do
+      any_of([{ 'type' => 'credit_sum', 'id' => 'x', 'categories' => [], 'required_credits' => 0 }, stray_any_of])
+        .evaluate(@catalogue, @ledger)
+
+      assert_equal ['inner：規則の型「any_of」はこの位置には置けません'], @ledger.notes
+    end
+
+    test '未知の型の注記は解釈できないと書き、置けないとは書かない' do
+      unknown_rule.evaluate(@catalogue, @ledger)
+
+      assert_equal ['gpa：規則の型「gpa」をこのアプリは解釈できません'], @ledger.notes
+    end
+
+    test '置けない位置の型は check の detail でも置けないと書く' do
+      check = Rules.condition('type' => 'all_of', 'id' => 'solo', 'label' => '単独').check(@catalogue, @ledger)
+
+      assert_includes check.detail, 'この位置には置けません'
+    end
+
     test 'any_of の中の any_of は、中身が満たされていても充足にしない' do
       count('en_1', 'en_2')
       nested = { 'type' => 'any_of', 'id' => 'inner', 'label' => '内側', 'options' => [english_sum_definition(8)] }
@@ -203,7 +237,7 @@ class GraduationAssessment
     test 'all_of の中の all_of は未知の型として扱い、充足にしない' do
       count('en_1', 'en_2')
       inner = { 'type' => 'all_of', 'conditions' => [english_sum_definition(8)] }
-      rule = Rules.condition('type' => 'all_of', 'conditions' => [english_sum_definition(8), inner])
+      rule = Rules::AllOf.new('type' => 'all_of', 'conditions' => [english_sum_definition(8), inner])
 
       outcome = rule.evaluate(@catalogue, @ledger)
 
@@ -215,7 +249,7 @@ class GraduationAssessment
       count('en_1', 'en_2')
       inner = { 'type' => 'any_of', 'options' => [english_sum_definition(8)] }
 
-      assert_not_predicate Rules.condition('type' => 'all_of', 'conditions' => [inner]).evaluate(@catalogue, @ledger),
+      assert_not_predicate Rules::AllOf.new('type' => 'all_of', 'conditions' => [inner]).evaluate(@catalogue, @ledger),
                            :satisfied
     end
 
@@ -309,7 +343,7 @@ class GraduationAssessment
     end
 
     def all_of(conditions)
-      Rules.condition('type' => 'all_of', 'conditions' => conditions.map(&:definition))
+      Rules::AllOf.new('type' => 'all_of', 'conditions' => conditions.map(&:definition))
     end
 
     def any_of(options)
@@ -328,6 +362,10 @@ class GraduationAssessment
                                                                         'foreign_language')] }
         ]
       )
+    end
+
+    def stray_any_of
+      { 'type' => 'any_of', 'id' => 'inner', 'label' => '内側', 'options' => [english_sum_definition(8)] }
     end
 
     def unknown_rule

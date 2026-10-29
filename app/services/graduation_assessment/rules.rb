@@ -17,6 +17,9 @@ class GraduationAssessment
       'all_of' => 'AllOf'
     }.freeze
 
+    # 単独の規則として置ける型。all_of は any_of の選択肢としてだけ現れるので含めない。
+    TOP_LEVEL = (TYPES.keys - %w[all_of]).freeze
+
     # 入れ子で許す型。any_of → all_of の2段までで、それより深いものや他の型は Unknown にする。
     ANY_OF_OPTIONS = %w[credit_sum grouped_max all_of].freeze
     ALL_OF_CONDITIONS = %w[credit_sum grouped_max].freeze
@@ -28,7 +31,7 @@ class GraduationAssessment
     end
 
     # 許可していない type は例外にせず Unknown（要確認）にする。解釈できない規則を充足と答えないための弁。
-    def self.condition(definition, allowed = TYPES.keys)
+    def self.condition(definition, allowed = TOP_LEVEL)
       type = definition['type'] if definition.is_a?(Hash)
       return Unknown.new(definition.is_a?(Hash) ? definition : {}) unless allowed.include?(type)
 
