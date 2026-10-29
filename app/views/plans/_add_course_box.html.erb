@@ -57,7 +57,7 @@
       <%= form_with url: plan_courses_path, scope: :custom_course, class: 'space-y-1.5' do |f| %>
         <%= hidden_field_tag :term, term_param(@term), id: nil %>
         <% if row[:categories].size > 1 %>
-          <%= f.select :category, row[:categories].map { |category| [category_label(category), category] }, {},
+          <%= f.select :category, row[:categories].map { |category| [category_label(category, @curriculum), category] }, {},
                        id: nil, aria: { label: '区分' },
                        class: 'w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:border-indigo-500' %>
         <% else %>

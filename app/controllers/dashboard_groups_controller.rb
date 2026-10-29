@@ -6,14 +6,15 @@ class DashboardGroupsController < ApplicationController
   include StudentWorkspace
 
   def show
-    @definition = StudentWorkspaceHelper::PLANNER_GROUPS.find { |group| group[:id] == params[:id] }
+    @definition = helpers.planner_groups(@curriculum).find { |group| group[:id] == params[:id] }
     return head :not_found if @definition.nil?
 
     load_history
     load_plans
     @assessment = assess
     @metrics = DashboardMetrics.new(assessment: @assessment, enrollments: @enrollments,
-                                    plans: @plans, courses_by_number: @courses_by_number)
+                                    plans: @plans, courses_by_number: @courses_by_number,
+                                    curriculum: @curriculum)
     render layout: false
   end
 end

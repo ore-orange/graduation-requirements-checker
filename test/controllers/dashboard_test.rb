@@ -113,6 +113,18 @@ class DashboardTest < ActionDispatch::IntegrationTest
     assert_select '[data-check="health"]', count: 0
   end
 
+  test '卒業総単位と章の名前は便覧の display から来る' do
+    document = @student.curriculum.document.deep_dup
+    document['display']['total_credits'] = 124
+    document['display']['groups'].first['title'] = '1. 別名の章'
+    @student.curriculum.update!(document: document)
+
+    get root_path, env: local_env
+
+    assert_select '[data-assessment="total"]', text: %r{/ 124 単位}
+    assert_select 'details[data-check="common_total"] h4', text: /\A別名の章\z/
+  end
+
   test '内訳は開いたときに返る' do
     get dashboard_group_path('common'), env: local_env
 

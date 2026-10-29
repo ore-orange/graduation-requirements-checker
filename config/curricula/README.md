@@ -82,7 +82,7 @@ curriculum.catalogue  # => GraduationAssessment::Catalogue
 
 `display`は見せ方だけを持ち、卒業要件そのものは`rules`にある。両者の対応（`check_ids`の綴り、どの行にも出ない区分）は`test/services/graduation_assessment/handbook_integrity_test.rb`が見張る。
 
-**`display`はまだどの画面からも読まれていない。** 画面の章・行・小計は現在もRubyの定数（`StudentWorkspaceHelper::PLANNER_GROUPS`ほか）が組み立てており、`display`を編集しても表示は変わらない。画面をこのデータから組み立てる差し替えは別のタスクで行う。
+**`display`は卒業ダッシュボードと履修計画表の章・行・小計、区分の和名（`categories`の`label`）、卒業総単位の元になっている。** 画面のRubyは章立てを持たず、`display`を編集すれば表示が変わる。`display`が無い便覧は、別の便覧の章立てで描かず、画面で例外になる。`required_credits`・`required_label`は画面側では`req`・`req_label`として読む。
 
 ### 読み込み時に弾くもの
 

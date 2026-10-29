@@ -6,7 +6,7 @@
   custom_credits = metrics.custom_plans.sum(BigDecimal('0')) { |plan| plan_credits(plan, @courses_by_number) }
   planned_delta = (@assessment.projected.counted_credits - actual_credits) + custom_credits
   total = metrics.total(actual_credits, planned_delta)
-  groups = StudentWorkspaceHelper::PLANNER_GROUPS.map { |definition| [definition, metrics.group(definition)] }
+  groups = planner_groups(@curriculum).map { |definition| [definition, metrics.group(definition)] }
 %>
 
 <div class="min-h-screen bg-slate-100 pb-16 font-sans text-slate-800">
@@ -34,7 +34,7 @@
           <% if planned_delta.positive? %>
             <span class="text-2xl font-bold text-sky-600 tabular-nums">+<%= credit_number(planned_delta) %></span>
           <% end %>
-          <span class="text-sm font-medium text-slate-500">/ 130 単位</span>
+          <span class="text-sm font-medium text-slate-500">/ <%= credit_number(total[:req]) %> 単位</span>
         </p>
       </div>
 

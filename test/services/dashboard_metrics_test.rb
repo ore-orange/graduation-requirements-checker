@@ -13,6 +13,10 @@ class DashboardMetricsTest < ActiveSupport::TestCase
   GROUP = { id: 'common', title: '1. 共通教育', req: 30, check_id: 'common_total',
             rows: [{ id: 'health', name: '健康運動系', req: 2, categories: ['health'], check_ids: ['health'] }] }.freeze
 
+  def curriculum
+    @curriculum ||= JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2024.json').read)
+  end
+
   def check(id, status, credits, missing = [])
     Check.new(id: id, status: status, counted_credits: BigDecimal(credits.to_s), missing_courses: missing)
   end
@@ -22,7 +26,8 @@ class DashboardMetricsTest < ActiveSupport::TestCase
       actual: Snapshot.new(status: actual_status || actual.first&.status || :unmet, checks: actual),
       projected: Snapshot.new(status: projected_status || projected.first&.status || :unmet, checks: projected)
     )
-    DashboardMetrics.new(assessment: assessment, enrollments: [], plans: plans, courses_by_number: {})
+    DashboardMetrics.new(assessment: assessment, enrollments: [], plans: plans, courses_by_number: {},
+                         curriculum: curriculum)
   end
 
   test '修得済みで足りていれば充足' do
@@ -87,6 +92,31 @@ class DashboardMetricsTest < ActiveSupport::TestCase
     assert_equal 130, total[:req]
     assert_equal 91, total[:earned_pct]
     assert_equal 3, total[:planned_pct]
+  end
+
+  test '卒業総単位は便覧の display から来る' do
+    curriculum['display']['total_credits'] = 124
+    total = metrics(actual: [], projected: []).total(BigDecimal('0'), BigDecimal('0'))
+
+    assert_equal 124, total[:req]
+  end
+
+  test 'credits_from_check の行はチェックの算入単位をそのまま使う' do
+    # general_subtotal は自然系上限が効くので、区分の素の合計とは違う（ここでは履修が無いので区分の合計は0）
+    row = { id: 'general_subtotal', req: 14, categories: %w[humanities], check_ids: %w[general_subtotal],
+            credits_from_check: true }
+    detail = metrics(actual: [check('general_subtotal', :unmet, 14)],
+                     projected: [check('general_subtotal', :unmet, 14)]).row(row)
+
+    assert_equal BigDecimal('14'), detail[:earned]
+  end
+
+  test 'credits_from_check が無い行は区分の合計で数える' do
+    row = { id: 'general_subtotal', req: 14, categories: %w[humanities], check_ids: %w[general_subtotal] }
+    detail = metrics(actual: [check('general_subtotal', :unmet, 14)],
+                     projected: [check('general_subtotal', :unmet, 14)]).row(row)
+
+    assert_equal BigDecimal('0'), detail[:earned]
   end
 
   test '卒業必要単位を修得済みで満たしていれば合計も充足' do

@@ -10,7 +10,7 @@
     <h2 class="sr-only">履修計画表</h2>
 
     <%
-      mapped_categories = StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
+      mapped_categories = planner_groups(@curriculum).flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
       unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course, @courses_by_number)) }
       unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course, @courses_by_number)) }
       term_earned = @term_enrollments.select { |e| e.enrollment_status == 'completed' }.sum(BigDecimal('0')) { |e| e.credits_earned || BigDecimal('0') }
@@ -80,7 +80,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200 text-xs">
-            <% StudentWorkspaceHelper::PLANNER_GROUPS.each do |group| %>
+            <% planner_groups(@curriculum).each do |group| %>
               <% group_check = find_check(@assessment.projected, group[:check_id]) %>
               <!-- 親グループ見出し行 -->
               <tr class="bg-slate-100/80 border-y border-slate-200" data-planner-group="<%= group[:id] %>">
@@ -105,7 +105,7 @@
                   row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_number)
                   row_has_custom = row_plans.any? { |p| p.course.custom? }
                   row_status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_has_custom)
-                  subtotal = planner_subtotal_for(row[:id])
+                  subtotal = planner_subtotal_for(row[:id], @curriculum)
                 %>
                 <% if subtotal && subtotal[:row_ids].first == row[:id] %>
                   <%
@@ -226,7 +226,7 @@
         <div>
           <%= form.label :category, '科目区分で絞り込み', class: 'block text-xs font-semibold text-slate-600 mb-1' %>
           <%= form.select :category,
-                          @curriculum.fetch('courses').map { |course| course.fetch('category') }.uniq.map { |category| [category_label(category), category] },
+                          @curriculum.fetch('courses').map { |course| course.fetch('category') }.uniq.map { |category| [category_label(category, @curriculum), category] },
                           { include_blank: 'すべての区分', selected: @category },
                           class: 'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500' %>
         </div>
@@ -248,7 +248,7 @@
                       <span class="font-mono text-xs text-slate-400"><%= course['number'] %></span>
                     <% end %>
                     <h3 class="text-sm font-semibold text-slate-900"><%= course.fetch('name') %></h3>
-                    <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700"><%= category_label(course.fetch('category')) %></span>
+                    <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700"><%= category_label(course.fetch('category'), @curriculum) %></span>
                     <span class="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700"><%= credit_label(course['credits']) %></span>
                     <% if course['required'] %>
                       <span class="rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">専門必修</span>

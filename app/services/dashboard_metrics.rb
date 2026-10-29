@@ -5,19 +5,15 @@
 class DashboardMetrics
   include StudentWorkspaceHelper
 
-  GRADUATION_CREDITS = 130
+  attr_reader :assessment, :enrollments, :plans, :courses_by_number, :curriculum
 
-  # 判定側がまとめて数えている区分は、カテゴリ別の集計ではなく算入単位をそのまま使う。
-  # 知能情報アドバンストの必要22単位は3区分で1つの枠なので、ここも算入単位で揃える。
-  CHECK_DRIVEN_ROWS = %w[general_subtotal fusion advanced].freeze
-
-  attr_reader :assessment, :enrollments, :plans, :courses_by_number
-
-  def initialize(assessment:, enrollments:, plans:, courses_by_number:)
+  # curriculum は便覧の文書（Hash）。卒業総単位を display から読む。
+  def initialize(assessment:, enrollments:, plans:, courses_by_number:, curriculum:)
     @assessment = assessment
     @enrollments = enrollments
     @plans = plans
     @courses_by_number = courses_by_number
+    @curriculum = curriculum
   end
 
   def custom_plans
@@ -29,9 +25,9 @@ class DashboardMetrics
                 .sum(BigDecimal('0')) { |plan| plan_credits(plan, courses_by_number) }
   end
 
-  # 卒業必要単位(130)に対する合計。カード上部のバーで使う。
+  # 卒業必要単位（便覧の display の total_credits）に対する合計。カード上部のバーで使う。
   def total(earned, planned)
-    bar(GRADUATION_CREDITS, earned, planned)
+    bar(curriculum.fetch('display').fetch('total_credits'), earned, planned)
       .merge(status: assessment.actual.status == :satisfied ? :satisfied : :unmet)
   end
 
@@ -60,10 +56,12 @@ class DashboardMetrics
 
   private
 
+  # credits_from_check の行は、判定側がまとめて数えているので、カテゴリ別の集計ではなく算入単位をそのまま使う。
+  # 知能情報アドバンストの必要22単位は3区分で1つの枠なので、ここも算入単位で揃える。
   def row_credits(definition, extra)
     actual = find_check(assessment.actual, definition[:check_ids].first)
     projected = find_check(assessment.projected, definition[:check_ids].first)
-    if CHECK_DRIVEN_ROWS.include?(definition[:id]) && actual&.counted_credits && projected&.counted_credits
+    if definition[:credits_from_check] && actual&.counted_credits && projected&.counted_credits
       [actual.counted_credits, (projected.counted_credits - actual.counted_credits) + extra]
     else
       credits = category_credits(enrollments, plans, definition[:categories], courses_by_number)
