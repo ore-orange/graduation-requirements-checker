@@ -136,5 +136,30 @@ class CurriculumTest < ActiveSupport::TestCase
       assert_not_includes error.message, 'secret-body'
     end
   end
+
+  test '学部名とコース名は、画面から上げるとき(upload)だけ必須' do
+    draft = Curriculum.new(slug: 'x', admission_year: 2025)
+    assert draft.valid?
+    assert_not draft.valid?(:upload)
+    assert_equal %i[faculty_name department_name], draft.errors.attribute_names
+  end
+
+  test 'blank_pages は全ページを skip・pending で並べる' do
+    assert_equal [{ 'page' => 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => nil },
+                  { 'page' => 2, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => nil }],
+                 Curriculum.blank_pages(2)
+    assert_empty Curriculum.blank_pages(0)
+  end
+
+  test 'assign_page_kinds は送られたページだけ替え、不正なら何も変えない' do
+    draft = Curriculum.new(slug: 'x', admission_year: 2025, pages: Curriculum.blank_pages(3))
+
+    draft.assign_page_kinds('2' => 'courses')
+    assert_equal %w[skip courses skip], draft.pages.pluck('kind')
+    assert_not draft.page_kinds_assignable?('1' => 'requirements', '3' => 'bogus')
+    assert_not draft.page_kinds_assignable?('4' => 'courses')
+    assert_raises(ArgumentError) { draft.assign_page_kinds('1' => 'requirements', '3' => 'bogus') }
+    assert_equal %w[skip courses skip], draft.pages.pluck('kind')
+  end
 end
 

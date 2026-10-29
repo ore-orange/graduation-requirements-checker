@@ -1,0 +1,46 @@
+<%# どのページを読むかは、便覧ごとに人が決める。初めはすべて「読まない」にしてあり、推測では決めない。 %>
+<section aria-labelledby="pages-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs">
+  <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
+    <h3 id="pages-heading" class="text-base font-bold text-slate-900">読むページ</h3>
+    <p class="mt-0.5 text-xs text-slate-500">
+      ページごとに、科目表・要件表・読まない のどれかを選んでください。便覧によってページの並びが違うため、最初はすべて「読まない」です。
+    </p>
+  </div>
+
+  <% if curriculum.pages.empty? %>
+    <%# ページ数を数えられなかった下書きは、ページ数を手で指定して始める %>
+    <%= form_with url: curriculum_path(curriculum), method: :patch, class: 'space-y-3 p-5 sm:p-6', data: { turbo: false } do |form| %>
+      <p class="text-sm text-slate-700">この下書きにはページがありません。PDFのページ数を指定してください。</p>
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="block">
+          <span class="text-sm font-semibold text-slate-700">ページ数</span>
+          <%= form.number_field :page_count, required: true, min: 1, max: Curriculum::MAX_PAGES,
+                                class: 'mt-1 w-28 rounded border border-slate-300 bg-white px-2 py-1.5' %>
+        </label>
+        <%= form.submit 'ページを作る', class: 'demo-button' %>
+      </div>
+    <% end %>
+  <% else %>
+    <%= form_with url: curriculum_path(curriculum), method: :patch, class: 'p-5 sm:p-6', data: { turbo: false } do |form| %>
+      <ul class="divide-y divide-slate-100">
+        <% curriculum.pages.each do |page| %>
+          <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5" data-page="<%= page['page'] %>">
+            <p class="text-sm font-semibold text-slate-800 tabular-nums"><%= page['page'] %>ページ</p>
+            <fieldset class="flex flex-wrap gap-x-5 gap-y-1">
+              <legend class="sr-only"><%= page['page'] %>ページの種別</legend>
+              <% Curriculum::PAGE_KINDS.each do |kind| %>
+                <label class="flex items-center gap-1.5 text-sm text-slate-800">
+                  <%= radio_button_tag "pages[#{page['page']}]", kind, page['kind'] == kind %>
+                  <%= Curriculum::PAGE_KIND_LABELS.fetch(kind) %>
+                </label>
+              <% end %>
+            </fieldset>
+          </li>
+        <% end %>
+      </ul>
+      <div class="mt-4 flex justify-end">
+        <%= form.submit 'ページの指定を保存', class: 'demo-button' %>
+      </div>
+    <% end %>
+  <% end %>
+</section>

@@ -104,7 +104,10 @@ class RequirementsTest < ActionDispatch::IntegrationTest
 
     assert_select 'button[onclick]', count: 0
     assert_select '[onclick], [onchange], [oninput], [onkeyup]', count: 0
-    assert_select 'main button, main input, main textarea, main select, main form', count: 0
+    # 便覧のアップロード欄は別の節。学生の便覧を見せる部分には、編集の部品を置かない。
+    %w[button input textarea select form].each do |tag|
+      assert_select "main section:not([data-curriculum-import]) #{tag}", count: 0
+    end
     assert_select 'main script', count: 0
     assert_select 'body', text: /ルールビルダー|要件を保存|ルート区分を追加|リセット/, count: 0
   end
