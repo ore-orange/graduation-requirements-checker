@@ -28,8 +28,31 @@ class GraduationAssessment
       assert_instance_of Rules::AnyOf, foreign_language_rule
     end
 
-    test 'any_of の選択肢の all_of は AllOf になる' do
-      assert_instance_of Rules::AllOf, foreign_language_rule.instance_variable_get(:@options).last
+    test '空の all_of は充足にせず review にする' do
+      outcome = Rules::AllOf.new('type' => 'all_of', 'conditions' => []).evaluate(@catalogue, @ledger)
+
+      assert_not_predicate outcome, :satisfied
+      assert outcome.review
+      assert_equal BigDecimal('0'), outcome.counted
+      assert(@ledger.notes.any? { |note| note.include?('conditions') })
+    end
+
+    test '空の all_of を any_of の選択肢にしても any_of を充足にしない' do
+      rule = any_of([{ 'type' => 'all_of', 'conditions' => [] }])
+
+      assert_equal :needs_review, rule_status(rule)
+    end
+
+    test '空の any_of は不足と断定せず review にする' do
+      rule = any_of([])
+
+      outcome = rule.evaluate(@catalogue, @ledger)
+
+      assert_not_predicate outcome, :satisfied
+      assert outcome.review
+      assert_equal BigDecimal('0'), outcome.counted
+      assert_equal :needs_review, rule.check(@catalogue, @ledger).status
+      assert(@ledger.notes.any? { |note| note.include?('options') })
     end
 
     test '単独の all_of は構築せず Unknown にして、充足にしない' do
@@ -197,7 +220,8 @@ class GraduationAssessment
       assert outcome.review
     end
 
-    test 'any_of の中の any_of は未知の型として扱い、review にする' do
+    test 'any_of の中の any_of は中身が満たされていても、未知の型として扱い review にする' do
+      count('en_1', 'en_2')
       nested = { 'type' => 'any_of', 'id' => 'inner', 'label' => '内側', 'options' => [english_sum_definition(8)] }
       rule = any_of([english_sum_definition(99), nested])
 
@@ -225,13 +249,6 @@ class GraduationAssessment
       check = Rules.condition('type' => 'all_of', 'id' => 'solo', 'label' => '単独').check(@catalogue, @ledger)
 
       assert_includes check.detail, 'この位置には置けません'
-    end
-
-    test 'any_of の中の any_of は、中身が満たされていても充足にしない' do
-      count('en_1', 'en_2')
-      nested = { 'type' => 'any_of', 'id' => 'inner', 'label' => '内側', 'options' => [english_sum_definition(8)] }
-
-      assert_not_predicate any_of([english_sum_definition(99), nested]).evaluate(@catalogue, @ledger), :satisfied
     end
 
     test 'all_of の中の all_of は未知の型として扱い、充足にしない' do

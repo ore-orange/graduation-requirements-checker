@@ -13,9 +13,11 @@ class GraduationAssessment
 
       # counted は表示用で、最初の条件の値を使う。
       def evaluate(catalogue, ledger)
+        return empty_children(ledger, 'conditions') if @conditions.empty?
+
         outcomes = @conditions.map { |condition| condition.evaluate(catalogue, ledger) }
         Outcome.new(satisfied: outcomes.all?(&:satisfied), review: outcomes.any?(&:review),
-                    counted: outcomes.first&.counted, missing: [])
+                    counted: outcomes.first.counted, missing: [])
       end
     end
   end

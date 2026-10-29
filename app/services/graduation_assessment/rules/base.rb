@@ -34,6 +34,12 @@ class GraduationAssessment
 
       private
 
+      # 子の規則が空だと何も主張しない。充足とも不足とも言わず、要確認にして理由を残す。
+      def empty_children(ledger, field)
+        ledger.notes << "#{definition['id'] || '（id なし）'}：#{definition['type']} の#{field}が空で、判定できません"
+        Outcome.new(satisfied: false, review: true, counted: Catalogue::ZERO, missing: [])
+      end
+
       def detail(_catalogue, outcome, status)
         required = definition['required_credits']
         text = "#{definition['detail']} 確認済み算入#{outcome.counted.to_s('F')}／必要#{required}単位。"

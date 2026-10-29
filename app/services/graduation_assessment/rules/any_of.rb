@@ -11,9 +11,11 @@ class GraduationAssessment
 
       # counted は表示用で、便覧の第一の経路である最初の選択肢の値を使う。
       def evaluate(catalogue, ledger)
+        return empty_children(ledger, 'options') if @options.empty?
+
         outcomes = @options.map { |option| option.evaluate(catalogue, ledger) }
         Outcome.new(satisfied: outcomes.any?(&:satisfied), review: outcomes.any?(&:review),
-                    counted: outcomes.first&.counted, missing: [])
+                    counted: outcomes.first.counted, missing: [])
       end
 
       private

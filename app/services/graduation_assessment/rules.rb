@@ -32,10 +32,10 @@ class GraduationAssessment
 
     # 許可していない type は例外にせず Unknown（要確認）にする。解釈できない規則を充足と答えないための弁。
     def self.condition(definition, allowed = TOP_LEVEL)
-      type = definition['type'] if definition.is_a?(Hash)
-      return Unknown.new(definition.is_a?(Hash) ? definition : {}) unless allowed.include?(type)
+      definition = {} unless definition.is_a?(Hash)
+      return Unknown.new(definition) unless allowed.include?(definition['type'])
 
-      const_get(TYPES.fetch(type)).new(definition)
+      const_get(TYPES.fetch(definition['type'])).new(definition)
     end
   end
 end
