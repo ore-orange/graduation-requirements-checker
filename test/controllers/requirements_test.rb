@@ -122,5 +122,23 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     # 読めない規則だけが赤くなり、ほかの規則は読める
     assert_select 'li[data-rule-status="unknown"]', count: 1
   end
+
+  test '判定側が弾く便覧は、他の画面と同じく画面を開かずに例外にする' do
+    change_handbook do |document|
+      document['categories'] << document['categories'].first.dup
+    end
+
+    error = assert_raises(ArgumentError) { get requirements_path, env: local_env }
+    assert_match(/categories の key が重複/, error.message)
+  end
+
+  test '規則が存在しない区分を指す便覧も開かない' do
+    change_handbook do |document|
+      document['rules'] << { 'id' => 'ghost', 'type' => 'credit_sum', 'label' => 'x', 'categories' => ['nowhere'],
+                             'required_credits' => 1 }
+    end
+
+    assert_raises(ArgumentError) { get requirements_path, env: local_env }
+  end
 end
 
