@@ -26,9 +26,14 @@ class ReplaceCurriculumKeyWithNumberLookup < ActiveRecord::Migration[8.1]
     add_column :planned_courses, :approval_confirmed, :boolean
   end
 
-  # 便覧の科目に付いていたキーは科目番号から導けるものではなく、戻せない。自由入力の科目だけ、区分を埋めた
-  # キーを作り直す。便覧の科目は DemoData を流し直すと、番号と名前で引き当てたうえで作られる（キーは付かない）。
+  # キーは科目番号から導けるものではないが、公開済みの便覧の文書が number と key の対を全部持っているので、そこから戻す。
+  # 戻せないまま列だけ戻すと、キーの無い行が残り、旧 DemoData がキー付きの行をもう1つ作って、デモの学生が同じ科目を
+  # 二重に履修してしまう。公開済みの便覧が無ければ、中途半端に戻さず拒む。
+  # 年度の古い便覧の key を優先し、同じ番号の行が複数あれば最初の1行にだけ付ける（一意索引のため）。
   def down
+    keys = handbook_keys_by_number
+    raise ActiveRecord::IrreversibleMigration, '公開済みの便覧が無いため、courses.curriculum_key を戻せません。' if keys.empty?
+
     remove_column :planned_courses, :approval_confirmed
     remove_reference :students, :curriculum, foreign_key: true
 
@@ -38,6 +43,30 @@ class ReplaceCurriculumKeyWithNumberLookup < ActiveRecord::Migration[8.1]
       UPDATE courses SET curriculum_key = 'custom:' || custom_category || ':' || substr(md5(id::text), 1, 12)
       WHERE custom_category IS NOT NULL AND custom_category <> ''
     SQL
+    keys.each do |number, key|
+      execute <<~SQL.squish
+        UPDATE courses SET curriculum_key = #{quote(key)}
+        WHERE id = (SELECT min(id) FROM courses WHERE course_number = #{quote(number)} AND curriculum_key IS NULL)
+      SQL
+    end
     remove_column :courses, :custom_category
   end
+
+  private
+
+  def handbook_keys_by_number
+    used = {}
+    select_values('SELECT document::text FROM curricula WHERE published_at IS NOT NULL ORDER BY admission_year, id')
+      .each_with_object({}) do |json, keys|
+      JSON.parse(json).fetch('courses', []).each do |course|
+        number = course['number']
+        key = course['key']
+        next if number.blank? || key.blank? || keys.key?(number) || used.key?(key)
+
+        keys[number] = key
+        used[key] = true
+      end
+    end
+  end
 end
+

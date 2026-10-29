@@ -64,7 +64,6 @@ module StudentWorkspace
     unknown = @other_enrollments.select { |enrollment| enrollment.enrollment_status == 'unknown' }
     groups = { completed: @completed.map(&:assessment_entry), registered: @current.map(&:assessment_entry),
                planned: @plans.map { |plan| planned_entry(plan) }, unresolved: unknown.map(&:assessment_entry) }
-    groups = route_duplicates(groups, duplicated_course_numbers(groups.values.flatten.pluck(:key)))
     GraduationAssessment.new(curriculum: @curriculum).call(**catalogue_entries(groups))
   end
 
@@ -74,7 +73,9 @@ module StudentWorkspace
     { key: plan.course.course_number, credits: credits, approved: nil, name: plan.course.name }
   end
 
-  # 科目番号が便覧の科目に当たれば、その科目の key で判定に渡す。当たらない科目は、科目表と照合できない科目として
+  # 科目番号が便覧の科目に当たれば、その科目の key で判定に渡す。同じ番号の Course が複数あっても、履修・予定は
+  # それぞれ1行を指し、その番号は便覧の同じ1科目に当たる。同じ科目の複数記録は EntryNormalizer が1つにまとめ、
+  # 単位数や承認が食い違うときだけ要確認にする。当たらない科目は、科目表と照合できない科目として
   # 要確認になる。番号の綴りがたまたま別の科目の key に一致しても取り違えず、当たらない科目どうしが同じ key で
   # 束ねられて通知が落ちないよう、1件ずつ別の key を振る。
   def catalogue_entries(groups)
@@ -85,28 +86,6 @@ module StudentWorkspace
         entry.merge(key: course ? course.fetch('key') : "unmatched:#{unmatched += 1}")
       end
     end
-  end
-
-  # 便覧の科目に当たる科目番号のうち、Course が2行以上あるもの。時間割の取り込みは (科目番号, 科目名) で行を作るので、
-  # 表記ゆれや科目名の改称で、同じ番号の行が増えうる。
-  def duplicated_course_numbers(numbers)
-    numbers = numbers.uniq.select { |number| @courses_by_number.key?(number) }
-    return [] if numbers.empty?
-
-    Course.where(course_number: numbers).group(:course_number).having('COUNT(*) > 1').pluck(:course_number)
-  end
-
-  # 同じ科目番号の Course が複数あると、履修・予定がどの行か決められず、便覧の1科目に当てられない。
-  # どちらかを選んで算入せず、要確認（unresolved の経路）に回す。
-  def route_duplicates(groups, duplicated)
-    return groups if duplicated.empty?
-
-    split = groups.transform_values { |entries| entries.partition { |entry| duplicated.include?(entry[:key]) } }
-    kept = split.transform_values(&:last)
-    kept[:unresolved] += split.values.flat_map(&:first).map do |entry|
-      entry.merge(reason: "科目番号 #{entry[:key]} の科目が複数登録されており、便覧の科目を一つに決められない")
-    end
-    kept
   end
 
   # URL の "2-後期" を学期にする。読めない値は nil。

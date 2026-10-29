@@ -507,19 +507,31 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal BigDecimal('2'), check.counted_credits
   end
 
-  test '同じ科目番号の Course が2行あると、便覧の1科目に決められず要確認になる' do
-    Course.create!(course_number: '知能101', name: 'プログラミング演習Ⅰ（別表記）', credits: 1)
+  test '同じ科目番号の Course が2行あり、どちらも履修していても、便覧の1科目として1度だけ数える' do
+    get root_path, env: local_env
+    before = assessment_attributes.fetch('data-counted-credits')
+    original = @student.student_courses.joins(:course).find_by!(courses: { course_number: '知能101' })
+    renamed = Course.create!(course_number: '知能101', name: 'プログラミング演習Ⅰ（別表記）', credits: 1)
+    @student.student_courses.create!(course: renamed, academic_year: original.academic_year,
+                                     semester: original.semester, enrollment_status: 'completed',
+                                     credits_earned: original.credits_earned,
+                                     approval_confirmed: original.approval_confirmed)
 
     get root_path, env: local_env
 
-    assert_response :success
     actual = controller.instance_variable_get(:@assessment).actual
-    assert_includes actual.review_notes.join, '科目番号'
-    # どちらかの行を選んで算入しない。番号が重なった履修は単位に数えず、要確認に回す。
-    check = workspace_check('required_information')
-    assert_equal :needs_review, check.status
-    assert_equal BigDecimal('1'), check.counted_credits
-    assert_equal 'needs_review', assessment_attributes.fetch('data-actual-status')
+    assert_equal before, assessment_attributes.fetch('data-counted-credits')
+    assert_equal BigDecimal('2'), workspace_check('required_information').counted_credits
+    assert_equal :satisfied, workspace_check('required_information').status
+    assert_empty(actual.review_notes.grep(/プログラミング演習Ⅰ/))
+  end
+
+  test '科目番号の無い Course の履修は便覧に当たらず、数えずに要確認になる' do
+    assert_unmatched_enrollment_needs_review(Course.create!(name: '番号の無い科目', credits: 2))
+  end
+
+  test '科目番号が便覧に無い Course の履修は、数えずに要確認になる' do
+    assert_unmatched_enrollment_needs_review(Course.create!(course_number: '他学999', name: '便覧に無い科目', credits: 2))
   end
 
   test '同じ科目番号の Course が複数ある科目は、予定に追加しない' do
@@ -564,6 +576,20 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def assert_unmatched_enrollment_needs_review(course)
+    get root_path, env: local_env
+    before = controller.instance_variable_get(:@assessment).actual
+
+    @student.student_courses.create!(course: course, academic_year: 2025, semester: '前期',
+                                     enrollment_status: 'completed', credits_earned: 2)
+    get root_path, env: local_env
+
+    actual = controller.instance_variable_get(:@assessment).actual
+    assert_equal before.counted_credits, actual.counted_credits
+    assert_equal :needs_review, actual.status
+    assert_includes actual.review_notes.join, course.name
+  end
 
   def workspace_check(check_id)
     controller.instance_variable_get(:@assessment).actual.checks.find { |check| check.id == check_id }
