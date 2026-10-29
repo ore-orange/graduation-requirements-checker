@@ -59,8 +59,12 @@
 - `demo` — `db/demo_enrollments.json` の48件を completed/registered に振り分けたもの
 - `all_completed` — `selectable` が true の全科目を completed（単位は科目表の `credits`）
 - `missing_one_required` — `all_completed` から `required` の科目を1つ（キー順で最初）除く
-- `both_calculus_paths` — `all_completed` に `calculus_paths` の両系列を含める
-- `natural_over_cap` — `all_completed` の `natural` 区分を3科目ぶん積む
+- `clean_single_path` — `all_completed` から、単位が空の科目・`calculus_paths` の2本目の系列・
+  `physics_roles` の2つ目を除いたもの（微積と物理をそれぞれ1系列だけ選んだ状態）
+- `natural_cap_only` — `natural` 区分の先頭3科目だけ。他は空（自然系の上限2単位を切り分ける）
+
+6ケースはどれも互いに違う結果になること。`all_completed` は全selectableを含むので、
+そこに何かを足すだけのケースは `all_completed` と同値になり、網にならない。
 
 - [ ] **Step 2: 実行して書き出す**
 
