@@ -85,6 +85,46 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'curriculum がハッシュでなくても落ちず、何も作らない' do
+    assert_no_difference('Curriculum.count') do
+      post curricula_path, params: { curriculum: 'x' }, env: ENV_LOCAL
+    end
+    assert_redirected_to requirements_path
+    assert_predicate flash[:alert], :present?
+  end
+
+  test '同じ slug と年度の公開済みがあっても、下書きを作れて、公開済みは変わらない' do
+    published = Curriculum.published.first
+    before = published.attributes
+
+    assert_difference('Curriculum.count', 1) do
+      post curricula_path, params: upload_params(slug: published.slug, admission_year: published.admission_year),
+                           env: ENV_LOCAL
+    end
+
+    draft = Curriculum.drafts.last
+    assert_equal [published.slug, published.admission_year], [draft.slug, draft.admission_year]
+    found = Curriculum.published.find_by(slug: published.slug, admission_year: published.admission_year)
+    assert_equal published.id, found.id
+    assert_equal before, found.attributes
+    assert_not_equal found.id, draft.id
+  end
+
+  test '入学年度は2000年から今年+2までの下書きだけ作る' do
+    upper = Time.zone.today.year + 2
+    [1999, 5, upper + 1].each do |year|
+      assert_no_difference('Curriculum.count', "#{year} を受けてしまった") do
+        post curricula_path, params: upload_params(admission_year: year), env: ENV_LOCAL
+      end
+      assert_redirected_to requirements_path
+    end
+    [2000, upper].each do |year|
+      assert_difference('Curriculum.count', 1, "#{year} を受けなかった") do
+        post curricula_path, params: upload_params(admission_year: year), env: ENV_LOCAL
+      end
+    end
+  end
+
   test 'slug は半角英小文字で始まる形だけを受ける' do
     assert_no_difference('Curriculum.count') do
       post curricula_path, params: upload_params(slug: 'Bad Slug'), env: ENV_LOCAL
@@ -268,6 +308,19 @@ class CurriculaTest < ActionDispatch::IntegrationTest
       assert_select 'input[name="curriculum[department_name]"]'
       assert_select 'input[type=file][name="curriculum[file]"][accept="application/pdf"]'
     end
+  end
+
+  test 'ページ数を数えられなかった下書きは、一覧で要確認と分かる' do
+    ok = draft
+    failed = draft(pages: [])
+    failed.update!(import_error: 'Ghostscript(gs)が見つかりません。')
+    DemoData.load!
+
+    get requirements_path, env: ENV_LOCAL
+
+    assert_select 'section[data-draft-curricula] li', count: 2
+    assert_select %(section[data-draft-curricula] li:has(a[href="#{curriculum_path(failed)}"])), text: /要確認/
+    assert_select %(section[data-draft-curricula] li:has(a[href="#{curriculum_path(ok)}"])), text: /要確認/, count: 0
   end
 
   test '下書きがないときは、下書きの一覧を出さない' do

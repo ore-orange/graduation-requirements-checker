@@ -104,9 +104,15 @@ class RequirementsTest < ActionDispatch::IntegrationTest
 
     assert_select 'button[onclick]', count: 0
     assert_select '[onclick], [onchange], [oninput], [onkeyup]', count: 0
-    # 便覧のアップロード欄は別の節。学生の便覧を見せる部分には、編集の部品を置かない。
-    %w[button input textarea select form].each do |tag|
-      assert_select "main section:not([data-curriculum-import]) #{tag}", count: 0
+    # このページで編集できるのは、便覧のアップロードだけ。そのフォームを名指しで1つだけ認め、ほかの部品は置かない。
+    assert_select 'main form', count: 1
+    assert_select 'main form[action=?]', curricula_path, count: 1
+    assert_select 'main textarea', count: 0
+    assert_select 'main select', count: 0
+    # input と button は、そのフォームの中のものだけ
+    %w[input button].each do |tag|
+      assert_equal css_select("main form #{tag}").size, css_select("main #{tag}").size,
+                   "アップロードのフォームの外に #{tag} がある"
     end
     assert_select 'main script', count: 0
     assert_select 'body', text: /ルールビルダー|要件を保存|ルート区分を追加|リセット/, count: 0

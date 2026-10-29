@@ -135,6 +135,10 @@
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-slate-800">
                   <span class="mr-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">下書き</span>
+                  <%# ページ数を数えられなかった下書きは、開かなくても分かるようにする %>
+                  <% if curriculum.import_error.present? %>
+                    <span class="mr-1.5 rounded bg-rose-100 px-1.5 py-0.5 text-xs font-semibold text-rose-800">要確認</span>
+                  <% end %>
                   <%= curriculum.admission_year %>年度入学 <%= curriculum.department_name %>
                 </p>
                 <p class="mt-0.5 text-xs text-slate-500">
@@ -162,7 +166,7 @@
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block">
             <span class="text-sm font-semibold text-slate-700">入学年度</span>
-            <%= form.number_field :admission_year, required: true, min: 1, max: 9999, placeholder: '例: 2025',
+            <%= form.number_field :admission_year, required: true, min: Curriculum::UPLOAD_MIN_YEAR, max: Curriculum.upload_year_range.end, placeholder: '例: 2025',
                                   class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
           </label>
           <label class="block">

@@ -75,8 +75,12 @@ class CurriculaController < ApplicationController
   private
 
   def upload_params
-    @upload_params ||= params.fetch(:curriculum, {}).permit(:slug, :admission_year, :faculty_name, :department_name,
-                                                            :file)
+    @upload_params ||= begin
+      raw = params[:curriculum]
+      # ?curriculum=x のように、ハッシュでない値が来ても落とさず、空の入力として扱う
+      raw = ActionController::Parameters.new unless raw.is_a?(ActionController::Parameters)
+      raw.permit(:slug, :admission_year, :faculty_name, :department_name, :file)
+    end
   end
 
   # 公開済みの便覧は学生の判定に使われているので、この画面では開かず、直さず、消さない。

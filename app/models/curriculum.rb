@@ -12,6 +12,8 @@ class Curriculum < ApplicationRecord
   # 画面から上げる下書きは、学部とコースも必須。年度のない・学部のない下書きは便覧にならない。
   # 種まきや既存の行は学部名を持たないので、save(context: :upload) のときだけ求める。
   validates :faculty_name, :department_name, presence: true, on: :upload
+  # 入学年度は現実的な範囲に絞る(5年度のような下書きを作らせない)。アップロードの入力欄の min・max と同じ範囲。
+  validates :admission_year, inclusion: { in: ->(_) { Curriculum.upload_year_range } }, on: :upload
 
   # 読むページの種別。取り込み直後はすべて skip で、どのページを読むかは人が決める。
   PAGE_KINDS = %w[skip courses requirements].freeze
@@ -24,7 +26,7 @@ class Curriculum < ApplicationRecord
   # 一覧に要る列だけ。document は大きいので読まない。
   scope :for_listing, -> {
     select(:id, :slug, :admission_year, :faculty_name, :department_name, :title,
-           :source_filename, :pages, :published_at)
+           :source_filename, :pages, :import_error, :published_at)
   }
 
   # 便覧のJSONを公開済みとして入れる。slug はディレクトリ名、入学年度はファイル名から決める。下書きには触れない。
@@ -59,6 +61,13 @@ class Curriculum < ApplicationRecord
     raise ArgumentError, "便覧のJSONを読めません: #{path}"
   end
   private_class_method :admission_year_of, :parse_document
+
+  UPLOAD_MIN_YEAR = 2000
+
+  # 画面から上げる下書きの入学年度の範囲。上限は、来年度・再来年度入学の便覧を先に作れるよう今年+2。
+  def self.upload_year_range
+    UPLOAD_MIN_YEAR..(Time.zone.today.year + 2)
+  end
 
   # 取り込み直後のページ一覧。text は後続の読み取りが埋める。
   def self.blank_pages(count)
