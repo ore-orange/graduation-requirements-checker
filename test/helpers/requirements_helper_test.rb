@@ -4,8 +4,6 @@ require 'test_helper'
 
 # 便覧の規則を一文にする。実物の便覧に加えて、合成した便覧で型ごとの書き分けと、読めない規則の扱いを見る。
 class RequirementsHelperTest < ActionView::TestCase
-  helper StudentWorkspaceHelper
-
   setup do
     @real = JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2024.json').read)
     @handbook = {
@@ -149,9 +147,78 @@ class RequirementsHelperTest < ActionView::TestCase
                      'options' => [{ 'type' => 'credit_sum', 'categories' => ['a'], 'required_credits' => 2 },
                                    { 'type' => 'one_of_paths', 'paths' => [['r1']] }])
 
-    assert_equal 1, html.all('.text-red-700').size
-    assert_includes html.find('.text-red-700').text, 'この位置には置けません'
+    assert_includes html.find('ul .text-red-700').text, 'この位置には置けません'
     assert_includes html.text, '甲群の合計 2単位以上'
+  end
+
+  test '入れ子の奥に読めない選択肢があれば、規則の側も赤で知らせ、id とラベルで探せる' do
+    html = rule_html('id' => 'route', 'type' => 'any_of', 'label' => '経路',
+                     'options' => [{ 'type' => 'credit_sum', 'categories' => ['a'], 'required_credits' => 2 },
+                                   { 'type' => 'gpa' }])
+
+    assert html.has_css?('li[data-rule-id="route"][data-rule-status="unknown"]')
+    notice = html.all('div.text-red-700').first
+    assert_includes notice.text, 'この規則には、このアプリが解釈できない部分があります'
+    assert_includes notice.text, '判定では充足とせず、要確認になります'
+    assert_includes notice.text, 'id: route／経路'
+  end
+
+  test 'all_of の中の読めない条件も、一番上の規則まで知らせる' do
+    html = rule_html('id' => 'route', 'type' => 'any_of', 'label' => '経路',
+                     'options' => [{ 'type' => 'all_of', 'conditions' => [{ 'type' => 'gpa' }] }])
+
+    assert html.has_css?('li[data-rule-status="unknown"]')
+    assert html.has_css?('div.text-red-700', text: '要確認になります')
+  end
+
+  test '読める規則だけなら赤い知らせは出ない' do
+    html = rule_html('id' => 'x', 'type' => 'credit_sum', 'label' => 'L', 'categories' => ['a'],
+                     'required_credits' => 2)
+
+    assert_not html.has_css?('.text-red-700')
+    assert_not html.has_css?('[data-rule-status]')
+  end
+
+  test '選択肢が空の any_of は、何も主張しないので赤で出す' do
+    html = rule_html('id' => 'route', 'type' => 'any_of', 'label' => '経路', 'options' => [])
+
+    assert html.has_css?('li[data-rule-status="unknown"]')
+    assert html.has_css?('ul .text-red-700', text: '選択肢が空です')
+  end
+
+  test '条件が空の all_of も赤で出し、一番上の any_of まで知らせる' do
+    html = rule_html('id' => 'route', 'type' => 'any_of', 'label' => '経路',
+                     'options' => [{ 'type' => 'all_of', 'conditions' => [] }])
+
+    assert html.has_css?('li[data-rule-status="unknown"]')
+    assert html.has_css?('ul .text-red-700', text: '条件が空です')
+  end
+
+  test '系列が1つも無い one_of_paths は赤で出す' do
+    [[], [[]], nil].each do |paths|
+      html = rule_html('id' => 'p', 'type' => 'one_of_paths', 'label' => '系列', 'paths' => paths)
+
+      assert html.has_css?('li[data-rule-status="unknown"]'), paths.inspect
+      assert html.has_css?('ul .text-red-700', text: '系列が空です'), paths.inspect
+    end
+  end
+
+  test '空の系列が混ざっていれば、その系列だけ赤で出す' do
+    html = rule_html('id' => 'p', 'type' => 'one_of_paths', 'label' => '系列', 'paths' => [['r1'], []])
+
+    assert_equal ['系列が空です'], html.all('ul .text-red-700').map(&:text)
+    assert_includes html.text, '科目一'
+    assert html.has_css?('li[data-rule-status="unknown"]')
+  end
+
+  test 'review_note は「系列が混在したとき」として出す' do
+    text = rule_text('type' => 'one_of_paths', 'label' => '系列', 'paths' => [['r1']], 'review_note' => '重複を確認する')
+
+    assert_includes text, '系列が混在したとき：重複を確認する'
+  end
+
+  test '実物: calculus の review_note' do
+    assert_includes real_text('calculus'), '系列が混在したとき：微分積分学の系列が混在・重複しており'
   end
 
   test 'any_of の中の cap も置けない位置として赤で出す' do

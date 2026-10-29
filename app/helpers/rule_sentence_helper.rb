@@ -3,9 +3,15 @@
 # 便覧の規則1つを、画面に出す一文（と、その下に続く入れ子）にする。確認画面の RequirementsHelper が使う。
 # 型の語彙と置ける位置は評価側（GraduationAssessment::Rules）の定義に合わせ、ここで別に持たない。
 module RuleSentenceHelper
+  # 区分の和名（category_label）と単位の書式（credit_number）はこちらから借りる。
+  include StudentWorkspaceHelper
+
   # 一文とその下に続く入れ子。connector は、並んだ項目どうしの間に出す「または」「かつ」。
+  # unknown は、評価側が解釈できない（または何も主張しない）部分。入れ子の奥にあっても、上の規則から見つけられる。
   RuleNode = Struct.new(:text, :children, :connector, :unknown, keyword_init: true) do
     def initialize(text:, children: [], connector: nil, unknown: false) = super
+
+    def contains_unknown? = unknown || children.any?(&:contains_unknown?)
   end
 
   # group_by が欄の名前（field:...）でないときの呼び名。
@@ -70,6 +76,7 @@ module RuleSentenceHelper
       option = {} unless option.is_a?(Hash)
       nested_node(option, curriculum, GraduationAssessment::Rules::ANY_OF_OPTIONS)
     end
+    options = [empty_node('選択肢が空です')] if options.empty?
     RuleNode.new(text: '次のいずれかを満たす', children: options, connector: 'または')
   end
 
@@ -79,6 +86,7 @@ module RuleSentenceHelper
       condition = {} unless condition.is_a?(Hash)
       nested_node(condition, curriculum, GraduationAssessment::Rules::ALL_OF_CONDITIONS)
     end
+    conditions = [empty_node('条件が空です')] if conditions.empty?
     RuleNode.new(text: '次をすべて満たす', children: conditions, connector: 'かつ')
   end
 
@@ -88,13 +96,19 @@ module RuleSentenceHelper
     rule_node(definition, curriculum, allowed)
   end
 
+  # 子が1つも無い規則は何も主張しない。評価側も充足と答えないので、読める文のまま残さず赤で出す。
+  # 空の系列も同じ。
   def one_of_paths_node(definition, curriculum)
-    paths = Array(definition['paths']).map { |path| path_text(path, curriculum) }
-    return RuleNode.new(text: "次を修得する：#{paths.first}") if paths.one?
+    paths = Array(definition['paths']).map do |path|
+      Array(path).empty? ? empty_node('系列が空です') : RuleNode.new(text: path_text(path, curriculum))
+    end
+    return RuleNode.new(text: "次を修得する：#{paths.first.text}") if paths.one? && !paths.first.unknown
 
-    RuleNode.new(text: '次のいずれかの系列を修得する', children: paths.map { |text| RuleNode.new(text: text) },
-                 connector: 'または')
+    paths = [empty_node('系列が空です')] if paths.empty?
+    RuleNode.new(text: '次のいずれかの系列を修得する', children: paths, connector: 'または')
   end
+
+  def empty_node(text) = RuleNode.new(text: text, unknown: true)
 
   # 系列は役割（role）の組。役割は科目表の科目に付いているので、科目名に戻して出す。同じ役割の科目は「／」、組は「＋」。
   def path_text(path, curriculum)

@@ -14,9 +14,11 @@ module RequirementsHelper
   def rule_entry(rule, curriculum)
     definition = rule.is_a?(Hash) ? rule : {}
     node = rule_node(definition, curriculum, TOP_LEVEL_RULES)
-    data = { rule_id: definition['id'], rule_type: definition['type'], rule_status: ('unknown' if node.unknown) }
+    data = { rule_id: definition['id'], rule_type: definition['type'],
+             rule_status: ('unknown' if node.contains_unknown?) }
     tag.li(class: 'py-4', data: data) do
-      safe_join([rule_headline(rule, definition, node), rule_children(node), rule_notes(definition)].compact)
+      safe_join([rule_headline(rule, definition, node), rule_children(node),
+                 nested_unknown_notice(rule, definition, node), rule_notes(definition)].compact)
     end
   end
 
@@ -34,12 +36,28 @@ module RequirementsHelper
   end
 
   def unknown_headline(rule, definition, node)
-    where = [("id: #{definition['id']}" if definition['id']), definition['label'].presence].compact
-    where << "内容: #{rule.inspect.truncate(80)}" unless rule.is_a?(Hash)
     tag.div(class: 'space-y-0.5 text-red-700') do
       safe_join([tag.p("#{node.text}。判定では充足とせず、要確認になります。", class: 'text-sm font-semibold'),
-                 (tag.p(where.join('／'), class: 'text-xs') if where.any?)].compact)
+                 rule_locator(rule, definition)].compact)
     end
+  end
+
+  # 規則そのものは読めるが、中に読めない部分がある。一覧を眺めて見つけられるよう、規則の側でも赤く知らせる。
+  def nested_unknown_notice(rule, definition, node)
+    return if node.unknown || !node.contains_unknown?
+
+    tag.div(class: 'mt-2 space-y-0.5 text-red-700') do
+      safe_join([tag.p('この規則には、このアプリが解釈できない部分があります。判定では充足とせず、要確認になります。',
+                       class: 'text-sm font-semibold'),
+                 rule_locator(rule, definition)].compact)
+    end
+  end
+
+  # 27件の中から探せるよう、規則の id とラベルを添える。
+  def rule_locator(rule, definition)
+    where = [("id: #{definition['id']}" if definition['id']), definition['label'].presence].compact
+    where << "内容: #{rule.inspect.truncate(80)}" unless rule.is_a?(Hash)
+    tag.p(where.join('／'), class: 'text-xs') if where.any?
   end
 
   def rule_children(node)

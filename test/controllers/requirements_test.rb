@@ -140,5 +140,33 @@ class RequirementsTest < ActionDispatch::IntegrationTest
 
     assert_raises(ArgumentError) { get requirements_path, env: local_env }
   end
+
+  test '入れ子の奥の読めない選択肢は、その規則の側でも見つけられる' do
+    change_handbook do |document|
+      document['rules'] << { 'id' => 'gpa', 'type' => 'gpa', 'label' => 'GPA' }
+      document['rules'].find { |rule| rule['id'] == 'foreign_language' }['options'] << { 'type' => 'gpa' }
+    end
+
+    get requirements_path, env: local_env
+
+    assert_equal %w[foreign_language gpa], css_select('li[data-rule-status="unknown"]').pluck('data-rule-id')
+    assert_select 'li[data-rule-id="foreign_language"] div.text-red-700', text: /要確認になります.*外国語の選択経路/m
+  end
+
+  test '選択肢が空の規則は赤で出る' do
+    change_handbook do |document|
+      document['rules'].find { |rule| rule['id'] == 'foreign_language' }['options'] = []
+    end
+
+    get requirements_path, env: local_env
+
+    assert_select 'li[data-rule-id="foreign_language"][data-rule-status="unknown"] .text-red-700', text: /選択肢が空です/
+  end
+
+  test '系列が混在したときの確認事項が出る' do
+    get requirements_path, env: local_env
+
+    assert_select 'li[data-rule-id="calculus"]', text: /系列が混在したとき：/
+  end
 end
 
