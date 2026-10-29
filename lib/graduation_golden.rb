@@ -25,8 +25,8 @@ module GraduationGolden
       'demo' => demo_case(courses),
       'all_completed' => arguments(completed: all_completed),
       'missing_one_required' => arguments(completed: without_first_required(courses, all_completed)),
-      'both_calculus_paths' => arguments(completed: with_courses(all_completed, courses, calculus_keys(curriculum))),
-      'natural_over_cap' => arguments(completed: with_courses(all_completed, courses, natural_keys(courses).first(3)))
+      'clean_single_path' => arguments(completed: clean_single_path(curriculum, all_completed)),
+      'natural_cap_only' => arguments(completed: natural_cap_only(courses))
     }
   end
 
@@ -85,19 +85,21 @@ module GraduationGolden
     entries.reject { |entry| entry[:key] == key }
   end
 
-  def calculus_keys(curriculum)
-    curriculum.fetch('requirements').fetch('calculus_paths').flatten
+  # 微分積分学は系列の一方、物理学は代替の一方だけで、単位数が不明な科目も含まない状態。
+  def clean_single_path(curriculum, entries)
+    requirements = curriculum.fetch('requirements')
+    dropped = curriculum.fetch('courses').select do |course|
+      roles = course.fetch('roles', [])
+      course['credits'].nil? || roles.intersect?(requirements.fetch('calculus_paths').fetch(1)) ||
+        roles.include?(requirements.fetch('physics_roles').fetch(1))
+    end.pluck('key')
+    entries.reject { |entry| dropped.include?(entry[:key]) }
   end
 
-  def natural_keys(courses)
-    courses.select { |course| course['category'] == 'natural' }.pluck('key')
-  end
-
-  # 指定のキーの科目を、記録済みでなければ修得済みとして加える。
-  def with_courses(entries, courses, keys)
-    by_key = courses.index_by { |course| course['key'] }
-    present = entries.pluck(:key)
-    entries + (keys - present).map { |key| completed_entry(by_key.fetch(key)) }
+  # 自然系の算入上限だけを確かめるため、キー順で先頭3科目以外は何も入れない。
+  def natural_cap_only(courses)
+    courses.select { |course| course['category'] == 'natural' }.sort_by { |course| course['key'] }.first(3)
+           .map { |course| completed_entry(course) }
   end
 
   def check_hash(check)

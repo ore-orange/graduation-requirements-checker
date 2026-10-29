@@ -385,11 +385,11 @@
       "status": "needs_review"
     }
   },
-  "both_calculus_paths": {
+  "clean_single_path": {
     "actual": {
       "checks": [
         {
-          "counted_credits": "40.0",
+          "counted_credits": "46.0",
           "id": "basic_total",
           "missing_courses": [],
           "required_credits": "6.0",
@@ -398,14 +398,9 @@
         {
           "counted_credits": null,
           "id": "calculus",
-          "missing_courses": [
-            "微分積分学入門Ⅰ",
-            "微分積分学入門Ⅱ",
-            "微分積分学ＳＴ（スタンダードコース）Ⅰ",
-            "微分積分学ＳＴ（スタンダードコース）Ⅱ"
-          ],
+          "missing_courses": [],
           "required_credits": null,
-          "status": "needs_review"
+          "status": "satisfied"
         },
         {
           "counted_credits": "630.0",
@@ -494,12 +489,9 @@
         {
           "counted_credits": null,
           "id": "physics",
-          "missing_courses": [
-            "物理学Ⅰ",
-            "物理学入門Ⅰ"
-          ],
+          "missing_courses": [],
           "required_credits": null,
-          "status": "needs_review"
+          "status": "satisfied"
         },
         {
           "counted_credits": "57.0",
@@ -558,30 +550,21 @@
           "status": "satisfied"
         },
         {
-          "counted_credits": "908.0",
+          "counted_credits": "914.0",
           "id": "total",
           "missing_courses": [],
           "required_credits": "130.0",
           "status": "satisfied"
         }
       ],
-      "counted_credits": "908.0",
-      "review_notes": [
-        "微分積分学入門Ⅰ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学入門Ⅱ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学ＳＴ（スタンダードコース）Ⅰ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学ＳＴ（スタンダードコース）Ⅱ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "物理学Ⅰ：物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要",
-        "物理学入門Ⅰ：物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要",
-        "知能情報特別講義Ⅴ：専門科目分類表には記載があるが、提供科目表・教育課程に科目番号と単位数の記載がない。履修する場合は指導教員に確認が必要。",
-        "知能情報特別講義Ⅵ：専門科目分類表には記載があるが、提供科目表・教育課程に科目番号と単位数の記載がない。履修する場合は指導教員に確認が必要。"
-      ],
-      "status": "needs_review"
+      "counted_credits": "914.0",
+      "review_notes": [],
+      "status": "satisfied"
     },
     "projected": {
       "checks": [
         {
-          "counted_credits": "40.0",
+          "counted_credits": "46.0",
           "id": "basic_total",
           "missing_courses": [],
           "required_credits": "6.0",
@@ -590,14 +573,9 @@
         {
           "counted_credits": null,
           "id": "calculus",
-          "missing_courses": [
-            "微分積分学入門Ⅰ",
-            "微分積分学入門Ⅱ",
-            "微分積分学ＳＴ（スタンダードコース）Ⅰ",
-            "微分積分学ＳＴ（スタンダードコース）Ⅱ"
-          ],
+          "missing_courses": [],
           "required_credits": null,
-          "status": "needs_review"
+          "status": "satisfied"
         },
         {
           "counted_credits": "630.0",
@@ -686,12 +664,9 @@
         {
           "counted_credits": null,
           "id": "physics",
-          "missing_courses": [
-            "物理学Ⅰ",
-            "物理学入門Ⅰ"
-          ],
+          "missing_courses": [],
           "required_credits": null,
-          "status": "needs_review"
+          "status": "satisfied"
         },
         {
           "counted_credits": "57.0",
@@ -750,25 +725,16 @@
           "status": "satisfied"
         },
         {
-          "counted_credits": "908.0",
+          "counted_credits": "914.0",
           "id": "total",
           "missing_courses": [],
           "required_credits": "130.0",
           "status": "satisfied"
         }
       ],
-      "counted_credits": "908.0",
-      "review_notes": [
-        "微分積分学入門Ⅰ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学入門Ⅱ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学ＳＴ（スタンダードコース）Ⅰ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学ＳＴ（スタンダードコース）Ⅱ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "物理学Ⅰ：物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要",
-        "物理学入門Ⅰ：物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要",
-        "知能情報特別講義Ⅴ：専門科目分類表には記載があるが、提供科目表・教育課程に科目番号と単位数の記載がない。履修する場合は指導教員に確認が必要。",
-        "知能情報特別講義Ⅵ：専門科目分類表には記載があるが、提供科目表・教育課程に科目番号と単位数の記載がない。履修する場合は指導教員に確認が必要。"
-      ],
-      "status": "needs_review"
+      "counted_credits": "914.0",
+      "review_notes": [],
+      "status": "satisfied"
     }
   },
   "demo": {
@@ -1977,15 +1943,15 @@
       "status": "needs_review"
     }
   },
-  "natural_over_cap": {
+  "natural_cap_only": {
     "actual": {
       "checks": [
         {
-          "counted_credits": "40.0",
+          "counted_credits": "0.0",
           "id": "basic_total",
           "missing_courses": [],
           "required_credits": "6.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
           "counted_credits": null,
@@ -1997,91 +1963,96 @@
             "微分積分学ＳＴ（スタンダードコース）Ⅱ"
           ],
           "required_credits": null,
-          "status": "needs_review"
+          "status": "unmet"
         },
         {
-          "counted_credits": "630.0",
+          "counted_credits": "2.0",
           "id": "common_total",
           "missing_courses": [],
           "required_credits": "30.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "115.0",
+          "counted_credits": "0.0",
           "id": "elective_inner",
           "missing_courses": [],
           "required_credits": "22.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "181.0",
+          "counted_credits": "0.0",
           "id": "elective_total",
           "missing_courses": [],
           "required_credits": "37.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
           "counted_credits": null,
           "id": "english_required",
-          "missing_courses": [],
+          "missing_courses": [
+            "大学英語",
+            "英語講読演習 中級"
+          ],
           "required_credits": null,
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "30.0",
+          "counted_credits": "0.0",
           "id": "foreign_language",
           "missing_courses": [],
           "required_credits": null,
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "20.0",
+          "counted_credits": "0.0",
           "id": "fusion_provider",
           "missing_courses": [],
           "required_credits": "4.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "294.0",
+          "counted_credits": "0.0",
           "id": "general_integrated",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "448.0",
+          "counted_credits": "2.0",
           "id": "general_subtotal",
           "missing_courses": [],
           "required_credits": "14.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "446.0",
+          "counted_credits": "0.0",
           "id": "general_without_natural",
           "missing_courses": [],
           "required_credits": "12.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "4.0",
+          "counted_credits": "0.0",
           "id": "health",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "105.0",
+          "counted_credits": "0.0",
           "id": "humanities",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
           "counted_credits": null,
           "id": "japanese",
-          "missing_courses": [],
+          "missing_courses": [
+            "日本語表現法入門"
+          ],
           "required_credits": null,
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
           "counted_credits": null,
@@ -2091,93 +2062,116 @@
             "物理学入門Ⅰ"
           ],
           "required_credits": null,
-          "status": "needs_review"
+          "status": "unmet"
         },
         {
-          "counted_credits": "57.0",
+          "counted_credits": "0.0",
           "id": "required_all",
-          "missing_courses": [],
+          "missing_courses": [
+            "アルゴリズムとデータ構造",
+            "エンジニアリングデザイン演習",
+            "オペレーティングシステム",
+            "キャリアデザイン",
+            "キャリアデザイン入門",
+            "コンピュータアーキテクチャ",
+            "コンピュータシステム",
+            "セミナーⅠ",
+            "セミナーⅡ",
+            "ソフトウエア開発演習Ⅰ",
+            "データサイエンス基礎",
+            "データベースシステム",
+            "プログラミングⅠ",
+            "プログラミングⅡ",
+            "プログラミング演習Ⅰ",
+            "プログラミング演習Ⅱ",
+            "プロジェクトデザイン",
+            "人工知能",
+            "卒業研究Ⅰ",
+            "卒業研究Ⅱ",
+            "工学基礎演習",
+            "工業数学Ⅰ",
+            "工業数学Ⅱ",
+            "情報ネットワークⅠ",
+            "技術者の倫理",
+            "知能情報基礎演習Ⅰ",
+            "知能情報基礎演習Ⅱ",
+            "知能情報基礎演習Ⅲ",
+            "知能情報基礎演習Ⅳ",
+            "知能情報総合実験",
+            "離散数学"
+          ],
           "required_credits": "57.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "7.0",
+          "counted_credits": "0.0",
           "id": "required_comprehensive",
           "missing_courses": [],
           "required_credits": "7.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "26.0",
+          "counted_credits": "0.0",
           "id": "required_core",
           "missing_courses": [],
           "required_credits": "26.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "2.0",
+          "counted_credits": "0.0",
           "id": "required_information",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "6.0",
+          "counted_credits": "0.0",
           "id": "required_math",
           "missing_courses": [],
           "required_credits": "6.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "16.0",
+          "counted_credits": "0.0",
           "id": "required_research",
           "missing_courses": [],
           "required_credits": "16.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "57.0",
+          "counted_credits": "0.0",
           "id": "required_total",
           "missing_courses": [],
           "required_credits": "57.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "47.0",
+          "counted_credits": "0.0",
           "id": "social",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "908.0",
+          "counted_credits": "2.0",
           "id": "total",
           "missing_courses": [],
           "required_credits": "130.0",
-          "status": "satisfied"
+          "status": "unmet"
         }
       ],
-      "counted_credits": "908.0",
-      "review_notes": [
-        "微分積分学入門Ⅰ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学入門Ⅱ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学ＳＴ（スタンダードコース）Ⅰ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学ＳＴ（スタンダードコース）Ⅱ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "物理学Ⅰ：物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要",
-        "物理学入門Ⅰ：物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要",
-        "知能情報特別講義Ⅴ：専門科目分類表には記載があるが、提供科目表・教育課程に科目番号と単位数の記載がない。履修する場合は指導教員に確認が必要。",
-        "知能情報特別講義Ⅵ：専門科目分類表には記載があるが、提供科目表・教育課程に科目番号と単位数の記載がない。履修する場合は指導教員に確認が必要。"
-      ],
-      "status": "needs_review"
+      "counted_credits": "2.0",
+      "review_notes": [],
+      "status": "unmet"
     },
     "projected": {
       "checks": [
         {
-          "counted_credits": "40.0",
+          "counted_credits": "0.0",
           "id": "basic_total",
           "missing_courses": [],
           "required_credits": "6.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
           "counted_credits": null,
@@ -2189,91 +2183,96 @@
             "微分積分学ＳＴ（スタンダードコース）Ⅱ"
           ],
           "required_credits": null,
-          "status": "needs_review"
+          "status": "unmet"
         },
         {
-          "counted_credits": "630.0",
+          "counted_credits": "2.0",
           "id": "common_total",
           "missing_courses": [],
           "required_credits": "30.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "115.0",
+          "counted_credits": "0.0",
           "id": "elective_inner",
           "missing_courses": [],
           "required_credits": "22.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "181.0",
+          "counted_credits": "0.0",
           "id": "elective_total",
           "missing_courses": [],
           "required_credits": "37.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
           "counted_credits": null,
           "id": "english_required",
-          "missing_courses": [],
+          "missing_courses": [
+            "大学英語",
+            "英語講読演習 中級"
+          ],
           "required_credits": null,
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "30.0",
+          "counted_credits": "0.0",
           "id": "foreign_language",
           "missing_courses": [],
           "required_credits": null,
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "20.0",
+          "counted_credits": "0.0",
           "id": "fusion_provider",
           "missing_courses": [],
           "required_credits": "4.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "294.0",
+          "counted_credits": "0.0",
           "id": "general_integrated",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "448.0",
+          "counted_credits": "2.0",
           "id": "general_subtotal",
           "missing_courses": [],
           "required_credits": "14.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "446.0",
+          "counted_credits": "0.0",
           "id": "general_without_natural",
           "missing_courses": [],
           "required_credits": "12.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "4.0",
+          "counted_credits": "0.0",
           "id": "health",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "105.0",
+          "counted_credits": "0.0",
           "id": "humanities",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
           "counted_credits": null,
           "id": "japanese",
-          "missing_courses": [],
+          "missing_courses": [
+            "日本語表現法入門"
+          ],
           "required_credits": null,
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
           "counted_credits": null,
@@ -2283,84 +2282,107 @@
             "物理学入門Ⅰ"
           ],
           "required_credits": null,
-          "status": "needs_review"
+          "status": "unmet"
         },
         {
-          "counted_credits": "57.0",
+          "counted_credits": "0.0",
           "id": "required_all",
-          "missing_courses": [],
+          "missing_courses": [
+            "アルゴリズムとデータ構造",
+            "エンジニアリングデザイン演習",
+            "オペレーティングシステム",
+            "キャリアデザイン",
+            "キャリアデザイン入門",
+            "コンピュータアーキテクチャ",
+            "コンピュータシステム",
+            "セミナーⅠ",
+            "セミナーⅡ",
+            "ソフトウエア開発演習Ⅰ",
+            "データサイエンス基礎",
+            "データベースシステム",
+            "プログラミングⅠ",
+            "プログラミングⅡ",
+            "プログラミング演習Ⅰ",
+            "プログラミング演習Ⅱ",
+            "プロジェクトデザイン",
+            "人工知能",
+            "卒業研究Ⅰ",
+            "卒業研究Ⅱ",
+            "工学基礎演習",
+            "工業数学Ⅰ",
+            "工業数学Ⅱ",
+            "情報ネットワークⅠ",
+            "技術者の倫理",
+            "知能情報基礎演習Ⅰ",
+            "知能情報基礎演習Ⅱ",
+            "知能情報基礎演習Ⅲ",
+            "知能情報基礎演習Ⅳ",
+            "知能情報総合実験",
+            "離散数学"
+          ],
           "required_credits": "57.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "7.0",
+          "counted_credits": "0.0",
           "id": "required_comprehensive",
           "missing_courses": [],
           "required_credits": "7.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "26.0",
+          "counted_credits": "0.0",
           "id": "required_core",
           "missing_courses": [],
           "required_credits": "26.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "2.0",
+          "counted_credits": "0.0",
           "id": "required_information",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "6.0",
+          "counted_credits": "0.0",
           "id": "required_math",
           "missing_courses": [],
           "required_credits": "6.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "16.0",
+          "counted_credits": "0.0",
           "id": "required_research",
           "missing_courses": [],
           "required_credits": "16.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "57.0",
+          "counted_credits": "0.0",
           "id": "required_total",
           "missing_courses": [],
           "required_credits": "57.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "47.0",
+          "counted_credits": "0.0",
           "id": "social",
           "missing_courses": [],
           "required_credits": "2.0",
-          "status": "satisfied"
+          "status": "unmet"
         },
         {
-          "counted_credits": "908.0",
+          "counted_credits": "2.0",
           "id": "total",
           "missing_courses": [],
           "required_credits": "130.0",
-          "status": "satisfied"
+          "status": "unmet"
         }
       ],
-      "counted_credits": "908.0",
-      "review_notes": [
-        "微分積分学入門Ⅰ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学入門Ⅱ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学ＳＴ（スタンダードコース）Ⅰ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "微分積分学ＳＴ（スタンダードコース）Ⅱ：微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
-        "物理学Ⅰ：物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要",
-        "物理学入門Ⅰ：物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要",
-        "知能情報特別講義Ⅴ：専門科目分類表には記載があるが、提供科目表・教育課程に科目番号と単位数の記載がない。履修する場合は指導教員に確認が必要。",
-        "知能情報特別講義Ⅵ：専門科目分類表には記載があるが、提供科目表・教育課程に科目番号と単位数の記載がない。履修する場合は指導教員に確認が必要。"
-      ],
-      "status": "needs_review"
+      "counted_credits": "2.0",
+      "review_notes": [],
+      "status": "unmet"
     }
   }
 }
