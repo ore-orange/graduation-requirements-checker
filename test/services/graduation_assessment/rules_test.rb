@@ -38,8 +38,8 @@ class GraduationAssessment
       assert_instance_of Rules::OneOfPaths, Rules.condition('type' => 'one_of_paths')
     end
 
-    test 'condition は未対応の type を拒む' do
-      assert_raises(ArgumentError) { Rules.condition('type' => 'mystery') }
+    test 'condition は未対応の type を拒まず Unknown にする' do
+      assert_instance_of Rules::Unknown, Rules.condition('type' => 'mystery')
     end
 
     test 'credit_sum は指定区分の算入単位を合計する' do

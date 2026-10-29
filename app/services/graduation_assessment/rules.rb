@@ -11,8 +11,15 @@ class GraduationAssessment
     TYPES = {
       'credit_sum' => 'CreditSum',
       'all_required' => 'AllRequired',
-      'one_of_paths' => 'OneOfPaths'
+      'one_of_paths' => 'OneOfPaths',
+      'grouped_max' => 'GroupedMax',
+      'any_of' => 'AnyOf',
+      'all_of' => 'AllOf'
     }.freeze
+
+    # 入れ子で許す型。any_of → all_of の2段までで、それより深いものや他の型は Unknown にする。
+    ANY_OF_OPTIONS = %w[credit_sum grouped_max all_of].freeze
+    ALL_OF_CONDITIONS = %w[credit_sum grouped_max].freeze
 
     def self.status(satisfied, review)
       return :satisfied if satisfied
@@ -20,10 +27,10 @@ class GraduationAssessment
       review ? :needs_review : :unmet
     end
 
-    def self.condition(definition)
-      type = definition['type']
-      # 未知の type はここで Rules::Unknown を返すようにする（Task 4）。
-      raise ArgumentError, "未対応の規則の型: #{type.inspect}" unless TYPES.key?(type)
+    # 許可していない type は例外にせず Unknown（要確認）にする。解釈できない規則を充足と答えないための弁。
+    def self.condition(definition, allowed = TYPES.keys)
+      type = definition['type'] if definition.is_a?(Hash)
+      return Unknown.new(definition.is_a?(Hash) ? definition : {}) unless allowed.include?(type)
 
       const_get(TYPES.fetch(type)).new(definition)
     end

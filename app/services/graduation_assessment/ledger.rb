@@ -4,6 +4,7 @@ class GraduationAssessment
   # 算入可能な単位と、未確定事項が影響する区分・科目を一緒に保持する。
   class Ledger
     Item = Struct.new(:course, :credits, :counted, :reason, keyword_init: true)
+    NUMBER_GROUPERS = { 'number_prefix' => :prefix, 'number_prefix_hundreds' => :hundreds }.freeze
     attr_reader :items, :notes, :uncertain_roles, :uncertain_required
     attr_accessor :fusion_provider_unknown, :foreign_language_unknown, :unknown_identity
 
@@ -118,12 +119,32 @@ class GraduationAssessment
       end
     end
 
+    # 区分の算入単位を、科目番号の接頭辞（または接頭辞＋百の位）ごとに合計する。番号が読めない科目は含めない。
+    def grouped_credits_by_number(category, group_by)
+      grouper = NUMBER_GROUPERS.fetch(group_by)
+      counted_items(category).each_with_object(Hash.new(Catalogue::ZERO)) do |item, totals|
+        group = CourseNumber.public_send(grouper, item.course['number'])
+        totals[group] += item.counted if group
+      end
+    end
+
+    # 区分に算入済みで、科目番号を読めない科目がある。そのグループは分からないので最大値を信用できない。
+    def unreadable_number?(category)
+      counted_items(category).any? { |item| CourseNumber.prefix(item.course['number']).nil? }
+    end
+
     def course_results
       results = items.map do |key, item|
         CourseResult.new(key: key, name: item.course.fetch('name'), credits: item.credits,
                          counted_credits: item.counted, reason: item.reason)
       end
       (results + @extra_results).freeze
+    end
+
+    private
+
+    def counted_items(category)
+      items.values.select { |item| item.course['category'] == category && item.counted.positive? }
     end
   end
 end
