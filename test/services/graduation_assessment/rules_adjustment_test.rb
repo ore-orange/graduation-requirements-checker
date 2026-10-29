@@ -14,7 +14,7 @@ class GraduationAssessment
         course('half', 'natural', 1),
         course('en_1', 'english', 4)
       ]
-      @catalogue = Catalogue.new('courses' => @courses, 'requirements' => {})
+      @catalogue = catalogue_with(categories: [{ 'key' => 'natural', 'label' => '自然系' }])
       @ledger = Ledger.new(@catalogue)
     end
 
@@ -91,11 +91,40 @@ class GraduationAssessment
     test 'cap の理由は定義の上限と区分名から作る' do
       count('half', 'n_a')
 
-      Rules.adjustment('type' => 'cap', 'id' => 'c', 'category' => 'natural', 'label' => '自然系', 'credits' => 1.5)
+      Rules.adjustment('type' => 'cap', 'id' => 'c', 'category' => 'natural', 'credits' => 1.5)
            .apply(@catalogue, @ledger)
 
       assert_equal BigDecimal('1.5'), @ledger.sum(['natural'])
       assert_equal '自然系は卒業算入上限1.5単位（この科目は0.5単位を算入）', @ledger.items['n_a'].reason
+    end
+
+    test 'cap の理由の区分名は便覧の categories から読む' do
+      catalogue = catalogue_with(categories: [{ 'key' => 'natural', 'label' => '自然科学系' }])
+      ledger = Ledger.new(catalogue)
+      ledger.add(catalogue.find('n_a'), BigDecimal('2')).counted = BigDecimal('2')
+      ledger.add(catalogue.find('n_b'), BigDecimal('2')).counted = BigDecimal('2')
+
+      cap.apply(catalogue, ledger)
+
+      assert_equal '自然科学系は卒業算入上限2単位（この科目は0.0単位を算入）', ledger.items['n_b'].reason
+    end
+
+    test 'cap の理由の区分名は categories がなければ区分のキーで代える' do
+      [catalogue_with, catalogue_with(categories: [{ 'key' => 'english', 'label' => '英語' }])].each do |catalogue|
+        ledger = Ledger.new(catalogue)
+        ledger.add(catalogue.find('n_a'), BigDecimal('2')).counted = BigDecimal('2')
+        ledger.add(catalogue.find('n_b'), BigDecimal('2')).counted = BigDecimal('2')
+
+        cap.apply(catalogue, ledger)
+
+        assert_equal 'naturalは卒業算入上限2単位（この科目は0.0単位を算入）', ledger.items['n_b'].reason
+      end
+    end
+
+    test 'label_for は区分の和名を返し、なければキーを返す' do
+      assert_equal '自然系', @catalogue.label_for('natural')
+      assert_equal 'english', @catalogue.label_for('english')
+      assert_equal 'natural', catalogue_with.label_for('natural')
     end
 
     test 'exclude は区分だけの指定で理由を返す' do
@@ -137,8 +166,14 @@ class GraduationAssessment
       end
     end
 
+    def catalogue_with(categories: nil)
+      document = { 'courses' => @courses, 'requirements' => {} }
+      document['categories'] = categories if categories
+      Catalogue.new(document)
+    end
+
     def cap_definition
-      { 'type' => 'cap', 'id' => 'natural_cap', 'category' => 'natural', 'label' => '自然系', 'credits' => 2 }
+      { 'type' => 'cap', 'id' => 'natural_cap', 'category' => 'natural', 'credits' => 2 }
     end
 
     def cap

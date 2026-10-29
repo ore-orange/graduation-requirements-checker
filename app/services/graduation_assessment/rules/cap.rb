@@ -15,7 +15,7 @@ class GraduationAssessment
         definition.fetch('id')
       end
 
-      def apply(_catalogue, ledger)
+      def apply(catalogue, ledger)
         category = definition.fetch('category')
         remaining = limit
         # 入力順ではなく正規キー順に上限を配分し、説明を安定させる。
@@ -23,7 +23,7 @@ class GraduationAssessment
           next unless item.course['category'] == category && item.counted.positive?
 
           allowed = [remaining, item.counted].min
-          item.reason = reason(allowed) if allowed < item.counted
+          item.reason = reason(catalogue, allowed) if allowed < item.counted
           item.counted = allowed
           remaining -= allowed
         end
@@ -35,9 +35,9 @@ class GraduationAssessment
         BigDecimal(definition.fetch('credits').to_s)
       end
 
-      # 区分名は定義の label から読む。なければ区分のキーで代える。
-      def reason(allowed)
-        name = definition['label'] || definition.fetch('category')
+      # 区分名は便覧の categories から読む（なければ区分のキー）。
+      def reason(catalogue, allowed)
+        name = catalogue.label_for(definition.fetch('category'))
         "#{name}は卒業算入上限#{format_credits(limit)}単位（この科目は#{allowed.to_s('F')}単位を算入）"
       end
 

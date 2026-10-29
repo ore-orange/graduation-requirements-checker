@@ -24,6 +24,12 @@ class GraduationAssessment
       @courses = document.fetch('courses')
       @by_key = @courses.index_by { |course| course.fetch('key') }
       @requirements = document.fetch('requirements')
+      @category_labels = Array(document['categories']).to_h { |category| [category['key'], category['label']] }
+    end
+
+    # 区分の和名は便覧の categories に1か所だけ持つ。categories がない（旧形式の）便覧ではキーをそのまま返す。
+    def label_for(key)
+      @category_labels[key] || key
     end
 
     def find(key)
