@@ -41,9 +41,10 @@
 作り替える前に正解を作る。古いコードを消したあとでは作れない。
 
 **Files:**
+- Create: `lib/graduation_golden.rb`
+- Create: `lib/tasks/graduation_golden.rake`
 - Create: `test/services/graduation_assessment_golden_test.rb`
 - Create: `test/fixtures/files/graduation_golden_2024.json`
-- Create: `lib/tasks/graduation_golden.rake`
 
 **Interfaces:**
 - Produces: `rake graduation:golden` が `test/fixtures/files/graduation_golden_2024.json` を書き出す。形は `{ "<ケース名>": { "actual": <snapshot>, "projected": <snapshot> } }`、snapshot は `{"status":, "counted_credits":, "review_notes": [], "checks": [{"id":,"status":,"counted_credits":,"required_credits":,"missing_courses":[]}]}`。`counted_credits` は `to_s('F')` の文字列。
@@ -159,6 +160,7 @@ git commit -m "feat: 科目番号を接頭辞と百の位に分ける"
   - `GraduationAssessment::Rules::Outcome = Struct.new(:satisfied, :review, :counted, :missing, keyword_init: true)`（`counted` は `BigDecimal`、`missing` は科目名の配列）
   - `Rules::Base#initialize(definition)` / `#id` / `#label` / `#evaluate(catalogue, ledger) => Outcome` / `#check(catalogue, ledger) => Check`
   - `Rules::Base#reconcile(catalogue, ledger)` — 既定は何もしない
+  - `Rules.status(satisfied, review) => :satisfied | :needs_review | :unmet`（`CreditCheck.status` をここへ移す。`Evaluation#status` もこれを使う）
   - `Rules.condition(definition) => Rules::Base`（未知の `type` は `Rules::Unknown`、Task 4）
 
 定義の欄:
@@ -234,7 +236,7 @@ Expected: FAIL
 
 - [ ] **Step 3: `Rules::Base` と3つの型を実装する**
 
-`Base#check` は `evaluate` の `Outcome` から `Check` を組む。`status` は既存の `CreditCheck.status(satisfied, review)`、`detail` の文面は既存の `CreditCheck#detail` と同じ組み立て（「<説明> 確認済み算入X／必要Y単位。」＋不足・未確認の付け足し）を `Base` に移す。`source` は `definition['source_page']` から作る。
+`Base#check` は `evaluate` の `Outcome` から `Check` を組む。`CreditCheck.status` の中身を `Rules.status` に移し（`CreditCheck.status` はそれを呼ぶだけにする）、`detail` の文面は既存の `CreditCheck#detail` と同じ組み立て（「<説明> 確認済み算入X／必要Y単位。」＋不足・未確認の付け足し）を `Base#detail` に移す。`source` は `definition['source_page']` から作る。T7 で `credit_check.rb` を消すので、ロジックはここに残す。
 
 `one_of_paths#reconcile` は、2つ以上の経路に算入済みの役割があるとき `Ledger#quarantine_roles` で全役割を要確認にする（現在の `BasicAlternatives` と同じ）。
 
@@ -260,6 +262,7 @@ git commit -m "feat: 規則の型に credit_sum・all_required・one_of_paths �
 - Create: `app/services/graduation_assessment/rules/all_of.rb`
 - Create: `app/services/graduation_assessment/rules/unknown.rb`
 - Modify: `app/services/graduation_assessment/rules.rb`
+- Modify: `app/services/graduation_assessment/ledger.rb`
 - Test: `test/services/graduation_assessment/rules_composite_test.rb`
 
 **Interfaces:**
@@ -355,6 +358,7 @@ git commit -m "feat: 規則の型に grouped_max・any_of・未知の型を足�
 - Create: `app/services/graduation_assessment/rules/cap.rb`
 - Create: `app/services/graduation_assessment/rules/exclude.rb`
 - Modify: `app/services/graduation_assessment/rules.rb`
+- Modify: `app/services/graduation_assessment/ledger.rb`
 - Test: `test/services/graduation_assessment/rules_adjustment_test.rb`
 
 **Interfaces:**
@@ -429,6 +433,7 @@ git commit -m "feat: 規則の型に cap・exclude を足す"
 **Files:**
 - Modify: `app/services/graduation_assessment/catalogue.rb`
 - Modify: `app/services/graduation_assessment/entry_normalizer.rb`
+- Modify: `app/controllers/plan_courses_controller.rb`
 - Test: `test/services/graduation_assessment/catalogue_test.rb`
 
 **Interfaces:**
@@ -480,6 +485,8 @@ Expected: FAIL
 
 `EntryNormalizer#metadata_review_reason` の `Catalogue::CATEGORIES.exclude?` を `@catalogue.category_keys.exclude?` に、`inspect_provider` / `inspect_language` を消す（Task 4 の `grouped_max` が科目番号で見るようになったため）。
 
+`PlanCoursesController::CUSTOM_CATEGORIES = Catalogue::CATEGORIES - ['excluded']`（`plan_courses_controller.rb` 冒頭）も、この便覧の `counted_category_keys` を要求時に読む形に直す。**定数を消すこのタスクで直さないと、以降5タスクのあいだアプリが起動しない。**
+
 - [ ] **Step 4: 通ることを確認**
 
 Run: `docker compose exec web bin/rails test test/services/graduation_assessment/`
@@ -506,7 +513,7 @@ git commit -m "refactor: Catalogue の定数を便覧データに移す"
 - Modify: `test/services/graduation_assessment_test.rb`
 
 **Interfaces:**
-- Consumes: `Catalogue#conditions` / `#adjustments`（Task 6）
+- Consumes: `Catalogue#conditions` / `#adjustments`（Task 6）、`Rules.status`（Task 3）
 - Produces: `Evaluation#call(completed, future, unresolved) => Snapshot`（引数も戻りも変わらない）
 
 - [ ] **Step 1: 既存テストを新形式に書き直す**
@@ -531,7 +538,7 @@ def call(completed, future, unresolved)
 end
 ```
 
-`status` は現状のまま。削除する5ファイルの参照が残っていないことを `grep -rn` で確認する。
+`status` は判定のしかたを変えず、`CreditCheck.status` ではなく `Rules.status` を呼ぶ。削除する5ファイルの参照が残っていないことを `grep -rn` で確認する。
 
 - [ ] **Step 4: 通ることを確認**
 
@@ -677,7 +684,8 @@ git commit -m "feat: 便覧をDBのcurriculaに置く"
 - Produces:
   - `Student#curriculum`（belongs_to, optional）
   - `Course#custom?` = `custom_category.present?`
-  - `StudentWorkspace#load_workspace` は `@student.curriculum` から `@curriculum` を作り、`@courses_by_number` を持つ（`@courses_by_key` は廃止）
+  - `StudentWorkspace#load_workspace` の `@curriculum` は **`Curriculum` レコード**（Hash ではない）。判定へは `GraduationAssessment.new(curriculum: @curriculum.document)` と渡す。ビューの `@curriculum.fetch(...)` は `@curriculum.document.fetch(...)` に直す
+  - `@courses_by_number` が `@courses_by_key` に代わる（`document['courses']` を `number` で索引）
   - `StudentCourse#assessment_entry` の `key` は `course.course_number`
   - `StudentWorkspaceHelper#course_category(course, courses_by_number)` — 第1引数が `Course` に変わる
 
@@ -745,7 +753,7 @@ git commit -m "refactor: 便覧の科目を科目番号で引く"
   - `StudentWorkspaceHelper#category_label(category, curriculum)`
   - `PlansHelper#planner_subtotal_for(row_id, curriculum)`
   - `DashboardMetrics#initialize(assessment:, enrollments:, plans:, courses_by_number:, curriculum:)`、`#total` は `curriculum.document['display']['total_credits']` を使う
-- 消すもの: `CATEGORY_LABELS` / `PLANNER_GROUPS` / `PLANNER_SUBTOTALS` / `GRADUATION_CREDITS` / `CHECK_DRIVEN_ROWS` / `CUSTOM_CATEGORIES`
+- 消すもの: `CATEGORY_LABELS` / `PLANNER_GROUPS` / `PLANNER_SUBTOTALS` / `GRADUATION_CREDITS` / `CHECK_DRIVEN_ROWS`（`CUSTOM_CATEGORIES` は Task 6 で処理済み）
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -865,7 +873,7 @@ git commit -m "feat: 卒業要件の確認画面を便覧データから描く"
 **Interfaces:**
 - Produces:
   - ルート: `resources :curricula, only: %i[create show destroy]` に member で `publish`、`post 'pages/:page/read'`、`patch :update_courses`、`patch :update_rules`、`get 'page_image/:page'`
-  - `Curriculum#pages` の要素: `{ "page" => 1, "kind" => "skip" | "courses" | "requirements", "status" => "pending" | "read" | "failed", "error" => nil }`
+  - `Curriculum#pages` の要素: `{ "page" => 1, "kind" => "skip" | "courses" | "requirements", "status" => "pending" | "read" | "failed", "error" => nil, "text" => nil }`（`text` は Task 14 が埋める）
   - `CurriculaController` に `LocalAccessOnly`（`TimetableUploadsController` と同じ）
 
 - [ ] **Step 1: 失敗するテストを書く**
