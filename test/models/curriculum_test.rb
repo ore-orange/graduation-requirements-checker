@@ -144,11 +144,57 @@ class CurriculumTest < ActiveSupport::TestCase
     assert_equal %i[faculty_name department_name], draft.errors.attribute_names
   end
 
+  test '画像の置き場は環境ごとに分かれ、テストでは並列のワーカーごとに差し替わる' do
+    curriculum = Curriculum.create!(slug: 'x', admission_year: 2025)
+
+    assert_equal Curriculum.images_root.join(curriculum.id.to_s), curriculum.images_dir
+    assert_not_equal Rails.root.join('storage/curricula', Rails.env), Curriculum.images_root
+    assert_not_equal TimetableUpload.images_root, Curriculum.images_root
+    assert_includes Curriculum.images_root.to_s, 'tmp/test_curriculum_images'
+  end
+
+  test '下書きを消すと、画像の置き場ごと消える' do
+    curriculum = Curriculum.create!(slug: 'x', admission_year: 2025)
+    FileUtils.mkdir_p(curriculum.images_dir)
+    curriculum.images_dir.join('p1.png').write('png')
+    other = Curriculum.create!(slug: 'y', admission_year: 2025)
+    FileUtils.mkdir_p(other.images_dir)
+
+    curriculum.destroy!
+
+    refute_path_exists curriculum.images_dir
+    assert_path_exists other.images_dir
+  end
+
+  test '画像が無い下書きを消しても落ちない' do
+    assert_nothing_raised { Curriculum.create!(slug: 'x', admission_year: 2025).destroy! }
+  end
+
+  test 'page_image_path は、あるページ画像だけを返し、ページ番号以外では引かない' do
+    curriculum = Curriculum.create!(slug: 'x', admission_year: 2025)
+    FileUtils.mkdir_p(curriculum.images_dir)
+    curriculum.images_dir.join('p2.png').write('png')
+    FileUtils.mkdir_p(Curriculum.images_root.join('secret'))
+    Curriculum.images_root.join('secret/p1.png').write('secret')
+
+    assert_equal curriculum.images_dir.join('p2.png'), curriculum.page_image_path('2')
+    assert_nil curriculum.page_image_path('1')
+    ['0', '-1', 'abc', '', nil, '2.5', '1e1', '../secret/p1', '../x/p2', "2\n", '00002x', '9' * 14].each do |bad|
+      assert_nil curriculum.page_image_path(bad), "#{bad.inspect} を受けてしまった"
+    end
+  end
+
   test 'blank_pages は全ページを skip・pending で並べる' do
     assert_equal [{ 'page' => 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => nil },
                   { 'page' => 2, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => nil }],
                  Curriculum.blank_pages(2)
     assert_empty Curriculum.blank_pages(0)
+  end
+
+  test 'blank_pages は、取り出したテキストをページの順に入れる' do
+    pages = Curriculum.blank_pages(3, texts: %w[一 二])
+
+    assert_equal ['一', '二', nil], pages.pluck('text')
   end
 
   test 'assign_page_kinds は送られたページだけ替え、不正なら何も変えない' do

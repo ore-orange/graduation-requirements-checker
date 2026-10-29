@@ -1,10 +1,8 @@
 # frozen_string_literal: true
 
-require 'open3'
-
 # 便覧PDFを上げて下書き（Curriculum）を作り、どのページを読むかを人が決める画面。
 # 一覧とアップロードの入口は /requirements にあり、ここは下書きの確認画面。
-# 画像化・文字の取り出し・AI・公開は後続のタスクで、ここでは動かさない。
+# アップロードと同じリクエストの中で、ページ画像とページごとの文字を取り出し、PDFは捨てる。AI・公開は後続のタスクで、ここでは動かさない。
 class CurriculaController < ApplicationController
   include LocalAccessOnly
 
@@ -12,33 +10,21 @@ class CurriculaController < ApplicationController
   FIELD_LABELS = { slug: '識別名(slug)', admission_year: '入学年度', faculty_name: '学部名',
                    department_name: '学科・コース名' }.freeze
 
-  class PageCountError < StandardError; end
-
-  before_action :load_draft, only: %i[show update destroy]
+  before_action :load_draft, only: %i[show update destroy page_image]
 
   rescue_from ActiveRecord::RecordNotFound do
     redirect_to requirements_path, alert: 'この下書きは見つかりません。削除された可能性があります。', status: :see_other
   end
 
-  # PDFのページ数を Ghostscript で数える。後続のタスクで、画像化・文字の取り出しとともに PageSource へ移す。
-  # 数えられなければ PageCountError。PDFそのものはここでは保存せず、アップロードされた一時ファイルも使い終わったら消える。
-  def self.count_pages(path)
-    out, err, status = Open3.capture3('gs', '-q', '-dNODISPLAY', '-dNOPAUSE', '-dBATCH', '-dSAFER',
-                                      "--permit-file-read=#{path}", "-sInput=#{path}",
-                                      '-c', 'Input (r) file runpdfbegin pdfpagecount = quit')
-    count = Integer(out.to_s.strip, 10, exception: false)
-    unless status.success? && count&.positive?
-      Rails.logger.warn("ページ数を数えられませんでした: #{err.to_s.lines.first(3).join.strip}")
-      raise PageCountError, 'PDFのページ数を数えられませんでした。壊れたPDFか確認してください。'
-    end
-    raise PageCountError, "ページ数が多すぎます（#{count}ページ）。" if count > Curriculum::MAX_PAGES
-
-    count
-  rescue Errno::ENOENT
-    raise PageCountError, 'Ghostscript(gs)が見つかりません。'
-  end
-
   def show; end
+
+  # 取り込み時に作ったページ画像。この下書きの置き場にあるものしか返さない。
+  def page_image
+    data = @curriculum.page_image_data(params[:page])
+    return head :not_found unless data
+
+    send_data data, type: 'image/png', disposition: 'inline'
+  end
 
   def create
     file = upload_params[:file]
@@ -47,14 +33,9 @@ class CurriculaController < ApplicationController
     error = upload_error(curriculum, file)
     return redirect_to requirements_path, alert: error, status: :see_other if error
 
-    # ページ数を数えられなくても下書きは作る。ページは手で指定できる。
-    begin
-      curriculum.pages = Curriculum.blank_pages(self.class.count_pages(file.path))
-    rescue PageCountError => e
-      curriculum.pages = []
-      curriculum.import_error = e.message
-    end
+    curriculum.pages = []
     curriculum.save!(context: :upload)
+    import_material(curriculum, file.path)
     redirect_to curriculum, notice: '下書きを作りました。読むページを選んでください。', status: :see_other
   end
 
@@ -101,6 +82,17 @@ class CurriculaController < ApplicationController
     return "PDFは#{MAX_PDF_BYTES / 1.megabyte}MB以下にしてください。" if file.size > MAX_PDF_BYTES
 
     'PDFファイルを選んでください。' unless File.binread(file.path, 5) == '%PDF-'
+  end
+
+  # 画像とテキストはPDFがあるいましか取り出せない。取り出せなくても下書きは残し、何が取れなかったかを import_error に書く。
+  # ページ数を数えられなければページは空のままで、手で指定できる。
+  def import_material(curriculum, pdf_path)
+    material = CurriculumImport::PageSource.extract(pdf_path, curriculum.images_dir)
+    curriculum.update!(pages: Curriculum.blank_pages(material.page_count, texts: material.texts),
+                       import_error: material.errors.join(' ').presence)
+  rescue StandardError => e
+    Rails.logger.warn("便覧PDFの取り込みに失敗しました: #{e.class}: #{e.message}")
+    curriculum.update!(import_error: 'PDFの取り込み中にエラーが起きました。ページ数を指定して始めてください。')
   end
 
   # ページが無い下書きに、ページ数を手で指定する。エラーのときは文言を返す。

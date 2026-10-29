@@ -21,6 +21,9 @@ class Curriculum < ApplicationRecord
   # 1つのPDFとして現実的な上限。手でページ数を指定するときに、桁違いの値で表を膨らませないため。
   MAX_PAGES = 500
 
+  # 下書きを消すときに、取り出したページ画像もここごと消す。
+  after_destroy { FileUtils.rm_rf(images_dir) }
+
   scope :published, -> { where.not(published_at: nil) }
   scope :drafts, -> { where(published_at: nil) }
   # 一覧に要る列だけ。document は大きいので読まない。
@@ -28,6 +31,16 @@ class Curriculum < ApplicationRecord
     select(:id, :slug, :admission_year, :faculty_name, :department_name, :title,
            :source_filename, :pages, :import_error, :published_at)
   }
+
+  class << self
+    # ページ画像の置き場の根。環境ごとに分ける(テストが開発用の画像を消さないように)。
+    # テストでは、並列の実行ごとに別の場所を割り当てる。画像は <images_root>/<id>/p<n>.png に置く。
+    attr_writer :images_root
+
+    def images_root
+      @images_root ||= Rails.root.join('storage/curricula', Rails.env)
+    end
+  end
 
   # 便覧のJSONを公開済みとして入れる。slug はディレクトリ名、入学年度はファイル名から決める。下書きには触れない。
   # 同じ slug・年度の公開済みが無ければ作る。ある場合は overwrite のときだけファイルの内容で更新する。
@@ -69,11 +82,31 @@ class Curriculum < ApplicationRecord
     UPLOAD_MIN_YEAR..(Time.zone.today.year + 2)
   end
 
-  # 取り込み直後のページ一覧。text は後続の読み取りが埋める。
-  def self.blank_pages(count)
+  # 取り込み直後のページ一覧。text はアップロードのときに PDF から取り出したそのページの文字(取り出せなければ nil か空)。
+  # PDFは残らないので、あとから取り直せない。
+  def self.blank_pages(count, texts: [])
     Array.new(count) do |index|
-      { 'page' => index + 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => nil }
+      { 'page' => index + 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => texts[index] }
     end
+  end
+
+  def images_dir
+    self.class.images_root.join(id.to_s)
+  end
+
+  # 画面に出すページ画像。1始まりのページ番号で引く。無ければ nil。
+  # パスはこの下書きの id とページ番号からだけ組み立て、リクエストの文字列は混ぜない。
+  def page_image_path(page)
+    return unless page.to_s.match?(/\A[1-9]\d{0,3}\z/)
+
+    path = images_dir.join("p#{page.to_i}.png")
+    path if path.file?
+  end
+
+  # ページ画像の中身。無ければ nil。
+  def page_image_data(page)
+    path = page_image_path(page)
+    path&.binread
   end
 
   def published?

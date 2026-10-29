@@ -49,8 +49,8 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_not_predicate curriculum, :published?
     assert_equal 14, curriculum.pages.size
     assert_equal %w[skip], curriculum.pages.pluck('kind').uniq
-    assert_equal({ 'page' => 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => nil },
-                 curriculum.pages.first)
+    assert_equal({ 'page' => 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil },
+                 curriculum.pages.first.except('text'))
     assert_equal (1..14).to_a, curriculum.pages.pluck('page')
     assert_equal 'x', curriculum.slug
     assert_equal 2025, curriculum.admission_year
@@ -59,6 +59,128 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_equal 'kogaku_chinot_y24.pdf', curriculum.source_filename
     assert_nil curriculum.import_error
     assert_equal({}, curriculum.document)
+  end
+
+  test '上げたときに、ページ画像とページごとのテキストを取り出して残す' do
+    post curricula_path, params: upload_params, env: ENV_LOCAL
+
+    curriculum = Curriculum.last
+    assert_empty Dir.children(curriculum.images_dir).grep_v(/\Ap\d+\.png\z/), 'PNG以外(元のPDFなど)を置いてはいけない'
+    assert_equal (1..14).map { |n| "p#{n}.png" }.sort, Dir.children(curriculum.images_dir).sort
+    assert_equal 14, curriculum.pages.pluck('text').size
+    assert(curriculum.pages.all? { |page| page['text'].is_a?(String) })
+    assert_includes curriculum.pages[2]['text'], '工学基礎演習'
+    assert_equal %w[skip], curriculum.pages.pluck('kind').uniq
+    assert_nil curriculum.import_error
+  end
+
+  test '元のPDFはどこにも保管しない' do
+    post curricula_path, params: upload_params, env: ENV_LOCAL
+
+    stored = Dir.glob(Curriculum.images_root.join('**/*')).select { |path| File.file?(path) }
+    assert_empty(stored.grep_v(/\.png\z/))
+    assert_empty Curriculum.images_root.glob('**/*.pdf')
+  end
+
+  test '画像が作れなくても、テキストを取り出して下書きは作り、失敗を記録する' do
+    CurriculumImport::PageSource.stub(:render_images, 0) do
+      assert_difference('Curriculum.count', 1) do
+        post curricula_path, params: upload_params, env: ENV_LOCAL
+      end
+    end
+
+    curriculum = Curriculum.last
+    assert_redirected_to curriculum_path(curriculum)
+    assert_equal 14, curriculum.pages.size
+    assert_includes curriculum.pages[2]['text'], '工学基礎演習'
+    assert_match(/14ページ中0ページ/, curriculum.import_error)
+  end
+
+  test '文字が取り出せなくても、画像つきで下書きは作り、読めなかったページを記録する' do
+    failed = CurriculumImport::PageSource::TextResult.new(Array.new(14, ''), [3, 5])
+    CurriculumImport::PageSource.stub(:extract_texts, failed) do
+      post curricula_path, params: upload_params, env: ENV_LOCAL
+    end
+
+    curriculum = Curriculum.last
+    assert_equal 14, curriculum.pages.size
+    assert_equal 14, Dir.glob(curriculum.images_dir.join('p*.png')).size
+    assert_equal [''], curriculum.pages.pluck('text').uniq
+    assert_match(/3・5ページ/, curriculum.import_error)
+  end
+
+  test '画像化が予期しない例外で落ちても、下書きは作る' do
+    CurriculumImport::PageSource.stub(:render_images, ->(*) { raise IOError, 'disk full' }) do
+      assert_difference('Curriculum.count', 1) do
+        post curricula_path, params: upload_params, env: ENV_LOCAL
+      end
+    end
+
+    assert_equal 14, Curriculum.last.pages.size
+    assert_predicate Curriculum.last.import_error, :present?
+  end
+
+  test 'ページ画像を返せるのは下書きのPNGだけで、番号以外では引けない' do
+    post curricula_path, params: upload_params, env: ENV_LOCAL
+    curriculum = Curriculum.last
+
+    get page_image_curriculum_path(curriculum, page: 3), env: ENV_LOCAL
+    assert_response :success
+    assert_equal 'image/png', response.media_type
+    assert_equal curriculum.images_dir.join('p3.png').binread, response.body
+
+    [0, 15, 'abc', '1e1'].each do |page|
+      get page_image_curriculum_path(curriculum, page: page), env: ENV_LOCAL
+      assert_response :not_found, "#{page} を返してしまった"
+    end
+  end
+
+  test 'ページ画像は他の下書きの置き場や置き場の外のファイルを返さない' do
+    mine = draft
+    other = draft
+    FileUtils.mkdir_p(other.images_dir)
+    other.images_dir.join('p1.png').write('other')
+    Rails.root.join('tmp/outside.png').write('outside')
+
+    get page_image_curriculum_path(mine, page: 1), env: ENV_LOCAL
+    assert_response :not_found
+    ['..%2F..%2Foutside', "..%2F#{other.id}%2Fp1"].each do |page|
+      get "/curricula/#{mine.id}/page_image/#{page}", env: ENV_LOCAL
+      assert_includes [404, 400], response.status
+    end
+  ensure
+    FileUtils.rm_f(Rails.root.join('tmp/outside.png'))
+  end
+
+  test '公開済みの便覧のページ画像は返さない' do
+    published = Curriculum.published.first
+    FileUtils.mkdir_p(published.images_dir)
+    published.images_dir.join('p1.png').write('png')
+
+    get page_image_curriculum_path(published, page: 1), env: ENV_LOCAL
+
+    assert_redirected_to requirements_path
+  end
+
+  test 'ページ画像は外部からは開けない' do
+    curriculum = draft
+    FileUtils.mkdir_p(curriculum.images_dir)
+    curriculum.images_dir.join('p1.png').write('png')
+    host! 'example.com'
+
+    get page_image_curriculum_path(curriculum, page: 1)
+
+    assert_response :not_found
+  end
+
+  test '下書きを消すと、画像も消える' do
+    post curricula_path, params: upload_params, env: ENV_LOCAL
+    curriculum = Curriculum.last
+    assert_path_exists curriculum.images_dir
+
+    delete curriculum_path(curriculum), env: ENV_LOCAL
+
+    refute_path_exists curriculum.images_dir
   end
 
   test '作った下書きの確認画面は、空の文書でも開ける' do
@@ -149,8 +271,8 @@ class CurriculaTest < ActionDispatch::IntegrationTest
   end
 
   test 'ページ数を数えられなくても、失敗を記録して下書きは作る' do
-    boom = ->(_path) { raise CurriculaController::PageCountError, 'Ghostscript(gs)が見つかりません。' }
-    CurriculaController.stub(:count_pages, boom) do
+    boom = ->(_path) { raise CurriculumImport::PageSource::PageCountError, 'Ghostscript(gs)が見つかりません。' }
+    CurriculumImport::PageSource.stub(:page_count, boom) do
       assert_difference('Curriculum.count', 1) do
         post curricula_path, params: upload_params, env: ENV_LOCAL
       end
@@ -171,6 +293,7 @@ class CurriculaTest < ActionDispatch::IntegrationTest
 
     assert_empty Curriculum.last.pages
     assert_predicate Curriculum.last.import_error, :present?
+    refute_path_exists Curriculum.last.images_dir
   end
 
   test 'ページ数を数えられなかった下書きは、ページ数を手で指定できる' do

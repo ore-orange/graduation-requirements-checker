@@ -13,8 +13,17 @@ module ActiveSupport
     # 共有すると、別のワーカーや開発環境の画像を消し合う。
     TimetableUpload.images_root = Rails.root.join('tmp/test_images/0')
 
-    parallelize_setup { |worker| TimetableUpload.images_root = Rails.root.join('tmp/test_images', worker.to_s) }
-    parallelize_teardown { |worker| FileUtils.rm_rf(Rails.root.join('tmp/test_images', worker.to_s)) }
+    # 便覧の下書きの画像も同じ。取り込みの id と同じ数字が並ぶので、置き場は別にする。
+    Curriculum.images_root = Rails.root.join('tmp/test_curriculum_images/0')
+
+    parallelize_setup do |worker|
+      TimetableUpload.images_root = Rails.root.join('tmp/test_images', worker.to_s)
+      Curriculum.images_root = Rails.root.join('tmp/test_curriculum_images', worker.to_s)
+    end
+    parallelize_teardown do |worker|
+      FileUtils.rm_rf(Rails.root.join('tmp/test_images', worker.to_s))
+      FileUtils.rm_rf(Rails.root.join('tmp/test_curriculum_images', worker.to_s))
+    end
 
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all
