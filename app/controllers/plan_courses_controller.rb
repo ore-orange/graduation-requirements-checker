@@ -6,6 +6,9 @@ class PlanCoursesController < ApplicationController
 
   BLOCKED_STATUSES = %w[completed registered in_progress].freeze
 
+  # 同じ科目番号の Course が複数あり、便覧の科目に当たる行を1つに決められない。
+  class AmbiguousCourse < StandardError; end
+
   # term（"3-後期" など）の学期の予定として追加する。追加できるのは今の学期以降。
   def create
     @term = parse_term(params[:term])
@@ -17,6 +20,8 @@ class PlanCoursesController < ApplicationController
 
     @student.planned_courses.create!(course: course, academic_year: term_year(@term), semester: @term[:semester])
     back_to_plan(notice: '今後の履修予定に追加しました。判定を更新しました。')
+  rescue AmbiguousCourse
+    back_to_plan(alert: '同じ科目番号の科目が複数登録されているため、この科目は追加できません。管理者に確認してください。')
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
     back_to_plan(alert: '科目を追加できませんでした。既に追加されていないか確認してください。')
   end
@@ -42,16 +47,20 @@ class PlanCoursesController < ApplicationController
   def selectable_course
     return build_custom_course if params[:custom_course].present?
 
-    key = params.permit(:course_key)[:course_key]
-    find_catalogue_course(key) if key.is_a?(String)
+    number = params.permit(:course_number)[:course_number]
+    find_catalogue_course(number) if number.is_a?(String)
   end
 
-  def find_catalogue_course(key)
-    catalogue_course = @courses_by_key[key]
+  # 便覧の科目は科目番号で Course に当たる。同じ番号の Course が複数あるときは、どれかを選ぶことはせず、追加しない。
+  def find_catalogue_course(number)
+    catalogue_course = @courses_by_number[number]
     return unless catalogue_course && catalogue_course['selectable'] == true
 
-    Course.find_by(curriculum_key: key) ||
-      raise(DemoAccount::Unavailable, '便覧の科目が登録されていません。bin/rails db:seed を実行してください。')
+    courses = Course.where(course_number: number).limit(2).to_a
+    raise(DemoAccount::Unavailable, '便覧の科目が登録されていません。bin/rails db:seed を実行してください。') if courses.empty?
+    raise AmbiguousCourse if courses.size > 1
+
+    courses.first
   end
 
   def build_custom_course
@@ -59,10 +68,10 @@ class PlanCoursesController < ApplicationController
     return unless attrs
 
     matched = match_catalogue_course(attrs[:name], attrs[:number])
-    return find_catalogue_course(matched.fetch('key')) if matched
+    return find_catalogue_course(matched.fetch('number')) if matched
 
-    Course.create!(curriculum_key: "custom:#{attrs[:category]}:#{SecureRandom.hex(6)}",
-                   course_number: attrs[:number], name: attrs[:name], credits: attrs[:credits])
+    Course.create!(custom_category: attrs[:category], course_number: attrs[:number], name: attrs[:name],
+                   credits: attrs[:credits])
   end
 
   def custom_course_attributes
@@ -90,14 +99,15 @@ class PlanCoursesController < ApplicationController
     value.to_i
   end
 
+  # 科目番号の無い科目は Course に当てる手がかりが無いので、取り違えないよう突き合わせない。
   def match_catalogue_course(name, number)
-    @curriculum.fetch('courses').find do |course|
+    @courses_by_number.each_value.find do |course|
       course['name'].casecmp?(name) || (number.present? && course['number'].to_s.casecmp?(number))
     end
   end
 
   def cleanup_custom_course(course)
-    return unless course.curriculum_key.to_s.start_with?('custom:')
+    return unless course.custom?
     return if course.planned_courses.exists? || course.student_courses.exists?
 
     course.destroy!

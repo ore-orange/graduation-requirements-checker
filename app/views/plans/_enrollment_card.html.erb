@@ -1,6 +1,5 @@
 <%
-  cat_course = @courses_by_key[enrollment.course.curriculum_key]
-  course_num = cat_course&.dig('number') || enrollment.course.course_number
+  course_num = enrollment.course.course_number
   is_current = StudentWorkspace::CURRENT_STATUSES.include?(enrollment.enrollment_status)
   is_other = %w[failed unknown].include?(enrollment.enrollment_status)
   card_credits = enrollment.enrollment_status == 'completed' ? enrollment.credits_earned : enrollment.course.credits

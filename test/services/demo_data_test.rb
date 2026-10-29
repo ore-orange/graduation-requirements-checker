@@ -59,21 +59,42 @@ class DemoDataTest < ActiveSupport::TestCase
     assert_equal unrelated_user, User.find(unrelated_user.id)
   end
 
-  test 'unverified source credits and numbers stay unknown rather than being fabricated' do
+  test 'unverified source credits stay unknown rather than being fabricated' do
     document = curriculum
-    key = demo_enrollments.first.fetch('course_key')
-    entry = document.fetch('courses').find { |course| course.fetch('key') == key }
-    entry['number'] = nil
+    number = demo_enrollments.first.fetch('course_number')
+    entry = document.fetch('courses').find { |course| course.fetch('number') == number }
     entry['credits'] = nil
     published_curriculum.update!(document: document)
     student = DemoData.load!
 
-    course = Course.find_by!(curriculum_key: key)
-    assert_nil course.course_number
+    course = Course.find_by!(course_number: number, name: entry.fetch('name'))
     assert_nil course.credits
     current = student.student_courses.create!(course: course, academic_year: 2025, enrollment_status: 'registered')
     assert_nil current.assessment_entry.fetch(:credits)
     assert_nil current.assessment_entry.fetch(:approved)
+  end
+
+  test 'demo enrollments point at courses by number, and every number is in the handbook' do
+    numbers = curriculum.fetch('courses').pluck('number').compact
+
+    assert_equal 48, demo_enrollments.size
+    assert_empty demo_enrollments.pluck('course_number') - numbers
+    assert(demo_enrollments.none? { |entry| entry.key?('course_key') })
+  end
+
+  test 'the demo student is tied to the published curriculum for their admission year' do
+    student = DemoData.load!
+
+    assert_equal published_curriculum, student.curriculum
+  end
+
+  test 'courses are found or created by number and name, like the timetable importer' do
+    existing = Course.create!(course_number: '知能101', name: 'プログラミング演習Ⅰ', credits: 1)
+
+    DemoData.load!
+
+    assert_equal [existing], Course.where(course_number: '知能101', name: 'プログラミング演習Ⅰ').to_a
+    assert_equal 1, Course.where(course_number: '知能101').count
   end
 
   test 'conflicting existing cohort is not overwritten and loading is atomic' do

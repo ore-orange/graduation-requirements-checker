@@ -37,8 +37,8 @@ erDiagram
 | faculties | name必須・一意。講義の分類に使う選択肢の元なので、db/seeds.rbで作る |
 | departments | faculty必須、name必須。名前は学部内で一意。db/seeds/academic_organizations.rbが持つ一覧から作る |
 | programs | department必須、name必須 |
-| students | user必須・一意、department必須（現在所属）、admission_year必須 |
-| courses | name必須、course_number任意・非一意、credits任意。curriculum_keyはNULL可・値がある場合は一意 |
+| students | user必須・一意、department必須（現在所属）、admission_year必須、curriculum任意（判定に使う便覧。公開済みのものだけ） |
+| courses | name必須、course_number任意・非一意、credits任意。custom_categoryは自由入力計画科目の区分（NULL可） |
 | student_courses | student/course/academic_year必須。enrollment_statusはcompleted/registered/in_progress/failed/unknown。semester/grade/credits_earnedはNULL可、approval_confirmedは三値 |
 | student_program_assignments | student/program/status必須、assigned_at/ended_at任意 |
 | planned_courses | student/course必須、組み合わせは一意。将来科目の一覧として保存し、年度・学期を持たない |
@@ -61,7 +61,7 @@ erDiagram
 - creditsは参考値、credits_earnedはその履修で実際に得た単位。
   マスタ更新は過去のcredits_earnedを書き換えない。
   NULL（未確定）と0（単位取得なし）を区別する。
-- 判定はcurriculum_keyで科目を照合し、同一科目の重複を一度だけ算入する。修得単位が競合する再履修や、同等科目の未確認の組合せは「要確認」とし、勝手に最新・最大の記録を採用しない。
+- 判定は学生の便覧の科目表を、Courseの科目番号で引いて科目を照合し、同一科目の重複を一度だけ算入する。同じ科目番号のCourseが複数あるときはどれも算入せず「要確認」とする。修得単位が競合する再履修や、同等科目の未確認の組合せは「要確認」とし、勝手に最新・最大の記録を採用しない。
 - 既存履修行の状態はunknownを既定とし、成績文字列・NULL・年度だけから修得済みや予定とは推測しない。既に修得した科目を将来計画へ重ねても単位は増やさない。
 
 ## 所属・配属

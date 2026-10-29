@@ -16,7 +16,7 @@ class StudentCourse < ApplicationRecord
               when 'registered', 'in_progress' then course.credits
               end
 
-    { key: course.curriculum_key, credits: credits, approved: approval_confirmed, name: course.name }
+    { key: course.course_number, credits: credits, approved: approval_confirmed, name: course.name }
   end
 end
 

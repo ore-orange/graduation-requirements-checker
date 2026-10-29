@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_30_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_30_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -41,9 +41,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_000000) do
     t.integer "credits"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "curriculum_key"
+    t.string "custom_category"
     t.index ["course_number"], name: "index_courses_on_course_number"
-    t.index ["curriculum_key"], name: "index_courses_on_curriculum_key", unique: true, where: "(curriculum_key IS NOT NULL)"
     t.check_constraint "credits::numeric >= 0::numeric", name: "courses_nonnegative_credits"
   end
 
@@ -85,6 +84,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_000000) do
     t.datetime "updated_at", null: false
     t.integer "academic_year", null: false
     t.string "semester", null: false
+    t.boolean "approval_confirmed"
     t.index ["course_id"], name: "index_planned_courses_on_course_id"
     t.index ["student_id", "course_id"], name: "index_planned_courses_on_student_id_and_course_id", unique: true
     t.index ["student_id"], name: "index_planned_courses_on_student_id"
@@ -139,6 +139,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_000000) do
     t.bigint "department_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "curriculum_id"
+    t.index ["curriculum_id"], name: "index_students_on_curriculum_id"
     t.index ["department_id", "admission_year"], name: "index_students_on_department_id_and_admission_year"
     t.index ["department_id"], name: "index_students_on_department_id"
     t.index ["user_id"], name: "index_students_on_user_id", unique: true
@@ -199,6 +201,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_30_000000) do
   add_foreign_key "student_courses", "students"
   add_foreign_key "student_program_assignments", "programs"
   add_foreign_key "student_program_assignments", "students"
+  add_foreign_key "students", "curricula"
   add_foreign_key "students", "departments"
   add_foreign_key "students", "users"
   add_foreign_key "timetable_upload_rows", "courses"

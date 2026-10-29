@@ -61,10 +61,10 @@ module GraduationGolden
   end
 
   def demo_case(courses)
-    by_key = courses.index_by { |course| course['key'] }
+    by_number = courses.select { |course| course['number'] }.index_by { |course| course['number'] }
     groups = { completed: [], registered: [], unresolved: [] }
     JSON.parse(ENROLLMENTS_PATH.read).fetch('enrollments').each do |enrollment|
-      course = by_key.fetch(enrollment['course_key'])
+      course = by_number.fetch(enrollment['course_number'])
       status = enrollment['enrollment_status']
       case status
       when 'completed'

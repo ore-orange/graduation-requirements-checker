@@ -11,22 +11,22 @@ class DashboardMetrics
   # 知能情報アドバンストの必要22単位は3区分で1つの枠なので、ここも算入単位で揃える。
   CHECK_DRIVEN_ROWS = %w[general_subtotal fusion advanced].freeze
 
-  attr_reader :assessment, :enrollments, :plans, :courses_by_key
+  attr_reader :assessment, :enrollments, :plans, :courses_by_number
 
-  def initialize(assessment:, enrollments:, plans:, courses_by_key:)
+  def initialize(assessment:, enrollments:, plans:, courses_by_number:)
     @assessment = assessment
     @enrollments = enrollments
     @plans = plans
-    @courses_by_key = courses_by_key
+    @courses_by_number = courses_by_number
   end
 
   def custom_plans
-    @custom_plans ||= plans.select { |plan| custom_course?(plan.course.curriculum_key) }
+    @custom_plans ||= plans.select { |plan| plan.course.custom? }
   end
 
   def custom_credits(categories)
-    custom_plans.select { |plan| categories.include?(course_category(plan.course.curriculum_key, courses_by_key)) }
-                .sum(BigDecimal('0')) { |plan| plan_credits(plan, courses_by_key) }
+    custom_plans.select { |plan| categories.include?(course_category(plan.course, courses_by_number)) }
+                .sum(BigDecimal('0')) { |plan| plan_credits(plan, courses_by_number) }
   end
 
   # 卒業必要単位(130)に対する合計。カード上部のバーで使う。
@@ -66,7 +66,7 @@ class DashboardMetrics
     if CHECK_DRIVEN_ROWS.include?(definition[:id]) && actual&.counted_credits && projected&.counted_credits
       [actual.counted_credits, (projected.counted_credits - actual.counted_credits) + extra]
     else
-      credits = category_credits(enrollments, plans, definition[:categories], courses_by_key)
+      credits = category_credits(enrollments, plans, definition[:categories], courses_by_number)
       [credits[:earned], credits[:planned]]
     end
   end

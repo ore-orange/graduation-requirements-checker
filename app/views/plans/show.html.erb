@@ -11,11 +11,11 @@
 
     <%
       mapped_categories = StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
-      unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course.curriculum_key, @courses_by_key)) }
-      unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+      unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course, @courses_by_number)) }
+      unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course, @courses_by_number)) }
       term_earned = @term_enrollments.select { |e| e.enrollment_status == 'completed' }.sum(BigDecimal('0')) { |e| e.credits_earned || BigDecimal('0') }
       term_current = @term_enrollments.select { |e| StudentWorkspace::CURRENT_STATUSES.include?(e.enrollment_status) }.sum(BigDecimal('0')) { |e| e.course.credits || BigDecimal('0') }
-      term_planned = @term_plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
+      term_planned = @term_plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_number) }
       is_current_term = @term == @current_term
       nav_class = 'w-9 h-9 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-lg text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
     %>
@@ -99,26 +99,26 @@
 
               <% group[:rows].each do |row| %>
                 <%
-                  cell_enrollments = @term_enrollments.select { |e| row[:categories].include?(course_category(e.course.curriculum_key, @courses_by_key)) }
-                  cell_plans = @term_plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-                  row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-                  row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_key)
-                  row_has_custom = row_plans.any? { |p| custom_course?(p.course.curriculum_key) }
+                  cell_enrollments = @term_enrollments.select { |e| row[:categories].include?(course_category(e.course, @courses_by_number)) }
+                  cell_plans = @term_plans.select { |p| row[:categories].include?(course_category(p.course, @courses_by_number)) }
+                  row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course, @courses_by_number)) }
+                  row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_number)
+                  row_has_custom = row_plans.any? { |p| p.course.custom? }
                   row_status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_has_custom)
                   subtotal = planner_subtotal_for(row[:id])
                 %>
                 <% if subtotal && subtotal[:row_ids].first == row[:id] %>
                   <%
                     subtotal_categories = group[:rows].select { |r| subtotal[:row_ids].include?(r[:id]) }.flat_map { |r| r[:categories] }
-                    subtotal_plans = @plans.select { |p| subtotal_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+                    subtotal_plans = @plans.select { |p| subtotal_categories.include?(course_category(p.course, @courses_by_number)) }
                     subtotal_status = row_check_status(@assessment, subtotal[:check_ids],
-                                                       has_custom_plan: subtotal_plans.any? { |p| custom_course?(p.course.curriculum_key) })
+                                                       has_custom_plan: subtotal_plans.any? { |p| p.course.custom? })
                   %>
                   <!-- 合計で数える区分のまとまり（必要単位はここにだけ出す） -->
                   <tr class="align-top bg-indigo-50/30" data-planner-subtotal="<%= subtotal[:id] %>">
                     <th class="p-3.5 border-r border-slate-200">
                       <div class="font-bold text-slate-800 text-sm leading-snug"><%= subtotal[:name] %></div>
-                      <%= render 'plans/credit_badge', credits: category_credits(@enrollments, @plans, subtotal_categories, @courses_by_key),
+                      <%= render 'plans/credit_badge', credits: category_credits(@enrollments, @plans, subtotal_categories, @courses_by_number),
                                                        req: subtotal[:req], status: subtotal_status %>
                     </th>
                     <td class="p-3.5 text-[11px] text-slate-500 leading-relaxed">
@@ -239,7 +239,7 @@
       <% else %>
         <ul class="mt-4 divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1">
           <% @catalogue.each do |course| %>
-            <% unavailable = catalogue_availability(course, unavailable_keys: @unavailable_keys, persisted_keys: @persisted_keys) %>
+            <% unavailable = catalogue_availability(course, unavailable_numbers: @unavailable_numbers, persisted_numbers: @persisted_numbers) %>
             <li class="py-3" data-catalogue-key="<%= course.fetch('key') %>">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="min-w-0 flex-1">
@@ -265,7 +265,7 @@
                   <span class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-500"><%= unavailable %></span>
                 <% elsif @term_open %>
                   <%= form_with url: plan_courses_path, class: 'shrink-0' do |form| %>
-                    <%= form.hidden_field :course_key, value: course.fetch('key'), id: nil %>
+                    <%= form.hidden_field :course_number, value: course.fetch('number'), id: nil %>
                     <%= hidden_field_tag :term, term_param(@term), id: nil %>
                     <%= form.submit "#{term_label(@term)}に追加", class: 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer',
                                                                 aria: { label: "#{course.fetch('name')}を#{term_label(@term)}の予定に追加" } %>

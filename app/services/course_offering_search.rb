@@ -3,7 +3,7 @@
 # 保存済みの講義の絞り込み。管理者が「指摘を受けた講義を探す」ための引き当てに使う。
 #
 # 学期は軸に入れない(表の列としてだけ出す)。年度・学科が空の講義(#53 のあとに残る
-# curriculum_key 由来のもの)は、その軸を指定していないときは落とさない。
+# DemoData が便覧から作った科目)は、その軸を指定していないときは落とさない。
 class CourseOfferingSearch
   # 完全一致で当てる軸と、部分一致で当てる軸
   EXACT_KEYS = %i[year faculty_id department_id].freeze

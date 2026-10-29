@@ -9,7 +9,7 @@ class DashboardController < ApplicationController
     load_plans
     @assessment = assess
     @metrics = DashboardMetrics.new(assessment: @assessment, enrollments: @enrollments,
-                                    plans: @plans, courses_by_key: @courses_by_key)
+                                    plans: @plans, courses_by_number: @courses_by_number)
   end
 end
 

@@ -17,9 +17,11 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     @student.planned_courses.delete_all
     @curriculum = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024).document
     @courses = @curriculum.fetch('courses')
-    @occupied_keys = @student.student_courses.where(enrollment_status: %w[completed registered in_progress])
-                             .joins(:course).pluck('courses.curriculum_key')
-    @candidate = @courses.find { |course| course['selectable'] == true && @occupied_keys.exclude?(course['key']) }
+    @occupied_numbers = @student.student_courses.where(enrollment_status: %w[completed registered in_progress])
+                                .joins(:course).pluck('courses.course_number')
+    @candidate = @courses.find do |course|
+      course['selectable'] == true && course['number'].present? && @occupied_numbers.exclude?(course['number'])
+    end
   end
 
   teardown do
@@ -95,7 +97,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     original_projected_credits = BigDecimal(assessment_attributes.fetch('data-projected-credits'))
 
     assert_difference '@student.planned_courses.count', 1 do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }, env: local_env
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM }, env: local_env
     end
     assert_response :see_other
     assert_redirected_to plan_path(term: CURRENT_TERM)
@@ -103,7 +105,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     get plan_path, env: local_env
     assert_response :success
-    assert_select "[data-plan='#{plan.id}'][data-course-key='#{@candidate.fetch('key')}']", count: 1
+    assert_select "[data-plan='#{plan.id}'][data-course-number='#{@candidate.fetch('number')}']", count: 1
 
     get root_path, env: local_env
     assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')
@@ -134,10 +136,12 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal 'unmet', group_attributes('required_all').fetch('data-projected-status')
     original_actual = assessment_attributes.fetch('data-counted-credits')
     initial_credits = BigDecimal(assessment_attributes.fetch('data-projected-credits'))
-    future_required = @courses.select { |course| course['required'] && @occupied_keys.exclude?(course.fetch('key')) }
+    future_required = @courses.select do |course|
+      course['required'] && @occupied_numbers.exclude?(course.fetch('number'))
+    end
 
     future_required.each do |course|
-      post plan_courses_path, params: { course_key: course.fetch('key'), term: CURRENT_TERM }, env: local_env
+      post plan_courses_path, params: { course_number: course.fetch('number'), term: CURRENT_TERM }, env: local_env
       assert_response :see_other
     end
 
@@ -159,18 +163,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   test 'rejects completed current duplicate unknown and nonselectable courses' do
     prohibited = @courses.find { |course| course['selectable'] != true }
     assert_not_nil prohibited
-    keys = @occupied_keys + [prohibited.fetch('key'), 'not-a-catalogue-course', nil, ['not-a-string']]
-    keys.each do |key|
+    numbers = @occupied_numbers + [prohibited.fetch('number'), 'not-a-catalogue-course', nil, ['not-a-string']]
+    numbers.each do |number|
       assert_no_difference 'PlannedCourse.count' do
-        post plan_courses_path, params: { course_key: key, term: CURRENT_TERM }, env: local_env
+        post plan_courses_path, params: { course_number: number, term: CURRENT_TERM }, env: local_env
       end
       assert_response :see_other
       assert_redirected_to plan_path(term: CURRENT_TERM)
     end
 
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }, env: local_env
+    post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM }, env: local_env
     assert_no_difference 'PlannedCourse.count' do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }, env: local_env
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM }, env: local_env
     end
     assert_response :see_other
   end
@@ -186,7 +190,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     assert foreign_plan.reload.persisted?
 
-    request_params = { course_key: @candidate.fetch('key'), term: CURRENT_TERM, student_id: other.id,
+    request_params = { course_number: @candidate.fetch('number'), term: CURRENT_TERM, student_id: other.id,
                        account: other.user.email }
 
     assert_difference '@student.planned_courses.count', 1 do
@@ -245,7 +249,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal before, assessment_attributes
 
     assert_difference '@student.planned_courses.count', 1 do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }, env: local_env
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM }, env: local_env
     end
     assert_response :see_other
     assert_equal 'failed', failed.reload.enrollment_status
@@ -263,8 +267,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     end
     assert_response :see_other
     plan = @student.planned_courses.order(:id).last
-    assert_predicate plan.course.curriculum_key, :present?
-    assert plan.course.curriculum_key.start_with?('custom:free:')
+    assert_predicate plan.course, :custom?
+    assert_equal 'free', plan.course.custom_category
 
     get plan_path, env: local_env
     assert_select "[data-plan='#{plan.id}']", count: 1
@@ -287,7 +291,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
       end
     end
     plan = @student.planned_courses.order(:id).last
-    assert_equal @candidate.fetch('key'), plan.course.curriculum_key
+    assert_equal @candidate.fetch('number'), plan.course.course_number
+    assert_not plan.course.custom?
   end
 
   test 'missing seed returns unavailable without creating fake data' do
@@ -300,7 +305,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-assessment]', count: 0
 
     assert_no_difference 'PlannedCourse.count' do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }, env: local_env
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM }, env: local_env
     end
     assert_response :service_unavailable
   end
@@ -344,7 +349,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     get root_path, env: proxy_env
     assert_response :success
     assert_difference '@student.planned_courses.count', 1 do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }, env: proxy_env
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM }, env: proxy_env
     end
     assert_response :see_other
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
@@ -425,7 +430,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test '学期を指定して追加した予定は、その学期の表にだけ出る' do
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期' }, env: local_env
+    post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: '4-前期' }, env: local_env
     assert_redirected_to plan_path(term: '4-前期')
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
     assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
@@ -439,13 +444,13 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   test '今の学期には予定を追加でき、過去の学期と読めない学期には追加できない' do
     assert_no_difference '@student.planned_courses.count' do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-前期' }, env: local_env
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: '3-前期' }, env: local_env
       assert_redirected_to plan_path(term: '3-前期')
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '9-夏期' }, env: local_env
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: '9-夏期' }, env: local_env
       assert_redirected_to plan_path
     end
 
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-後期' }, env: local_env
+    post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: '3-後期' }, env: local_env
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
     assert_equal [2026, '後期'], [plan.academic_year, plan.semester]
   end
@@ -478,27 +483,98 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     custom = { name: '他学部の社会系特論', credits: '2', category: 'social' }
     post plan_courses_path, params: { term: '4-前期', custom_course: custom }, env: local_env
     plan = @student.planned_courses.joins(:course).find_by!(courses: { name: '他学部の社会系特論' })
-    assert_match(/\Acustom:social:/, plan.course.curriculum_key)
+    assert_equal 'social', plan.course.custom_category
     assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
   end
 
   test '学期を指定しない追加は断る' do
     assert_no_difference 'PlannedCourse.count' do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key') }, env: local_env
+      post plan_courses_path, params: { course_number: @candidate.fetch('number') }, env: local_env
     end
     assert_redirected_to plan_path
     follow_redirect!(env: local_env)
     assert_select '#unscheduled', count: 0
   end
 
+  test '履修は科目番号で便覧の科目に当たる' do
+    entry = @student.student_courses.joins(:course).find_by!(courses: { course_number: '知能101' }).assessment_entry
+    assert_equal '知能101', entry.fetch(:key)
+
+    get root_path, env: local_env
+
+    check = workspace_check('required_information')
+    assert_equal :satisfied, check.status
+    assert_equal BigDecimal('2'), check.counted_credits
+  end
+
+  test '同じ科目番号の Course が2行あると、便覧の1科目に決められず要確認になる' do
+    Course.create!(course_number: '知能101', name: 'プログラミング演習Ⅰ（別表記）', credits: 1)
+
+    get root_path, env: local_env
+
+    assert_response :success
+    actual = controller.instance_variable_get(:@assessment).actual
+    assert_includes actual.review_notes.join, '科目番号'
+    # どちらかの行を選んで算入しない。番号が重なった履修は単位に数えず、要確認に回す。
+    check = workspace_check('required_information')
+    assert_equal :needs_review, check.status
+    assert_equal BigDecimal('1'), check.counted_credits
+    assert_equal 'needs_review', assessment_attributes.fetch('data-actual-status')
+  end
+
+  test '同じ科目番号の Course が複数ある科目は、予定に追加しない' do
+    Course.create!(course_number: @candidate.fetch('number'), name: "#{@candidate.fetch('name')}（別表記）", credits: 1)
+
+    assert_no_difference 'PlannedCourse.count' do
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM },
+                              env: local_env
+    end
+    assert_redirected_to plan_path(term: CURRENT_TERM)
+    assert_match '科目番号', flash[:alert]
+  end
+
+  test '学生に紐付いた便覧で判定する。学科名で探さない' do
+    other = Curriculum.create!(slug: 'other_course', admission_year: 2024, title: '別コースの便覧',
+                               document: @curriculum.merge('title' => '別コースの便覧'), published_at: Time.current)
+    @student.update!(curriculum: other)
+
+    get requirements_path, env: local_env
+
+    assert_response :success
+    assert_equal '別コースの便覧', controller.instance_variable_get(:@curriculum).fetch('title')
+  end
+
+  test '便覧が紐付いていない学生は設定画面になる' do
+    @student.update!(curriculum: nil)
+
+    get root_path, env: local_env
+
+    assert_response :service_unavailable
+    assert_select '[data-setup-reason]', text: /便覧/
+    assert_select '[data-assessment]', count: 0
+  end
+
+  test '学生の便覧が公開を取り下げられていれば、判定せず設定画面になる' do
+    @student.curriculum.update!(published_at: nil)
+
+    get root_path, env: local_env
+
+    assert_response :service_unavailable
+    assert_select '[data-assessment]', count: 0
+  end
+
   private
+
+  def workspace_check(check_id)
+    controller.instance_variable_get(:@assessment).actual.checks.find { |check| check.id == check_id }
+  end
 
   def local_env
     { 'REMOTE_ADDR' => '127.0.0.1' }
   end
 
   def course_record(course)
-    Course.find_by!(curriculum_key: course.fetch('key'))
+    Course.find_by!(course_number: course.fetch('number'))
   end
 
   # 卒業ダッシュボードの合計表示。実績と見込みを1要素にまとめて持つ。
@@ -523,7 +599,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
       assert_select '[data-assessment]', count: 0
       assert_select '[data-demo-setup]', count: 0
 
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }, env: request_env
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM },
+                              env: request_env
       assert_response :not_found
       delete plan_course_path(plan), env: request_env
       assert_response :not_found
@@ -572,7 +649,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[type='submit'][value='4年 前期に追加']"
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[name='term'][value='4-前期']"
 
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期' }, env: local_env
+    post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: '4-前期' }, env: local_env
     assert_redirected_to plan_path(term: '4-前期')
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
     assert_equal [2027, '前期'], [plan.academic_year, plan.semester]

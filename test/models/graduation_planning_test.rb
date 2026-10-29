@@ -14,18 +14,19 @@ class GraduationPlanningTest < ActiveSupport::TestCase
                                admission_year: 2024)
     @other_student = Student.create!(user: User.create!(email: 'other-plan@example.test'), department: department,
                                      admission_year: 2024)
-    @course = Course.create!(curriculum_key: 'test_course', course_number: 'TEST-1', name: '人工テスト科目', credits: 3)
+    @course = Course.create!(course_number: 'TEST-1', name: '人工テスト科目', credits: 3)
   end
 
-  test 'curriculum keys are unique while missing keys and repeated names and numbers remain valid' do
-    assert_not Course.new(curriculum_key: @course.curriculum_key, name: '別名').valid?
+  test 'repeated names and numbers remain valid, so a number alone does not identify one row' do
     2.times { Course.create!(course_number: @course.course_number, name: @course.name) }
 
-    assert_raises(ActiveRecord::RecordNotUnique) do
-      Course.transaction(requires_new: true) do
-        Course.insert_all!([{ curriculum_key: @course.curriculum_key, name: 'DB重複テスト' }])
-      end
-    end
+    assert_equal 3, Course.where(course_number: @course.course_number).count
+  end
+
+  test 'a course is custom only when it carries a custom category' do
+    assert_not @course.custom?
+    assert Course.new(name: '自由入力', custom_category: 'free').custom?
+    assert_not Course.new(name: '空', custom_category: '').custom?
   end
 
   test 'existing style histories default to unknown without inferring status or approval' do

@@ -56,41 +56,44 @@ module StudentWorkspaceHelper
   def enrollment_status_label(status) = ENROLLMENT_LABELS.fetch(status, '状態未確認')
   def credit_label(credits) = credits.nil? ? '未確認' : "#{credit_number(credits)} 単位"
   def category_label(category) = CATEGORY_LABELS.fetch(category, category)
-  def custom_course?(curriculum_key) = curriculum_key.to_s.start_with?('custom:')
   def find_check(snapshot, check_id) = snapshot.checks.find { |check| check.id == check_id }
   def source_url(source) = (source['url'].to_s if source['url'].to_s.start_with?('https://', 'http://'))
 
   def credit_number(val) = val.nil? ? '0' : number_with_precision(val, precision: 2, strip_insignificant_zeros: true)
 
-  def catalogue_availability(course, unavailable_keys:, persisted_keys:)
-    return '追加済み・修得済み・履修中' if unavailable_keys.include?(course['key'])
+  def catalogue_availability(course, unavailable_numbers:, persisted_numbers:)
+    return '追加済み・修得済み・履修中' if unavailable_numbers.include?(course['number'])
     return '選択対象外' unless course['selectable'] == true
+    # 科目番号で Course に当てるので、番号の無い科目は選べない。
+    return '科目番号が未掲載のため選択できません' if course['number'].blank?
 
-    '初期データ未登録' unless persisted_keys.include?(course['key'])
+    '初期データ未登録' unless persisted_numbers.include?(course['number'])
   end
 
-  def course_category(curriculum_key, courses_by_key)
-    return courses_by_key[curriculum_key]['category'] if courses_by_key.key?(curriculum_key)
+  # 便覧の科目表に科目番号で当たればその区分。当たらなければ、自由入力計画科目はその科目が持つ区分、それ以外は算入対象外。
+  def course_category(course, courses_by_number)
+    entry = courses_by_number[course.course_number]
+    return entry['category'] if entry
 
-    custom_course?(curriculum_key) ? curriculum_key.split(':')[1] : 'excluded'
+    course.custom? ? course.custom_category : 'excluded'
   end
 
-  def category_credits(enrollments, plans, categories, courses_by_key)
-    in_cat = filter_by_categories(enrollments, categories, courses_by_key)
+  def category_credits(enrollments, plans, categories, courses_by_number)
+    in_cat = filter_by_categories(enrollments, categories, courses_by_number)
     earned = in_cat.select { |i| i.enrollment_status == 'completed' }.sum(BigDecimal('0')) { |i| i.credits_earned.to_d }
     current = in_cat.select { |i| StudentWorkspace::CURRENT_STATUSES.include?(i.enrollment_status) }
                     .sum(BigDecimal('0')) { |i| i.course.credits.to_d }
-    planned = filter_by_categories(plans, categories, courses_by_key)
-              .sum(BigDecimal('0')) { |p| plan_credits(p, courses_by_key) }
+    planned = filter_by_categories(plans, categories, courses_by_number)
+              .sum(BigDecimal('0')) { |p| plan_credits(p, courses_by_number) }
     { earned: earned, planned: current + planned }
   end
 
-  def filter_by_categories(records, categories, courses_by_key)
-    records.select { |item| categories.include?(course_category(item.course.curriculum_key, courses_by_key)) }
+  def filter_by_categories(records, categories, courses_by_number)
+    records.select { |item| categories.include?(course_category(item.course, courses_by_number)) }
   end
 
-  def plan_credits(plan, courses_by_key)
-    catalogue = courses_by_key[plan.course.curriculum_key]
+  def plan_credits(plan, courses_by_number)
+    catalogue = courses_by_number[plan.course.course_number]
     BigDecimal((catalogue ? catalogue['credits'] : plan.course.credits).to_s, exception: false) || BigDecimal('0')
   end
 

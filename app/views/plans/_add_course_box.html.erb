@@ -2,7 +2,8 @@
 <%
   box_id = row[:id]
   selectable_in_row = @curriculum.fetch('courses').select do |c|
-    row[:categories].include?(c['category']) && c['selectable'] == true && @unavailable_keys.exclude?(c['key'])
+    row[:categories].include?(c['category']) && c['selectable'] == true && c['number'].present? &&
+      @unavailable_numbers.exclude?(c['number'])
   end
 %>
 <div class="mt-2" data-add-course="<%= box_id %>">
@@ -34,10 +35,10 @@
       <% if selectable_in_row.any? %>
         <%= form_with url: plan_courses_path, class: 'space-y-2' do |f| %>
           <%= hidden_field_tag :term, term_param(@term), id: nil %>
-          <select name="course_key" aria-label="<%= row[:name] %>の科目を選択"
+          <select name="course_number" aria-label="<%= row[:name] %>の科目を選択"
                   class="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
             <% selectable_in_row.each do |c| %>
-              <option value="<%= c.fetch('key') %>">
+              <option value="<%= c.fetch('number') %>">
                 <%= [c['number'], c.fetch('name'), "(#{credit_label(c['credits'])})"].compact.join(' ') %>
               </option>
             <% end %>

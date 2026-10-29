@@ -33,7 +33,7 @@ curriculum.catalogue  # => GraduationAssessment::Catalogue
 
 判定のしかたはコードではなくこのJSONが決める。`GraduationAssessment::Evaluation`は`rules`を並び順に解釈するだけで、区分名も必要単位も文面もコードには持たない。2024年度の便覧は22区分・27規則（条件24・調整3）を持つ。
 
-`courses[].key`は、DB連番や名称検索に依存しない明示的な参照キー。`Course.curriculum_key`と対応させる。科目番号や名称が一致するだけでは別科目を同一視しない。
+`courses[].key`は、判定が便覧の科目を引くための便覧内の参照キー。DBの`Course`はキーを持たない。学生の履修・予定は、学生が持つ便覧（`Student#curriculum`）の`courses[].number`を`Course.course_number`で引いて、この`key`に当てる（`StudentWorkspace`）。同じ科目番号の`Course`が複数あるときは、どれかを選ばず要確認にする。
 
 `credits`は一次資料の所定単位で、未確認なら`null`。`review_reason`は未確認の理由。`requires_approval`は学生別の承認確認が必要なことを示す規則であり、承認済みという事実ではない。自コース提供の工学融合等は`selectable: false`とする。`number`は科目番号で、一次資料に無ければ`null`。`language`は外国語科目の言語で、一外国語の集計はこの欄で分ける（科目番号の百の位では分けない。外7xxにはインドネシア語・タイ語・ラテン語・ロシア語が混ざる）。
 

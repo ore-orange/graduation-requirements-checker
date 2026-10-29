@@ -7,7 +7,7 @@ class CourseOffering < ApplicationRecord
   WEEKDAYS = TimetableImport::Values::WEEKDAYS
 
   belongs_to :course
-  # 年度・学科は、#53 で courses と統合したあとに残る curriculum_key 由来の科目のために空を許す。
+  # 年度・学科は、#53 で courses と統合したあとに残る DemoData 由来の科目のために空を許す。
   # 取り込みの画面では必須なので、PDFから入った講義に空はできない。
   belongs_to :department, optional: true
 

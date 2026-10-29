@@ -30,16 +30,16 @@ class PlansController < ApplicationController
   end
 
   def load_catalogue
-    @unavailable_keys = (@completed + @current).map { |enrollment| enrollment.course.curriculum_key } +
-                        @plans.map { |plan| plan.course.curriculum_key }
+    @unavailable_numbers = ((@completed + @current).map { |enrollment| enrollment.course.course_number } +
+                            @plans.map { |plan| plan.course.course_number }).compact
     @query = params[:q].to_s.strip
     @category = params[:category].to_s
     query = @query.downcase
     @catalogue = @curriculum.fetch('courses').select do |course|
       (@category.blank? || course['category'] == @category) && matches_query?(course, query)
     end
-    keys = @catalogue.map { |course| course.fetch('key') }
-    @persisted_keys = Course.where(curriculum_key: keys).pluck(:curriculum_key)
+    numbers = @catalogue.filter_map { |course| course['number'] }
+    @persisted_numbers = Course.where(course_number: numbers).pluck(:course_number)
   end
 
   def matches_query?(course, query)

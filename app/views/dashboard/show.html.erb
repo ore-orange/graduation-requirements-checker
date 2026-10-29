@@ -3,7 +3,7 @@
 <%
   metrics = @metrics
   actual_credits = @assessment.actual.counted_credits
-  custom_credits = metrics.custom_plans.sum(BigDecimal('0')) { |plan| plan_credits(plan, @courses_by_key) }
+  custom_credits = metrics.custom_plans.sum(BigDecimal('0')) { |plan| plan_credits(plan, @courses_by_number) }
   planned_delta = (@assessment.projected.counted_credits - actual_credits) + custom_credits
   total = metrics.total(actual_credits, planned_delta)
   groups = StudentWorkspaceHelper::PLANNER_GROUPS.map { |definition| [definition, metrics.group(definition)] }
