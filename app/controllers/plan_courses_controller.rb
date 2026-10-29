@@ -5,7 +5,6 @@ class PlanCoursesController < ApplicationController
   include StudentWorkspace
 
   BLOCKED_STATUSES = %w[completed registered in_progress].freeze
-  CUSTOM_CATEGORIES = (GraduationAssessment::Catalogue::CATEGORIES - ['excluded']).freeze
 
   # term（"3-後期" など）の学期の予定として追加する。追加できるのは今の学期以降。
   def create
@@ -71,11 +70,16 @@ class PlanCoursesController < ApplicationController
     name = raw[:name].to_s.strip
     category = raw[:category].to_s.strip
     credits = custom_credits(raw[:credits])
-    return unless name.present? && CUSTOM_CATEGORIES.include?(category) && credits
+    return unless name.present? && custom_categories.include?(category) && credits
 
     { name: name, number: raw[:course_number].to_s.strip.presence, category: category, credits: credits }
   rescue ActionController::ParameterMissing, ActionController::UnpermittedParameters
     nil
+  end
+
+  # 学生が自分で足す科目に選べる区分は、その学年度の便覧が卒業単位に数える区分。
+  def custom_categories
+    @custom_categories ||= GraduationAssessment::Catalogue.new(@curriculum).counted_category_keys
   end
 
   # 単位数は整数カラムなので、小数は切り捨てずに入力ごと受け付けない

@@ -7,7 +7,7 @@ class GraduationAssessment
     NUMBER_GROUPERS = { 'number_prefix' => :prefix, 'number_prefix_hundreds' => :hundreds }.freeze
     FIELD_GROUP = 'field:'
     attr_reader :items, :notes, :uncertain_roles, :uncertain_required
-    attr_accessor :fusion_provider_unknown, :foreign_language_unknown, :unknown_identity
+    attr_accessor :unknown_identity
 
     def self.decimal(value)
       return unless value.is_a?(Numeric)
@@ -95,28 +95,6 @@ class GraduationAssessment
     def quarantine_roles(roles, reason)
       items.each_value do |item|
         quarantine(item, reason) if item.counted.positive? && @catalogue.roles(item.course).intersect?(roles)
-      end
-    end
-
-    def apply_natural_cap
-      remaining = BigDecimal('2')
-      # 入力順ではなく正規キー順に上限を配分し、説明を安定させる。
-      items.sort_by { |key, _| key }.each do |_, item|
-        next unless item.course['category'] == 'natural' && item.counted.positive?
-
-        allowed = [remaining, item.counted].min
-        item.reason = "自然系は卒業算入上限2単位（この科目は#{allowed.to_s('F')}単位を算入）" if allowed < item.counted
-        item.counted = allowed
-        remaining -= allowed
-      end
-    end
-
-    def grouped_credits(category, field)
-      items.values.each_with_object(Hash.new(Catalogue::ZERO)) do |item, totals|
-        next unless item.course['category'] == category
-
-        group = item.course[field]
-        totals[group] += item.counted if group.present?
       end
     end
 

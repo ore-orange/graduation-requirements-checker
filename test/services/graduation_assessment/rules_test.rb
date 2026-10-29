@@ -15,7 +15,7 @@ class GraduationAssessment
         course('required_a', 'required_core', 2, required: true),
         course('required_b', 'required_core', 2, required: true)
       ]
-      @catalogue = Catalogue.new('courses' => @courses, 'requirements' => {})
+      @catalogue = Catalogue.new('courses' => @courses)
       @ledger = Ledger.new(@catalogue)
     end
 
@@ -24,12 +24,6 @@ class GraduationAssessment
       assert_equal :needs_review, Rules.status(false, true)
       assert_equal :unmet, Rules.status(false, false)
       assert_equal :unmet, Rules.status(false, nil)
-    end
-
-    test 'CreditCheck.status は Rules.status と同じ結果を返す' do
-      [true, false].product([true, false]).each do |satisfied, review|
-        assert_equal Rules.status(satisfied, review), CreditCheck.status(satisfied, review)
-      end
     end
 
     test 'condition は type に対応する型を返す' do

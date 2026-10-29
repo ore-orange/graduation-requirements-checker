@@ -226,7 +226,7 @@ class GraduationAssessment
     end
 
     def catalogue_with(categories: nil)
-      document = { 'courses' => @courses, 'requirements' => {} }
+      document = { 'courses' => @courses }
       document['categories'] = categories if categories
       Catalogue.new(document)
     end

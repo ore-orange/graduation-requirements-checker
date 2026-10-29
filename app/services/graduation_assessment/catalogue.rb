@@ -3,34 +3,24 @@
 class GraduationAssessment
   class Catalogue
     ZERO = BigDecimal('0')
-    COMMON = %w[health humanities social natural integrated career regional japanese english foreign_language].freeze
-    REQUIRED = {
-      'required_information' => ['情報技術系必修', 2],
-      'required_comprehensive' => ['総合力演習必修', 7],
-      'required_research' => ['研究・基礎演習・実験必修', 16],
-      'required_math' => ['数学基礎必修', 6],
-      'required_core' => ['知能情報コア必修', 26]
-    }.freeze
-    INNER = %w[elective_math advanced related].freeze
-    ELECTIVE = (INNER + %w[fusion free]).freeze
-    CATEGORIES = (COMMON + ['basic'] + REQUIRED.keys + ELECTIVE + ['excluded']).freeze
-    PROVIDERS = %w[mechanical energy electrical electronics civil architecture].freeze
-    SOURCE = 'docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）'
-    REQUIRED_SOURCE = 'docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）'
+    # 入れ子の規則を持つ欄。区分の参照を検めるときに、ここをたどる。
+    NESTED_RULES = %w[options conditions].freeze
 
-    attr_reader :courses, :requirements, :categories, :conditions, :adjustments, :display
+    attr_reader :courses, :categories, :conditions, :adjustments, :display, :required_roles
 
     # categories・rules・display は format 2 の便覧にだけある。旧形式の便覧では、どれも空になる。
-    # 規則は読み込み時に作る。壊れた調整（Rules.adjustment が拒むもの）は、学生の判定の最中ではなく便覧を読む時点で例外にする。
+    # 規則は読み込み時に作る。壊れた便覧（重複した科目番号・区分、宛先の無い区分の参照、paths の無い
+    # one_of_paths、Rules.adjustment が拒む調整）は、学生の判定の最中ではなく便覧を読む時点で例外にする。
     def initialize(document)
       @courses = document.fetch('courses')
       @by_key = @courses.index_by { |course| course.fetch('key') }
-      @requirements = document.fetch('requirements')
       @categories = Array(document['categories'])
       @category_labels = @categories.to_h { |category| [category['key'], category['label']] }
       @display = document['display'] || {}
-      @rules_present = document['rules'].present?
+      validate(document) if document['format_version'] == 2
       @conditions, @adjustments = build_rules(Array(document['rules']))
+      @exclusions = @adjustments.grep(Rules::Exclude)
+      @required_roles = roles_from_rules.uniq
     end
 
     # 区分の和名は便覧の categories に1か所だけ持つ。categories がない（旧形式の）便覧ではキーをそのまま返す。
@@ -39,7 +29,7 @@ class GraduationAssessment
     end
 
     def category_keys
-      categories.pluck('key')
+      @category_keys ||= categories.pluck('key')
     end
 
     # 卒業総単位に数える区分。counts_toward_total が無い区分は数える。
@@ -68,11 +58,6 @@ class GraduationAssessment
       role_candidates(role).pluck('name')
     end
 
-    # rules がある便覧では one_of_paths の経路に挙がった役割。旧形式の便覧では requirements から作る。
-    def required_roles
-      @required_roles ||= (@rules_present ? roles_from_rules : roles_from_requirements).uniq
-    end
-
     def specified?(course)
       course['required'] || roles(course).intersect?(required_roles)
     end
@@ -81,11 +66,9 @@ class GraduationAssessment
       courses.select { |course| course['required'] }
     end
 
+    # 算入の対象外にする理由。便覧の exclude 規則を並び順に当て、最初に当たった理由を返す。
     def exclusion(course)
-      return '卒業単位への算入対象外' if course['category'] == 'excluded'
-      return unless course['category'] == 'fusion' && course['provider'] == 'intelligent_informatics'
-
-      '自コース提供の工学融合科目は登録・算入不可'
+      @exclusions.filter_map { |rule| rule.reason_for(course) }.first
     end
 
     private
@@ -94,16 +77,52 @@ class GraduationAssessment
       conditions.grep(Rules::OneOfPaths).flat_map { |rule| rule.definition.fetch('paths').flatten }
     end
 
-    def roles_from_requirements
-      requirements.fetch('english_roles') + [requirements.fetch('japanese_role')] +
-        requirements.fetch('calculus_paths').flatten + requirements.fetch('physics_roles')
-    end
-
     # 並び順は画面に出る順なので、振り分けても rules の順を保つ。
     def build_rules(definitions)
       adjustments, conditions = definitions.partition { |definition| definition.is_a?(Hash) && Rules::ADJUSTMENTS.key?(definition['type']) }
       [conditions.map { |definition| Rules.condition(definition) },
        adjustments.map { |definition| Rules.adjustment(definition) }]
+    end
+
+    def validate(document)
+      validate_course_numbers
+      validate_categories
+      validate_rule_categories(Array(document['rules']))
+    end
+
+    # 科目番号の重複は、course_for が黙って片方を返し、学生の履修が違う科目に解決される。
+    # 番号の無い科目（分類表にしか載っていない科目）は course_for で引けないだけなので弾かない。
+    def validate_course_numbers
+      numbers = courses.filter_map { |course| course['number'].presence }
+      duplicates = numbers.tally.select { |_, count| count > 1 }.keys
+      return if duplicates.empty?
+
+      raise ArgumentError, "courses の number が重複しています: #{duplicates.sort.join('、')}"
+    end
+
+    # key の無い区分は category_keys に nil を混ぜ、重複した key は和名の対応表を後勝ちで潰す。
+    def validate_categories
+      raise ArgumentError, 'categories の要素に key がありません' if category_keys.any?(&:blank?)
+
+      duplicates = category_keys.tally.select { |_, count| count > 1 }.keys
+      return if duplicates.empty?
+
+      raise ArgumentError, "categories の key が重複しています: #{duplicates.sort.join('、')}"
+    end
+
+    # 便覧に無い区分を指す規則は、何も数えないまま不足とも充足とも言ってしまう。
+    def validate_rule_categories(definitions)
+      unknown = definitions.flat_map { |definition| referenced_categories(definition) }.uniq - category_keys
+      return if unknown.empty?
+
+      raise ArgumentError, "rules が categories に無い区分を参照しています: #{unknown.sort.join('、')}"
+    end
+
+    def referenced_categories(definition)
+      return [] unless definition.is_a?(Hash)
+
+      Array(definition['category']) + Array(definition['categories']) +
+        NESTED_RULES.flat_map { |field| Array(definition[field]).flat_map { |child| referenced_categories(child) } }
     end
   end
 end

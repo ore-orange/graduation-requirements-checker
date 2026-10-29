@@ -21,7 +21,7 @@ class GraduationAssessment
         course('th_1', 'foreign_language', 2, number: '外702', language: 'thai'),
         course('fl_unreadable', 'foreign_language', 2, number: 'ドイツ語')
       ]
-      @catalogue = Catalogue.new('courses' => @courses, 'requirements' => {})
+      @catalogue = Catalogue.new('courses' => @courses)
       @ledger = Ledger.new(@catalogue)
     end
 

@@ -30,6 +30,22 @@ class GraduationAssessment
       assert_equal CONDITION_IDS, @catalogue.conditions.map(&:id)
     end
 
+    test '算入を変える3つの調整が便覧にある' do
+      assert_equal %w[natural_cap excluded_category own_fusion], @catalogue.adjustments.map(&:id)
+    end
+
+    # ゴールデンマスターの7ケースは、どれも selectable: false のこの6科目を入力に含まない。
+    # 算入対象外の判定はゴールデンでは守れないので、ここで固定する。
+    test 'exclude 規則は算入対象外の区分と自コース提供の工学融合にだけ当たる' do
+      expected = @document.fetch('courses').select do |course|
+        course['category'] == 'excluded' ||
+          (course['category'] == 'fusion' && CourseNumber.prefix(course['number']) == '知能')
+      end
+
+      assert_equal 6, expected.size
+      assert_equal expected.pluck('key'), @document.fetch('courses').select { |c| @catalogue.exclusion(c) }.pluck('key')
+    end
+
     test 'display の行の check_ids は存在する規則を指す' do
       known = @catalogue.conditions.map(&:id)
 

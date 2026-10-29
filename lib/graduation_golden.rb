@@ -87,12 +87,12 @@ module GraduationGolden
   end
 
   # 微分積分学は系列の一方、物理学は代替の一方だけで、単位数が不明な科目も含まない状態。
+  # 第二経路の役割は便覧の one_of_paths 規則から読む。
   def clean_single_path(curriculum, entries)
-    requirements = curriculum.fetch('requirements')
+    rules = curriculum.fetch('rules').index_by { |rule| rule['id'] }
+    alternatives = %w[calculus physics].flat_map { |id| rules.fetch(id).fetch('paths').fetch(1) }
     dropped = curriculum.fetch('courses').select do |course|
-      roles = course.fetch('roles', [])
-      course['credits'].nil? || roles.intersect?(requirements.fetch('calculus_paths').fetch(1)) ||
-        roles.include?(requirements.fetch('physics_roles').fetch(1))
+      course['credits'].nil? || course.fetch('roles', []).intersect?(alternatives)
     end.pluck('key')
     entries.reject { |entry| dropped.include?(entry[:key]) }
   end
