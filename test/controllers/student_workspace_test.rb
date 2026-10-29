@@ -313,6 +313,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     assert_response :service_unavailable
     assert_select '[data-demo-setup]'
+    # 画面に原因を出す。便覧が無いことと、デモ未投入を見分けられるように。
+    assert_select '[data-setup-reason]', text: /公開済みの便覧がありません/
   end
 
   test 'the workspace reads the published curriculum from the database, not the file' do

@@ -4,7 +4,8 @@
 require_relative 'seeds/academic_organizations'
 AcademicOrganizations.load!
 
-# 便覧は卒業要件そのものなので、環境を問わず入れる。流し直しても、同じ便覧の行を更新するだけで増えない。
+# 便覧は卒業要件そのものなので、環境を問わず入れる。無ければ作る。ある行をファイルで上書きするのは開発・テストだけで、
+# 本番では画面から公開した便覧が正本なので、流し直しても触れない（Curriculum.seed_from_file）。
 Rails.root.glob('config/curricula/**/*.json').sort.each { |path| Curriculum.seed_from_file(path) }
 
 # 架空の履修データは明示的なseed実行時のみ作成する。本番ではPUBLIC_DEMO=1のときだけ投入できる。

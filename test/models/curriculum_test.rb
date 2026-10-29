@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'test_helper'
+require 'minitest/mock'
+require 'tmpdir'
 
 class CurriculumTest < ActiveSupport::TestCase
   FILE = Rails.root.join('config/curricula/intelligent_informatics/2024.json')
@@ -77,6 +79,62 @@ class CurriculumTest < ActiveSupport::TestCase
     curriculum = Curriculum.create!(slug: 'broken', admission_year: 2024, document: document,
                                     published_at: Time.current)
     assert_raises(ArgumentError) { curriculum.catalogue }
+  end
+
+  test 'overwrite: true は既存の公開済みの行をファイルの内容で更新する' do
+    existing = curricula(:intelligent_informatics)
+    existing.update!(document: { 'edited' => true })
+    Curriculum.seed_from_file(FILE, overwrite: true)
+    assert_equal 484, existing.reload.document.fetch('courses').size
+  end
+
+  test 'overwrite: false は既存の公開済みの行に触れず、無ければ作る' do
+    existing = curricula(:intelligent_informatics)
+    existing.update!(document: { 'edited' => true })
+    assert_no_difference 'Curriculum.count' do
+      assert_equal existing, Curriculum.seed_from_file(FILE, overwrite: false)
+    end
+    assert_equal({ 'edited' => true }, existing.reload.document)
+
+    existing.destroy!
+    created = Curriculum.seed_from_file(FILE, overwrite: false)
+    assert_predicate created, :published?
+    assert_equal 484, created.document.fetch('courses').size
+  end
+
+  test '既定では、開発・テストは上書きし、本番は上書きしない' do
+    existing = curricula(:intelligent_informatics)
+    existing.update!(document: { 'edited' => true })
+    Rails.stub(:env, ActiveSupport::EnvironmentInquirer.new('production')) do
+      Curriculum.seed_from_file(FILE)
+    end
+    assert_equal({ 'edited' => true }, existing.reload.document)
+
+    Rails.stub(:env, ActiveSupport::EnvironmentInquirer.new('development')) do
+      Curriculum.seed_from_file(FILE)
+    end
+    assert_equal 484, existing.reload.document.fetch('courses').size
+  end
+
+  test 'seed_from_file は、年度として読めないファイル名のパスを例外に入れる' do
+    Dir.mktmpdir do |dir|
+      path = Pathname.new(dir).join('some_department', 'notes.json')
+      path.dirname.mkpath
+      path.write('{}')
+      error = assert_raises(ArgumentError) { Curriculum.seed_from_file(path) }
+      assert_includes error.message, path.to_s
+    end
+  end
+
+  test 'seed_from_file は、読めないJSONのパスを例外に入れ、本文は入れない' do
+    Dir.mktmpdir do |dir|
+      path = Pathname.new(dir).join('some_department', '2030.json')
+      path.dirname.mkpath
+      path.write('{ secret-body')
+      error = assert_raises(ArgumentError) { Curriculum.seed_from_file(path) }
+      assert_includes error.message, path.to_s
+      assert_not_includes error.message, 'secret-body'
+    end
   end
 end
 

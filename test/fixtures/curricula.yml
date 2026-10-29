@@ -1,6 +1,6 @@
 # 学生画面とデモデータは公開済みの便覧を DB から読む。実物の便覧ファイルを、公開済みとして置く。
 # 判定の golden テストと整合性テストは、このfixtureではなくファイルを直接読む。
-intelligent_informatics_2024:
+intelligent_informatics:
   slug: intelligent_informatics
   admission_year: 2024
   title: 2024年度入学 琉球大学工学部工学科 知能情報コース

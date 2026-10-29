@@ -94,7 +94,9 @@ module StudentWorkspace
   # 予定を追加できるのは今の学期とそれ以降。
   def term_open?(term) = TERMS.index(term) >= TERMS.index(current_term)
 
-  def show_setup
+  # 例外のメッセージは、何が足りないかを指す固定の文言なので、そのまま画面に出す。
+  def show_setup(error)
+    @setup_message = error.message
     render 'shared/setup', status: :service_unavailable
   end
 end
