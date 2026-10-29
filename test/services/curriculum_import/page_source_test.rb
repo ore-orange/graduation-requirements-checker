@@ -92,10 +92,18 @@ module CurriculumImport
 
       assert_operator texts.sum(&:bytesize), :<, 200_000
       texts.each do |text|
-        assert_no_match(/ {3}/, text)
+        assert_no_match(/ {2}/, text)
+        assert_no_match(/ \t|\t /, text)
         assert_no_match(/\n\n/, text)
         assert_no_match(/[\u0000-\u0008\u000B-\u001F]/, text)
       end
+    end
+
+    test '隣り合う列の値は、タブで区切って1つの語に見せない' do
+      texts = PageSource.page_texts(REAL_PDF)
+
+      assert_includes texts[2], "工共100\t工学基礎演習\t2\t2-0\t1\t前"
+      assert_includes texts.join, "工共320\tFrontiers of Engineering"
     end
 
     test 'ページ数を渡せば、数え直さない' do
