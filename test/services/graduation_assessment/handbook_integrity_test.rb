@@ -77,6 +77,16 @@ class GraduationAssessment
       assert_equal %w[advanced fusion general_subtotal], from_check.pluck('id').sort
     end
 
+    # 画面の語彙は閉じている。2024年度の便覧が語彙の外の欄を持つなら、語彙の方を見直す。
+    test 'display は語彙の欄だけを持つ' do
+      display = @document.fetch('display')
+
+      assert_empty display.keys - Catalogue::DISPLAY_KEYS
+      assert_empty display.fetch('groups').flat_map(&:keys) - Catalogue::DISPLAY_GROUP_KEYS
+      assert_empty @rows.flat_map(&:keys) - Catalogue::DISPLAY_ROW_KEYS
+      assert_empty display.fetch('subtotals').flat_map(&:keys) - Catalogue::DISPLAY_SUBTOTAL_KEYS
+    end
+
     test '算入する区分は21、excluded だけが算入しない' do
       assert_equal 22, @catalogue.category_keys.size
       assert_equal 21, @catalogue.counted_category_keys.size

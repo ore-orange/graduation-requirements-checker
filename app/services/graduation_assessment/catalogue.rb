@@ -6,6 +6,13 @@ class GraduationAssessment
     # 入れ子の規則を持つ欄。区分の参照を検めるときに、ここをたどる。
     NESTED_RULES = %w[options conditions].freeze
     BOOLEANS = [true, false].freeze
+    # display の欄は閉じた語彙。綴り違いは未知の欄になるので、これ以外が混ざっていれば弾く。
+    # 欄を足すときは画面のコードも変わるので、ここも一緒に直す。
+    DISPLAY_KEYS = %w[total_credits groups subtotals].freeze
+    DISPLAY_GROUP_KEYS = %w[id title required_credits check_id rows].freeze
+    DISPLAY_ROW_KEYS = %w[id name subtitle required_credits required_label categories check_ids
+                          credits_from_check].freeze
+    DISPLAY_SUBTOTAL_KEYS = %w[id name required_credits row_ids check_ids].freeze
 
     attr_reader :courses, :categories, :conditions, :adjustments, :display, :required_roles
 
@@ -106,38 +113,47 @@ class GraduationAssessment
     def validate_display(display)
       raise ArgumentError, 'display はハッシュでなければなりません' unless display.is_a?(Hash)
 
-      problems = []
+      problems = unknown_key_problems(display, DISPLAY_KEYS, 'display')
       problems << 'total_credits は正の数でなければなりません' unless positive_number?(display['total_credits'])
-      groups = display['groups']
-      if groups.is_a?(Array)
-        groups.each_with_index { |group, index| problems.concat(group_problems(group, "groups[#{index}]")) }
-      else
-        problems << 'groups は配列でなければなりません'
-      end
+      problems.concat(groups_problems(display['groups']))
       problems.concat(subtotal_problems(display['subtotals']))
       raise ArgumentError, "display が正しくありません: #{problems.join('、')}" if problems.any?
+    end
+
+    def groups_problems(groups)
+      return ['groups は配列でなければなりません'] unless groups.is_a?(Array)
+
+      groups.each_with_index.flat_map { |group, index| group_problems(group, "groups[#{element_name(group, index)}]") }
     end
 
     def group_problems(group, path)
       return ["#{path} はハッシュでなければなりません"] unless group.is_a?(Hash)
 
-      problems = %w[id title].reject { |field| present_string?(group[field]) }.map { |field| "#{path}.#{field} がありません" }
+      problems = unknown_key_problems(group, DISPLAY_GROUP_KEYS, path)
+      problems.concat(missing_string_problems(group, %w[id title], path))
       problems << "#{path}.required_credits は0以上の数でなければなりません" unless non_negative_number?(group['required_credits'])
       return problems << "#{path}.rows は配列でなければなりません" unless group['rows'].is_a?(Array)
 
-      group['rows'].each_with_index { |row, index| problems.concat(row_problems(row, "#{path}.rows[#{index}]")) }
+      group['rows'].each_with_index do |row, index|
+        problems.concat(row_problems(row, "#{path}.rows[#{element_name(row, index)}]"))
+      end
       problems
     end
 
     def row_problems(row, path)
       return ["#{path} はハッシュでなければなりません"] unless row.is_a?(Hash)
 
-      problems = %w[id name].reject { |field| present_string?(row[field]) }.map { |field| "#{path}.#{field} がありません" }
+      problems = unknown_key_problems(row, DISPLAY_ROW_KEYS, path)
+      problems.concat(missing_string_problems(row, %w[id name], path))
       # 欄が無い・綴りが違うと false 扱いになり、算入上限が効いた判定の単位と食い違う数字が出る。
       unless BOOLEANS.include?(row['credits_from_check'])
         problems << "#{path}.credits_from_check は true か false でなければなりません"
       end
       problems.concat(row_requirement_problems(row, path))
+    end
+
+    def missing_string_problems(hash, fields, path)
+      fields.reject { |field| present_string?(hash[field]) }.map { |field| "#{path}.#{field} がありません" }
     end
 
     # 必要単位を持たない行は「内数」の行として、バーも判定も出さない。意図した行だけがそうなるよう、
@@ -155,11 +171,29 @@ class GraduationAssessment
       return [] if subtotals.nil?
       return ['subtotals は配列でなければなりません'] unless subtotals.is_a?(Array)
 
-      subtotals.each_with_index.filter_map do |subtotal, index|
-        next if subtotal.is_a?(Hash) && non_negative_number?(subtotal['required_credits'])
+      subtotals.each_with_index.flat_map do |subtotal, index|
+        path = "subtotals[#{element_name(subtotal, index)}]"
+        next ["#{path} はハッシュでなければなりません"] unless subtotal.is_a?(Hash)
 
-        "subtotals[#{index}].required_credits は0以上の数でなければなりません"
+        problems = unknown_key_problems(subtotal, DISPLAY_SUBTOTAL_KEYS, path)
+        unless non_negative_number?(subtotal['required_credits'])
+          problems << "#{path}.required_credits は0以上の数でなければなりません"
+        end
+        problems
       end
+    end
+
+    # 欄の名前を1つずつ必須にせず、知らない欄を弾く。required_credits を綴り違いにした行は、
+    # required_label があっても必要単位を失い、満たしていない要件が画面から消える。
+    def unknown_key_problems(hash, allowed, path)
+      unknown = hash.keys - allowed
+      unknown.empty? ? [] : ["#{path} に未知の欄があります: #{unknown.join('、')}"]
+    end
+
+    # 直す人が探せるよう、エラーの場所は配列の添字ではなく要素の id で示す。id が無ければ添字。
+    def element_name(element, index)
+      id = element['id'] if element.is_a?(Hash)
+      present_string?(id) ? id : index
     end
 
     def positive_number?(value) = number?(value) && value.positive?

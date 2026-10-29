@@ -176,6 +176,48 @@ class GraduationAssessment
       end
     end
 
+    # advanced の行のように required_label があっても、required_credits を綴り違いにすれば必要単位を失う。
+    test 'display の欄の綴り違いは、どの階層でも未知の欄として読み込み時に例外になる' do
+      row = display_row('required_credits' => 22, 'required_label' => '3区分計 22単位')
+      typo_row = row.except('required_credits').merge('requird_credits' => 22)
+      group = display_with_row(row)['groups'].first
+      subtotal = { 'id' => 'inner', 'name' => '内数', 'required_credits' => 22, 'row_ids' => ['basic'],
+                   'check_ids' => [] }
+
+      {
+        display_with_row(typo_row) => 'requird_credits',
+        display.merge('total_credit' => 4) => 'total_credit',
+        display.merge('groups' => [group.merge('titel' => 'x')]) => 'titel',
+        display.merge('subtotals' => [subtotal.merge('row_id' => 'x')]) => 'row_id'
+      }.each do |document_display, key|
+        error = assert_raises(ArgumentError, key) { load_with_display(document_display) }
+        assert_includes error.message, '未知の欄'
+        assert_includes error.message, key
+      end
+    end
+
+    test '語彙にある欄はすべて置ける' do
+      row = display_row('subtitle' => '補足', 'required_label' => '枠')
+      group = display_with_row(row)['groups'].first
+      subtotal = { 'id' => 'inner', 'name' => '内数', 'required_credits' => 22, 'row_ids' => ['basic'],
+                   'check_ids' => [] }
+
+      assert_nothing_raised { load_with_display(display.merge('groups' => [group], 'subtotals' => [subtotal])) }
+    end
+
+    test 'エラーの場所は添字ではなく要素の id で示し、id が無ければ添字で示す' do
+      row = display_row('id' => 'advanced', 'credits_from_check' => nil)
+      error = assert_raises(ArgumentError) { load_with_display(display_with_row(row)) }
+      assert_includes error.message, 'groups[common].rows[advanced].credits_from_check'
+
+      error = assert_raises(ArgumentError) { load_with_display(display_with_row(row.except('id'))) }
+      assert_includes error.message, 'groups[common].rows[0].id'
+
+      subtotal = { 'id' => 'inner', 'name' => '内数', 'required_credits' => nil, 'row_ids' => [], 'check_ids' => [] }
+      error = assert_raises(ArgumentError) { load_with_display(display.merge('subtotals' => [subtotal])) }
+      assert_includes error.message, 'subtotals[inner].required_credits'
+    end
+
     test 'course_for は科目番号で科目を引く' do
       assert_equal '離散数学', @catalogue.course_for('知能103')['name']
       assert_nil @catalogue.course_for('知能999')
