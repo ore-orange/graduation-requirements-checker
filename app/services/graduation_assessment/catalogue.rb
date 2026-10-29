@@ -51,7 +51,7 @@ class GraduationAssessment
       @by_key[key]
     end
 
-    def find_by_number(number)
+    def course_for(number)
       @by_number ||= courses.select { |course| course['number'] }.index_by { |course| course['number'] }
       @by_number[number]
     end

@@ -63,13 +63,13 @@ class GraduationAssessment
       assert_equal({ 'groups' => [] }, @catalogue.display)
     end
 
-    test 'find_by_number は科目番号で科目を引く' do
-      assert_equal '離散数学', @catalogue.find_by_number('知能103')['name']
-      assert_nil @catalogue.find_by_number('知能999')
+    test 'course_for は科目番号で科目を引く' do
+      assert_equal '離散数学', @catalogue.course_for('知能103')['name']
+      assert_nil @catalogue.course_for('知能999')
     end
 
-    test 'find_by_number は番号の無い科目を引かない' do
-      assert_nil @catalogue.find_by_number(nil)
+    test 'course_for は番号の無い科目を引かない' do
+      assert_nil @catalogue.course_for(nil)
     end
 
     test 'required_roles は rules があれば one_of_paths の paths から作る' do

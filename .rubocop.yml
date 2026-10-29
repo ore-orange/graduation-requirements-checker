@@ -79,8 +79,3 @@ Rails/I18nLocaleTexts:
 # ラムダは -> 記法に統一する
 Style/Lambda:
   EnforcedStyle: literal
-
-# Catalogue#find_by_number は ActiveRecord の動的検索ではなく、便覧の科目を番号で引くメソッド
-Rails/DynamicFindBy:
-  AllowedMethods:
-    - find_by_number
