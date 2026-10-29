@@ -7,8 +7,12 @@ class GraduationAssessment
     class Cap
       attr_reader :definition
 
+      # 上限は0以上の有限な数でなければならない。負や Infinity だと上限が働かず、算入してはいけない単位を数えてしまう。
+      # 0 は区分を丸ごと切る規則として正しい。
       def initialize(definition)
         @definition = definition
+        @limit = Ledger.decimal(definition['credits'])
+        raise ArgumentError, "cap の credits は0以上の数でなければなりません: #{definition['credits'].inspect}" unless @limit
       end
 
       def id
@@ -17,7 +21,7 @@ class GraduationAssessment
 
       def apply(catalogue, ledger)
         category = definition.fetch('category')
-        remaining = limit
+        remaining = @limit
         # 入力順ではなく正規キー順に上限を配分し、説明を安定させる。
         ledger.items.sort_by { |key, _| key }.each do |_, item|
           next unless item.course['category'] == category && item.counted.positive?
@@ -31,14 +35,10 @@ class GraduationAssessment
 
       private
 
-      def limit
-        BigDecimal(definition.fetch('credits').to_s)
-      end
-
       # 区分名は便覧の categories から読む（なければ区分のキー）。
       def reason(catalogue, allowed)
         name = catalogue.label_for(definition.fetch('category'))
-        "#{name}は卒業算入上限#{format_credits(limit)}単位（この科目は#{allowed.to_s('F')}単位を算入）"
+        "#{name}は卒業算入上限#{format_credits(@limit)}単位（この科目は#{allowed.to_s('F')}単位を算入）"
       end
 
       # 整数の上限は「2」、小数は「1.5」と書く（BigDecimal の to_s('F') は「2.0」になる）。

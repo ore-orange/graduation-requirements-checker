@@ -7,8 +7,12 @@ class GraduationAssessment
     class Exclude
       attr_reader :definition
 
+      # 当たらないまま通る壊れた規則を作らないよう、読み込み時に定義を検める。
       def initialize(definition)
         @definition = definition
+        require_text('category')
+        require_text('reason')
+        validate_number_prefix
       end
 
       def id
@@ -24,6 +28,24 @@ class GraduationAssessment
       end
 
       private
+
+      def require_text(field)
+        value = definition[field]
+        return if value.is_a?(String) && !value.empty?
+
+        raise ArgumentError, "exclude の#{field}は空でない文字列でなければなりません: #{value.inspect}"
+      end
+
+      # 科目側の番号は CourseNumber.prefix が空白や全角を整えて読む。定義側も同じ整え方で変わらない値でなければ、
+      # 一致しないまま黙って何も除外しなくなる。
+      def validate_number_prefix
+        return unless definition.key?('number_prefix')
+
+        value = definition['number_prefix']
+        return if value.is_a?(String) && CourseNumber.prefix("#{value}1") == value
+
+        raise ArgumentError, "exclude の number_prefix は空白や全角を含まない接頭辞でなければなりません: #{value.inspect}"
+      end
 
       def prefix_match?(course)
         prefix = CourseNumber.prefix(course['number'])

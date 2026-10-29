@@ -127,6 +127,65 @@ class GraduationAssessment
       assert_equal 'natural', catalogue_with.label_for('natural')
     end
 
+    test 'cap は credits が0でも作れて、区分を丸ごと切る' do
+      count('n_a', 'half')
+
+      Rules.adjustment(cap_definition.merge('credits' => 0)).apply(@catalogue, @ledger)
+
+      assert_equal BigDecimal('0'), @ledger.sum(['natural'])
+      assert_equal '自然系は卒業算入上限0単位（この科目は0.0単位を算入）', @ledger.items['n_a'].reason
+    end
+
+    test '同じ区分に2つの cap があれば、小さい上限に収まる' do
+      count('n_a', 'n_b', 'n_c')
+
+      Rules.adjustment(cap_definition.merge('id' => 'wide', 'credits' => 4)).apply(@catalogue, @ledger)
+      assert_equal BigDecimal('4'), @ledger.sum(['natural'])
+      cap.apply(@catalogue, @ledger)
+
+      assert_equal BigDecimal('2'), @ledger.sum(['natural'])
+      assert_equal BigDecimal('2'), @ledger.items['n_a'].counted
+    end
+
+    test 'cap は credits が負・非数・Infinity・欠けていれば作れない' do
+      [-1, '2', 'Infinity', Float::INFINITY, Float::NAN, nil, ''].each do |credits|
+        assert_raises(ArgumentError, "credits=#{credits.inspect}") do
+          Rules.adjustment(cap_definition.merge('credits' => credits))
+        end
+      end
+      assert_raises(ArgumentError) { Rules.adjustment(cap_definition.except('credits')) }
+    end
+
+    test 'exclude は reason がなければ作れない' do
+      [nil, '', 3].each do |reason|
+        assert_raises(ArgumentError) do
+          Rules.adjustment('type' => 'exclude', 'category' => 'excluded', 'reason' => reason)
+        end
+      end
+      assert_raises(ArgumentError) { Rules.adjustment('type' => 'exclude', 'category' => 'excluded') }
+    end
+
+    test 'exclude は category がなければ作れない' do
+      assert_raises(ArgumentError) { Rules.adjustment('type' => 'exclude', 'reason' => 'r') }
+      assert_raises(ArgumentError) { Rules.adjustment('type' => 'exclude', 'category' => '', 'reason' => 'r') }
+    end
+
+    test 'exclude は number_prefix が nil・空・空白入り・全角なら作れない' do
+      [nil, '', '知能 ', ' 知能', '知 能', 'Ｃ', '知能1', 3].each do |prefix|
+        assert_raises(ArgumentError, "number_prefix=#{prefix.inspect}") do
+          Rules.adjustment('type' => 'exclude', 'category' => 'fusion', 'number_prefix' => prefix, 'reason' => 'r')
+        end
+      end
+    end
+
+    test 'exclude は number_prefix を持たない定義と、読める接頭辞の定義を作れる' do
+      assert_instance_of Rules::Exclude, Rules.adjustment('type' => 'exclude', 'category' => 'x', 'reason' => 'r')
+      %w[知能 C 外].each do |prefix|
+        rule = Rules.adjustment('type' => 'exclude', 'category' => 'x', 'number_prefix' => prefix, 'reason' => 'r')
+        assert_instance_of Rules::Exclude, rule
+      end
+    end
+
     test 'exclude は区分だけの指定で理由を返す' do
       rule = Rules.adjustment('type' => 'exclude', 'category' => 'excluded', 'reason' => '卒業単位への算入対象外')
       assert_equal '卒業単位への算入対象外', rule.reason_for('category' => 'excluded', 'number' => '情101')
