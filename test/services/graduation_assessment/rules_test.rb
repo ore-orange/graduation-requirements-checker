@@ -189,6 +189,15 @@ class GraduationAssessment
       assert calculus.evaluate(@catalogue, @ledger).review
     end
 
+    test 'one_of_paths は reconcile を呼ばなくても、経路が混ざっていれば充足にしない' do
+      %w[st_1 st_2 intro_1 intro_2].each { |key| count(key) }
+
+      outcome = calculus.evaluate(@catalogue, @ledger)
+
+      assert_not outcome.satisfied
+      assert outcome.review
+    end
+
     test 'one_of_paths#reconcile は1つの経路だけなら何もしない' do
       count('st_1')
       count('st_2')

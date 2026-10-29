@@ -7,21 +7,26 @@ class GraduationAssessment
       def evaluate(catalogue, ledger)
         paths = definition.fetch('paths')
         remaining = paths.map { |path| path.reject { |role| acquired?(catalogue, ledger, role) } }
-        satisfied = remaining.any?(&:empty?)
-        Outcome.new(satisfied: satisfied, review: uncertain?(catalogue, ledger, paths.flatten), counted: nil,
-                    missing: satisfied ? [] : missing_names(catalogue, remaining))
+        # reconcile の呼び忘れで混在を充足と判定しないよう、evaluate 単独でも混在なら充足にしない。
+        mixed = mixed?(ledger)
+        satisfied = remaining.any?(&:empty?) && !mixed
+        Outcome.new(satisfied: satisfied, review: mixed || uncertain?(catalogue, ledger, paths.flatten),
+                    counted: nil, missing: satisfied ? [] : missing_names(catalogue, remaining))
       end
 
       # 複数の経路に算入済みの役割があるとき、組合せと重複算入を確認できるまで全役割を算入から外す。
       def reconcile(_catalogue, ledger)
-        paths = definition.fetch('paths')
-        selected = paths.select { |path| path.any? { |role| ledger.selected_role?(role) } }
-        return unless selected.many?
+        return unless mixed?(ledger)
 
-        ledger.quarantine_roles(paths.flatten, review_note)
+        ledger.quarantine_roles(definition.fetch('paths').flatten, review_note)
       end
 
       private
+
+      # 2つ以上の経路に、算入済みの役割がある。
+      def mixed?(ledger)
+        definition.fetch('paths').many? { |path| path.any? { |role| ledger.selected_role?(role) } }
+      end
 
       # 学生に見せる文面は便覧ごとに違うので定義に持たせる。無くても要確認にすることは変わらない。
       def review_note
