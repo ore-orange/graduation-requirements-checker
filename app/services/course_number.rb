@@ -16,9 +16,12 @@ module CourseNumber
     split(number)&.join
   end
 
-  # 全角数字を半角にそろえてから分ける。[接頭辞, 百の位] か nil。
+  # 空白(半角・全角・タブ)を取り除き、全角数字を半角にそろえてから分ける。
+  # 数字の位置に関係なく空白を消すので、PDFから読んだ値の余白で別の接頭辞にならない。
+  # 戻り値は [接頭辞, 百の位] か nil。
   def self.split(number)
-    number.to_s.tr('０-９', '0-9').match(PATTERN)&.captures
+    normalized = number.to_s.delete(" 　\t").tr('０-９', '0-9')
+    normalized.match(PATTERN)&.captures
   end
   private_class_method :split
 end

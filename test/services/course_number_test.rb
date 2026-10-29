@@ -19,6 +19,13 @@ class CourseNumberTest < ActiveSupport::TestCase
     assert_equal '知能1', CourseNumber.hundreds('知能１０３')
   end
 
+  test '前後と途中の空白は取り除く' do
+    assert_equal '知能', CourseNumber.prefix(' 知能103 ')
+    assert_equal '知能', CourseNumber.prefix('知能 103')
+    assert_equal '知能', CourseNumber.prefix('知　能　103')
+    assert_equal '知能1', CourseNumber.hundreds(' 知能103 ')
+  end
+
   test '読めない値は nil' do
     [nil, '', '   ', '知能', '103'].each do |value|
       assert_nil CourseNumber.prefix(value), value.inspect
