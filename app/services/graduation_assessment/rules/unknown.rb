@@ -19,13 +19,7 @@ class GraduationAssessment
         Outcome.new(satisfied: false, review: true, counted: Catalogue::ZERO, missing: [])
       end
 
-      private
-
-      def detail(_catalogue, _outcome, _status)
-        "#{reason}ため、確認が必要です。"
-      end
-
-      # 型は正しいが置けない位置にある場合と、型そのものを知らない場合。
+      # 型は正しいが置けない位置にある場合と、型そのものを知らない場合。確認画面が赤く出す文にも使う。
       def reason
         type = definition['type']
         if TYPES.key?(type)
@@ -33,6 +27,12 @@ class GraduationAssessment
         else
           "規則の型「#{type}」をこのアプリは解釈できません"
         end
+      end
+
+      private
+
+      def detail(_catalogue, _outcome, _status)
+        "#{reason}ため、確認が必要です。"
       end
     end
   end
