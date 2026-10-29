@@ -147,6 +147,7 @@ class RequirementsHelperTest < ActionView::TestCase
                      'options' => [{ 'type' => 'credit_sum', 'categories' => ['a'], 'required_credits' => 2 },
                                    { 'type' => 'one_of_paths', 'paths' => [['r1']] }])
 
+    assert_equal 1, html.all('ul .text-red-700').size
     assert_includes html.find('ul .text-red-700').text, 'この位置には置けません'
     assert_includes html.text, '甲群の合計 2単位以上'
   end
@@ -272,7 +273,12 @@ class RequirementsHelperTest < ActionView::TestCase
   end
 
   test '実物の規則は1つも赤にならない' do
-    @real.fetch('rules').each { |rule| assert_not rule_html(rule, @real).has_css?('.text-red-700'), rule['id'] }
+    @real.fetch('rules').each do |rule|
+      html = rule_html(rule, @real)
+
+      assert_not html.has_css?('.text-red-700'), rule['id']
+      assert_not html.has_css?('[data-rule-status="unknown"]'), rule['id']
+    end
   end
 end
 

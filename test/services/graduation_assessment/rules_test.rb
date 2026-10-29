@@ -151,6 +151,31 @@ class GraduationAssessment
       assert_equal ['指定科目（nobody：科目表未確認）'], outcome.missing
     end
 
+    # 役割の無い経路は「何も修得しなくてよい」になり、空の経路が1つでもあれば充足してしまっていた。
+    [[], [[]], [['st_1'], []]].each do |paths|
+      test "one_of_paths は paths が #{paths.inspect} のとき、充足にも不足にもせず review にする" do
+        outcome = rule('type' => 'one_of_paths', 'id' => 'x', 'label' => 'X', 'paths' => paths)
+                  .evaluate(@catalogue, @ledger)
+
+        assert_not_predicate outcome, :satisfied
+        assert outcome.review
+        assert_nil outcome.counted
+        assert_empty outcome.missing
+        assert(@ledger.notes.any? { |note| note.include?('x：one_of_paths') && note.include?('空') })
+      end
+    end
+
+    test 'one_of_paths は空の経路があっても、他の経路を満たしていれば review のまま充足にはしない' do
+      count('st_1')
+      count('st_2')
+
+      outcome = rule('type' => 'one_of_paths', 'id' => 'x', 'label' => 'X', 'paths' => [%w[st_1 st_2], []])
+                .evaluate(@catalogue, @ledger)
+
+      assert_not_predicate outcome, :satisfied
+      assert outcome.review
+    end
+
     test 'one_of_paths#reconcile は2つの経路が混ざっていたら全部を要確認にする' do
       %w[st_1 st_2 intro_1 intro_2].each { |key| count(key) }
 

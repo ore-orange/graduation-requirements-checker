@@ -6,12 +6,9 @@ class GraduationAssessment
     class OneOfPaths < Base
       def evaluate(catalogue, ledger)
         paths = definition.fetch('paths')
-        remaining = paths.map { |path| path.reject { |role| acquired?(catalogue, ledger, role) } }
-        # reconcile の呼び忘れで混在を充足と判定しないよう、evaluate 単独でも混在なら充足にしない。
-        mixed = mixed?(ledger)
-        satisfied = remaining.any?(&:empty?) && !mixed
-        Outcome.new(satisfied: satisfied, review: mixed || uncertain?(catalogue, ledger, paths.flatten),
-                    counted: nil, missing: satisfied ? [] : missing_names(catalogue, remaining))
+        return empty_paths(ledger, paths) if paths.empty? || paths.any?(&:empty?)
+
+        evaluate_paths(catalogue, ledger, paths)
       end
 
       # 複数の経路に算入済みの役割があるとき、組合せと重複算入を確認できるまで全役割を算入から外す。
@@ -22,6 +19,23 @@ class GraduationAssessment
       end
 
       private
+
+      def evaluate_paths(catalogue, ledger, paths)
+        remaining = paths.map { |path| path.reject { |role| acquired?(catalogue, ledger, role) } }
+        # reconcile の呼び忘れで混在を充足と判定しないよう、evaluate 単独でも混在なら充足にしない。
+        mixed = mixed?(ledger)
+        satisfied = remaining.any?(&:empty?) && !mixed
+        Outcome.new(satisfied: satisfied, review: mixed || uncertain?(catalogue, ledger, paths.flatten),
+                    counted: nil, missing: satisfied ? [] : missing_names(catalogue, remaining))
+      end
+
+      # 経路が1つも無い、または役割の無い経路がある規則は、何も主張しない。役割の無い経路は「何も修得しなくてよい」
+      # となり、条件を満たしたことになってしまう。他の入れ子の型（any_of・all_of）と同じく、充足にも不足にもせず要確認にする。
+      def empty_paths(ledger, paths)
+        outcome = empty_children(ledger, paths.empty? ? 'paths' : 'paths の経路')
+        outcome.counted = nil
+        outcome
+      end
 
       # 2つ以上の経路に、算入済みの役割がある。
       def mixed?(ledger)
