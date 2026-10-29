@@ -130,9 +130,9 @@ class GraduationAssessment
       end
     end
 
-    # 区分に算入済みで、グループを決められない科目がある。そのグループは分からないので最大値を信用できない。
-    def ungrouped?(category, group_by)
-      counted_items(category).any? { |item| group_of(item.course, group_by).nil? }
+    # 区分に算入済みで、グループを決められない科目。そのグループは分からないので最大値を信用できない。
+    def ungrouped_courses(category, group_by)
+      counted_items(category).map(&:course).select { |course| group_of(course, group_by).nil? }
     end
 
     def course_results

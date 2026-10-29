@@ -148,6 +148,42 @@ class GraduationAssessment
       assert_equal BigDecimal('4'), outcome.counted
     end
 
+    test 'grouped_max は language が空の科目を、名前と扱いを添えて notes に残す' do
+      count('de_1', 'fl_unreadable')
+
+      grouped_max('field:language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger)
+
+      assert_equal ['人工科目 fl_unreadable：languageの欄が未確認（foreign_languageのグループ別の集計には未算入）'],
+                   @ledger.notes
+    end
+
+    test 'grouped_max は科目番号が読めない科目を、名前と扱いを添えて notes に残す' do
+      count('kikai_991', 'unreadable')
+
+      grouped_max('number_prefix', 4).evaluate(@catalogue, @ledger)
+
+      assert_equal ['人工科目 unreadable：科目番号を読み取れず、グループが未確認（fusionのグループ別の集計には未算入）'],
+                   @ledger.notes
+    end
+
+    test 'grouped_max の notes は科目の reason を上書きしない' do
+      item = @ledger.add(@catalogue.find('fl_unreadable'), BigDecimal('2'))
+      item.counted = BigDecimal('2')
+      item.reason = '正規化が残した理由'
+
+      grouped_max('field:language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger)
+
+      assert_equal '正規化が残した理由', item.reason
+    end
+
+    test 'grouped_max は全科目のグループが決まっていれば notes を足さない' do
+      count('de_1', 'de_2', 'fr_1')
+
+      grouped_max('field:language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger)
+
+      assert_empty @ledger.notes
+    end
+
     test 'grouped_max は language が空でも算入単位が0なら review にしない' do
       count('de_1', 'de_2')
       @ledger.add(@catalogue.find('fl_unreadable'), BigDecimal('2'))
