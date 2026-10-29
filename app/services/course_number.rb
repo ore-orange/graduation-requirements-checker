@@ -7,6 +7,7 @@
 module CourseNumber
   # 数字以外の並び(接頭辞)の後に、末尾の数字列の先頭1桁を取る。数字列の残りは捨てる。
   PATTERN = /\A(\D+)(\d)\d*\z/
+  private_constant :PATTERN
 
   def self.prefix(number)
     split(number)&.first
@@ -16,11 +17,11 @@ module CourseNumber
     split(number)&.join
   end
 
-  # 空白(半角・全角・タブ)を取り除き、全角数字を半角にそろえてから分ける。
-  # 数字の位置に関係なく空白を消すので、PDFから読んだ値の余白で別の接頭辞にならない。
+  # 空白(改行・ノーブレークスペース・全角スペースを含む)を取り除き、全角の数字と英字を
+  # 半角にそろえてから分ける。PDFから読んだ値の余白や全角の綴りで別の接頭辞にならないように。
   # 戻り値は [接頭辞, 百の位] か nil。
   def self.split(number)
-    normalized = number.to_s.delete(" 　\t").tr('０-９', '0-9')
+    normalized = number.to_s.gsub(/[[:space:]]/, '').tr('０-９Ａ-Ｚａ-ｚ', '0-9A-Za-z')
     normalized.match(PATTERN)&.captures
   end
   private_class_method :split

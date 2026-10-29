@@ -26,6 +26,22 @@ class CourseNumberTest < ActiveSupport::TestCase
     assert_equal '知能1', CourseNumber.hundreds(' 知能103 ')
   end
 
+  test '改行やノーブレークスペースも取り除く' do
+    assert_equal '知能', CourseNumber.prefix("知能\n103")
+    assert_equal '知能', CourseNumber.prefix('知能 103')
+    assert_equal '知能1', CourseNumber.hundreds("\n知能103\n")
+    assert_nil CourseNumber.prefix("\n\t　")
+  end
+
+  test '全角の英字も半角にそろえる' do
+    assert_equal 'C', CourseNumber.prefix('Ｃ１０１')
+    assert_equal 'C1', CourseNumber.hundreds('Ｃ１０１')
+  end
+
+  test '百の位より下の数字は落とす' do
+    assert_equal '知能1', CourseNumber.hundreds('知能1034')
+  end
+
   test '読めない値は nil' do
     [nil, '', '   ', '知能', '103'].each do |value|
       assert_nil CourseNumber.prefix(value), value.inspect
