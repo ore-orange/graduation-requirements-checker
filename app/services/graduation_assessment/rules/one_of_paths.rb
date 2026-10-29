@@ -18,10 +18,15 @@ class GraduationAssessment
         selected = paths.select { |path| path.any? { |role| ledger.selected_role?(role) } }
         return unless selected.many?
 
-        ledger.quarantine_roles(paths.flatten, "#{label}の系列が混在・重複しており、組合せと重複算入の確認が必要")
+        ledger.quarantine_roles(paths.flatten, review_note)
       end
 
       private
+
+      # 学生に見せる文面は便覧ごとに違うので定義に持たせる。無くても要確認にすることは変わらない。
+      def review_note
+        definition['review_note'].presence || "#{label}の選択が重複しており、確認が必要"
+      end
 
       def acquired?(catalogue, ledger, role)
         catalogue.role_candidates(role).any? { |course| ledger.acquired?(course) }

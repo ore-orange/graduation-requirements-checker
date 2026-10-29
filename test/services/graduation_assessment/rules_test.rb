@@ -163,10 +163,30 @@ class GraduationAssessment
       calculus.reconcile(@catalogue, @ledger)
 
       assert_equal BigDecimal('0'), @ledger.items['st_1'].counted
-      assert(@ledger.notes.any? { |note| note.include?('系列') })
+      assert_not_empty @ledger.notes
       outcome = calculus.evaluate(@catalogue, @ledger)
       assert_not_predicate outcome, :satisfied
       assert outcome.review
+    end
+
+    test 'one_of_paths#reconcile は定義の review_note をそのまま理由に使う' do
+      %w[st_1 st_2 intro_1 intro_2].each { |key| count(key) }
+      note = '微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要'
+
+      calculus('review_note' => note).reconcile(@catalogue, @ledger)
+
+      assert_includes @ledger.notes, "人工科目 st_1：#{note}"
+      assert_equal BigDecimal('0'), @ledger.items['st_1'].counted
+    end
+
+    test 'one_of_paths#reconcile は review_note がなくても全部を要確認にする' do
+      %w[st_1 st_2 intro_1 intro_2].each { |key| count(key) }
+
+      calculus.reconcile(@catalogue, @ledger)
+
+      %w[st_1 st_2 intro_1 intro_2].each { |key| assert_equal BigDecimal('0'), @ledger.items[key].counted }
+      assert_includes @ledger.notes, '人工科目 st_1：微分積分の選択が重複しており、確認が必要'
+      assert calculus.evaluate(@catalogue, @ledger).review
     end
 
     test 'one_of_paths#reconcile は1つの経路だけなら何もしない' do
@@ -285,9 +305,9 @@ class GraduationAssessment
            .merge(overrides))
     end
 
-    def calculus
-      rule('type' => 'one_of_paths', 'id' => 'calculus', 'label' => '微分積分',
-           'paths' => [%w[st_1 st_2], %w[intro_1 intro_2]], 'source_page' => 'テスト便覧p3')
+    def calculus(overrides = {})
+      rule({ 'type' => 'one_of_paths', 'id' => 'calculus', 'label' => '微分積分',
+             'paths' => [%w[st_1 st_2], %w[intro_1 intro_2]], 'source_page' => 'テスト便覧p3' }.merge(overrides))
     end
   end
 end
