@@ -1,5 +1,5 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "department": "intelligent_informatics",
   "admission_year": 2024,
   "title": "2024年度入学 琉球大学工学部工学科 知能情報コース",
@@ -52,6 +52,762 @@
     "physics_roles": [
       "physics_1",
       "physics_intro_1"
+    ]
+  },
+  "categories": [
+    {
+      "key": "health",
+      "label": "健康運動系",
+      "counts_toward_total": true
+    },
+    {
+      "key": "humanities",
+      "label": "人文系",
+      "counts_toward_total": true
+    },
+    {
+      "key": "social",
+      "label": "社会系",
+      "counts_toward_total": true
+    },
+    {
+      "key": "natural",
+      "label": "自然系",
+      "counts_toward_total": true
+    },
+    {
+      "key": "integrated",
+      "label": "総合科目",
+      "counts_toward_total": true
+    },
+    {
+      "key": "career",
+      "label": "キャリア関係",
+      "counts_toward_total": true
+    },
+    {
+      "key": "regional",
+      "label": "琉大特色・地域創生",
+      "counts_toward_total": true
+    },
+    {
+      "key": "japanese",
+      "label": "日本語表現法入門",
+      "counts_toward_total": true
+    },
+    {
+      "key": "english",
+      "label": "英語",
+      "counts_toward_total": true
+    },
+    {
+      "key": "foreign_language",
+      "label": "英語以外の外国語",
+      "counts_toward_total": true
+    },
+    {
+      "key": "basic",
+      "label": "専門基礎科目",
+      "counts_toward_total": true
+    },
+    {
+      "key": "required_information",
+      "label": "情報技術系（必修）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "required_comprehensive",
+      "label": "総合力演習（必修）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "required_research",
+      "label": "研究・基礎演習・実験（必修）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "required_math",
+      "label": "数学基礎（必修）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "required_core",
+      "label": "知能情報コア（必修）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "elective_math",
+      "label": "数学基礎（選択）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "advanced",
+      "label": "知能情報アドバンスト",
+      "counts_toward_total": true
+    },
+    {
+      "key": "related",
+      "label": "知能情報関連",
+      "counts_toward_total": true
+    },
+    {
+      "key": "fusion",
+      "label": "工学融合科目",
+      "counts_toward_total": true
+    },
+    {
+      "key": "free",
+      "label": "専門科目（自由）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "excluded",
+      "label": "算入対象外",
+      "counts_toward_total": false
+    }
+  ],
+  "rules": [
+    {
+      "id": "health",
+      "type": "credit_sum",
+      "label": "健康運動系",
+      "categories": [
+        "health"
+      ],
+      "required_credits": 2,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": ""
+    },
+    {
+      "id": "humanities",
+      "type": "credit_sum",
+      "label": "人文系",
+      "categories": [
+        "humanities"
+      ],
+      "required_credits": 2,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": ""
+    },
+    {
+      "id": "social",
+      "type": "credit_sum",
+      "label": "社会系",
+      "categories": [
+        "social"
+      ],
+      "required_credits": 2,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": ""
+    },
+    {
+      "id": "general_integrated",
+      "type": "credit_sum",
+      "label": "総合・キャリア・琉大特色／地域創生",
+      "categories": [
+        "integrated",
+        "career",
+        "regional"
+      ],
+      "required_credits": 2,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": "3区分の合計。各区分それぞれ2単位ではありません。"
+    },
+    {
+      "id": "general_without_natural",
+      "type": "credit_sum",
+      "label": "自然系を除く教養・総合領域",
+      "categories": [
+        "humanities",
+        "social",
+        "integrated",
+        "career",
+        "regional"
+      ],
+      "required_credits": 12,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": ""
+    },
+    {
+      "id": "general_subtotal",
+      "type": "credit_sum",
+      "label": "教養・総合領域の小計",
+      "categories": [
+        "humanities",
+        "social",
+        "integrated",
+        "career",
+        "regional",
+        "natural"
+      ],
+      "required_credits": 14,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": "健康運動系は含めず、自然系は最大2単位。"
+    },
+    {
+      "id": "japanese",
+      "type": "one_of_paths",
+      "label": "日本語表現法入門",
+      "paths": [
+        [
+          "japanese_expression"
+        ]
+      ],
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）"
+    },
+    {
+      "id": "english_required",
+      "type": "one_of_paths",
+      "label": "指定英語科目",
+      "paths": [
+        [
+          "university_english",
+          "english_reading_intermediate"
+        ]
+      ],
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）"
+    },
+    {
+      "id": "foreign_language",
+      "type": "any_of",
+      "label": "外国語の選択経路",
+      "options": [
+        {
+          "type": "credit_sum",
+          "categories": [
+            "english"
+          ],
+          "required_credits": 12
+        },
+        {
+          "type": "all_of",
+          "conditions": [
+            {
+              "type": "credit_sum",
+              "categories": [
+                "english"
+              ],
+              "required_credits": 8
+            },
+            {
+              "type": "grouped_max",
+              "category": "foreign_language",
+              "group_by": "number_prefix_hundreds",
+              "required_credits": 4
+            }
+          ]
+        }
+      ],
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": "英語12単位、または英語8単位＋同じ一外国語4単位。指定英語科目は別途必須。"
+    },
+    {
+      "id": "common_total",
+      "type": "credit_sum",
+      "label": "共通教育の合計",
+      "categories": [
+        "health",
+        "humanities",
+        "social",
+        "natural",
+        "integrated",
+        "career",
+        "regional",
+        "japanese",
+        "english",
+        "foreign_language"
+      ],
+      "required_credits": 30,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": ""
+    },
+    {
+      "id": "basic_total",
+      "type": "credit_sum",
+      "label": "専門基礎教育の合計",
+      "categories": [
+        "basic"
+      ],
+      "required_credits": 6,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": ""
+    },
+    {
+      "id": "calculus",
+      "type": "one_of_paths",
+      "label": "微分積分学の指定系列",
+      "paths": [
+        [
+          "calculus_st_1",
+          "calculus_st_2"
+        ],
+        [
+          "calculus_intro_1",
+          "calculus_intro_2"
+        ]
+      ],
+      "review_note": "微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要",
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）"
+    },
+    {
+      "id": "physics",
+      "type": "one_of_paths",
+      "label": "物理学の指定科目",
+      "paths": [
+        [
+          "physics_1"
+        ],
+        [
+          "physics_intro_1"
+        ]
+      ],
+      "review_note": "物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要",
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）"
+    },
+    {
+      "id": "required_all",
+      "type": "all_required",
+      "label": "専門必修31科目すべて",
+      "expected_course_count": 31,
+      "required_credits": 57,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）",
+      "detail": "余剰単位による代用は不可。"
+    },
+    {
+      "id": "required_information",
+      "type": "credit_sum",
+      "label": "情報技術系必修",
+      "categories": [
+        "required_information"
+      ],
+      "required_credits": 2,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）",
+      "detail": ""
+    },
+    {
+      "id": "required_comprehensive",
+      "type": "credit_sum",
+      "label": "総合力演習必修",
+      "categories": [
+        "required_comprehensive"
+      ],
+      "required_credits": 7,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）",
+      "detail": ""
+    },
+    {
+      "id": "required_research",
+      "type": "credit_sum",
+      "label": "研究・基礎演習・実験必修",
+      "categories": [
+        "required_research"
+      ],
+      "required_credits": 16,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）",
+      "detail": ""
+    },
+    {
+      "id": "required_math",
+      "type": "credit_sum",
+      "label": "数学基礎必修",
+      "categories": [
+        "required_math"
+      ],
+      "required_credits": 6,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）",
+      "detail": ""
+    },
+    {
+      "id": "required_core",
+      "type": "credit_sum",
+      "label": "知能情報コア必修",
+      "categories": [
+        "required_core"
+      ],
+      "required_credits": 26,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）",
+      "detail": ""
+    },
+    {
+      "id": "required_total",
+      "type": "credit_sum",
+      "label": "専門必修の合計",
+      "categories": [
+        "required_information",
+        "required_comprehensive",
+        "required_research",
+        "required_math",
+        "required_core"
+      ],
+      "required_credits": 57,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）",
+      "detail": ""
+    },
+    {
+      "id": "elective_inner",
+      "type": "credit_sum",
+      "label": "数学基礎選択＋アドバンスト＋関連",
+      "categories": [
+        "elective_math",
+        "advanced",
+        "related"
+      ],
+      "required_credits": 22,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": "専門選択37単位の内数。工学融合・自由科目はこの22単位に含めません。"
+    },
+    {
+      "id": "elective_total",
+      "type": "credit_sum",
+      "label": "専門選択の合計",
+      "categories": [
+        "elective_math",
+        "advanced",
+        "related",
+        "fusion",
+        "free"
+      ],
+      "required_credits": 37,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": ""
+    },
+    {
+      "id": "fusion_provider",
+      "type": "grouped_max",
+      "label": "同一の他コースが提供する工学融合",
+      "category": "fusion",
+      "group_by": "number_prefix",
+      "required_credits": 4,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": "自コース提供分は不可。他コースを合算せず、同一提供コースから4単位以上。"
+    },
+    {
+      "id": "total",
+      "type": "credit_sum",
+      "label": "卒業算入総単位",
+      "categories": [
+        "health",
+        "humanities",
+        "social",
+        "natural",
+        "integrated",
+        "career",
+        "regional",
+        "japanese",
+        "english",
+        "foreign_language",
+        "basic",
+        "required_information",
+        "required_comprehensive",
+        "required_research",
+        "required_math",
+        "required_core",
+        "elective_math",
+        "advanced",
+        "related",
+        "fusion",
+        "free"
+      ],
+      "required_credits": 130,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）",
+      "detail": "共通教育＋専門基礎＋専門必修＋専門選択。自然系は全体でも上限2単位。"
+    },
+    {
+      "id": "natural_cap",
+      "type": "cap",
+      "category": "natural",
+      "credits": 2,
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）"
+    },
+    {
+      "id": "excluded_category",
+      "type": "exclude",
+      "category": "excluded",
+      "reason": "卒業単位への算入対象外",
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）"
+    },
+    {
+      "id": "own_fusion",
+      "type": "exclude",
+      "category": "fusion",
+      "number_prefix": "知能",
+      "reason": "自コース提供の工学融合科目は登録・算入不可",
+      "source_page": "docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）"
+    }
+  ],
+  "display": {
+    "total_credits": 130,
+    "groups": [
+      {
+        "id": "common",
+        "title": "1. 共通教育",
+        "required_credits": 30,
+        "check_id": "common_total",
+        "rows": [
+          {
+            "id": "health",
+            "name": "健康運動系",
+            "subtitle": "共通教育・教養領域",
+            "required_credits": 2,
+            "required_label": null,
+            "categories": [
+              "health"
+            ],
+            "check_ids": [
+              "health"
+            ],
+            "credits_from_check": false
+          },
+          {
+            "id": "general_subtotal",
+            "name": "教養・総合領域 (人文・社会・自然・総合等)",
+            "subtitle": "人文2・社会2・総合等2を含む計14単位 (自然系上限2)",
+            "required_credits": 14,
+            "required_label": null,
+            "categories": [
+              "humanities",
+              "social",
+              "natural",
+              "integrated",
+              "career",
+              "regional"
+            ],
+            "check_ids": [
+              "general_subtotal",
+              "general_without_natural",
+              "humanities",
+              "social",
+              "general_integrated"
+            ],
+            "credits_from_check": true
+          },
+          {
+            "id": "japanese",
+            "name": "基幹領域：日本語表現法入門",
+            "subtitle": "共通教育・基幹必修",
+            "required_credits": 2,
+            "required_label": null,
+            "categories": [
+              "japanese"
+            ],
+            "check_ids": [
+              "japanese"
+            ],
+            "credits_from_check": false
+          },
+          {
+            "id": "foreign_language",
+            "name": "基幹領域：外国語科目",
+            "subtitle": "指定英語2科目必須 ／ 英語12 または 英語8＋同一外国語4",
+            "required_credits": 12,
+            "required_label": null,
+            "categories": [
+              "english",
+              "foreign_language"
+            ],
+            "check_ids": [
+              "foreign_language",
+              "english_required"
+            ],
+            "credits_from_check": false
+          }
+        ]
+      },
+      {
+        "id": "basic",
+        "title": "2. 専門基礎教育",
+        "required_credits": 6,
+        "check_id": "basic_total",
+        "rows": [
+          {
+            "id": "basic",
+            "name": "専門基礎科目 (微分積分学・物理学)",
+            "subtitle": "微積 (STⅠ・Ⅱ / 入門Ⅰ・Ⅱ) ＋ 物理 (Ⅰ / 入門Ⅰ)",
+            "required_credits": 6,
+            "required_label": null,
+            "categories": [
+              "basic"
+            ],
+            "check_ids": [
+              "basic_total",
+              "calculus",
+              "physics"
+            ],
+            "credits_from_check": false
+          }
+        ]
+      },
+      {
+        "id": "required",
+        "title": "3. 専門必修科目",
+        "required_credits": 57,
+        "check_id": "required_all",
+        "rows": [
+          {
+            "id": "required_information",
+            "name": "情報技術系",
+            "subtitle": "プログラミング演習Ⅰ・Ⅱ (必修)",
+            "required_credits": 2,
+            "required_label": null,
+            "categories": [
+              "required_information"
+            ],
+            "check_ids": [
+              "required_information"
+            ],
+            "credits_from_check": false
+          },
+          {
+            "id": "required_comprehensive",
+            "name": "総合力演習",
+            "subtitle": "工学基礎演習・キャリアデザイン・プロジェクトデザイン (必修)",
+            "required_credits": 7,
+            "required_label": null,
+            "categories": [
+              "required_comprehensive"
+            ],
+            "check_ids": [
+              "required_comprehensive"
+            ],
+            "credits_from_check": false
+          },
+          {
+            "id": "required_research",
+            "name": "研究・基礎演習・実験",
+            "subtitle": "基礎演習Ⅰ〜Ⅳ・総合実験・ED演習・卒業研究Ⅰ・Ⅱ・セミナーⅠ・Ⅱ (必修)",
+            "required_credits": 16,
+            "required_label": null,
+            "categories": [
+              "required_research"
+            ],
+            "check_ids": [
+              "required_research"
+            ],
+            "credits_from_check": false
+          },
+          {
+            "id": "required_math",
+            "name": "数学基礎（必修）",
+            "subtitle": "工業数学Ⅰ・Ⅱ、離散数学 (必修)",
+            "required_credits": 6,
+            "required_label": null,
+            "categories": [
+              "required_math"
+            ],
+            "check_ids": [
+              "required_math"
+            ],
+            "credits_from_check": false
+          },
+          {
+            "id": "required_core",
+            "name": "知能情報コア",
+            "subtitle": "専門基幹必修 12科目",
+            "required_credits": 26,
+            "required_label": null,
+            "categories": [
+              "required_core"
+            ],
+            "check_ids": [
+              "required_core"
+            ],
+            "credits_from_check": false
+          }
+        ]
+      },
+      {
+        "id": "elective",
+        "title": "4. 専門選択科目",
+        "required_credits": 37,
+        "check_id": "elective_total",
+        "rows": [
+          {
+            "id": "elective_math",
+            "name": "数学基礎（選択）",
+            "subtitle": "工業数学Ⅲ・Ⅳ、確率及び統計 (内数22単位の対象)",
+            "required_credits": null,
+            "required_label": "内数22単位枠",
+            "categories": [
+              "elective_math"
+            ],
+            "check_ids": [
+              "elective_inner"
+            ],
+            "credits_from_check": false
+          },
+          {
+            "id": "advanced",
+            "name": "知能情報アドバンスト",
+            "subtitle": "数学基礎(選択)・アドバンスト・関連の3区分計22単位以上",
+            "required_credits": 22,
+            "required_label": "3区分計 22単位",
+            "categories": [
+              "advanced"
+            ],
+            "check_ids": [
+              "elective_inner"
+            ],
+            "credits_from_check": true
+          },
+          {
+            "id": "related",
+            "name": "知能情報関連",
+            "subtitle": "技術英語・関連専門科目 (内数22単位の対象)",
+            "required_credits": null,
+            "required_label": "内数22単位枠",
+            "categories": [
+              "related"
+            ],
+            "check_ids": [
+              "elective_inner"
+            ],
+            "credits_from_check": false
+          },
+          {
+            "id": "fusion",
+            "name": "工学融合科目",
+            "subtitle": "同一の他コース提供分から4単位以上",
+            "required_credits": 4,
+            "required_label": null,
+            "categories": [
+              "fusion"
+            ],
+            "check_ids": [
+              "fusion_provider"
+            ],
+            "credits_from_check": true
+          },
+          {
+            "id": "free",
+            "name": "専門科目（自由）",
+            "subtitle": "他コース・他学部等の所定専門科目 (選択全体37単位に算入)",
+            "required_credits": null,
+            "required_label": "選択全体 37単位枠",
+            "categories": [
+              "free"
+            ],
+            "check_ids": [
+              "elective_total"
+            ],
+            "credits_from_check": false
+          }
+        ]
+      }
+    ],
+    "subtotals": [
+      {
+        "id": "elective_inner",
+        "name": "数学基礎（選択）・アドバンスト・関連の合計",
+        "required_credits": 22,
+        "row_ids": [
+          "elective_math",
+          "advanced",
+          "related"
+        ],
+        "check_ids": [
+          "elective_inner"
+        ]
+      }
     ]
   },
   "courses": [
