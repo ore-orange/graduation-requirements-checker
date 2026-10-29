@@ -22,7 +22,6 @@ module StudentWorkspaceHelper
     curriculum.fetch('categories').find { |entry| entry['key'] == category }&.fetch('label') || category
   end
 
-  def display_entry(entry) = entry.to_h { |key, value| [DISPLAY_KEYS.fetch(key) { key.to_sym }, value] }
   def find_check(snapshot, check_id) = snapshot.checks.find { |check| check.id == check_id }
   def source_url(source) = (source['url'].to_s if source['url'].to_s.start_with?('https://', 'http://'))
 
@@ -81,5 +80,10 @@ module StudentWorkspaceHelper
   def checks_by_ids(snapshot, check_ids) = snapshot.checks.select { |check| check_ids.include?(check.id) }
   def any_review?(checks) = checks.any? { |check| check.status == :needs_review }
   def all_satisfied?(checks) = checks.present? && checks.all? { |check| check.status == :satisfied }
+
+  private
+
+  # 便覧の display の1要素（章・行・小計）をシンボルキーに直す。この境界は1か所だけ。
+  def display_entry(entry) = entry.to_h { |key, value| [DISPLAY_KEYS.fetch(key) { key.to_sym }, value] }
 end
 

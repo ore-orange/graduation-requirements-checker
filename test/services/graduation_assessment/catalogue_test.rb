@@ -63,7 +63,117 @@ class GraduationAssessment
     end
 
     test 'display は便覧の display を返す' do
-      assert_equal({ 'groups' => [] }, @catalogue.display)
+      assert_equal display, @catalogue.display
+    end
+
+    test '正しい display は読み込める' do
+      assert_nothing_raised { load_with_display(display_with_row(display_row)) }
+    end
+
+    test 'display を持たない規則の便覧は読み込める（画面を開いたときに KeyError になる）' do
+      assert_empty Catalogue.new(format2_document.except('display')).display
+    end
+
+    test 'display がハッシュでなければ読み込み時に例外になる' do
+      assert_raises(ArgumentError) { load_with_display(nil) }
+      assert_raises(ArgumentError) { load_with_display([]) }
+    end
+
+    test 'total_credits が正の数でなければ読み込み時に例外になる' do
+      [nil, 0, -1, '130', true, [130]].each do |value|
+        error = assert_raises(ArgumentError, "total_credits: #{value.inspect}") do
+          load_with_display(display.merge('total_credits' => value))
+        end
+        assert_includes error.message, 'total_credits'
+      end
+      assert_raises(ArgumentError) { load_with_display(display.except('total_credits')) }
+      assert_nothing_raised { load_with_display(display.merge('total_credits' => 124.5)) }
+    end
+
+    test 'groups が配列でなければ読み込み時に例外になる' do
+      assert_raises(ArgumentError) { load_with_display(display.merge('groups' => nil)) }
+      assert_raises(ArgumentError) { load_with_display(display.except('groups')) }
+    end
+
+    test 'id・title・rows の無い章は読み込み時に例外になる' do
+      group = display_with_row(display_row)['groups'].first
+
+      %w[id title rows].each do |field|
+        error = assert_raises(ArgumentError, field) do
+          load_with_display(display.merge('groups' => [group.except(field)]))
+        end
+        assert_includes error.message, field
+      end
+    end
+
+    test '章の required_credits が数でなければ読み込み時に例外になる' do
+      group = display_with_row(display_row)['groups'].first
+
+      [nil, -1, '30'].each do |value|
+        assert_raises(ArgumentError) do
+          load_with_display(display.merge('groups' => [group.merge('required_credits' => value)]))
+        end
+      end
+    end
+
+    test 'id・name の無い行は読み込み時に例外になる' do
+      %w[id name].each do |field|
+        error = assert_raises(ArgumentError, field) { load_with_display(display_with_row(display_row.except(field))) }
+        assert_includes error.message, field
+      end
+    end
+
+    test 'credits_from_check が無い・綴り違い・真偽値でない行は読み込み時に例外になる' do
+      typo = display_row.except('credits_from_check').merge('credit_from_check' => true)
+
+      [display_row.except('credits_from_check'), typo, display_row('credits_from_check' => nil),
+       display_row('credits_from_check' => 'true'), display_row('credits_from_check' => 1)].each do |row|
+        error = assert_raises(ArgumentError) { load_with_display(display_with_row(row)) }
+        assert_includes error.message, 'credits_from_check'
+      end
+      assert_nothing_raised { load_with_display(display_with_row(display_row('credits_from_check' => true))) }
+    end
+
+    test '行の required_credits は0以上の数か null でなければ読み込み時に例外になる' do
+      ['2', -1, true, []].each do |value|
+        error = assert_raises(ArgumentError, value.inspect) do
+          load_with_display(display_with_row(display_row('required_credits' => value)))
+        end
+        assert_includes error.message, 'required_credits'
+      end
+      assert_nothing_raised { load_with_display(display_with_row(display_row('required_credits' => 0))) }
+    end
+
+    # required_credits の綴り違いは「必要単位の無い行」に見え、満たしていない要件が画面から消える。
+    test '必要単位が無い行は、理由を表す required_label が無ければ読み込み時に例外になる' do
+      typo = display_row.except('required_credits').merge('requird_credits' => 2)
+
+      [typo, display_row('required_credits' => nil), display_row('required_credits' => nil, 'required_label' => ''),
+       display_row('required_credits' => nil, 'required_label' => '  ')].each do |row|
+        error = assert_raises(ArgumentError) { load_with_display(display_with_row(row)) }
+        assert_includes error.message, 'required_label'
+      end
+    end
+
+    test '必要単位が無くてもラベルのある行は読み込める' do
+      row = display_row('required_credits' => nil, 'required_label' => '内数22単位枠')
+
+      assert_nothing_raised { load_with_display(display_with_row(row)) }
+    end
+
+    test '小計の required_credits が数でなければ読み込み時に例外になる' do
+      subtotal = { 'id' => 'inner', 'name' => '内数', 'required_credits' => 22, 'row_ids' => ['basic'],
+                   'check_ids' => [] }
+
+      assert_nothing_raised { load_with_display(display.merge('subtotals' => [subtotal])) }
+      [nil, '22', -1].each do |value|
+        assert_raises(ArgumentError) do
+          load_with_display(display.merge('subtotals' => [subtotal.merge('required_credits' => value)]))
+        end
+      end
+      assert_raises(ArgumentError) do
+        load_with_display(display.merge('subtotals' => [subtotal.except('required_credits')]))
+      end
     end
 
     test 'course_for は科目番号で科目を引く' do
@@ -219,7 +329,27 @@ class GraduationAssessment
         'categories' => [{ 'key' => 'foundation', 'label' => '基礎', 'counts_toward_total' => true },
                          { 'key' => 'fusion', 'label' => '工学融合', 'counts_toward_total' => true },
                          { 'key' => 'excluded', 'label' => '算入対象外', 'counts_toward_total' => false }],
-        'rules' => rules, 'display' => { 'groups' => [] } }
+        'rules' => rules, 'display' => display }
+    end
+
+    # 画面の元。groups は空でもよいが、total_credits は要る。
+    def display
+      { 'total_credits' => 4, 'groups' => [], 'subtotals' => [] }
+    end
+
+    def display_row(overrides = {})
+      { 'id' => 'basic', 'name' => '基礎', 'required_credits' => 2, 'required_label' => nil,
+        'categories' => ['foundation'], 'check_ids' => ['common_total'],
+        'credits_from_check' => false }.merge(overrides)
+    end
+
+    def display_with_row(row)
+      display.merge('groups' => [{ 'id' => 'common', 'title' => '1. 共通', 'required_credits' => 2,
+                                   'check_id' => 'common_total', 'rows' => [row] }])
+    end
+
+    def load_with_display(display)
+      Catalogue.new(format2_document.merge('display' => display))
     end
 
     # cap と exclude を条件の間に挟み、振り分けても並び順が保たれることを確かめる。

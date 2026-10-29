@@ -5,6 +5,7 @@ class GraduationAssessment
     ZERO = BigDecimal('0')
     # 入れ子の規則を持つ欄。区分の参照を検めるときに、ここをたどる。
     NESTED_RULES = %w[options conditions].freeze
+    BOOLEANS = [true, false].freeze
 
     attr_reader :courses, :categories, :conditions, :adjustments, :display, :required_roles
 
@@ -96,7 +97,75 @@ class GraduationAssessment
       validate_course_numbers
       validate_categories
       validate_rule_categories(Array(document['rules']))
+      validate_display(document['display']) if document.key?('display')
     end
+
+    # display は画面に出る数字と行の元。欄の綴り違いや null は、黙って別の数字や「必要単位なしの行」になり、
+    # 満たしていない要件を画面から消してしまう。空欄のまま出る方が直せるので、読み込み時に弾く。
+    # display を持たない便覧はここでは弾かない（画面を開いたときに KeyError になる）。
+    def validate_display(display)
+      raise ArgumentError, 'display はハッシュでなければなりません' unless display.is_a?(Hash)
+
+      problems = []
+      problems << 'total_credits は正の数でなければなりません' unless positive_number?(display['total_credits'])
+      groups = display['groups']
+      if groups.is_a?(Array)
+        groups.each_with_index { |group, index| problems.concat(group_problems(group, "groups[#{index}]")) }
+      else
+        problems << 'groups は配列でなければなりません'
+      end
+      problems.concat(subtotal_problems(display['subtotals']))
+      raise ArgumentError, "display が正しくありません: #{problems.join('、')}" if problems.any?
+    end
+
+    def group_problems(group, path)
+      return ["#{path} はハッシュでなければなりません"] unless group.is_a?(Hash)
+
+      problems = %w[id title].reject { |field| present_string?(group[field]) }.map { |field| "#{path}.#{field} がありません" }
+      problems << "#{path}.required_credits は0以上の数でなければなりません" unless non_negative_number?(group['required_credits'])
+      return problems << "#{path}.rows は配列でなければなりません" unless group['rows'].is_a?(Array)
+
+      group['rows'].each_with_index { |row, index| problems.concat(row_problems(row, "#{path}.rows[#{index}]")) }
+      problems
+    end
+
+    def row_problems(row, path)
+      return ["#{path} はハッシュでなければなりません"] unless row.is_a?(Hash)
+
+      problems = %w[id name].reject { |field| present_string?(row[field]) }.map { |field| "#{path}.#{field} がありません" }
+      # 欄が無い・綴りが違うと false 扱いになり、算入上限が効いた判定の単位と食い違う数字が出る。
+      unless BOOLEANS.include?(row['credits_from_check'])
+        problems << "#{path}.credits_from_check は true か false でなければなりません"
+      end
+      problems.concat(row_requirement_problems(row, path))
+    end
+
+    # 必要単位を持たない行は「内数」の行として、バーも判定も出さない。意図した行だけがそうなるよう、
+    # 必要単位が null の行にはその理由を表すラベルを求める。綴り違いで必要単位が消えた行は、ここで弾かれる。
+    def row_requirement_problems(row, path)
+      credits = row['required_credits']
+      return ["#{path}.required_credits は0以上の数か null でなければなりません"] unless credits.nil? || non_negative_number?(credits)
+
+      return [] unless credits.nil? && !present_string?(row['required_label'])
+
+      ["#{path} は required_credits が null なので required_label が必要です"]
+    end
+
+    def subtotal_problems(subtotals)
+      return [] if subtotals.nil?
+      return ['subtotals は配列でなければなりません'] unless subtotals.is_a?(Array)
+
+      subtotals.each_with_index.filter_map do |subtotal, index|
+        next if subtotal.is_a?(Hash) && non_negative_number?(subtotal['required_credits'])
+
+        "subtotals[#{index}].required_credits は0以上の数でなければなりません"
+      end
+    end
+
+    def positive_number?(value) = number?(value) && value.positive?
+    def non_negative_number?(value) = number?(value) && !value.negative?
+    def number?(value) = value.is_a?(Numeric) && value.to_f.finite?
+    def present_string?(value) = value.is_a?(String) && !value.strip.empty?
 
     # 条件が1つも無い便覧は、何も確かめないまま判定を返す。規則を書く前の年度のファイルがこれになる。
     def validate_conditions

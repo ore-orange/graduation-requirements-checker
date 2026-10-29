@@ -69,6 +69,14 @@ class GraduationAssessment
       assert_empty @catalogue.category_keys - ['excluded'] - shown
     end
 
+    # 判定側が算入上限を効かせて数える行は、区分の素の合計と食い違う。この3行だけが判定の値を使う。
+    # 増減はどちらも画面の数字を静かに変えるので、2024年度の便覧がこうあるべきという期待を直に書く。
+    test 'credits_from_check が true なのは general_subtotal・advanced・fusion の3行だけ' do
+      from_check = @rows.select { |row| row['credits_from_check'] }
+
+      assert_equal %w[advanced fusion general_subtotal], from_check.pluck('id').sort
+    end
+
     test '算入する区分は21、excluded だけが算入しない' do
       assert_equal 22, @catalogue.category_keys.size
       assert_equal 21, @catalogue.counted_category_keys.size
