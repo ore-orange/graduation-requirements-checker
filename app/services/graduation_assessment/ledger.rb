@@ -5,6 +5,7 @@ class GraduationAssessment
   class Ledger
     Item = Struct.new(:course, :credits, :counted, :reason, keyword_init: true)
     NUMBER_GROUPERS = { 'number_prefix' => :prefix, 'number_prefix_hundreds' => :hundreds }.freeze
+    FIELD_GROUP = 'field:'
     attr_reader :items, :notes, :uncertain_roles, :uncertain_required
     attr_accessor :fusion_provider_unknown, :foreign_language_unknown, :unknown_identity
 
@@ -119,18 +120,19 @@ class GraduationAssessment
       end
     end
 
-    # 区分の算入単位を、科目番号の接頭辞（または接頭辞＋百の位）ごとに合計する。番号が読めない科目は含めない。
-    def grouped_credits_by_number(category, group_by)
-      grouper = NUMBER_GROUPERS.fetch(group_by)
+    # 区分の算入単位をグループごとに合計する。group_by は科目番号の接頭辞（number_prefix）、
+    # 接頭辞＋百の位（number_prefix_hundreds）、または科目の欄（field:language など）。
+    # グループを決められない科目（番号が読めない、欄が空）は含めない。
+    def grouped_credits_by(category, group_by)
       counted_items(category).each_with_object(Hash.new(Catalogue::ZERO)) do |item, totals|
-        group = CourseNumber.public_send(grouper, item.course['number'])
+        group = group_of(item.course, group_by)
         totals[group] += item.counted if group
       end
     end
 
-    # 区分に算入済みで、科目番号を読めない科目がある。そのグループは分からないので最大値を信用できない。
-    def unreadable_number?(category)
-      counted_items(category).any? { |item| CourseNumber.prefix(item.course['number']).nil? }
+    # 区分に算入済みで、グループを決められない科目がある。そのグループは分からないので最大値を信用できない。
+    def ungrouped?(category, group_by)
+      counted_items(category).any? { |item| group_of(item.course, group_by).nil? }
     end
 
     def course_results
@@ -142,6 +144,13 @@ class GraduationAssessment
     end
 
     private
+
+    # 欄で分けるときは、番号の読み方に頼らず、科目が持つ値をそのまま使う（外7xx は1つの言語ではない）。
+    def group_of(course, group_by)
+      return course[group_by.delete_prefix(FIELD_GROUP)].presence if group_by.to_s.start_with?(FIELD_GROUP)
+
+      CourseNumber.public_send(NUMBER_GROUPERS.fetch(group_by), course['number'])
+    end
 
     def counted_items(category)
       items.values.select { |item| item.course['category'] == category && item.counted.positive? }

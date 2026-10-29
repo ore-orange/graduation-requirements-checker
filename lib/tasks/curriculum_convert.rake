@@ -97,7 +97,8 @@ module CurriculumConvert
       ]
     end
 
-    # 英語12単位、または 英語8単位＋同じ一外国語4単位。一外国語は科目番号の接頭辞＋百の位で見分ける（外2xx はドイツ語 …）。
+    # 英語12単位、または 英語8単位＋同じ一外国語4単位。一外国語は科目の language 欄で見分ける。
+    # 科目番号の百の位では分けない（外7xx はインドネシア語・タイ語・ラテン語・ロシア語が混ざる）。
     # 旧コードは英語・一外国語の最大単位を文の前に付けていた。データには説明の部分だけを置く。
     # required_credits は持たない（旧チェックも nil）。
     def foreign_language_rule
@@ -105,7 +106,7 @@ module CurriculumConvert
         { 'type' => 'credit_sum', 'categories' => ['english'], 'required_credits' => 12 },
         { 'type' => 'all_of', 'conditions' => [
           { 'type' => 'credit_sum', 'categories' => ['english'], 'required_credits' => 8 },
-          { 'type' => 'grouped_max', 'category' => 'foreign_language', 'group_by' => 'number_prefix_hundreds',
+          { 'type' => 'grouped_max', 'category' => 'foreign_language', 'group_by' => 'field:language',
             'required_credits' => 4 }
         ] }
       ], 'source_page' => source, 'detail' => '英語12単位、または英語8単位＋同じ一外国語4単位。指定英語科目は別途必須。' }

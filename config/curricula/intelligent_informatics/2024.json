@@ -292,7 +292,7 @@
             {
               "type": "grouped_max",
               "category": "foreign_language",
-              "group_by": "number_prefix_hundreds",
+              "group_by": "field:language",
               "required_credits": 4
             }
           ]

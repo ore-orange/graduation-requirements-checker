@@ -14,9 +14,11 @@ class GraduationAssessment
         course('en_1', 'english', 4, number: '外101'),
         course('en_2', 'english', 4, number: '外102'),
         course('en_3', 'english', 4, number: '外103'),
-        course('de_1', 'foreign_language', 2, number: '外201'),
-        course('de_2', 'foreign_language', 2, number: '外202'),
-        course('fr_1', 'foreign_language', 2, number: '外301'),
+        course('de_1', 'foreign_language', 2, number: '外201', language: 'german'),
+        course('de_2', 'foreign_language', 2, number: '外202', language: 'german'),
+        course('fr_1', 'foreign_language', 2, number: '外301', language: 'french'),
+        course('id_1', 'foreign_language', 2, number: '外701', language: 'indonesian'),
+        course('th_1', 'foreign_language', 2, number: '外702', language: 'thai'),
         course('fl_unreadable', 'foreign_language', 2, number: 'ドイツ語')
       ]
       @catalogue = Catalogue.new('courses' => @courses, 'requirements' => {})
@@ -98,13 +100,72 @@ class GraduationAssessment
       assert_equal BigDecimal('2'), grouped_max('number_prefix', 4).evaluate(@catalogue, @ledger).counted
     end
 
-    test 'grouped_max は number_prefix_hundreds で外国語を言語ごとに分ける' do
+    test 'grouped_max は number_prefix_hundreds で接頭辞と百の位ごとに分ける' do
       count('de_1', 'de_2', 'fr_1')
 
       outcome = grouped_max('number_prefix_hundreds', 4, category: 'foreign_language').evaluate(@catalogue, @ledger)
 
       assert_equal BigDecimal('4'), outcome.counted
       assert outcome.satisfied
+    end
+
+    test 'grouped_max は field:language で言語ごとに分ける' do
+      count('de_1', 'de_2', 'fr_1')
+
+      outcome = grouped_max('field:language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger)
+
+      assert_equal BigDecimal('4'), outcome.counted
+      assert outcome.satisfied
+      assert_not outcome.review
+    end
+
+    test 'grouped_max は field:language で2つの言語を合算しない' do
+      count('de_1', 'fr_1')
+
+      outcome = grouped_max('field:language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger)
+
+      assert_equal BigDecimal('2'), outcome.counted
+      assert_not_predicate outcome, :satisfied
+    end
+
+    test 'grouped_max は百の位が同じでも言語が違えば field:language では合算しない' do
+      count('id_1', 'th_1')
+
+      by_field = grouped_max('field:language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger)
+      by_hundreds = grouped_max('number_prefix_hundreds', 4, category: 'foreign_language').evaluate(@catalogue, @ledger)
+
+      assert_equal BigDecimal('2'), by_field.counted
+      assert_not_predicate by_field, :satisfied
+      assert_equal BigDecimal('4'), by_hundreds.counted
+    end
+
+    test 'grouped_max は language が空の科目が算入されていたら review' do
+      count('de_1', 'de_2', 'fl_unreadable')
+
+      outcome = grouped_max('field:language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger)
+
+      assert outcome.review
+      assert_equal BigDecimal('4'), outcome.counted
+    end
+
+    test 'grouped_max は language が空でも算入単位が0なら review にしない' do
+      count('de_1', 'de_2')
+      @ledger.add(@catalogue.find('fl_unreadable'), BigDecimal('2'))
+
+      assert_not grouped_max('field:language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger).review
+    end
+
+    test 'grouped_max は language が空白だけの科目も空として review にする' do
+      @catalogue.find('de_1')['language'] = '  '
+      count('de_1')
+
+      assert grouped_max('field:language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger).review
+    end
+
+    test 'grouped_max は知らない group_by を黙って通さない' do
+      count('de_1')
+
+      assert_raises(KeyError) { grouped_max('language', 4, category: 'foreign_language').evaluate(@catalogue, @ledger) }
     end
 
     test 'grouped_max は number_prefix なら外国語を言語で分けない' do
@@ -175,6 +236,15 @@ class GraduationAssessment
       assert_equal BigDecimal('8'), foreign_language_rule.evaluate(@catalogue, @ledger).counted
     end
 
+    test '外7xx の別々の言語を合わせて一外国語4単位とは数えない' do
+      count('en_1', 'en_2', 'id_1', 'th_1')
+
+      outcome = foreign_language_rule.evaluate(@catalogue, @ledger)
+
+      assert_not_predicate outcome, :satisfied
+      assert_not outcome.review
+    end
+
     test 'any_of はどれかの選択肢が review なら review' do
       count('en_1', 'en_2', 'fl_unreadable')
 
@@ -206,7 +276,7 @@ class GraduationAssessment
     test 'all_of は全部満たしたときだけ充足' do
       count('en_1', 'en_2', 'de_1', 'de_2')
 
-      assert all_of([english_sum(8), grouped_max('number_prefix_hundreds', 4, category: 'foreign_language')])
+      assert all_of([english_sum(8), grouped_max('field:language', 4, category: 'foreign_language')])
         .evaluate(@catalogue, @ledger).satisfied
       assert_not all_of([english_sum(12), english_sum(8)]).evaluate(@catalogue, @ledger).satisfied
     end
@@ -214,7 +284,7 @@ class GraduationAssessment
     test 'all_of はどれかが review なら review' do
       count('en_1', 'en_2', 'fl_unreadable')
 
-      outcome = all_of([english_sum(8), grouped_max('number_prefix_hundreds', 4, category: 'foreign_language')])
+      outcome = all_of([english_sum(8), grouped_max('field:language', 4, category: 'foreign_language')])
                 .evaluate(@catalogue, @ledger)
 
       assert outcome.review
@@ -330,9 +400,9 @@ class GraduationAssessment
 
     private
 
-    def course(key, category, credits, number:)
+    def course(key, category, credits, number:, language: nil)
       { 'key' => key, 'name' => "人工科目 #{key}", 'category' => category, 'credits' => credits,
-        'number' => number, 'required' => false, 'roles' => [] }
+        'number' => number, 'language' => language, 'required' => false, 'roles' => [] }
     end
 
     def count(*keys)
@@ -375,7 +445,7 @@ class GraduationAssessment
         'options' => [
           english_sum_definition(12),
           { 'type' => 'all_of', 'conditions' => [english_sum_definition(8),
-                                                 grouped_max_definition('number_prefix_hundreds', 4,
+                                                 grouped_max_definition('field:language', 4,
                                                                         'foreign_language')] }
         ]
       )
