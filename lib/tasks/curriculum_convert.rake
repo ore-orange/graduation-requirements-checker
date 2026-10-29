@@ -107,7 +107,7 @@ module CurriculumConvert
         { 'type' => 'all_of', 'conditions' => [
           { 'type' => 'credit_sum', 'categories' => ['english'], 'required_credits' => 8 },
           { 'type' => 'grouped_max', 'category' => 'foreign_language', 'group_by' => 'field:language',
-            'required_credits' => 4 }
+            'group_label' => '言語', 'required_credits' => 4 }
         ] }
       ], 'source_page' => source, 'detail' => '英語12単位、または英語8単位＋同じ一外国語4単位。指定英語科目は別途必須。' }
     end

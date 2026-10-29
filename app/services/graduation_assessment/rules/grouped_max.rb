@@ -24,11 +24,16 @@ class GraduationAssessment
         courses.each { |course| ledger.notes << "#{course.fetch('name')}：#{ungrouped_reason(catalogue)}" }
       end
 
+      # 学生に見せる欄の呼び名は便覧ごとに違うので定義に持たせる。無ければ欄の名前をそのまま使う。
+      def group_label
+        definition['group_label'].presence || definition.fetch('group_by').delete_prefix(Ledger::FIELD_GROUP)
+      end
+
       def ungrouped_reason(catalogue)
         group_by = definition.fetch('group_by')
         name = catalogue.label_for(definition.fetch('category'))
         if group_by.to_s.start_with?(Ledger::FIELD_GROUP)
-          "#{group_by.delete_prefix(Ledger::FIELD_GROUP)}の欄が未確認（#{name}のグループ別の集計には未算入）"
+          "#{group_label}の欄が未確認（#{name}のグループ別の集計には未算入）"
         else
           "科目番号を読み取れず、グループが未確認（#{name}のグループ別の集計には未算入）"
         end

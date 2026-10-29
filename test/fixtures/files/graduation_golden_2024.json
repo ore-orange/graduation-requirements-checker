@@ -1553,6 +1553,448 @@
       "status": "unmet"
     }
   },
+  "english_plus_two_7xx_languages": {
+    "actual": {
+      "checks": [
+        {
+          "counted_credits": "0.0",
+          "id": "basic_total",
+          "missing_courses": [],
+          "required_credits": "6.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": null,
+          "id": "calculus",
+          "missing_courses": [
+            "微分積分学入門Ⅰ",
+            "微分積分学入門Ⅱ",
+            "微分積分学ＳＴ（スタンダードコース）Ⅰ",
+            "微分積分学ＳＴ（スタンダードコース）Ⅱ"
+          ],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "12.0",
+          "id": "common_total",
+          "missing_courses": [],
+          "required_credits": "30.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "elective_inner",
+          "missing_courses": [],
+          "required_credits": "22.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "elective_total",
+          "missing_courses": [],
+          "required_credits": "37.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": null,
+          "id": "english_required",
+          "missing_courses": [
+            "大学英語",
+            "英語講読演習 中級"
+          ],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "8.0",
+          "id": "foreign_language",
+          "missing_courses": [],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "fusion_provider",
+          "missing_courses": [],
+          "required_credits": "4.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "general_integrated",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "general_subtotal",
+          "missing_courses": [],
+          "required_credits": "14.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "general_without_natural",
+          "missing_courses": [],
+          "required_credits": "12.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "health",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "humanities",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": null,
+          "id": "japanese",
+          "missing_courses": [
+            "日本語表現法入門"
+          ],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": null,
+          "id": "physics",
+          "missing_courses": [
+            "物理学Ⅰ",
+            "物理学入門Ⅰ"
+          ],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_all",
+          "missing_courses": [
+            "アルゴリズムとデータ構造",
+            "エンジニアリングデザイン演習",
+            "オペレーティングシステム",
+            "キャリアデザイン",
+            "キャリアデザイン入門",
+            "コンピュータアーキテクチャ",
+            "コンピュータシステム",
+            "セミナーⅠ",
+            "セミナーⅡ",
+            "ソフトウエア開発演習Ⅰ",
+            "データサイエンス基礎",
+            "データベースシステム",
+            "プログラミングⅠ",
+            "プログラミングⅡ",
+            "プログラミング演習Ⅰ",
+            "プログラミング演習Ⅱ",
+            "プロジェクトデザイン",
+            "人工知能",
+            "卒業研究Ⅰ",
+            "卒業研究Ⅱ",
+            "工学基礎演習",
+            "工業数学Ⅰ",
+            "工業数学Ⅱ",
+            "情報ネットワークⅠ",
+            "技術者の倫理",
+            "知能情報基礎演習Ⅰ",
+            "知能情報基礎演習Ⅱ",
+            "知能情報基礎演習Ⅲ",
+            "知能情報基礎演習Ⅳ",
+            "知能情報総合実験",
+            "離散数学"
+          ],
+          "required_credits": "57.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_comprehensive",
+          "missing_courses": [],
+          "required_credits": "7.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_core",
+          "missing_courses": [],
+          "required_credits": "26.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_information",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_math",
+          "missing_courses": [],
+          "required_credits": "6.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_research",
+          "missing_courses": [],
+          "required_credits": "16.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_total",
+          "missing_courses": [],
+          "required_credits": "57.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "social",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "12.0",
+          "id": "total",
+          "missing_courses": [],
+          "required_credits": "130.0",
+          "status": "unmet"
+        }
+      ],
+      "counted_credits": "12.0",
+      "review_notes": [],
+      "status": "unmet"
+    },
+    "projected": {
+      "checks": [
+        {
+          "counted_credits": "0.0",
+          "id": "basic_total",
+          "missing_courses": [],
+          "required_credits": "6.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": null,
+          "id": "calculus",
+          "missing_courses": [
+            "微分積分学入門Ⅰ",
+            "微分積分学入門Ⅱ",
+            "微分積分学ＳＴ（スタンダードコース）Ⅰ",
+            "微分積分学ＳＴ（スタンダードコース）Ⅱ"
+          ],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "12.0",
+          "id": "common_total",
+          "missing_courses": [],
+          "required_credits": "30.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "elective_inner",
+          "missing_courses": [],
+          "required_credits": "22.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "elective_total",
+          "missing_courses": [],
+          "required_credits": "37.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": null,
+          "id": "english_required",
+          "missing_courses": [
+            "大学英語",
+            "英語講読演習 中級"
+          ],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "8.0",
+          "id": "foreign_language",
+          "missing_courses": [],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "fusion_provider",
+          "missing_courses": [],
+          "required_credits": "4.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "general_integrated",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "general_subtotal",
+          "missing_courses": [],
+          "required_credits": "14.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "general_without_natural",
+          "missing_courses": [],
+          "required_credits": "12.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "health",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "humanities",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": null,
+          "id": "japanese",
+          "missing_courses": [
+            "日本語表現法入門"
+          ],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": null,
+          "id": "physics",
+          "missing_courses": [
+            "物理学Ⅰ",
+            "物理学入門Ⅰ"
+          ],
+          "required_credits": null,
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_all",
+          "missing_courses": [
+            "アルゴリズムとデータ構造",
+            "エンジニアリングデザイン演習",
+            "オペレーティングシステム",
+            "キャリアデザイン",
+            "キャリアデザイン入門",
+            "コンピュータアーキテクチャ",
+            "コンピュータシステム",
+            "セミナーⅠ",
+            "セミナーⅡ",
+            "ソフトウエア開発演習Ⅰ",
+            "データサイエンス基礎",
+            "データベースシステム",
+            "プログラミングⅠ",
+            "プログラミングⅡ",
+            "プログラミング演習Ⅰ",
+            "プログラミング演習Ⅱ",
+            "プロジェクトデザイン",
+            "人工知能",
+            "卒業研究Ⅰ",
+            "卒業研究Ⅱ",
+            "工学基礎演習",
+            "工業数学Ⅰ",
+            "工業数学Ⅱ",
+            "情報ネットワークⅠ",
+            "技術者の倫理",
+            "知能情報基礎演習Ⅰ",
+            "知能情報基礎演習Ⅱ",
+            "知能情報基礎演習Ⅲ",
+            "知能情報基礎演習Ⅳ",
+            "知能情報総合実験",
+            "離散数学"
+          ],
+          "required_credits": "57.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_comprehensive",
+          "missing_courses": [],
+          "required_credits": "7.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_core",
+          "missing_courses": [],
+          "required_credits": "26.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_information",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_math",
+          "missing_courses": [],
+          "required_credits": "6.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_research",
+          "missing_courses": [],
+          "required_credits": "16.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "required_total",
+          "missing_courses": [],
+          "required_credits": "57.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "0.0",
+          "id": "social",
+          "missing_courses": [],
+          "required_credits": "2.0",
+          "status": "unmet"
+        },
+        {
+          "counted_credits": "12.0",
+          "id": "total",
+          "missing_courses": [],
+          "required_credits": "130.0",
+          "status": "unmet"
+        }
+      ],
+      "counted_credits": "12.0",
+      "review_notes": [],
+      "status": "unmet"
+    }
+  },
   "missing_one_required": {
     "actual": {
       "checks": [

@@ -157,6 +157,17 @@ class GraduationAssessment
                    @ledger.notes
     end
 
+    test 'grouped_max の notes は group_label があれば欄の名前の代わりに使う' do
+      count('fl_unreadable')
+      rule = Rules.condition('type' => 'grouped_max', 'id' => 'g', 'label' => 'g', 'category' => 'foreign_language',
+                             'group_by' => 'field:language', 'group_label' => '言語', 'required_credits' => 4)
+
+      rule.evaluate(@catalogue, @ledger)
+
+      assert_equal ['人工科目 fl_unreadable：言語の欄が未確認（foreign_languageのグループ別の集計には未算入）'],
+                   @ledger.notes
+    end
+
     test 'grouped_max は科目番号が読めない科目を、名前と扱いを添えて notes に残す' do
       count('kikai_991', 'unreadable')
 

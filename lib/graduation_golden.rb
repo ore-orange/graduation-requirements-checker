@@ -26,7 +26,8 @@ module GraduationGolden
       'all_completed' => arguments(completed: all_completed),
       'missing_one_required' => arguments(completed: without_first_required(courses, all_completed)),
       'clean_single_path' => arguments(completed: clean_single_path(curriculum, all_completed)),
-      'natural_cap_only' => arguments(completed: natural_cap_only(courses))
+      'natural_cap_only' => arguments(completed: natural_cap_only(courses)),
+      'english_plus_two_7xx_languages' => arguments(completed: Scenarios.english_plus_two_7xx_languages(courses))
     }
   end
 
@@ -121,6 +122,29 @@ module GraduationGolden
     when Hash then value.sort.to_h { |key, child| [key, sort_keys(child)] }
     when Array then value.map { |child| sort_keys(child) }
     else value
+    end
+  end
+
+  # 記録するケースのうち、組み立てが長いもの。
+  module Scenarios
+    module_function
+
+    # 英語がちょうど8単位に、外7xx の別々の言語（ラテン語2単位・ロシア語2単位）だけを足した状態。
+    # 外7xx は1つの言語ではない。百の位で数えると4単位の一外国語になって充足と誤るので、未充足であることを固定する。
+    def english_plus_two_7xx_languages(courses)
+      english = eight_credits_of_english(courses)
+      other = %w[外731 外751].map { |number| courses.find { |course| course['number'] == number } }
+      (english + other).map { |course| GraduationGolden.completed_entry(course) }
+    end
+
+    # キー順に先頭から、合計がちょうど8単位になるまで英語を選ぶ。
+    def eight_credits_of_english(courses)
+      total = 0
+      picked = courses.select { |course| course['category'] == 'english' }.sort_by { |course| course['key'] }
+                      .take_while { |course| (total += course['credits']) <= 8 }
+      raise '英語の先頭の科目がちょうど8単位にならない' unless picked.sum { |course| course['credits'] } == 8
+
+      picked
     end
   end
 end

@@ -293,6 +293,7 @@
               "type": "grouped_max",
               "category": "foreign_language",
               "group_by": "field:language",
+              "group_label": "言語",
               "required_credits": 4
             }
           ]
