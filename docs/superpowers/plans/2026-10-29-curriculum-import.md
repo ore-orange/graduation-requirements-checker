@@ -170,7 +170,9 @@ git commit -m "feat: 科目番号を接頭辞と百の位に分ける"
 定義の欄:
 - `credit_sum`: `id` `label` `categories` `required_credits` `detail` `source_page`
 - `all_required`: `id` `label` `expected_course_count` `required_credits` `detail` `source_page`
-- `one_of_paths`: `id` `label` `paths`（役割キーの配列の配列） `detail` `source_page`
+- `one_of_paths`: `id` `label` `paths`（役割キーの配列の配列） `review_note` `detail` `source_page`
+  — `review_note` は、複数の経路が混ざっていたときに要確認として出す文面。便覧ごとに違うので
+  データから取る（2024年度は微分積分と物理で文言が別）
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -242,7 +244,7 @@ Expected: FAIL
 
 `Base#check` は `evaluate` の `Outcome` から `Check` を組む。`CreditCheck.status` の中身を `Rules.status` に移し（`CreditCheck.status` はそれを呼ぶだけにする）、`detail` の文面は既存の `CreditCheck#detail` と同じ組み立て（「<説明> 確認済み算入X／必要Y単位。」＋不足・未確認の付け足し）を `Base#detail` に移す。`source` は `definition['source_page']` から作る。T7 で `credit_check.rb` を消すので、ロジックはここに残す。
 
-`one_of_paths#reconcile` は、2つ以上の経路に算入済みの役割があるとき `Ledger#quarantine_roles` で全役割を要確認にする（現在の `BasicAlternatives` と同じ）。
+`one_of_paths#reconcile` は、2つ以上の経路に算入済みの役割があるとき `Ledger#quarantine_roles` で全役割を要確認にする（現在の `BasicAlternatives` と同じ）。理由の文面は定義の `review_note` をそのまま使う。欄がなければ `"#{label}の選択が重複しており、確認が必要"` に落とすが、要確認にすること自体は必ず行う。
 
 - [ ] **Step 4: 通ることを確認**
 
@@ -274,7 +276,9 @@ git commit -m "feat: 規則の型に credit_sum・all_required・one_of_paths �
 - Produces: `Rules.condition` が `grouped_max` / `any_of` / `all_of` を返す。未知の `type` は `Rules::Unknown`。
 
 定義の欄:
-- `grouped_max`: `id` `label` `category` `group_by`（`"number_prefix"` または `"number_prefix_hundreds"`） `required_credits`
+- `grouped_max`: `id` `label` `category` `group_by`（`"number_prefix"` / `"number_prefix_hundreds"` / `"field:<科目の欄名>"`） `required_credits`
+  — 工学融合は `"number_prefix"`、外国語は `"field:language"`。**番号から言語は出ない**
+  （外7xx にインドネシア語・タイ語・ラテン語・ロシア語が同居している）
 - `any_of`: `id` `label` `options`（`credit_sum` / `grouped_max` / `all_of` の定義の配列）
 - `all_of`: `conditions`（`credit_sum` / `grouped_max` の定義の配列）。`any_of` の中だけに現れる
 
@@ -293,9 +297,13 @@ test 'grouped_max はグループを合算しない' do
   refute_predicate grouped_max('number_prefix', 4).evaluate(@catalogue, @ledger), :satisfied
 end
 
-test 'grouped_max は number_prefix_hundreds で外国語を言語ごとに分ける' do
+test 'grouped_max は field:language で外国語を言語ごとに分ける' do
   # 外201(2) 外202(2) 外301(2) → 最大は外2の4単位
-  assert_equal BigDecimal('4'), grouped_max('number_prefix_hundreds', 4).evaluate(@catalogue, @ledger).counted
+  assert_equal BigDecimal('4'), grouped_max('field:language', 4).evaluate(@catalogue, @ledger).counted
+end
+
+test 'grouped_max は field: の欄が空の科目が算入されていたら review' do
+  assert grouped_max('field:language', 4).evaluate(@catalogue, @ledger).review
 end
 
 test 'grouped_max は科目番号が読めない科目が算入されていたら review' do
@@ -336,7 +344,7 @@ Expected: FAIL
 
 - [ ] **Step 3: 4つの型を実装する**
 
-`grouped_max` は `Ledger` に `grouped_credits_by_number(category, group_by)` を足して集計する（既存の `grouped_credits(category, field)` は使わない。グループ分けの軸が科目の欄ではなく科目番号になったため）。算入済みの科目で `CourseNumber` が nil を返すものがあれば `review` を立てる。
+`grouped_max` は `Ledger` に集計用のメソッドを足す。`number_prefix` / `number_prefix_hundreds` は `CourseNumber` で、`field:<欄名>` はその欄の値でグループ分けする。算入済みの科目でグループが決まらないもの（番号が読めない、欄が空）があれば `review` を立てる。既存の `grouped_credits(category, field)` は旧 `fusion_check` がまだ使うので触らない。
 
 `any_of#evaluate` は `options` を順に `evaluate` し、1つでも `satisfied` なら充足。`counted` は最初の選択肢のもの。どれかが `review` なら `review`。`all_of` は全部 `satisfied` で充足。入れ子は `any_of` → `all_of` の2段まで。それ以上は `Rules::Unknown` にする。
 
@@ -416,7 +424,7 @@ Expected: FAIL
 
 - [ ] **Step 3: `Rules::Cap` と `Rules::Exclude` を実装する**
 
-`Cap#apply` は現在の `Ledger#apply_natural_cap` と同じ（キー順に配分、打ち切った科目の `reason` を「<区分名>は卒業算入上限N単位（この科目はM単位を算入）」に）。`Ledger#apply_natural_cap` は消す。
+`Cap#apply` は現在の `Ledger#apply_natural_cap` と同じ（キー順に配分、打ち切った科目の `reason` を「<区分名>は卒業算入上限N単位（この科目はM単位を算入）」に）。`Ledger#apply_natural_cap` は**この時点では消さない**。`Evaluation#call` がまだ呼んでおり、消すと Task 7 まで判定が壊れる。Task 7 で `Evaluation` を書き換えるときに一緒に消す。
 
 - [ ] **Step 4: 通ることを確認**
 
@@ -434,22 +442,41 @@ git commit -m "feat: 規則の型に cap・exclude を足す"
 
 ### Task 6: Catalogue を便覧データから作る
 
+> **このタスクは足すだけ。何も消さず、動いているものを1つも変えない。**
+> 旧定数 `COMMON` / `REQUIRED` / `INNER` / `ELECTIVE` / `CATEGORIES` / `PROVIDERS` /
+> `SOURCE` / `REQUIRED_SOURCE` は、`CommonChecks`・`SpecialistChecks`・`Evaluation`・
+> `CreditCheck`・`RoleCheck`・`EntryNormalizer`・`PlanCoursesController` がまだ使っている。
+> 消すのは Task 7。`requirements` と `exclusion` の中身も Task 7 まで現状のまま。
+>
+> **この時点の便覧はまだ旧形式**（`categories` も `rules` も `display` も無い）。
+> 新しいメソッドはその状態で呼ばれても例外にならず、空を返すこと。`fetch` は使わない。
+
 **Files:**
 - Modify: `app/services/graduation_assessment/catalogue.rb`
-- Modify: `app/services/graduation_assessment/entry_normalizer.rb`
-- Modify: `app/controllers/plan_courses_controller.rb`
 - Test: `test/services/graduation_assessment/catalogue_test.rb`
 
 **Interfaces:**
 - Consumes: `Rules`（Task 3〜5）
-- Produces: `Catalogue#categories` / `#category_keys` / `#label_for(key)` / `#counted_category_keys` / `#conditions` / `#adjustments` / `#display` / `#find_by_number(number)` / `#exclusion(course)`
-- 消すもの: `Catalogue::COMMON` / `REQUIRED` / `INNER` / `ELECTIVE` / `CATEGORIES` / `PROVIDERS` / `SOURCE` / `REQUIRED_SOURCE`。`ZERO` は残す。
+- Produces（すべて追加）: `Catalogue#categories` / `#category_keys` / `#counted_category_keys` /
+  `#conditions` / `#adjustments` / `#display` / `#course_for(number)`。
+  `#label_for(key)` は Task 5 で追加済み。
+- 残すもの: 旧定数すべて、`requirements`、`exclusion` の現在の実装、`ZERO`。
+- 旧形式のドキュメントでは `categories` / `conditions` / `adjustments` は空配列、
+  `display` は空ハッシュを返す。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
 ```ruby
 test 'category_keys は便覧の categories から来る' do
   assert_equal %w[foundation excluded], catalogue.category_keys
+end
+
+test '旧形式の便覧でも例外にならず空を返す' do
+  old = GraduationAssessment::Catalogue.new('courses' => [], 'requirements' => {})
+  assert_empty old.categories
+  assert_empty old.conditions
+  assert_empty old.adjustments
+  assert_empty old.display
 end
 
 test 'counted_category_keys は counts_toward_total が false の区分を除く' do
@@ -485,16 +512,22 @@ Expected: FAIL
 
 - [ ] **Step 3: `Catalogue` を書き換える**
 
-`initialize(document)` で `categories` / `rules` / `display` / `courses` を読む。`rules` は `type` が `cap` / `exclude` のものを `adjustments`、それ以外を `conditions` に振り分け、`Rules.adjustment` / `Rules.condition` で作る。`required_roles` は `conditions` のうち `one_of_paths` の `paths` を平らにしたものから作る。
+`initialize(document)` で `categories` / `rules` / `display` を**あれば**読む。`rules` は `type` が
+`cap` / `exclude` のものを `adjustments`、それ以外を `conditions` に振り分け、
+`Rules.adjustment` / `Rules.condition` で作る。どれも無ければ空。
 
-`EntryNormalizer#metadata_review_reason` の `Catalogue::CATEGORIES.exclude?` を `@catalogue.category_keys.exclude?` に、`inspect_provider` / `inspect_language` を消す（Task 4 の `grouped_max` が科目番号で見るようになったため）。
+`required_roles` は、`rules` があるときは `conditions` のうち `one_of_paths` の `paths` を
+平らにしたものから作り、無いときは今までどおり `requirements` から作る。
+旧形式でも `specified?` が同じ答えを返すこと。
 
-`PlanCoursesController::CUSTOM_CATEGORIES = Catalogue::CATEGORIES - ['excluded']`（`plan_courses_controller.rb` 冒頭）も、この便覧の `counted_category_keys` を要求時に読む形に直す。**定数を消すこのタスクで直さないと、以降5タスクのあいだアプリが起動しない。**
+**`EntryNormalizer` と `PlanCoursesController` はこのタスクでは触らない。**
+どちらも旧定数を使っており、切り替えは Task 7 で旧クラスを消すときに一緒に行う。
 
 - [ ] **Step 4: 通ることを確認**
 
-Run: `docker compose exec web bin/rails test test/services/graduation_assessment/`
-Expected: PASS
+Run: `docker compose exec web bin/rails test test/services/graduation_assessment/` と
+`docker compose exec web bin/ci`
+Expected: PASS。旧形式の便覧のまま、既存の判定が1つも変わっていないこと。
 
 - [ ] **Step 5: コミット**
 
@@ -507,6 +540,12 @@ git commit -m "refactor: Catalogue の定数を便覧データに移す"
 
 ### Task 7: Evaluation を規則の並びで回す
 
+> **実行順: このタスクは Task 8 の後に行う。** 便覧に `rules` が入っていない状態で
+> `Evaluation` を規則に切り替えると、条件ゼロで判定が走る。
+>
+> **ここが第1部の山場。** 旧コードを消して規則に切り替えた結果が、Task 1 で記録した
+> ゴールデンマスターと一致するかどうかで、この改修全体の成否が決まる。
+
 **Files:**
 - Modify: `app/services/graduation_assessment/evaluation.rb`
 - Delete: `app/services/graduation_assessment/common_checks.rb`
@@ -514,11 +553,34 @@ git commit -m "refactor: Catalogue の定数を便覧データに移す"
 - Delete: `app/services/graduation_assessment/basic_alternatives.rb`
 - Delete: `app/services/graduation_assessment/credit_check.rb`
 - Delete: `app/services/graduation_assessment/role_check.rb`
+- Modify: `app/services/graduation_assessment/ledger.rb`（`apply_natural_cap` を消す）
+- Modify: `app/services/graduation_assessment/catalogue.rb`（旧定数・`requirements`・`exclusion` の旧実装を消す）
+- Modify: `app/services/graduation_assessment/entry_normalizer.rb`（`Catalogue::CATEGORIES.exclude?` を `@catalogue.category_keys.exclude?` に。`inspect_provider` / `inspect_language` を消す）
+- Modify: `app/controllers/plan_courses_controller.rb`（`CUSTOM_CATEGORIES = Catalogue::CATEGORIES - ['excluded']` を、その便覧の `counted_category_keys` を要求時に読む形に）
+- Modify: `config/curricula/intelligent_informatics/2024.json`（`requirements` と `courses[].provider` を消す）
+- Delete: `lib/tasks/curriculum_convert.rake`（旧定数を読むので Task 7 以降は動かない。残すと例外を出す死コード）
+- Modify: `config/curricula/README.md`（format_version 2 の構成に書き直す。いまは
+  `sources` / `requirements` / `courses` の4行の表で「汎用のルールDSLではない」と書いてあるが、
+  便覧は22区分・27規則・`display` を持つようになり、条件式は実際に規則のDSLになった。
+  便覧を保守する人がこれを読んで規則の存在に気づけない）
 - Modify: `test/services/graduation_assessment_test.rb`
 
 **Interfaces:**
 - Consumes: `Catalogue#conditions` / `#adjustments`（Task 6）、`Rules.status`（Task 3）
 - Produces: `Evaluation#call(completed, future, unresolved) => Snapshot`（引数も戻りも変わらない）
+
+Task 6 が意図的に見送ったテスト2件も、ここで書く（どちらも切り替え後でないと成立しない）:
+
+```ruby
+test 'exclusion は exclude 規則の理由を返す' do
+  assert_equal '自コース提供', catalogue.exclusion('category' => 'fusion', 'number' => '知能993')
+end
+
+test '便覧にない区分の科目は EntryNormalizer が要確認にする' do
+  # category: 'nonexistent' の科目
+  assert @ledger.notes.any? { |note| note.include?('分類が未確認') }
+end
+```
 
 - [ ] **Step 1: 既存テストを新形式に書き直す**
 
@@ -544,6 +606,30 @@ end
 
 `status` は判定のしかたを変えず、`CreditCheck.status` ではなく `Rules.status` を呼ぶ。削除する5ファイルの参照が残っていないことを `grep -rn` で確認する。
 
+**このタスクで初めて、ゴールデンマスターが等価性を証明する。** Task 8 までは旧コードが答えを
+出していたので通って当然だった。ここで赤くなったら規則の定義かコードが違っている。
+**フィクスチャを書き換えて合わせてはいけない。**
+
+**便覧を読み込んだ時点で検める（Task 6 のレビューで判明。どれも「壊れた便覧が正しく見える」）。**
+format 2 のドキュメントに対して、`Catalogue#initialize` で次を検査し、外れていれば `ArgumentError`:
+
+- `courses` の `number` に**重複**がある
+  （`course_for` が黙って片方を返し、学生の履修が違う科目に解決される）
+  — **空の `number` は弾かない。** 2024年度の「知能情報特別講義Ⅴ・Ⅵ」は分類表にしか
+    載っていない科目で、意図的に `number: null` と `review_reason` を持つ。弾くと便覧が読めなくなる。
+    番号の無い科目は `course_for` で引けないだけで、それが正しい（既に要確認になっている）
+- `categories` の要素に `key` が無い、または `key` が重複している
+  （`category_keys` に nil が混じり、和名の対応表も後勝ちで潰れる）
+- `rules` が参照する区分が `categories` に無い
+
+あわせて `required_roles` をこの時点で組み立てる。いまは遅延評価で、`one_of_paths` に `paths` が
+無いと**学生の判定中に** `KeyError` になる。調整規則は load 時に落ちるのに条件規則だけ
+判定中に落ちるのは筋が通らない。
+
+旧コードと一緒に消すもの: `Ledger#apply_natural_cap`（Task 5 の `Cap` が置き換える）、
+`EntryNormalizer#inspect_provider` / `#inspect_language`（Task 4 の `grouped_max` が置き換える）、
+`Catalogue` の旧定数と `requirements`、便覧の `requirements` と `courses[].provider`。
+
 - [ ] **Step 4: 通ることを確認**
 
 Run: `docker compose exec web bin/rails test test/services/graduation_assessment_test.rb`
@@ -560,7 +646,15 @@ git commit -m "refactor: 判定を規則の並びの解釈に置き換える"
 
 ### Task 8: 2024年度の便覧を format 2 に変換する
 
-ここでゴールデンマスターが守られることを確かめる。第1部の山場。
+> **実行順: このタスクは Task 7 より先に行う。** 旧コード（`Catalogue#initialize` の
+> `document.fetch('requirements')`、`Catalogue#exclusion` の `course['provider']`、
+> `Ledger` の `course['key']`）はまだ動いている。Task 7 が `Evaluation` を規則に切り替える前に
+> 便覧へ規則を足しておかないと、`conditions` が空のまま判定が走って全部崩れる。
+> 逆に、ここで旧コードが読む欄を消すと Task 7 までの判定が壊れる。
+>
+> **だからこの変換は「足すだけ」。** `requirements` も `courses[].key`（英語キー）も
+> `courses[].provider` も**そのまま残す**。消すのは Task 7（旧クラスと `requirements`・
+> `provider`）と Task 10（`key` を科目番号に）。
 
 **Files:**
 - Create: `lib/tasks/curriculum_convert.rake`
@@ -578,7 +672,17 @@ git commit -m "refactor: 判定を規則の並びの解釈に置き換える"
 - `categories` — 旧 `Catalogue::CATEGORIES` の22区分を、`StudentWorkspaceHelper::CATEGORY_LABELS` の和名つきで並べる。`counts_toward_total` は `excluded` だけ false。
 - `rules` — 現行コードの24個のチェックを、**IDと label と detail の文面をそのまま**規則にする。内訳は設計書 §1 の対応表のとおり。`natural_cap`（cap, natural, 2）と、`excluded` / `fusion`+`知能` の2つの `exclude` を足す。
 - `display` — `StudentWorkspaceHelper::PLANNER_GROUPS` と `PlansHelper::PLANNER_SUBTOTALS` をそのまま写す。`total_credits` は 130。`credits_from_check` は `DashboardMetrics::CHECK_DRIVEN_ROWS` に入っている行だけ true。
-- `courses` — `key` を `number` に置き換える（`number` が nil の2件は旧キーのまま残し、`review_reason` を維持）。`provider` の欄を落とす。
+- `courses` — **触らない。** `key`（英語キー）も `provider` も `review_reason` もそのまま。
+  規則は科目を `number` と欄の値で見る（`grouped_max` は接頭辞か `language` 欄、`exclude` は `number_prefix`）ので、
+  キーを変える必要がない。`language` 欄も残す。キーを科目番号にするのは Task 10 で、`courses.curriculum_key` を
+  落とすのと同じタスクで行う。
+- `requirements` — **残す。** Task 7 が旧クラスを消すときに一緒に消す。
+- 規則の文面で、既に判明している必須事項:
+  - `one_of_paths` の `review_note` に、微分積分と物理それぞれの注記を一字一句入れる
+    （「微分積分学の系列が混在・重複しており、組合せと重複算入の確認が必要」
+    「物理学の代替科目を重複して修得・予定しており、重複算入の確認が必要」）
+  - `all_required` の `detail` は「余剰単位による代用は不可。」だけ。前段の科目数の文はコードが組む
+  - `cap` に `label` 欄は置かない。区分名は `categories[]` から引く
 
 - [ ] **Step 2: 変換を実行する**
 
@@ -588,7 +692,9 @@ Expected: `format_version` が 2 になり、`rules` が24＋3件、`courses` �
 - [ ] **Step 3: ゴールデンマスターのテストを走らせる**
 
 Run: `docker compose exec web bin/rails test test/services/graduation_assessment_golden_test.rb`
-Expected: PASS。差分が出たら、出た `check.id` と値を見て `rules` の定義を直す（**フィクスチャを書き換えて合わせてはいけない**）。
+Expected: PASS。ただしこの時点では **まだ旧コードが判定している**ので、通って当然であり
+等価性の証拠にはならない。ここで確かめているのは「足した欄が旧コードを壊していないこと」だけ。
+規則が本当に同じ答えを出すかは Task 7 で判明する。
 
 - [ ] **Step 4: 全テストを走らせる**
 
@@ -688,7 +794,10 @@ git commit -m "feat: 便覧をDBのcurriculaに置く"
 - Produces:
   - `Student#curriculum`（belongs_to, optional）
   - `Course#custom?` = `custom_category.present?`
-  - `StudentWorkspace#load_workspace` の `@curriculum` は **`Curriculum` レコード**（Hash ではない）。判定へは `GraduationAssessment.new(curriculum: @curriculum.document)` と渡す。ビューの `@curriculum.fetch(...)` は `@curriculum.document.fetch(...)` に直す
+  - **`@curriculum` は便覧のドキュメント（Hash）のまま。** `Curriculum` レコードではない。
+    コントローラとビューに `@curriculum.fetch(...)` の読み手が8か所あり、レコードに変えても
+    得るものがない。`load_workspace` がレコードを引いて `@curriculum = record.document` を置く。
+    レコード自体が要るのは、便覧を引く場所と公開まわりだけ
   - `@courses_by_number` が `@courses_by_key` に代わる（`document['courses']` を `number` で索引）
   - `StudentCourse#assessment_entry` の `key` は `course.course_number`
   - `StudentWorkspaceHelper#course_category(course, courses_by_number)` — 第1引数が `Course` に変わる
@@ -1163,6 +1272,17 @@ git commit -m "feat: 便覧を1ページずつ読んで下書きに入れる"
   - `CategoryInference.new(courses)` / `#inferred(number) => String | nil` / `#mismatches => [{number:, read:, inferred:}]`
   - `Validation.new(document) => #call => [{ scope: :course | :rule | :display, target: String, reason: String }]`
   - `Validation#blocking?` — 公開を止めるかどうか
+
+壊れた規則の定義も弾く（Task 3 のレビューで判明。どれも「黙って充足」に倒れる）:
+- `paths` が空、または `[[]]` のような空の経路を含む `one_of_paths`
+- `expected_course_count` が 0、または必修科目が1つも無い `all_required`
+- `categories` が空、または `categories[]` に無い区分を指す `credit_sum`
+- `source_page` の無い規則
+- 既知の型なのに、その型が要求するフィールドが欠けている規則
+- `grouped_max` の `group_by` が `number_prefix` / `number_prefix_hundreds` / `field:<欄名>` のいずれでもない、または `field:` が指す欄を科目が持たない
+- `exclude` の `number_prefix` が空、または正規化前の表記（全角・空白混じり）
+- `exclude` に `reason` が無い
+- `cap` の `credits` が負・非数・無限
 
 - [ ] **Step 1: 推定の失敗するテストを書く**
 
