@@ -16,9 +16,7 @@ class GraduationAssessment
     end
 
     def self.status(satisfied, review)
-      return :satisfied if satisfied
-
-      review ? :needs_review : :unmet
+      Rules.status(satisfied, review)
     end
 
     private
