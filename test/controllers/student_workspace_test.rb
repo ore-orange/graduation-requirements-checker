@@ -526,6 +526,27 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_empty(actual.review_notes.grep(/プログラミング演習Ⅰ/))
   end
 
+  test '同じ科目番号の Course が2行あり、履修した単位数が食い違うときは、数えずに要確認になる' do
+    get root_path, env: local_env
+    original = @student.student_courses.joins(:course).find_by!(courses: { course_number: '知能101' })
+    renamed = Course.create!(course_number: '知能101', name: 'プログラミング演習Ⅰ（別表記）', credits: 1)
+    @student.student_courses.create!(course: renamed, academic_year: original.academic_year,
+                                     semester: original.semester, enrollment_status: 'completed',
+                                     credits_earned: original.credits_earned + 1,
+                                     approval_confirmed: original.approval_confirmed)
+
+    get root_path, env: local_env
+
+    actual = controller.instance_variable_get(:@assessment).actual
+    check = workspace_check('required_information')
+    # どちらかの記録を選んで算入すると、単位が二重に、または誤って数えられる。算入せず、理由を出す。
+    assert_equal BigDecimal('1'), check.counted_credits
+    assert_equal :needs_review, check.status
+    assert_equal :needs_review, actual.status
+    assert_includes actual.review_notes.join, '同一科目の複数記録'
+    assert_includes actual.review_notes.join, '単位数または承認が一致せず'
+  end
+
   test '科目番号の無い Course の履修は便覧に当たらず、数えずに要確認になる' do
     assert_unmatched_enrollment_needs_review(Course.create!(name: '番号の無い科目', credits: 2))
   end
