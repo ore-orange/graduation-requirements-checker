@@ -14,3 +14,8 @@
 # ActiveSupport::Inflector.inflections(:en) do |inflect|
 #   inflect.acronym "RESTful"
 # end
+
+# Curriculum の複数形は curricula（既定のままだと curriculums になり、表名と合わない）。
+ActiveSupport::Inflector.inflections(:en) do |inflect|
+  inflect.irregular 'curriculum', 'curricula'
+end

@@ -6,8 +6,8 @@ class DemoData
   def self.load!
     raise DemoAccount::Unavailable, 'デモデータは開発・テスト環境でのみ投入できます。' unless DemoAccount.enabled?
 
-    curriculum = CurriculumRepository.find(department: DemoAccount::DEPARTMENT,
-                                           admission_year: DemoAccount::ADMISSION_YEAR)
+    curriculum = Curriculum.published.find_by!(slug: DemoAccount::DEPARTMENT,
+                                               admission_year: DemoAccount::ADMISSION_YEAR).document
     enrollments = JSON.parse(Rails.root.join('db/demo_enrollments.json').read).fetch('enrollments')
 
     ActiveRecord::Base.transaction do

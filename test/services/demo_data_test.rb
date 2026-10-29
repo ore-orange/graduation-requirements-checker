@@ -65,7 +65,8 @@ class DemoDataTest < ActiveSupport::TestCase
     entry = document.fetch('courses').find { |course| course.fetch('key') == key }
     entry['number'] = nil
     entry['credits'] = nil
-    student = CurriculumRepository.stub(:find, document) { DemoData.load! }
+    published_curriculum.update!(document: document)
+    student = DemoData.load!
 
     course = Course.find_by!(curriculum_key: key)
     assert_nil course.course_number
@@ -92,8 +93,12 @@ class DemoDataTest < ActiveSupport::TestCase
 
   private
 
+  def published_curriculum
+    Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024)
+  end
+
   def curriculum
-    CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
+    published_curriculum.document
   end
 
   def demo_enrollments

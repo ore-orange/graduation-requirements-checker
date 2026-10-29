@@ -1,12 +1,14 @@
 # 卒業要件データと判定の契約
 
-要件文書は`config/curricula/<department_slug>/<admission_year>.json`に保存する。現在の対象は`intelligent_informatics/2024.json`（琉球大学 工学部 工学科 知能情報コース、2024年度入学）。取得キーの`department`はRepositoryの既存Interface名であり、DB上の学科名・コース名・プログラム名を同一視するものではない。
+要件文書は`config/curricula/<department_slug>/<admission_year>.json`に置く。現在の対象は`intelligent_informatics/2024.json`（琉球大学 工学部 工学科 知能情報コース、2024年度入学）。このファイルは`bin/rails db:seed`で`curricula`表に公開済みとして入れる元データで、判定の golden テストと整合性テストの入力でもある。アプリが実行時に読むのはファイルではなくDBの行。`slug`は学科名・コース名・プログラム名と同一視しない。
 
 ```ruby
-curriculum = CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
+curriculum = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024)
+curriculum.document   # => 要件文書のHash
+curriculum.catalogue  # => GraduationAssessment::Catalogue
 ```
 
-この呼び出しは登録済みのHashを返す。未登録の対象は`NotFound`になる。学部階層やプログラム別ファイルの合成、JSONB保存は導入していない。
+`Curriculum.seed_from_file(path)`はslugをディレクトリ名、入学年度をファイル名から決め、同じslug・年度の公開済みの行があれば更新する（何度流しても増えない）。公開済みは同じslug・年度に1つだけで、下書きは何件でも置ける。壊れた文書は`catalogue`を呼んだ時点で`ArgumentError`になる。学部階層やプログラム別ファイルの合成は導入していない。
 
 ## 出典と対象範囲
 
@@ -35,7 +37,7 @@ curriculum = CurriculumRepository.find(department: 'intelligent_informatics', ad
 
 `credits`は一次資料の所定単位で、未確認なら`null`。`review_reason`は未確認の理由。`requires_approval`は学生別の承認確認が必要なことを示す規則であり、承認済みという事実ではない。自コース提供の工学融合等は`selectable: false`とする。`number`は科目番号で、一次資料に無ければ`null`。`language`は外国語科目の言語で、一外国語の集計はこの欄で分ける（科目番号の百の位では分けない。外7xxにはインドネシア語・タイ語・ラテン語・ロシア語が混ざる）。
 
-Repositoryの形式検証はJSONオブジェクトであることまでであり、JSON Schemaはまだ導入していない。年度ごとの判定の根拠は[判定設計](../../docs/graduation-rules-2024.md)に残す。
+`Catalogue`の読み込み時検証（科目・区分の重複、区分の参照先、規則の形）はあるが、JSON Schemaはまだ導入していない。年度ごとの判定の根拠は[判定設計](../../docs/graduation-rules-2024.md)に残す。
 
 ### 規則（`rules`）
 
@@ -109,12 +111,6 @@ result = GraduationAssessment.new(curriculum: curriculum).call(
 戻り値は`actual`と`projected`のSnapshot。Snapshotは`status`（`:satisfied` / `:unmet` / `:needs_review`）、`counted_credits`、条件ごとの`checks`、`review_notes`、科目ごとの`course_results`を返す。
 
 同一キーの修得済み科目を予定に重ねても増加させない。修得単位の競合や未確認の代替関係は勝手に最大値・最新値を選ばない。算入対象外と確定した科目は、履修状態が不明でも0単位の除外理由を表示し、その記録だけを理由に最終判定を要確認にはしない。
-
-## Repository取得の契約
-
-`find(department:, admission_year:)`はHashを返す。departmentは小文字英数字とアンダースコアのslug（先頭は英字）、admission_yearは1〜9999のInteger。
-
-`InvalidInput`、`NotFound`、`InvalidDocument`、`ReadError`はいずれも`CurriculumRepository::Error`。ファイルの場所やパース元本文はエラーに含めない。symlinkを含む保存ディレクトリ外への参照を拒否する。
 
 ## デモ履修データとの分離
 

@@ -76,10 +76,10 @@ statusは文字列（enum未導入）。実際の入力画面を実装する際�
 
 ## 卒業要件
 
-年度別分類テーブルは追加しない。CurriculumRepositoryがJSONオブジェクトを返す。
+年度別分類テーブルは追加しない。便覧は`curricula`表にJSONB（`document`）で持ち、`Curriculum`が返す。公開済みは同じ`slug`・入学年度に1つだけ（部分一意索引）、下書きは何件でも置ける。`slug`は`departments`と結び付けない。
 データ形式・エラー契約は[config/curricula/README.md](../config/curricula/README.md)。
 2024年度の一次資料で確認した科目をJSONに保存し、明示的なseedでCourseへ登録する。学生の履修データはdb/demo_enrollments.jsonの人工データで、固定デモアカウントにのみ投入する。未確認の数値はNULLと確認理由を保持し、架空の要件を作らない。
-GraduationAssessmentが実績・見込みの両方を副作用なしで評価する。要件のJSON Schema、JSONB保存、他年度・コースへの合成は導入していない。
+GraduationAssessmentが実績・見込みの両方を副作用なしで評価する。要件のJSON Schema、他年度・コースへの合成は導入していない。
 
 ## 安全性
 

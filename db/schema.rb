@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_27_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_30_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -45,6 +45,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_200000) do
     t.index ["course_number"], name: "index_courses_on_course_number"
     t.index ["curriculum_key"], name: "index_courses_on_curriculum_key", unique: true, where: "(curriculum_key IS NOT NULL)"
     t.check_constraint "credits::numeric >= 0::numeric", name: "courses_nonnegative_credits"
+  end
+
+  create_table "curricula", force: :cascade do |t|
+    t.string "slug", null: false
+    t.integer "admission_year", null: false
+    t.string "faculty_name"
+    t.string "department_name"
+    t.string "title"
+    t.jsonb "document", default: {}, null: false
+    t.string "source_filename"
+    t.jsonb "pages", default: []
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["slug", "admission_year"], name: "index_curricula_on_published_slug_and_year", unique: true, where: "(published_at IS NOT NULL)"
   end
 
   create_table "departments", force: :cascade do |t|

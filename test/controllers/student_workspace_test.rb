@@ -15,7 +15,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     DemoData.load!
     @student = DemoAccount.student
     @student.planned_courses.delete_all
-    @curriculum = CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
+    @curriculum = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024).document
     @courses = @curriculum.fetch('courses')
     @occupied_keys = @student.student_courses.where(enrollment_status: %w[completed registered in_progress])
                              .joins(:course).pluck('courses.curriculum_key')
@@ -303,6 +303,26 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
       post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }, env: local_env
     end
     assert_response :service_unavailable
+  end
+
+  test 'a student whose year has no published curriculum gets the setup page, not a server error' do
+    Curriculum.published.where(slug: 'intelligent_informatics', admission_year: 2024)
+              .update_all(published_at: nil) # rubocop:disable Rails/SkipsModelValidations
+
+    get root_path, env: local_env
+
+    assert_response :service_unavailable
+    assert_select '[data-demo-setup]'
+  end
+
+  test 'the workspace reads the published curriculum from the database, not the file' do
+    record = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024)
+    record.update!(title: 'DBだけにある題名', document: record.document.merge('title' => 'DBだけにある題名'))
+
+    get requirements_path, env: local_env
+
+    assert_response :success
+    assert_equal 'DBだけにある題名', controller.instance_variable_get(:@curriculum).fetch('title')
   end
 
   test 'public remote addresses cannot read or mutate even with a forged forwarding header' do

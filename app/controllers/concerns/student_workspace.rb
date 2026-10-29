@@ -27,9 +27,15 @@ module StudentWorkspace
   # 全画面で必要になる最小限。履修履歴は使う画面だけが enrollments で読む。
   def load_workspace
     @student = DemoAccount.student
-    @curriculum = CurriculumRepository.find(department: DemoAccount::DEPARTMENT,
-                                            admission_year: @student.admission_year)
+    @curriculum = published_curriculum(@student.admission_year).document
     @courses_by_key = @curriculum.fetch('courses').index_by { |course| course.fetch('key') }
+  end
+
+  # 学生の入学年度の公開済みの便覧。無ければ seed が済んでいないので、初期設定の案内を出す。
+  # 学生が便覧を直接持つようになるまでは、デモの学科と入学年度で探す。
+  def published_curriculum(admission_year)
+    Curriculum.published.find_by(slug: DemoAccount::DEPARTMENT, admission_year: admission_year) ||
+      raise(DemoAccount::Unavailable, '公開済みの便覧がありません。bin/rails db:seed を実行してください。')
   end
 
   def enrollments
