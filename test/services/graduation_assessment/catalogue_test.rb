@@ -164,11 +164,24 @@ class GraduationAssessment
     end
 
     test 'required_categories の無い all_required は読み込み時に例外になる' do
-      rule = { 'type' => 'all_required', 'id' => 'required_all', 'label' => '必修',
-               'expected_course_count' => 1, 'required_credits' => 2 }
+      error = assert_raises(ArgumentError) { Catalogue.new(format2_document.merge('rules' => [all_required])) }
 
-      error = assert_raises(ArgumentError) { Catalogue.new(format2_document.merge('rules' => [rule])) }
       assert_includes error.message, 'required_all'
+    end
+
+    # 欄を置きさえすれば通る検めだと、null と書くだけで区分の見張りを消せてしまう。
+    test 'required_categories が null・空・区分キーの配列でない all_required は読み込み時に例外になる' do
+      [nil, [], '', 'foundation', [123], [''], [nil], ['foundation', 123]].each do |value|
+        document = format2_document.merge('rules' => [all_required.merge('required_categories' => value)])
+
+        assert_raises(ArgumentError, "required_categories: #{value.inspect}") { Catalogue.new(document) }
+      end
+    end
+
+    test '区分キーの配列が入っていれば all_required は読み込める' do
+      rule = all_required.merge('required_categories' => ['foundation'])
+
+      assert_nothing_raised { Catalogue.new(format2_document.merge('rules' => [rule])) }
     end
 
     test 'format_version が無くても categories や rules があれば検める' do
@@ -185,6 +198,11 @@ class GraduationAssessment
     end
 
     private
+
+    def all_required
+      { 'type' => 'all_required', 'id' => 'required_all', 'label' => '必修',
+        'expected_course_count' => 1, 'required_credits' => 2 }
+    end
 
     def course(key, number)
       { 'key' => key, 'number' => number, 'name' => "科目 #{key}", 'category' => 'foundation',

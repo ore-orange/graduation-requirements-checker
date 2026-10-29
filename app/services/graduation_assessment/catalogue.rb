@@ -102,12 +102,18 @@ class GraduationAssessment
     def validate_conditions
       raise ArgumentError, '規則で判定する便覧に条件が1つもありません' if conditions.empty?
 
-      pending = conditions.grep(Rules::AllRequired)
-                          .reject { |rule| rule.definition.key?('required_categories') }
+      invalid = conditions.grep(Rules::AllRequired)
+                          .reject { |rule| category_list?(rule.definition['required_categories']) }
                           .map { |rule| rule.definition['id'] }
-      return if pending.empty?
+      return if invalid.empty?
 
-      raise ArgumentError, "all_required に required_categories がありません: #{pending.join('、')}"
+      raise ArgumentError,
+            "all_required の required_categories は空でない区分キーの配列でなければなりません: #{invalid.join('、')}"
+    end
+
+    # 欄の有無ではなく中身を見る。null も空の配列も、書き手の意図が読めないまま区分の見張りを無くす。
+    def category_list?(value)
+      value.is_a?(Array) && value.any? && value.all? { |key| key.is_a?(String) && !key.empty? }
     end
 
     # 科目番号の重複は、course_for が黙って片方を返し、学生の履修が違う科目に解決される。
@@ -117,7 +123,7 @@ class GraduationAssessment
       duplicates = numbers.tally.select { |_, count| count > 1 }.keys
       return if duplicates.empty?
 
-      raise ArgumentError, "courses の number が重複しています: #{duplicates.sort.join('、')}"
+      raise ArgumentError, "courses の number が重複しています: #{duplicates.sort_by(&:to_s).join('、')}"
     end
 
     # key の無い区分は category_keys に nil を混ぜ、重複した key は和名の対応表を後勝ちで潰す。
@@ -127,7 +133,7 @@ class GraduationAssessment
       duplicates = category_keys.tally.select { |_, count| count > 1 }.keys
       return if duplicates.empty?
 
-      raise ArgumentError, "categories の key が重複しています: #{duplicates.sort.join('、')}"
+      raise ArgumentError, "categories の key が重複しています: #{duplicates.sort_by(&:to_s).join('、')}"
     end
 
     # 便覧に無い区分を指す規則は、何も数えないまま不足とも充足とも言ってしまう。
@@ -135,7 +141,7 @@ class GraduationAssessment
       unknown = definitions.flat_map { |definition| referenced_categories(definition) }.uniq - category_keys
       return if unknown.empty?
 
-      raise ArgumentError, "rules が categories に無い区分を参照しています: #{unknown.sort.join('、')}"
+      raise ArgumentError, "rules が categories に無い区分を参照しています: #{unknown.sort_by(&:to_s).join('、')}"
     end
 
     def referenced_categories(definition)

@@ -26,6 +26,9 @@ class GraduationAssessment
 
       # 必修の科目が必修の区分の外に入っていると、科目数も単位合計も合ったまま通り、
       # その単位が選択の集計にも流れ込んで二重に数えられる。区分の取り違えは充足ではなく要確認にする。
+      #
+      # 便覧から読んだ規則には必ず区分の控えがある（Catalogue が読み込み時に、空でない区分キーの
+      # 配列であることまで検める）。欄が無いのは手書きの定義だけで、そのときはこの腕を使わない。
       def miscategorised?(mandatory)
         allowed = definition['required_categories']
         return false if allowed.nil?

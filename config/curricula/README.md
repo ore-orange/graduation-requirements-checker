@@ -84,11 +84,15 @@ Repositoryの形式検証はJSONオブジェクトであることまでであり
 
 ### 読み込み時に弾くもの
 
-`Catalogue`は`format_version: 2`の便覧を読むとき、次を検めて外れていれば例外にする。壊れた便覧が正しく見えたまま、学生の判定を狂わせないため。
+`Catalogue`は、`categories`か`rules`のどちらかを持つ便覧を「規則で判定する便覧」とみなし、次を検めて外れていれば例外にする。壊れた便覧が正しく見えたまま、学生の判定を狂わせないため。
+
+`format_version`の記載では判断しない。欄だけformat 2で`format_version`が1のままの便覧や、`format_version`を書いていない便覧が、検めを素通りしてしまうため。
 
 - `courses`の`number`に重複がある（`ArgumentError`）。同じ番号の科目が2つあると、学生の履修が違う科目に解決される。空・`null`の`number`は弾かない（知能情報特別講義Ⅴ・Ⅵは分類表にしか載っておらず、意図的に番号を持たない）
 - `categories`の要素に`key`が無い、または`key`が重複している（`ArgumentError`）
-- `rules`が`categories`に無い区分を参照している（`ArgumentError`）。入れ子の`options`・`conditions`もたどる
+- `rules`が`categories`に無い区分を参照している（`ArgumentError`）。入れ子の`options`・`conditions`と、`all_required`の`required_categories`もたどる
+- 条件が1つも無い（`ArgumentError`）。`rules`が空、`rules`の欄が無い、調整しか置いていない、のいずれも。条件ゼロの便覧は、何も確かめないまま判定を返してしまう
+- `all_required`の`required_categories`が、空でない区分キーの配列でない（`ArgumentError`）。欄が無い・`null`・`[]`・文字列・文字列以外を含む配列のいずれも弾く。この欄が無いと、必修の科目が必修の区分の外に入っていることを見張れない
 - `cap`・`exclude`の定義が壊れている（`ArgumentError`）
 - `one_of_paths`に`paths`が無い（`KeyError`）
 
