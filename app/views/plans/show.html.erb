@@ -235,7 +235,7 @@
       <% end %>
 
       <% if @catalogue.empty? %>
-        <p class="mt-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語や区分を変更するか、上の表の各区分の「自由入力」で追加してください。</p>
+        <p class="mt-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語や区分を変更してください。</p>
       <% else %>
         <ul class="mt-4 divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1">
           <% @catalogue.each do |course| %>
@@ -293,26 +293,6 @@
     } else {
       box.classList.add('hidden');
       trigger.classList.remove('hidden');
-    }
-  }
-
-  function switchRowAddMode(rowId, mode) {
-    const catBox = document.getElementById('add-mode-cat-' + rowId);
-    const cusBox = document.getElementById('add-mode-cus-' + rowId);
-    const catBtn = document.getElementById('mode-btn-cat-' + rowId);
-    const cusBtn = document.getElementById('mode-btn-cus-' + rowId);
-    if (!catBox || !cusBox) return;
-
-    if (mode === 'custom') {
-      catBox.classList.add('hidden');
-      cusBox.classList.remove('hidden');
-      cusBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white cursor-pointer';
-      catBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer';
-    } else {
-      cusBox.classList.add('hidden');
-      catBox.classList.remove('hidden');
-      catBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white cursor-pointer';
-      cusBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer';
     }
   }
 </script>

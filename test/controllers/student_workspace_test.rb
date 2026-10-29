@@ -251,23 +251,23 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal 'failed', failed.reload.enrollment_status
   end
 
-  test 'custom free-text course persists marks projected as needs_review and cleans up on delete' do
+  test '自由入力の形で送っても科目は追加しない' do
+    custom = { name: '他学部情報法特論', course_number: '他学901', credits: '2', category: 'free' }
+    assert_no_difference ['@student.planned_courses.count', 'Course.count'] do
+      post plan_courses_path, params: { term: CURRENT_TERM, custom_course: custom }, env: local_env
+    end
+    assert_redirected_to plan_path(term: CURRENT_TERM)
+    assert_equal '追加できる科目を科目一覧から選択してください。', flash[:alert]
+  end
+
+  test '保存済みの自由入力の予定は要確認として判定し、削除すると科目も片付ける' do
     get root_path, env: local_env
     original_actual = assessment_attributes.fetch('data-counted-credits')
-
-    assert_difference ['@student.planned_courses.count', 'Course.count'], 1 do
-      post plan_courses_path,
-           params: { term: CURRENT_TERM,
-                     custom_course: { name: '他学部情報法特論', course_number: '他学901', credits: '2', category: 'free' } },
-           env: local_env
-    end
-    assert_response :see_other
-    plan = @student.planned_courses.order(:id).last
-    assert_predicate plan.course.curriculum_key, :present?
-    assert plan.course.curriculum_key.start_with?('custom:free:')
+    course = Course.create!(curriculum_key: 'custom:free:legacy', name: '他学部情報法特論', credits: 2)
+    plan = @student.planned_courses.create!(course: course, **PLAN_TERM)
 
     get plan_path, env: local_env
-    assert_select "[data-plan='#{plan.id}']", count: 1
+    assert_select "[data-plan='#{plan.id}']", text: /要確認/, count: 1
 
     get root_path, env: local_env
     assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')
@@ -277,17 +277,6 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
       delete plan_course_path(plan), env: local_env
     end
     assert_response :see_other
-  end
-
-  test 'custom course input matching catalogue course links to existing catalogue course' do
-    custom = { name: @candidate.fetch('name'), course_number: '', credits: '2', category: 'advanced' }
-    assert_difference '@student.planned_courses.count', 1 do
-      assert_no_difference 'Course.count' do
-        post plan_courses_path, params: { term: CURRENT_TERM, custom_course: custom }, env: local_env
-      end
-    end
-    plan = @student.planned_courses.order(:id).last
-    assert_equal @candidate.fetch('key'), plan.course.curriculum_key
   end
 
   test 'missing seed returns unavailable without creating fake data' do
@@ -448,16 +437,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_not PlannedCourse.exists?(plan.id)
   end
 
-  test '区分が複数ある行の自由入力では区分を選べ、選んだ区分で保存される' do
+  test '追加ボックスに自由入力の欄はなく、追加できない区分ではその理由を示す' do
     get plan_path(term: '4-前期'), env: local_env
-    assert_select "[data-add-course='general_subtotal'] select[name='custom_course[category]'] option[value='social']"
-    assert_select "[data-add-course='health'] input[type='hidden'][name='custom_course[category]'][value='health']"
 
-    custom = { name: '他学部の社会系特論', credits: '2', category: 'social' }
-    post plan_courses_path, params: { term: '4-前期', custom_course: custom }, env: local_env
-    plan = @student.planned_courses.joins(:course).find_by!(courses: { name: '他学部の社会系特論' })
-    assert_match(/\Acustom:social:/, plan.course.curriculum_key)
-    assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
+    assert_select "[name^='custom_course']", count: 0
+    assert_select "[data-add-course='general_subtotal'] select[name='course_key']", count: 1
+    # 便覧に科目がない区分
+    assert_select "[data-add-course='free'] [data-no-selectable-course='no_catalogue']",
+                  text: 'この区分は便覧に科目がないため、追加できません'
+    assert_select "[data-add-course='free'] select", count: 0
+    # 便覧の科目をデモの学生がすべて修得済みの区分
+    assert_select "[data-add-course='japanese'] [data-no-selectable-course='all_taken']",
+                  text: 'この区分の科目はすべて修得済み・履修中・追加済みです'
   end
 
   test '学期を指定しない追加は断る' do
