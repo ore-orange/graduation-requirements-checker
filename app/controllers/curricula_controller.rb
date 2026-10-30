@@ -2,7 +2,8 @@
 
 # 便覧PDFを上げて下書き（Curriculum）を作り、どのページを読むかを人が決める画面。
 # 一覧とアップロードの入口は /requirements にあり、ここは下書きの確認画面。
-# アップロードと同じリクエストの中で、ページ画像とページごとの文字を取り出し、PDFは捨てる。AI・公開は後続のタスクで、ここでは動かさない。
+# アップロードと同じリクエストの中で、ページ画像とページごとの文字を取り出し、PDFは捨てる。
+# 読み取り(AI)は1ページずつ、画面から1リクエストごとに同期で行う。公開は後続のタスクで、ここでは動かさない。
 class CurriculaController < ApplicationController
   include LocalAccessOnly
 
@@ -10,7 +11,7 @@ class CurriculaController < ApplicationController
   FIELD_LABELS = { slug: '識別名(slug)', admission_year: '入学年度', faculty_name: '学部名',
                    department_name: '学科・コース名' }.freeze
 
-  before_action :load_draft, only: %i[show update destroy page_image]
+  before_action :load_draft, only: %i[show update destroy page_image read_page]
 
   rescue_from ActiveRecord::RecordNotFound do
     redirect_to requirements_path, alert: 'この下書きは見つかりません。削除された可能性があります。', status: :see_other
@@ -24,6 +25,20 @@ class CurriculaController < ApplicationController
     return head :not_found unless data
 
     send_data data, type: 'image/png', disposition: 'inline'
+  end
+
+  # 1ページ読んで、そのページの行だけを返す。読めなかったときも行を返し(失敗の理由はそこに出る)、ステータスで知らせる。
+  # 読み取りは外部APIを呼ぶので数秒〜数十秒かかる。バックグラウンドに回さず、画面が1ページずつ順に呼ぶ。
+  def read_page
+    number = Integer(params[:page].to_s, 10, exception: false)
+    return head :not_found unless @curriculum.pages.any? { |page| page['page'] == number }
+    return unavailable_reader unless CurriculumReader.available?
+
+    read = CurriculumImport::ReadPage.new(@curriculum, reader: CurriculumReader.new).call(number)
+    respond_to do |format|
+      format.turbo_stream { render turbo_stream: page_row_stream(number), status: read ? :ok : :unprocessable_content }
+      format.html { redirect_to @curriculum, status: :see_other }
+    end
   end
 
   def create
@@ -93,6 +108,20 @@ class CurriculaController < ApplicationController
   rescue StandardError => e
     Rails.logger.warn("便覧PDFの取り込みに失敗しました: #{e.class}: #{e.message}")
     curriculum.update!(import_error: 'PDFの取り込み中にエラーが起きました。ページ数を指定して始めてください。')
+  end
+
+  # APIキーが無いときは読み取りを始めない。画面は読み取りのボタンを出さないので、通るのは古い画面からの操作だけ。
+  def unavailable_reader
+    respond_to do |format|
+      format.turbo_stream { head :service_unavailable }
+      format.html { redirect_to @curriculum, alert: '読み取りのAPIキーが設定されていないため、読み取れません。', status: :see_other }
+    end
+  end
+
+  def page_row_stream(number)
+    page = @curriculum.pages.find { |entry| entry['page'] == number }
+    locals = { curriculum: @curriculum, page: page, reader_available: true }
+    turbo_stream.replace(helpers.dom_id(@curriculum, "page_#{number}"), partial: 'curricula/page_row', locals: locals)
   end
 
   # ページが無い下書きに、ページ数を手で指定する。エラーのときは文言を返す。

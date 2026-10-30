@@ -18,6 +18,10 @@ class Curriculum < ApplicationRecord
   # 読むページの種別。取り込み直後はすべて skip で、どのページを読むかは人が決める。
   PAGE_KINDS = %w[skip courses requirements].freeze
   PAGE_KIND_LABELS = { 'courses' => '科目表', 'requirements' => '要件表', 'skip' => '読まない' }.freeze
+  # AIに読ませるページの種別(skip は読まない)。
+  READABLE_PAGE_KINDS = %w[requirements courses].freeze
+  # pages[n]['status'] の画面での呼び方。pending は取り込み直後で、まだ読んでいない。
+  PAGE_STATUS_LABELS = { 'pending' => '未読', 'read' => '読み取り済み', 'failed' => '読み取りに失敗' }.freeze
   # 1つのPDFとして現実的な上限。手でページ数を指定するときに、桁違いの値で表を膨らませないため。
   MAX_PAGES = 500
 

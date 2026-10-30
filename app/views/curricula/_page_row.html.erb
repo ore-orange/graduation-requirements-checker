@@ -1,0 +1,39 @@
+<%# 1ページ分の行。読み取りの結果は、この行だけを Turbo Stream で差し替えて見せる。 %>
+<% readable = Curriculum::READABLE_PAGE_KINDS.include?(page['kind']) %>
+<% status = Curriculum::PAGE_STATUS_LABELS.fetch(page['status'], '未読') %>
+<li id="<%= dom_id(curriculum, "page_#{page['page']}") %>" class="py-2.5" data-page="<%= page['page'] %>"
+    data-kind="<%= page['kind'] %>" data-status="<%= page['status'] %>"
+    <% if reader_available && readable %>data-read-url="<%= read_page_curriculum_path(curriculum, page: page['page']) %>"<% end %>>
+  <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <p class="text-sm font-semibold text-slate-800 tabular-nums"><%= page['page'] %>ページ</p>
+    <div class="flex flex-wrap items-center justify-end gap-x-5 gap-y-1">
+      <fieldset class="flex flex-wrap gap-x-5 gap-y-1">
+        <legend class="sr-only"><%= page['page'] %>ページの種別</legend>
+        <% Curriculum::PAGE_KINDS.each do |kind| %>
+          <label class="flex items-center gap-1.5 text-sm text-slate-800">
+            <%= radio_button_tag "pages[#{page['page']}]", kind, page['kind'] == kind %>
+            <%= Curriculum::PAGE_KIND_LABELS.fetch(kind) %>
+          </label>
+        <% end %>
+      </fieldset>
+      <%# 読む種別でない行も同じ幅の欄を空けて、種別の選択肢が縦に揃うようにする %>
+      <div class="flex items-center justify-end gap-2 sm:w-48">
+        <% if readable %>
+          <span class="text-xs font-semibold <%= page['status'] == 'failed' ? 'text-rose-700' : 'text-slate-600' %>"><%= status %></span>
+          <% if reader_available %>
+            <button type="button" class="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    data-read-pages-target="one" data-action="click->read-pages#readOne">
+              <%= page['status'] == 'read' ? '読み直す' : '読む' %>
+            </button>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <% if page['status'] == 'failed' && page['error'].present? %>
+    <p role="alert" class="mt-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-900"><%= page['error'] %></p>
+  <% end %>
+  <% Array(page['warnings']).each do |warning| %>
+    <p class="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900"><%= warning %></p>
+  <% end %>
+</li>
