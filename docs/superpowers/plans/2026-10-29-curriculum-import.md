@@ -653,8 +653,8 @@ git commit -m "refactor: 判定を規則の並びの解釈に置き換える"
 > 逆に、ここで旧コードが読む欄を消すと Task 7 までの判定が壊れる。
 >
 > **だからこの変換は「足すだけ」。** `requirements` も `courses[].key`（英語キー）も
-> `courses[].provider` も**そのまま残す**。消すのは Task 7（旧クラスと `requirements`・
-> `provider`）と Task 10（`key` を科目番号に）。
+> `courses[].provider` も**そのまま残す**。消すのは Task 7（旧クラスと `requirements`・`provider`）。
+> **`key` は最後まで英語のまま**（Task 10 で結合が科目番号に移り、キーは便覧の中だけの識別子になる）。
 
 **Files:**
 - Create: `lib/tasks/curriculum_convert.rake`
@@ -674,8 +674,9 @@ git commit -m "refactor: 判定を規則の並びの解釈に置き換える"
 - `display` — `StudentWorkspaceHelper::PLANNER_GROUPS` と `PlansHelper::PLANNER_SUBTOTALS` をそのまま写す。`total_credits` は 130。`credits_from_check` は `DashboardMetrics::CHECK_DRIVEN_ROWS` に入っている行だけ true。
 - `courses` — **触らない。** `key`（英語キー）も `provider` も `review_reason` もそのまま。
   規則は科目を `number` と欄の値で見る（`grouped_max` は接頭辞か `language` 欄、`exclude` は `number_prefix`）ので、
-  キーを変える必要がない。`language` 欄も残す。キーを科目番号にするのは Task 10 で、`courses.curriculum_key` を
-  落とすのと同じタスクで行う。
+  キーを変える必要がない。`language` 欄も残す。
+  **2024年度のキーは最後まで英語のまま。** Task 10 で `courses.curriculum_key` を落とすと、
+  キーは便覧の中だけの識別子になる（結合は科目番号が担う）ので、揃える理由がなくなる。
 - `requirements` — **残す。** Task 7 が旧クラスを消すときに一緒に消す。
 - 規則の文面で、既に判明している必須事項:
   - `one_of_paths` の `review_note` に、微分積分と物理それぞれの注記を一字一句入れる
@@ -1091,6 +1092,11 @@ Expected: FAIL
 
 `render_images` は `gs -sDEVICE=png16m -r150`、`page_texts` は `gs -sDEVICE=txtwrite -dTextFormat=3` をページごとに（`-dFirstPage` / `-dLastPage`）。失敗は握りつぶして空を返す（取り込みの成否を画像化に引きずらせない）。`page_image` アクションは `TimetableUploadsController#page_image` と同じ `send_file`。
 
+**画像とテキストの取り出しは、アップロードと同じリクエストの中で行う。** Task 13 が
+`create` でページ数を数えてPDFを捨てているので、このタスクは同じ `create` の中に
+画像生成とテキスト抽出を足し、そのあとで捨てる形にする。あとから読み直すPDFは残っていない。
+Task 13 がインラインで書いたページ数の数え上げも、ここで `PageSource` に移す。
+
 **元のPDFは保管しない。** アップロード時に画像とテキストを取り出したら消す。`pages` に入れるのはテキストで、以降の読み取りも確認画面もそれと画像だけで足りる。
 
 - [ ] **Step 4: 通ることを確認**
@@ -1196,6 +1202,23 @@ git commit -m "feat: 便覧を読むAIの窓口とGeminiのプロバイダを足
   - 科目表のページ → `document['courses']` に足す（既にある科目番号は上書きせず、Task 17 の重複として残す）
   - 読めたら `pages[n]['status']` を `"read"`、落ちたら `"failed"` と `error`
 
+**Task 15 の修正で決まったこと（3点）。**
+
+- **役割の受け渡し。** `read_requirements` は `roles`（キーと表示名）も返し、`read_courses` は
+  `roles:` を受け取る。置き場所は `document['roles']` で、format_version 2 の任意欄として
+  公開後も残す。キーだけなら `Catalogue#role_keys` が `rules` の `paths` から導けるが、
+  モデルに渡す表示名（「微分積分学ＳＴⅠ」等）は導けないので保存が要る。
+  2024年度の便覧には足さない（欄が無ければ規則から導く）。
+- **区分の受け渡しと、順序を守れない場合。** 科目表の読み取りには `document['categories']`
+  （要件表のページから溜まった分）を渡す。`read_courses` は `categories` が空なら
+  `ArgumentError` を上げる（モデルに区分名を捏造させないため）。要件表を1ページも読む前に
+  科目表を読もうとしたら、`ReadPage` はこれを rescue して**そのページだけ** `failed` と
+  読める `error` にする。500 にしない。「全部読む」は要件表を先に読むので通常は起きないが、
+  1ページ単位の読み取りはユーザー操作なので順序を強制できない。
+- **1ページ分の断片の統合はこのタスクの仕事。** `total_credits`・`source`・`source_page`・
+  `selectable`・`sources`・`key` を誰が入れるかをここで決める。`source_page` は読んだページ番号から
+  `ReadPage` が入れる。
+
 - [ ] **Step 1: 失敗するテストを書く**
 
 ```ruby
@@ -1283,6 +1306,8 @@ git commit -m "feat: 便覧を1ページずつ読んで下書きに入れる"
 - `exclude` の `number_prefix` が空、または正規化前の表記（全角・空白混じり）
 - `exclude` に `reason` が無い
 - `cap` の `credits` が負・非数・無限
+- `rules` が名指しする役割を、どの科目も `roles` に持っていない（規則が永久に満たされない）
+- `roles` に宣言されているのに、どの規則からも参照されない役割
 
 - [ ] **Step 1: 推定の失敗するテストを書く**
 
@@ -1508,6 +1533,9 @@ git commit -m "feat: 科目表の確認画面を足す"
 - Produces:
   - `Curriculum#publish!` — `confirmed` と `pages` と `source_filename` を落とし、`published_at` を立て、ページ画像を消す
   - `Curriculum#publishable? => Boolean` / `#blocking_reasons => [String]`
+  — 規則を持つのに `display` が無い便覧は公開できない。`Catalogue` は判定側の object なので
+    load 時には求めない（規則だけの単体テストに display を書かせることになる）。
+    「学生に出せる状態か」を決めるのはここ
   - `Student#curriculum_id` は公開済みの便覧しか指せない（モデルの検証）
 
 - [ ] **Step 1: 失敗するテストを書く**
