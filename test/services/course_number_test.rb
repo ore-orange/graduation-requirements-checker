@@ -48,5 +48,11 @@ class CourseNumberTest < ActiveSupport::TestCase
       assert_nil CourseNumber.hundreds(value), value.inspect
     end
   end
+
+  test 'normalize は空白を取り除き、全角を半角にそろえた番号を返す' do
+    assert_equal '知能103', CourseNumber.normalize(' 知能　１０３ ')
+    assert_equal 'C101', CourseNumber.normalize('Ｃ１０１')
+    assert_equal '', CourseNumber.normalize(nil)
+  end
 end
 

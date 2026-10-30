@@ -19,11 +19,15 @@ module CourseNumber
   end
 
   # 空白(改行・ノーブレークスペース・全角スペースを含む)を取り除き、全角の数字と英字を
-  # 半角にそろえてから分ける。PDFから読んだ値の余白や全角の綴りで別の接頭辞にならないように。
-  # 戻り値は [接頭辞, 百の位] か nil。
+  # 半角にそろえる。PDFから読んだ値の余白や全角の綴りで別の番号にならないように。
+  # 取り込みの突き合わせが「表記違いの同じ番号」を見つけるときにも、同じ整え方を使う。
+  def self.normalize(number)
+    number.to_s.gsub(/[[:space:]]/, '').tr('０-９Ａ-Ｚａ-ｚ', '0-9A-Za-z')
+  end
+
+  # 整えてから分ける。戻り値は [接頭辞, 百の位] か nil。
   def self.split(number)
-    normalized = number.to_s.gsub(/[[:space:]]/, '').tr('０-９Ａ-Ｚａ-ｚ', '0-9A-Za-z')
-    normalized.match(PATTERN)&.captures
+    normalize(number).match(PATTERN)&.captures
   end
   private_class_method :split
 end
