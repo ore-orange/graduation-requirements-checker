@@ -26,5 +26,8 @@
                       active ? 'bg-white text-indigo-600 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'] %>
       <% end %>
     </nav>
+
+    <%= button_to 'ログアウト', session_path, method: :delete,
+                  class: 'whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900 sm:text-sm' %>
   </div>
 </header>
