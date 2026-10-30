@@ -53,7 +53,7 @@ module CurriculumImport
                      'required_credits' => '必要単位', 'required_label' => '必要単位が空のときの表示',
                      'expected_course_count' => '必修の科目数', 'categories' => '数える区分',
                      'required_categories' => '必修の区分', 'category' => '区分', 'group_by' => 'グループの分け方',
-                     'reason' => '算入しない理由', 'check_id' => '確認する規則', 'check_ids' => '確認する規則',
+                     'reason' => '算入しない理由', 'review_note' => '要確認の理由', 'check_id' => '確認する規則', 'check_ids' => '確認する規則',
                      'row_ids' => '数える行', 'credits_from_check' => '単位を確認する規則から取るか',
                      'counts_toward_total' => '卒業の総単位に数えるか', 'credits' => '算入の上限(単位)',
                      'number_prefix' => '科目番号の接頭辞' }.freeze

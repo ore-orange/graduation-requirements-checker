@@ -29,14 +29,14 @@ module CurriculumImport
     end
 
     # 2つのページが、同じ id の規則・章・小計(と、同じ id の行2つ)を返す。
-    def answer(credits, rules: nil)
+    def answer(credits, rules: nil, ref: 'common_total')
       rules ||= [rule('common_total', credits)]
       { 'categories' => CATEGORIES, 'roles' => [], 'rules' => rules,
         'display' => { 'groups' => [{ 'id' => 'g1', 'title' => '共通教育', 'required_credits' => credits,
-                                      'check_id' => 'common_total',
-                                      'rows' => [row('r1', credits, 'common_total'), row('r2', 2, 'common_total')] }],
+                                      'check_id' => ref,
+                                      'rows' => [row('r1', credits, ref), row('r2', 2, ref)] }],
                        'subtotals' => [{ 'id' => 's1', 'name' => '小計', 'required_credits' => credits,
-                                         'row_ids' => ['r1'], 'check_ids' => ['common_total'] }] } }
+                                         'row_ids' => ['r1'], 'check_ids' => [ref] }] } }
     end
 
     setup do
@@ -175,7 +175,66 @@ module CurriculumImport
       assert_equal %w[g1], group_ids
     end
 
-    test '由来の記録が無い(古い)下書きでも、付け替えのないものは今までどおり守られる' do
+    def strip_origins
+      pages = @curriculum.reload.pages.map do |page|
+        page.merge('contributed' => page['contributed']&.except('origins'))
+      end
+      @curriculum.update!(pages: pages)
+    end
+
+    # 由来の記録を足す前の下書き(いま在るものは、みなこの形)。付け替えられた id は、記録からは元の id に戻せない。
+    test '由来の記録が無い(古い)下書きでも、付け替えられた id のものは、付け替えの形を外して結べて守られる' do
+      read_both
+      edit(rules: [{ id: 'common_total_p4', required_credits: '37' }])
+      strip_origins
+      read(4, answer(38))
+
+      assert_equal({ 'common_total' => 30, 'common_total_p4' => 37 }, rules)
+      assert(warnings(4).any? { |text| text.include?('規則「common_total_p4」は人が直した内容を残しました') })
+      chapter = document['display']['groups'].find { |group| group['id'] == 'g1_p4' }
+      assert_equal [['common_total_p4'], ['common_total_p4']], chapter['rows'].pluck('check_ids')
+    end
+
+    test '由来の記録が無い(古い)下書きで、付け替えられた章と小計を直していても、二重にならない' do
+      read_both
+      edit(display: { groups: [{ id: 'g1_p4', rows: [{ id: 'r1_p4', name: '直した行' }] }],
+                      subtotals: [{ id: 's1_p4', name: '直した小計' }] })
+      strip_origins
+      read(4, answer(38))
+
+      assert_equal %w[g1 g1_p4], group_ids
+      assert_equal %w[小計 直した小計], document['display']['subtotals'].pluck('name')
+    end
+
+    test '読み直しで同じ id の数が2つから1つに減っても、直した方が直したまま残り、AI の規則は並ばない' do
+      read(3, answer(30, rules: [rule('dup', 10), rule('dup', 20)], ref: 'dup'))
+      edit(rules: [{ id: 'dup_p3', required_credits: '99' }])
+      read(3, answer(30, rules: [rule('dup', 11)], ref: 'dup'))
+
+      assert_equal({ 'dup_p3' => 99 }, rules)
+      assert(warnings(3).any? { |text| text.include?('規則「dup_p3」は人が直した内容を残しました') })
+      assert_equal ['dup_p3'], document['display']['groups'].first['rows'].flat_map { |entry| entry['check_ids'] }.uniq
+    end
+
+    test '別の読んだ id とは、形が似ていても結ばない' do
+      read(3, answer(30, rules: [rule('alpha', 10), rule('beta', 20)]))
+      edit(rules: [{ id: 'beta', required_credits: '99' }])
+      read(3, answer(30, rules: [rule('alpha', 11), rule('gamma', 21)]))
+
+      assert_equal({ 'beta' => 99, 'alpha' => 11, 'gamma' => 21 }, rules)
+    end
+
+    test '残した章の行を指す小計は、付け替えられた行の id に結ばれる' do
+      read_both
+      edit(display: { groups: [{ id: 'g1_p4', rows: [{ id: 'r1_p4', name: '直した行' }] }] })
+      read(4, answer(38))
+
+      subtotal = document['display']['subtotals'].find { |entry| entry['id'] == 's1_p4' }
+      assert_equal ['r1_p4'], subtotal['row_ids']
+      assert(Validation.for(@curriculum.reload).call.none? { |finding| finding[:reason].include?('指す行が見つかりません') })
+    end
+
+    test '由来の記録が無い(古い)下書きでも、付け替えのない id のものは守られる' do
       read(3, answer(30))
       edit(rules: [{ id: 'common_total', required_credits: '37' }])
       pages = @curriculum.reload.pages.map do |page|

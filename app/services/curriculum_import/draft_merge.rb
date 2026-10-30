@@ -12,6 +12,7 @@ module CurriculumImport
   # 人が見たものなので外さず、読み直した側の値で上書きもしない(Withdrawal)。
   class DraftMerge
     include KeyedMerge
+    include DisplayMerge
 
     CONFIRMED = 'confirmed'
     # 確認画面で人が消した規則・章・行・小計の記録。読み直しが、消したものを黙って戻さないための印。
@@ -36,7 +37,7 @@ module CurriculumImport
       @previous = previous || {}
       @warnings = []
       @kept = {}
-      @origins = Origins.new(@previous['origins'])
+      @origins = Origins.new(@previous['origins'], page)
       ensure_skeleton
     end
 
@@ -144,11 +145,6 @@ module CurriculumImport
       HUMAN if @previous['total_credits'] == HUMAN
     end
 
-    # 前に付けた id のうち、人が直して残したもので、今回の答えのこの由来に当たるもの。
-    def kept_for(kind, origin)
-      kept_ids(kind).find { |stored| @origins.previous_of(kind, stored) == origin }
-    end
-
     # 規則を足す。別のページ・同じページの規則と id がぶつかるものは付け替える。
     # 戻り値は [{読んだ id => 実際の id(参照の付け替えに使う。同じ id が複数なら最初のもの)}, 足した規則の実際の id すべて]。
     # 読み直しで外すのは後者。前者だけを記録すると、付け替えた重複が外れず、読み直すたびに積もる。
@@ -159,9 +155,8 @@ module CurriculumImport
     def add_rules(rules)
       taken = @document['rules'].pluck('id')
       mapping = {}
-      added = rules.filter_map do |rule|
-        origin = @origins.next('rules', rule['id'])
-        kept = kept_for('rules', origin)
+      plan = @origins.match('rules', rules.pluck('id'), kept_ids('rules'))
+      added = rules.zip(plan).filter_map do |rule, (origin, kept)|
         id = kept || unique_id(rule['id'], taken)
         mapping[rule['id']] ||= id
         next note_kept('規則', @document['rules'], id, rule) if kept
@@ -184,30 +179,6 @@ module CurriculumImport
       nil
     end
 
-    def add_display(display, rule_ids)
-      target = @document['display']
-      total = !adopt_total_credits(display['total_credits']).nil?
-      row_ids = {}
-      row_taken = target['groups'].flat_map { |group| group['rows'].pluck('id') }
-      groups = add_all(display['groups'], target['groups'].pluck('id')) do |group, taken|
-        add_group(group, rule_ids, row_ids, taken, row_taken)
-      end
-      subtotals = add_all(display['subtotals'], Array(target['subtotals']).pluck('id')) do |subtotal, taken|
-        add_subtotal(subtotal, rule_ids, row_ids, taken)
-      end
-      target['groups'].concat(groups)
-      (target['subtotals'] ||= []).concat(subtotals) if subtotals.any?
-      { groups: groups.pluck('id'), subtotals: subtotals.pluck('id'), total_credits: total }
-    end
-
-    # このページの中で同じ id が2つあっても付け替えられるよう、付けた id を taken に積みながら足す。
-    # ブロックが nil を返したもの(人が直して残した・人が消した)は足さない。
-    def add_all(items, taken)
-      Array(items).filter_map do |item|
-        yield(item, taken)&.tap { |added| taken << added['id'] }
-      end
-    end
-
     # 総単位は、先に別のページで読めた値を優先する。食い違うときは捨てずに警告に残す。
     # このページの値を採ったときだけ、その値を返す(読み直しのときに外す印になる)。
     def adopt_total_credits(incoming)
@@ -219,52 +190,6 @@ module CurriculumImport
       current = display['total_credits']
       @warnings << Differences.total_credits(current, incoming, human: human_total.present?) if current != incoming
       nil
-    end
-
-    # 人が直して残した章は、行ごと入れない(直した行は、その章の中にある)。
-    def add_group(group, rule_ids, row_ids, taken, row_taken)
-      origin = @origins.next('groups', group['id'])
-      kept = kept_for('groups', origin)
-      return note_kept('章', @document['display']['groups'], kept, group) if kept
-
-      group = group.merge('id' => unique_id(group['id'], taken))
-      return if removed?('group', group['id'], origin)
-
-      @origins.remember('groups', group['id'], origin)
-      group['check_id'] = rule_ids.fetch(group['check_id'], group['check_id']) if group['check_id']
-      group['rows'] = Array(group['rows']).filter_map { |row| add_row(row, origin.first, rule_ids, row_ids, row_taken) }
-      group
-    end
-
-    # taken には、既にある行と、このページで付けた行の id をすべて積む(同じ id が3つ以上あっても重ならない)。
-    # 人が消した行は戻さない。行の由来は、章の読んだ id と合わせて持つ。
-    def add_row(row, group_id, rule_ids, row_ids, taken)
-      origin = @origins.next('rows', group_id, row['id'])
-      id = unique_id(row['id'], taken)
-      taken << id
-      row_ids[row['id']] ||= id
-      return if removed?('row', id, origin)
-
-      @origins.remember('rows', id, origin)
-      row.merge('id' => id, 'check_ids' => remap(row['check_ids'], rule_ids))
-    end
-
-    def add_subtotal(subtotal, rule_ids, row_ids, taken)
-      origin = @origins.next('subtotals', subtotal['id'])
-      kept = kept_for('subtotals', origin)
-      return note_kept('小計', @document['display']['subtotals'], kept, subtotal) if kept
-
-      id = unique_id(subtotal['id'], taken)
-      return if removed?('subtotal', id, origin)
-
-      @origins.remember('subtotals', id, origin)
-      subtotal.merge('id' => id, 'row_ids' => remap(subtotal['row_ids'], row_ids),
-                     'check_ids' => remap(subtotal['check_ids'], rule_ids))
-    end
-
-    # このページが定義した id だけを付け替える。別のページの規則を指す参照は、そのまま残す。
-    def remap(references, mapping)
-      Array(references).map { |reference| mapping.fetch(reference, reference) }
     end
 
     def unique_id(id, taken)

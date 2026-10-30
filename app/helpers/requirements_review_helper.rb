@@ -7,7 +7,7 @@ module RequirementsReviewHelper
                       'cap' => '算入の上限', 'exclude' => '算入しない' }.freeze
   FIELD_NAMES = CurriculumImport::RequirementsEdit::FIELD_LABELS
   SUMMARY_FIELDS = %w[categories required_categories category required_credits expected_course_count group_by credits
-                      number_prefix reason].freeze
+                      number_prefix reason review_note].freeze
   FIELD_CLASS = 'rounded border border-slate-300 bg-white px-2 py-1.5 text-sm'
 
   # 単位の数。整数なら小数点を付けない。無ければダッシュ。

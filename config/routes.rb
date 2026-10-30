@@ -34,6 +34,9 @@ Rails.application.routes.draw do
     end
   end
 
+  # 保存できなかった要件表の画面は、保存の宛先(update_rules)の URL に出る。そこを開き直した(GET)ときは、確認画面へ戻す。
+  get 'curricula/:id/update_rules', to: redirect('/curricula/%{id}#requirements_review')
+
   resources :timetable_uploads, only: %i[create show destroy] do
     member do
       post :commit

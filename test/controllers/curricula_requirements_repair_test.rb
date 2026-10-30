@@ -38,6 +38,20 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     assert_select '#rule-calculus', text: /経路2: calculus_intro_1/
   end
 
+  test '要確認の理由(review_note)が、規則の下に出る(実物の2024年度)' do
+    show(draft(document: real_document))
+
+    assert_select '#rule-calculus', text: /要確認の理由: 微分積分学の系列が混在・重複しており/
+    assert_select '#rule-physics', text: /要確認の理由: 物理学の代替科目を重複して/
+  end
+
+  test '保存の宛先の URL を GET で開き直しても、404 にならず、確認画面へ戻る' do
+    draft = draft()
+    get "/curricula/#{draft.id}/update_rules", env: ENV_LOCAL
+
+    assert_redirected_to "/curricula/#{draft.id}#requirements_review"
+  end
+
   test '経路が名指しする役割に科目が1つも無ければ、そう出る' do
     document = requirements_document
     document['rules'].find { |rule| rule['id'] == 'path_rule' }['paths'] = [['no_such_role']]
