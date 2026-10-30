@@ -1202,7 +1202,7 @@ git commit -m "feat: 便覧を読むAIの窓口とGeminiのプロバイダを足
   - 科目表のページ → `document['courses']` に足す（既にある科目番号は上書きせず、Task 17 の重複として残す）
   - 読めたら `pages[n]['status']` を `"read"`、落ちたら `"failed"` と `error`
 
-**Task 15 の修正で決まったこと（3点）。**
+**Task 15 の修正で決まったこと（4点）。**
 
 - **役割の受け渡し。** `read_requirements` は `roles`（キーと表示名）も返し、`read_courses` は
   `roles:` を受け取る。置き場所は `document['roles']` で、format_version 2 の任意欄として
@@ -1218,6 +1218,14 @@ git commit -m "feat: 便覧を読むAIの窓口とGeminiのプロバイダを足
 - **1ページ分の断片の統合はこのタスクの仕事。** `total_credits`・`source`・`source_page`・
   `selectable`・`sources`・`key` を誰が入れるかをここで決める。`source_page` は読んだページ番号から
   `ReadPage` が入れる。
+- **承認の注記がページを跨ぐ場合（このタスクの義務。懸念ではない）。**
+  `requires_approval` は1ページずつ読むので、承認の注記が科目の行と別のページにあると、
+  その科目は `false` になる。**`false` は寛容側**で、`EntryNormalizer` は真のときだけ関門を足すため、
+  注記の見落としはそのまま単位の水増しになる（承認が要る科目の単位が無条件に算入され、不足が見えなくなる）。
+  モデルが怪しいと気づけた場合は `review_reason` に書かせており、それは `metadata_review_reason` が
+  科目ごと隔離するので安全側に倒れる。塞げていないのは、**そのページに手掛かりが何も無い**場合。
+  全ページを見るこのタスクで、区分やページ単位の承認の注記を、後から該当科目の
+  `requires_approval` に反映できるようにする。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
