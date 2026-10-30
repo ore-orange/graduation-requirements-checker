@@ -225,7 +225,10 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     assert_includes client.last[:prompt], 'calculus_1'
     assert_includes client.last[:prompt], '微分積分学Ⅰ'
     assert_includes client.last[:prompt], 'physics_1'
-    assert_includes client.last[:prompt], '複数の科目が担ってよい'
+    assert_includes client.last[:prompt], '1つの役割を複数の科目が担ってよいのは、便覧が「次のうちどれか1科目」'
+    assert_includes client.last[:prompt], '「または」があるだけのとき'
+    assert_includes client.last[:prompt], '物理学Ⅰ または 物理学入門Ⅰ'
+    assert_no_match(/複数の科目が担ってよい(?!のは)/, client.last[:prompt])
     assert_includes client.last[:prompt], '一覧にない key を作らない'
   end
 
@@ -338,7 +341,7 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     assert_includes prompt, '役割1つが、名指しされた科目1つに当たる'
     assert_includes prompt, '別の系列や経路の科目に、同じ key を付けない'
     assert_includes prompt, '微分積分学ＳＴⅠと微分積分学入門Ⅰは、別の役割'
-    assert_includes prompt, '同じ枠の入れ替えられる科目として扱っているとき'
+    assert_includes prompt, '1つの枠として'
   end
 
   test '要件表の依頼文は、経路ごとに別の path にし、経路を合併した悪い例を示す' do
@@ -353,6 +356,9 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     assert_includes prompt, '悪い例'
     assert_includes prompt, '[[calculus_st_1, calculus_st_2], [calculus_intro_1, calculus_intro_2]]'
     assert_not_includes prompt, 'calculus_1(微分積分学Ⅰ)'
+    assert_includes prompt, '「AまたはB」のように2つの科目名が並ぶだけなら、必ず2つの役割と2つの path にする'
+    assert_includes prompt, 'paths は [[physics_1], [physics_intro_1]]'
+    assert_includes prompt, '1つの役割を複数の科目が担うのは、便覧が「次のうちどれか1科目」'
   end
 
   test 'one_of_paths の paths が無い規則は、NoMethodError ではなく Error' do
@@ -640,8 +646,9 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     reader(client).read_requirements(text: 't', image_path: nil)
     prompt = client.last[:prompt]
 
-    assert_includes prompt, '印字がなければ、見出しの下の行の必要単位を足した数にする'
-    assert_includes prompt, 'その group は返さない'
+    assert_includes prompt, '印字がなければ、その group は返さない(行の数字を足して作らない'
+    assert_includes prompt, 'group を返さなくても、その要件の規則は rules に書く'
+    assert_not_includes prompt, '足した数にする'
     assert_includes prompt, '印字がなければその小計は返さない'
   end
 
