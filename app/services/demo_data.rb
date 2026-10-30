@@ -31,16 +31,26 @@ class DemoData
     end
 
     def find_or_create_student
-      user = User.find_or_create_by!(email: DemoAccount::EMAIL)
+      # 学生が既にいても学科は毎回ならす。カリキュラムの指し先が欠けていると画面が出せない。
+      department = demo_department
+
+      # デモはログイン画面のボタンから入る。パスワードでは入らせないので、誰も知らない値にしておく。
+      user = User.find_or_create_by!(email: DemoAccount::EMAIL) do |new_user|
+        new_user.password = SecureRandom.hex(32)
+      end
       if user.student
         return user.student if user.student.admission_year == DemoAccount::ADMISSION_YEAR
 
         raise DemoAccount::Unavailable, 'デモ用メールアドレスの既存データは2024年度入学ではないため、上書きできません。'
       end
 
-      faculty = Faculty.find_or_create_by!(name: 'デモ用工学部（架空データ）')
-      department = faculty.departments.find_or_create_by!(name: '知能情報工学（デモ）')
       user.create_student!(department: department, admission_year: DemoAccount::ADMISSION_YEAR)
+    end
+
+    def demo_department
+      faculty = Faculty.find_or_create_by!(name: 'デモ用工学部（架空データ）')
+      faculty.departments.find_or_create_by!(name: '知能情報工学（デモ）')
+             .tap { |department| department.update!(curriculum_slug: DemoAccount::DEPARTMENT) }
     end
 
     def import_enrollments(student, courses, entries)
