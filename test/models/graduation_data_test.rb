@@ -8,7 +8,7 @@ class GraduationDataTest < ActiveSupport::TestCase
   setup do
     @faculty = Faculty.create!(name: 'テスト学部')
     @department = Department.create!(faculty: @faculty, name: 'テスト学科')
-    @user = User.create!(email: 'student@example.test')
+    @user = User.create!(email: 'student@example.test', password: 'a-test-password')
     @student = Student.create!(user: @user, department: @department, admission_year: 2024)
     @program = Program.create!(department: @department, name: 'テストプログラム')
     @course = Course.create!(course_number: 'TEST-01', name: 'テスト科目', credits: 2)
@@ -24,7 +24,7 @@ class GraduationDataTest < ActiveSupport::TestCase
   end
 
   test 'email is normalized and unique regardless of case' do
-    user = User.create!(email: ' OTHER@EXAMPLE.TEST ')
+    user = User.create!(email: ' OTHER@EXAMPLE.TEST ', password: 'a-test-password')
     assert_equal 'other@example.test', user.email
     assert_not User.new(email: 'STUDENT@EXAMPLE.TEST').valid?
     assert_not User.new(email: 'invalid').valid?
@@ -32,7 +32,7 @@ class GraduationDataTest < ActiveSupport::TestCase
 
     assert_raises(ActiveRecord::RecordNotUnique) do
       User.transaction(requires_new: true) do
-        User.insert_all!([{ email: 'STUDENT@EXAMPLE.TEST' }])
+        User.insert_all!([{ email: 'STUDENT@EXAMPLE.TEST', password_digest: 'x' }])
       end
     end
   end
@@ -97,7 +97,9 @@ class GraduationDataTest < ActiveSupport::TestCase
       [Department, { faculty_id: -1, name: 'test' }],
       [Program, { department_id: -1, name: 'test' }],
       [Student, { user_id: -1, department_id: @department.id, admission_year: 2024 }],
-      [Student, { user_id: User.create!(email: 'other@example.test').id, department_id: -1, admission_year: 2024 }],
+      [Student,
+       { user_id: User.create!(email: 'other@example.test', password: 'a-test-password').id, department_id: -1,
+         admission_year: 2024 }],
       [StudentCourse, { student_id: -1, course_id: @course.id, academic_year: 2024 }],
       [StudentCourse, { student_id: @student.id, course_id: -1, academic_year: 2024 }],
       [StudentProgramAssignment, { student_id: -1, program_id: @program.id, status: 'test' }],
