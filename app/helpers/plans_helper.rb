@@ -12,5 +12,11 @@ module PlansHelper
   def term_label(term) = "#{term[:grade]}年 #{term[:semester]}"
 
   def planner_subtotal_for(row_id) = PLANNER_SUBTOTALS.find { |subtotal| subtotal[:row_ids].include?(row_id) }
+
+  # 区分の行で、便覧から選べる科目と、そのうちまだ修得・履修中・追加済みでない科目
+  def row_catalogue_courses(row, courses, unavailable_keys)
+    catalogue = courses.select { |c| row[:categories].include?(c['category']) && c['selectable'] == true }
+    [catalogue, catalogue.select { |c| unavailable_keys.exclude?(c['key']) }]
+  end
 end
 

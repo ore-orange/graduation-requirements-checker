@@ -138,11 +138,13 @@
                     <p class="mt-1.5 text-[11px] text-slate-400 font-normal leading-relaxed"><%= row[:subtitle] %></p>
                   </th>
 
-                  <!-- この学期の科目 -->
+                  <!-- この学期の科目。追加できる行は、カードの並びの最後に追加の枠を置く -->
+                  <%
+                    catalogue_in_row, selectable_in_row = row_catalogue_courses(row, @curriculum.fetch('courses'), @unavailable_keys)
+                    can_add = @term_open && selectable_in_row.any?
+                  %>
                   <td class="p-2.5">
-                    <% if cell_enrollments.empty? && cell_plans.empty? %>
-                      <div class="text-slate-300 py-2">—</div>
-                    <% else %>
+                    <% if cell_enrollments.any? || cell_plans.any? || can_add %>
                       <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         <% cell_enrollments.each do |enrollment| %>
                           <%= render 'plans/enrollment_card', enrollment: enrollment %>
@@ -150,10 +152,19 @@
                         <% cell_plans.each do |plan| %>
                           <%= render 'plans/plan_card', plan: plan %>
                         <% end %>
+                        <% if can_add %>
+                          <button type="button" onclick="toggleRowAddBox('<%= row[:id] %>')" id="add-trigger-<%= row[:id] %>"
+                                  aria-label="<%= row[:name] %>の科目を<%= term_label(@term) %>に追加"
+                                  class="min-h-14 flex items-center justify-center rounded-lg border border-dashed border-slate-300 text-xs font-medium text-slate-500 hover:border-indigo-300 hover:bg-indigo-50/40 hover:text-indigo-600 transition cursor-pointer">
+                            ＋ 科目を追加
+                          </button>
+                        <% end %>
                       </div>
+                    <% elsif !@term_open %>
+                      <div class="text-slate-300 py-2">—</div>
                     <% end %>
                     <% if @term_open %>
-                      <%= render 'plans/add_course_box', row: row %>
+                      <%= render 'plans/add_course_box', row: row, catalogue_in_row: catalogue_in_row, selectable_in_row: selectable_in_row %>
                     <% end %>
                   </td>
                 </tr>

@@ -1,19 +1,7 @@
-<%# 区分の行から、表示中の学期に予定を追加する（便覧から選択） %>
-<%
-  box_id = row[:id]
-  catalogue_in_row = @curriculum.fetch('courses').select do |c|
-    row[:categories].include?(c['category']) && c['selectable'] == true
-  end
-  selectable_in_row = catalogue_in_row.select { |c| @unavailable_keys.exclude?(c['key']) }
-%>
-<div class="mt-2" data-add-course="<%= box_id %>">
+<%# 区分の行から、表示中の学期に予定を追加する（便覧から選択）。開くボタンはカードの並び（plans/show）にある %>
+<% box_id = row[:id] %>
+<div class="mt-2 first:mt-0" data-add-course="<%= box_id %>">
   <% if selectable_in_row.any? %>
-    <button type="button" onclick="toggleRowAddBox('<%= box_id %>')"
-            id="add-trigger-<%= box_id %>"
-            class="w-full py-1.5 px-2 border border-dashed border-slate-300 rounded-lg text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-white text-xs font-medium transition cursor-pointer">
-      ＋ <%= term_label(@term) %>に追加
-    </button>
-
     <div id="add-box-<%= box_id %>" class="hidden p-2.5 rounded-xl border border-indigo-200 bg-white shadow-xs space-y-2 max-w-md">
       <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
         <span class="text-[10px] font-bold text-slate-600">便覧から選択</span>
@@ -44,8 +32,8 @@
       <% end %>
     </div>
   <% elsif catalogue_in_row.empty? %>
-    <p class="py-1.5 px-2 text-[11px] text-slate-400" data-no-selectable-course="no_catalogue">この区分は便覧に科目がないため、追加できません</p>
+    <p class="py-2 text-[11px] text-slate-400" data-no-selectable-course="no_catalogue">この区分は便覧に科目がないため、追加できません</p>
   <% else %>
-    <p class="py-1.5 px-2 text-[11px] text-slate-400" data-no-selectable-course="all_taken">この区分の科目はすべて修得済み・履修中・追加済みです</p>
+    <p class="py-2 text-[11px] text-slate-400" data-no-selectable-course="all_taken">この区分の科目はすべて修得済み・履修中・追加済みです</p>
   <% end %>
 </div>

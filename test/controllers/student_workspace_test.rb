@@ -442,6 +442,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     assert_select "[name^='custom_course']", count: 0
     assert_select "[data-add-course='general_subtotal'] select[name='course_key']", count: 1
+    # 追加を開く枠は、カードの並びの最後にある
+    assert_select "[data-planner-row='general_subtotal'] .grid > #add-trigger-general_subtotal:last-child", count: 1
     # 便覧の科目は科目名・科目番号で絞り込める
     assert_select "[data-add-course='general_subtotal'] form[data-controller='course-filter']" do
       assert_select "input[type='search'][data-course-filter-target='query']", count: 1
@@ -451,6 +453,9 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-add-course='free'] [data-no-selectable-course='no_catalogue']",
                   text: 'この区分は便覧に科目がないため、追加できません'
     assert_select "[data-add-course='free'] select", count: 0
+    # 追加できない行には、追加の枠も「—」も出さず、理由だけを出す
+    assert_select '#add-trigger-free', count: 0
+    assert_select "[data-planner-row='free'] td", text: /—/, count: 0
     # 便覧の科目をデモの学生がすべて修得済みの区分
     assert_select "[data-add-course='japanese'] [data-no-selectable-course='all_taken']",
                   text: 'この区分の科目はすべて修得済み・履修中・追加済みです'
