@@ -43,7 +43,7 @@ class PlanCoursesController < ApplicationController
     return unless catalogue_course && catalogue_course['selectable'] == true
 
     Course.find_by(curriculum_key: key) ||
-      raise(DemoAccount::Unavailable, 'Catalogue courses have not been seeded')
+      raise(SetupIncomplete, 'カリキュラムの科目が登録されていません。')
   end
 
   def build_custom_course
