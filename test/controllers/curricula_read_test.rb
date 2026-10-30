@@ -209,6 +209,18 @@ class CurriculaReadTest < ActionDispatch::IntegrationTest
     assert_equal 'pending', page_entry(2)['status']
   end
 
+  test '読めたあとの読み直しが失敗したページも、種別を替えて結果を外すときは知らせる' do
+    read_page(2, StubReader.new(requirements: REQUIREMENTS))
+    read_page(2, StubReader.new(error: CurriculumReader::Error.new('429')))
+    assert_equal 'failed', page_entry(2)['status']
+    assert_equal %w[common_total], @draft.reload.document['rules'].pluck('id')
+
+    patch curriculum_path(@draft), params: { pages: { '2' => 'skip' } }, env: ENV_LOCAL
+
+    assert_match(/2ページの読み取り結果は外しました/, flash[:notice])
+    assert_empty @draft.reload.document['rules']
+  end
+
   test '読み取り済みのページの種別を替えなければ、外したという知らせは出ない' do
     read_page(2, StubReader.new(requirements: REQUIREMENTS))
 

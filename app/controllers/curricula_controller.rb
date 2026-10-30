@@ -146,14 +146,19 @@ class CurriculaController < ApplicationController
     kinds = raw.respond_to?(:each_pair) ? raw.each_pair.to_h { |page, kind| [page.to_s, kind.to_s] } : {}
     return '科目表・要件表・読まない のいずれかを、存在するページに指定してください。' unless kinds.any? && @curriculum.page_kinds_assignable?(kinds)
 
-    read_before = @curriculum.pages.select { |page| page['status'] == 'read' }.pluck('page')
+    holding = pages_holding_results
     @curriculum.assign_page_kinds(kinds)
-    @withdrawn_pages = read_before.reject { |number| page_status(number) == 'read' }
+    @withdrawn_pages = holding.reject { |number, kind| page_kind(number) == kind }.keys
     nil
   end
 
-  def page_status(number)
-    @curriculum.pages.find { |page| page['page'] == number }['status']
+  # 読み取りの結果を持つページの { 番号 => 種別 }。読めたあとの読み直しが失敗したページも、前の結果は document に残っているので含める。
+  def pages_holding_results
+    @curriculum.pages.select { |page| page['contributed'].present? }.to_h { |page| [page['page'], page['kind']] }
+  end
+
+  def page_kind(number)
+    @curriculum.pages.find { |page| page['page'] == number }['kind']
   end
 
   # 種別を替えたページは読み取りの結果を外して未読に戻す。気づかないまま消えないよう、どのページか知らせる。
