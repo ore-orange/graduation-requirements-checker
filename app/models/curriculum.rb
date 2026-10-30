@@ -124,18 +124,32 @@ class Curriculum < ApplicationRecord
   end
 
   # 送られたページだけ種別を替え、他はそのまま残す。page_kinds_assignable? を満たさないときは ArgumentError。
+  # 種別が変わるページは、読み取りの結果を document から外し、未読に戻す。種別を替えると、その行はもう
+  # 前の種別の結果を読み直せないので、残すと公開する文書に出所の分からない規則・科目が残る(確認済みの科目だけは残す)。
   def assign_page_kinds(kinds)
     raise ArgumentError, "ページの種別を指定できません: #{kinds.inspect}" unless page_kinds_assignable?(kinds)
 
     kinds = kinds.transform_keys(&:to_s)
+    new_document = document.deep_dup
     self.pages = pages.map do |page|
-      kinds.key?(page['page'].to_s) ? page.merge('kind' => kinds[page['page'].to_s]) : page
+      kind = kinds[page['page'].to_s]
+      next page if kind.nil?
+
+      kind == page['kind'] ? page : reset_page(new_document, page, kind)
     end
+    self.document = new_document
   end
 
   # 便覧の規則。壊れた便覧は Catalogue が ArgumentError にするので、ここでは握りつぶさない。
   def catalogue
     GraduationAssessment::Catalogue.new(document)
+  end
+
+  private
+
+  def reset_page(document, page, kind)
+    CurriculumImport::DraftMerge.withdraw(document, page['contributed'], page['page'])
+    page.except('contributed', 'warnings').merge('kind' => kind, 'status' => 'pending', 'error' => nil)
   end
 end
 

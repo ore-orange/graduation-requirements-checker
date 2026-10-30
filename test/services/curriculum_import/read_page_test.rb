@@ -409,6 +409,108 @@ module CurriculumImport
       assert_equal 'read', page_status(3)
     end
 
+    test '保存で落ちる答え(jsonb に入らない NUL)でも500にせず、そのページを failed にして、読み直せる' do
+      read(3)
+      nul = reader(courses: { '科目' => { 'courses' => [course_row("知能\u0000101")] } })
+
+      assert_nothing_raised { assert_not read(9, with: nul) }
+      assert_equal 'failed', page_status(9)
+      assert_predicate page_entry(9)['error'], :present?
+      assert_empty courses
+
+      assert read(9), '失敗のあとにロックの状態が壊れていない(次の読み取りが通る)'
+      assert_equal 'read', page_status(9)
+    end
+
+    test '区分の「総単位に数えるか」が別のページと食い違えば、先を残して警告する' do
+      read(3)
+      changed = CATEGORIES.map { |category| category.merge('counts_toward_total' => false) }
+      answer = requirements_answer(rule_id: 'total_2', categories: changed)
+      read(4, with: StubReader.new(requirements: { '要件その2' => answer }))
+
+      assert_equal [true, true], document['categories'].pluck('counts_toward_total')
+      assert_match(/総単位に数えるか/, page_entry(4)['warnings'].join)
+    end
+
+    test '1ページの中で同じ行の id が3つあっても、すべて別の id になる' do
+      answer = requirements_answer
+      row = answer['display']['groups'].first['rows'].first
+      answer['display']['groups'].first['rows'] = [row, row.deep_dup, row.deep_dup]
+      read(3, with: StubReader.new(requirements: { '要件' => answer }))
+
+      ids = document['display']['groups'].first['rows'].pluck('id')
+      assert_equal 3, ids.uniq.size
+    end
+
+    test '科目表として読んだページを要件表に替えて読み直すと、前の科目は残らない' do
+      read(3)
+      read(9)
+      @curriculum.update!(pages: @curriculum.pages.map do |page|
+        page['page'] == 9 ? page.merge('kind' => 'requirements') : page
+      end)
+      other = StubReader.new(requirements: { '科目' => requirements_answer(rule_id: 'from_9') })
+
+      assert read(9, with: other)
+
+      assert_empty courses
+      assert_equal %w[common_total from_9], document['rules'].pluck('id')
+    end
+
+    test '要件表として読んだページを科目表に替えて読み直すと、前の規則・表示・注記は残らない' do
+      read(3, with: StubReader.new(requirements: { '要件' => requirements_answer(detail: '承認が必要') }))
+      read(4)
+      @curriculum.update!(pages: @curriculum.pages.map do |page|
+        page['page'] == 3 ? page.merge('kind' => 'courses') : page
+      end)
+
+      assert read(3, with: StubReader.new(courses: { '要件' => { 'courses' => [course_row('知能101')] } }))
+
+      assert_equal %w[total_2], document['rules'].pluck('id')
+      assert_equal %w[g_total_2], document['display']['groups'].pluck('id')
+      assert_nil document['approval_notes']
+      assert_equal %w[知能101], courses.pluck('number')
+    end
+
+    test '種別を替えて読み直しても、確認済みの科目は残り、記録にも残る' do
+      read(3)
+      read(9)
+      confirm_course('知能103')
+      @curriculum.update!(pages: @curriculum.pages.map do |page|
+        page['page'] == 9 ? page.merge('kind' => 'requirements') : page
+      end)
+      read(9, with: StubReader.new(requirements: { '科目' => requirements_answer(rule_id: 'from_9') }))
+
+      assert_equal %w[知能103], courses.pluck('number')
+      assert_includes page_entry(9)['contributed']['courses'], 'course_知能103'
+    end
+
+    test '読み取り済みのページの種別を替えて保存すると、その結果を外して未読に戻す' do
+      read(3)
+      read(9)
+      confirm_course('知能103')
+
+      @curriculum.reload.assign_page_kinds('9' => 'skip', '3' => 'requirements')
+      @curriculum.save!
+
+      assert_equal %w[知能103], courses.pluck('number'), '確認済みの科目は残る'
+      assert_equal 'pending', page_status(9)
+      assert_nil page_entry(9)['contributed']
+      assert_equal 'skip', page_entry(9)['kind']
+      assert_equal 'read', page_status(3), '種別が変わらないページは触らない'
+      assert_equal %w[common_total], document['rules'].pluck('id')
+    end
+
+    test '要件表のページを skip に替えると、その規則と表示と注記が外れる' do
+      read(3, with: StubReader.new(requirements: { '要件' => requirements_answer(detail: '承認が必要') }))
+
+      @curriculum.reload.assign_page_kinds('3' => 'skip')
+      @curriculum.save!
+
+      assert_empty document['rules']
+      assert_empty document['display']['groups']
+      assert_nil document['approval_notes']
+    end
+
     # --- 承認の注記がページを跨ぐ場合 ---
 
     test '区分の承認の注記は、別のページの科目の requires_approval を真にする(要件表が先)' do

@@ -72,7 +72,7 @@ module CurriculumImport
       raise
     rescue StandardError => e
       Rails.logger.warn("読み取りの結果を下書きに入れられませんでした: #{e.class}: #{e.message}")
-      raise Failure, '読み取りの結果を下書きに入れられませんでした。読み取りの答えの形が想定と違います。'
+      raise Failure, '読み取りの結果を下書きに入れられませんでした。読み取りの答えが想定と違うか、保存に失敗しました。'
     end
 
     def save_merged(number, entry, answer)
@@ -94,14 +94,18 @@ module CurriculumImport
       return [merge.courses(answer), []] unless entry['kind'] == 'requirements'
 
       # 要件表の注記から、区分ごとの承認の注記を拾う。ほかのページの科目へ当てるのは ApprovalNotes.apply。
+      # 前回の分を外すのは DraftMerge の仕事で、先に merge しないと、いま拾った注記まで外してしまう。
+      contributed = merge.requirements(answer)
       notes, unresolved = ApprovalNotes.detect(answer, entry['page'])
       ApprovalNotes.replace_page_notes(document, entry['page'], notes)
       warnings = unresolved.map { |text| "承認の注記らしい文がありますが、対象の区分が分からず科目に反映していません: #{text}" }
       warnings << ApprovalNotes.requirements_page_warning(entry['text'], notes.any? || unresolved.any?)
-      [merge.requirements(answer), warnings]
+      [contributed, warnings]
     end
 
     def record_failure(number, message)
+      # 保存で落ちたときは、代入済みの document・pages が手元に残っている。ロックは行を取り直すので、先に手元の変更を捨てる。
+      @curriculum.restore_attributes
       @curriculum.with_lock do
         @curriculum.pages = replace_entry(number, 'status' => 'failed', 'error' => message)
         @curriculum.save!
