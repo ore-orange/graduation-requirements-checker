@@ -64,6 +64,13 @@ module CurriculumImport
       assert_empty inference(*rows).mismatches
     end
 
+    test '百の位の根拠が足りなくても、同じ接頭辞の他の科目が揃っていれば食い違いを出す' do
+      rows = (101..103).map { |n| ["甲#{n}", n == 103 ? 'other' : 'main'] }
+      rows += (201..250).map { |n| ["甲#{n}", 'main'] }
+
+      assert_equal [{ number: '甲103', read: 'other', inferred: 'main' }], inference(*rows).mismatches
+    end
+
     test '決まらない接頭辞の科目は食い違いにしない' do
       rows = [%w[知能301 advanced], %w[知能302 required_core], %w[知能303 advanced], %w[知能304 related]]
 

@@ -172,6 +172,10 @@ module CurriculumImport
       assert_quiet(broken { |d| d['courses'] << course('人27-1', '枝番の科目', 'humanities') })
     end
 
+    test '区分が空の科目も、review_reason があれば学生に要確認と出るので止めない' do
+      assert_quiet(broken { |d| d['courses'][0].merge!('category' => nil, 'review_reason' => '分類表に無い') })
+    end
+
     test '区分が categories に無い科目は、どの行にも出ないので公開を止める' do
       assert_blocking('区分「nowhere」が categories にありません', broken { |d| d['courses'][0]['category'] = 'nowhere' })
       assert_blocking('categories にありません', broken { |d| d['courses'][0]['category'] = nil })
@@ -221,7 +225,7 @@ module CurriculumImport
 
     test '必要な欄が、どんな型の値に化けても、検査は落ちずに公開を止める' do
       Validation::Input::FIELD_KINDS.each do |type, fields|
-        fields.each_key do |field|
+        fields.each do |field, kind|
           GARBAGE.each do |value|
             document = broken do |d|
               d['rules'] << rule("sample_#{type}", type, **sample_fields(type)).merge(field => value)
@@ -229,6 +233,13 @@ module CurriculumImport
             validation = Validation.new(document)
 
             assert_nothing_raised { validation.call }
+            # 最上位の all_of は置けない型で警告にとどまる。空の経路([[]])だけの paths は形としては読める(警告)。
+            # 最上位の all_of は置けない型で警告にとどまる。空の経路([[]])だけの paths は形としては読める(警告)。
+            # 5 は数の欄に、'x' は文字の欄に、正しい値。
+            valid = (value == 5 && %i[number count].include?(kind)) || (value == 'x' && kind == :text)
+            next if type == 'all_of' || valid || (type == 'one_of_paths' && value == [[]])
+
+            assert_predicate validation, :blocking?, "#{type}.#{field} = #{value.inspect}"
           end
         end
       end
@@ -314,6 +325,8 @@ module CurriculumImport
 
       assert_blocking '必要な欄が無いか、形が違います: required_credits', document
       assert_warning('options が空', broken { |d| d['rules'] << rule('either', 'any_of', options: []) })
+      empty_all_of = { 'type' => 'all_of', 'conditions' => [] }
+      assert_warning('conditions が空', broken { |d| d['rules'] << rule('either', 'any_of', options: [empty_all_of]) })
       lacking = { 'type' => 'all_of' }
       assert_blocking('必要な欄が無いか、形が違います: conditions', broken do |d|
         d['rules'] << rule('either', 'any_of', options: [lacking])
@@ -372,10 +385,12 @@ module CurriculumImport
       assert_warning '役割(role_ghost)を持つ科目が、科目表にありません', document
     end
 
-    test '科目に付いているのに、どの規則も参照しない役割は公開を止める' do
+    # 役割は判定に効かない(必須の役割は one_of_paths からだけ作られる)ので、参照が無くても公開は止めない。
+    test '科目に付いているのに、どの規則も参照しない役割は、要件が落ちた疑いとして警告にとどめる' do
       document = broken { |d| d['courses'][2]['roles'] = ['role_lost'] }
 
-      assert_blocking '役割「role_lost」は科目に付いていますが、どの規則も参照していません', document
+      assert_warning '役割「role_lost」は科目に付いていますが、どの規則も参照していません', document
+      assert_nothing_raised { GraduationAssessment::Catalogue.new(document) }
     end
 
     test '宣言されているだけで、科目も規則も使わない役割は警告にとどめる' do
@@ -403,9 +418,9 @@ module CurriculumImport
     end
 
     test '数える区分に科目が1つも無い規則を出す' do
-      document = broken { |d| d['courses'].reject! { |c| c['category'] == 'english' } }
+      document = broken { |d| d['courses'].reject! { |c| c['category'] == 'humanities' } }
 
-      assert_warning '科目が1つもありません', document
+      assert_warning '数える区分(humanities)に科目が1つもありません', document
     end
 
     test '総単位に数えない区分に、丸ごと算入から外す exclude 規則が無ければ公開を止める' do
@@ -453,6 +468,35 @@ module CurriculumImport
       assert_blocking '規則が見つかりません: humanities', document, scope: :display
     end
 
+    test 'credits_from_check の行は categories を持たなくてよい(指す規則が数える区分を出すものとして扱う)' do
+      document = broken { |d| d['display']['groups'][2]['rows'][0].delete('categories') }
+
+      assert_quiet document
+      assert_nothing_raised { GraduationAssessment::Catalogue.new(document) }
+      strict = broken do |d|
+        d['display']['groups'][2]['rows'][0].delete('categories')
+        d['display']['groups'][2]['rows'][0]['credits_from_check'] = false
+      end
+
+      assert_blocking '画面のどの行にも出てきません', strict
+    end
+
+    test '科目が1つも無い区分が、必要単位のある行に出ていれば公開を止める' do
+      document = broken { |d| d['courses'].reject! { |c| c['category'] == 'english' } }
+
+      assert_blocking '区分「英語」(english)に科目が1つもありません', document, scope: :display
+    end
+
+    test '必要単位の無い行の、科目が無い区分は、学生が自由に入れる区分として許す' do
+      document = broken do |d|
+        d['categories'] << { 'key' => 'free', 'label' => '自由', 'counts_toward_total' => true }
+        d['display']['groups'][2]['rows'] << row('free', ['free'], ['fusion_provider'], nil, required_label: '内数')
+        rule_in(d, 'total')['categories'] << 'free'
+      end
+
+      assert_quiet document
+    end
+
     test '行が categories に無い区分を指していれば公開を止める' do
       assert_blocking('区分を指しています: ghost', broken { |d| d['display']['groups'][0]['rows'][0]['categories'] = ['ghost'] })
     end
@@ -473,15 +517,40 @@ module CurriculumImport
     end
 
     test '区分ごとの必要単位の合計が卒業総単位を超えていたら出す' do
-      assert_warning('卒業算入の総単位(14)を超えて', broken { |d| d['display']['groups'][0]['required_credits'] = 9 })
+      assert_blocking('章の必要単位の合計(17)が、卒業算入の総単位(14)を超えて',
+                      broken { |d| d['display']['groups'][0]['required_credits'] = 9 })
       assert_warning('区分ごとの必要単位の合計(16)が、卒業算入の総単位(14)を超えて',
                      broken { |d| rule_in(d, 'humanities')['required_credits'] = 14 })
+    end
+
+    test '総単位を低く読んだ便覧は、総単位の規則が充足と答えるので公開を止める' do
+      document = JSON.parse(REAL_DOCUMENT.read)
+      document['display']['total_credits'] -= 4
+      document['rules'].find { |r| r['id'] == 'total' }['required_credits'] -= 4
+      result = Validation.new(document)
+
+      assert_blocking('章の必要単位の合計(130)が、卒業算入の総単位(126)を超えて', result)
+      assert_predicate result, :blocking?
+    end
+
+    test '総単位が章の合計より大きいのは正当なので出さない' do
+      document = broken do |d|
+        d['display']['total_credits'] = 18
+        rule_in(d, 'total')['required_credits'] = 18
+      end
+
+      assert_quiet document
     end
 
     test '章・行の必要単位が、指す規則の必要単位と違えば出す' do
       assert_warning('必要単位(5)が、規則「humanities」の必要単位(4)と違います',
                      broken { |d| d['display']['groups'][0]['rows'][0]['required_credits'] = 5 })
       assert_warning('章「required」の必要単位(5)', broken { |d| d['display']['groups'][1]['required_credits'] = 5 })
+      subtotal = { 'id' => 'sub', 'name' => '小計', 'required_credits' => 5, 'row_ids' => ['fusion'],
+                   'check_ids' => ['fusion_provider'] }
+      document = broken { |d| d['display']['subtotals'] = [subtotal] }
+
+      assert_warning('小計「sub」の必要単位(5)が、規則「fusion_provider」の必要単位(4)', document)
     end
 
     test '総単位が読めていなければ公開を止める' do
@@ -555,6 +624,10 @@ module CurriculumImport
         assert_nothing_raised { validation.call }
         assert_predicate validation, :blocking?, document.inspect
       end
+    end
+
+    test 'courses が無い文書は、読める理由で公開を止める' do
+      assert_blocking('courses がありません', broken { |d| d.delete('courses') })
     end
 
     test '形の問題は、読めない部分を空として検査を続けるうえで、公開を止める' do

@@ -57,7 +57,7 @@ module CurriculumImport
         label = label_of(course)
         explained = text?(course['review_reason'])
         number_problem(course, target, label) unless explained
-        category_problem(course, target, label)
+        category_problem(course, target, label) unless explained
         credits_problem(course, target, label) unless explained
         return if text?(course['source_page'])
 
@@ -114,7 +114,9 @@ module CurriculumImport
           end
           next if courses.empty? || courses.all? { |course| course['confirmed'] == true }
 
-          findings.warning(:course, target_of(courses.first, input.courses.index(courses.first)),
+          findings.warning(:course, target_of(courses.first, input.courses.index do |candidate|
+            candidate.equal?(courses.first)
+          end),
                            mismatch_reason(courses.first, mismatch))
         end
       end

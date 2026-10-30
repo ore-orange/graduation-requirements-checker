@@ -75,19 +75,16 @@ module CurriculumImport
       remaining
     end
 
-    # 百の位の鍵が1区分に決まればそれ、鍵が未見のときだけ接頭辞の鍵。百の位の鍵が複数の区分にまたがるなら、
-    # 接頭辞の鍵はそれを含むので必ず決まらない。
+    # 百の位の鍵が1区分に決まり、根拠が足りていればその区分。決まるが根拠が足りないときは、接頭辞の鍵に降りる
+    # (甲101〜103だけでは決められなくても、同じ接頭辞の他の50科目が揃っていれば、それで食い違いが言える)。
+    # 百の位の鍵が複数の区分にまたがるなら、接頭辞の鍵はそれを含むので必ず決まらない。鍵が未見のときも接頭辞に降りる。
     def decide(by_hundreds, by_prefix, min_support)
       [by_hundreds, by_prefix].each do |counts|
         next if counts.blank?
-
-        return sole_category(counts, min_support)
+        return nil if counts.size > 1
+        return counts.keys.first if counts.values.sum >= min_support
       end
       nil
-    end
-
-    def sole_category(counts, min_support)
-      counts.keys.first if counts.size == 1 && counts.values.sum >= min_support
     end
   end
 end

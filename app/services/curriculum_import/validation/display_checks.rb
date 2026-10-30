@@ -11,6 +11,7 @@ module CurriculumImport
         total_credits
         references
         uncovered_categories
+        empty_required_categories
         required_credits_agree
         over_total
         total_rule
@@ -60,10 +61,42 @@ module CurriculumImport
       # どの行にも出てこない区分の科目は、計画表にも内訳にも出ず、学生から見えないまま消える。総単位に数えない区分
       # (exclude 規則が算入から外すもの)は、行に出なくてよい。
       def uncovered_categories
-        shown = input.rows.flat_map { |row| Array.wrap(row['categories']) }
-        (input.counted_category_keys - shown).each do |category|
+        (input.counted_category_keys - shown_categories).each do |category|
           findings.blocking(:display, category, "区分「#{input.category_label(category)}」(#{category})は、画面のどの行にも出てきません。" \
                                                 'この区分の科目は、計画表にも内訳にも出ないまま消えます。')
+        end
+      end
+
+      # 行が出す区分。categories を持たない行は、判定(check)から単位を取る credits_from_check の行なら正当な形
+      # (Catalogue は categories を必須にしていない)。その行は、指す規則が数える区分を出すものとして扱う。
+      def shown_categories
+        input.rows.flat_map do |row|
+          categories = Array.wrap(row['categories'])
+          next categories if categories.any? || row['credits_from_check'] != true
+
+          Array.wrap(row['check_ids']).flat_map { |id| rule_categories(condition_for(id)) }
+        end
+      end
+
+      def rule_categories(rule)
+        return [] unless rule
+
+        %w[category categories].flat_map { |field| Array.wrap(rule[field]) }.grep(String)
+      end
+
+      # 科目が1つも無い区分が、必要単位のある行に出ている。どの科目も満たせないので、この便覧はすべての学生を誤判定する
+      # (科目の読み落としで区分ごと消えたか、区分の綴りが違う)。読み進めても直らないので公開を止める。
+      # 必要単位を持たない行(必要単位が null の内数の行)の区分は、学生が自由に入れるもの(専門科目(自由)など)として許す。
+      def empty_required_categories
+        input.rows.each do |row|
+          next unless positive_number?(row['required_credits'])
+
+          (Array.wrap(row['categories']) & input.counted_category_keys).each do |category|
+            next if input.courses_in(category).any?
+
+            findings.blocking(:display, row['id'], "行「#{row['id']}」は必要単位がありますが、区分「#{input.category_label(category)}」" \
+                                                   "(#{category})に科目が1つもありません。この行は誰も満たせません。")
+          end
         end
       end
 
@@ -90,21 +123,33 @@ module CurriculumImport
         input.rules.find { |candidate| candidate['id'] == id && !input.adjustment?(candidate) }
       end
 
-      # 設計書 §4 の 5。区分ごとの必要単位の合計が総単位を超えていれば、どれかの数字が誤っている。
-      # 章の必要単位の合計と、区分1つだけを数える規則の必要単位の合計(同じ区分は大きい方を1回)の両方で見る。
+      # 設計書 §4 の 5。総単位より、章の必要単位の合計が大きいことはありえない。
+      #
+      # 章の合計: 章は互いに重ならない内訳なので、章ごとの最低単位の合計が総単位を超えるのは算術上の矛盾。
+      #   総単位を低く読むと、総単位の規則は「充足」と答え、学生は足りないまま「卒業できます」と言われる(要確認にも
+      #   ならない)。だから公開を止める。総単位が章の合計より大きいのは正当なので出さない。
+      # 区分ごとの合計: 区分1つだけを数える規則の必要単位の合計(同じ区分は大きい方を1回)。総単位に数えない区分が
+      #   独自の必要単位を持てるので、総単位を超えることが正当にありうる。警告にとどめる。
       def over_total
         total = input.display['total_credits']
         return unless positive_number?(total)
 
-        sums = { '章の必要単位の合計' => input.groups.sum do |group|
-          number?(group['required_credits']) ? group['required_credits'] : 0
-        end,
-                 '区分ごとの必要単位の合計' => per_category_requirements.values.sum }
-        sums.each do |name, sum|
-          next unless sum > total
+        chapters = input.groups.sum { |group| number?(group['required_credits']) ? group['required_credits'] : 0 }
+        report_over_total('章の必要単位の合計', chapters, total, blocking: true)
+        report_over_total('区分ごとの必要単位の合計', per_category_requirements.values.sum, total, blocking: false)
+      end
 
-          findings.warning(:display, 'total_credits',
-                           "#{name}(#{format_number(sum)})が、卒業算入の総単位(#{format_number(total)})を超えています。どちらかの数字が誤っています。")
+      def report_over_total(name, sum, total, blocking:)
+        return unless sum > total
+
+        reason = "#{name}(#{format_number(sum)})が、卒業算入の総単位(#{format_number(total)})を超えています。" \
+                 'どちらかの数字が誤っています。'
+        reason += '総単位が低く読まれていると、足りない学生に「卒業できます」と答えます。' if blocking
+        if blocking
+          findings.blocking(:display, 'total_credits',
+                            reason)
+        else
+          findings.warning(:display, 'total_credits', reason)
         end
       end
 
@@ -119,6 +164,8 @@ module CurriculumImport
 
       # 卒業の総単位に当たる規則(必要単位が総単位と同じ credit_sum)が、総単位に数える区分と同じ区分を数えているか。
       # 足りなければ総単位が過少に、余れば過大に出る。総単位に数えない区分が混ざっても exclude が外すので、警告にとどめる。
+      # 注意: 「余分な区分は警告でよい」のは、RuleChecks#excluded_categories が「総単位に数えない区分には必ず exclude 規則が
+      # ある」ことを止めているから。あちらを警告に緩めると、ここの余分な区分は黙って過大に数えられる。両方を一緒に見ること。
       def total_rule
         total = input.display['total_credits']
         return unless positive_number?(total)

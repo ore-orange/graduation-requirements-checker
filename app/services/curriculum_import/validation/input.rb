@@ -111,6 +111,7 @@ module CurriculumImport
       private
 
       def load_lists
+        @shape_problems << [:course, 'courses', 'courses がありません'] if document['courses'].nil?
         @courses = list(document, 'courses', :course, 'courses')
         @categories = list(document, 'categories', :display, 'categories')
         @rules = list(document, 'rules', :rule, 'rules')

@@ -96,8 +96,7 @@ module CurriculumImport
       end
 
       # 規則が名指しする役割を持つ科目が無ければ、その規則は必ず要確認になる。
-      # 役割を持つ科目があるのに、どの規則も参照しないなら、その要件が規則から落ちている疑いがある。落ちた要件は、
-      # 学生が満たしていなくても何も言わない。
+      # 役割を持つ科目があるのに、どの規則も参照しないなら、その要件が規則から落ちている疑いがある(警告)。
       def roles
         held = input.courses.flat_map { |course| Array.wrap(course['roles']) }.grep(String).uniq
         named = roles_named_by_rules(held)
@@ -118,10 +117,13 @@ module CurriculumImport
         end.uniq
       end
 
+      # 参照されない役割は、判定には効かない(必須の役割は one_of_paths からだけ作られる)ので、警告にとどめる。
+      # 役割を持つ科目があるのに規則が無いなら、その要件が規則から落ちた疑いがある。疑いで公開は止めないが、人には渡す。
       def orphan_role(role, held)
         if held.include?(role)
-          findings.blocking(:rule, role, "役割「#{role}」は科目に付いていますが、どの規則も参照していません。" \
-                                         'その科目に求める要件が規則から落ちていると、満たしていない学生にも何も言いません。')
+          findings.warning(:rule, role, "役割「#{role}」は科目に付いていますが、どの規則も参照していません。" \
+                                        'その科目に求める要件が規則から落ちていないか確かめてください。落ちていると、' \
+                                        '満たしていない学生にも何も言いません。')
         else
           findings.warning(:rule, role, "役割「#{role}」は宣言されていますが、どの規則も科目も使っていません。")
         end
@@ -142,7 +144,6 @@ module CurriculumImport
       # 公開の前に、どちらが誤りかを人が見られるよう理由を出す。
       def required_courses
         input.well_formed_nodes_of('all_required').each do |node|
-          node.rule
           mandatory = input.courses.select { |course| course['required'] }
           if mandatory.empty?
             findings.warning(:rule, node.target, '必修の科目が科目表に1つもありません。この規則は必ず要確認になります。')
