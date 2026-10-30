@@ -68,10 +68,10 @@ module CurriculumImport
       kept = withdraw_previous
       add_keyed(@document['categories'], answer['categories'], '区分')
       add_roles(answer['roles'])
-      rule_ids = add_rules(Array(answer['rules']))
+      rule_ids, added_rules = add_rules(Array(answer['rules']))
       display = add_display(answer['display'] || {}, rule_ids)
       touch_source
-      { 'rules' => rule_ids.values, 'groups' => display[:groups], 'subtotals' => display[:subtotals],
+      { 'rules' => added_rules, 'groups' => display[:groups], 'subtotals' => display[:subtotals],
         'total_credits' => display[:total_credits] }.tap { |record| record['courses'] = kept if kept.any? }
     end
 
@@ -136,6 +136,8 @@ module CurriculumImport
           target << entry
         else
           @warnings.concat(keyed_differences(noun, existing, entry))
+          # 総単位に数えるかが食い違うときは、数えない側に倒す。数える側に倒すと単位の水増しになり、数えない側は要確認になる。
+          existing['counts_toward_total'] = false if entry['counts_toward_total'] == false
         end
       end
     end
@@ -148,7 +150,8 @@ module CurriculumImport
       end
       if existing['counts_toward_total'] != entry['counts_toward_total']
         differences << "#{noun} #{entry['key']} の「卒業の総単位に数えるか」が別のページと食い違います" \
-                       "(先: #{existing['counts_toward_total']}、このページ: #{entry['counts_toward_total']})。"
+                       "(先: #{existing['counts_toward_total']}、このページ: #{entry['counts_toward_total']})。" \
+                       '数えない(false)側に合わせました。確かめてください。'
       end
       differences
     end
@@ -160,15 +163,20 @@ module CurriculumImport
       add_keyed(@document['roles'] ||= [], incoming, '役割')
     end
 
-    # 規則を足す。別のページの規則と id がぶつかるものは付け替え、{読んだ id => 実際の id} を返す。
+    # 規則を足す。別のページ・同じページの規則と id がぶつかるものは付け替える。
+    # 戻り値は [{読んだ id => 実際の id(参照の付け替えに使う。同じ id が複数なら最初のもの)}, 足した規則の実際の id すべて]。
+    # 読み直しで外すのは後者。前者だけを記録すると、付け替えた重複が外れず、読み直すたびに積もる。
     def add_rules(rules)
       taken = @document['rules'].pluck('id')
-      rules.each_with_object({}) do |rule, ids|
+      mapping = {}
+      added = rules.map do |rule|
         id = unique_id(rule['id'], taken)
-        ids[rule['id']] ||= id
+        mapping[rule['id']] ||= id
         taken << id
         @document['rules'] << rule.merge('id' => id, 'source_page' => @label)
+        id
       end
+      [mapping, added]
     end
 
     def add_display(display, rule_ids)

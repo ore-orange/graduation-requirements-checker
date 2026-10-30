@@ -64,7 +64,7 @@ class CurriculaController < ApplicationController
     end
     return redirect_to @curriculum, alert: notice, status: :see_other if notice.is_a?(String)
 
-    redirect_to @curriculum, notice: 'ページの指定を保存しました。', status: :see_other
+    redirect_to @curriculum, notice: saved_notice, status: :see_other
   end
 
   # 下書きは作業中の文書なので、そのまま消す。公開済みは load_draft で弾く。
@@ -146,8 +146,22 @@ class CurriculaController < ApplicationController
     kinds = raw.respond_to?(:each_pair) ? raw.each_pair.to_h { |page, kind| [page.to_s, kind.to_s] } : {}
     return '科目表・要件表・読まない のいずれかを、存在するページに指定してください。' unless kinds.any? && @curriculum.page_kinds_assignable?(kinds)
 
+    read_before = @curriculum.pages.select { |page| page['status'] == 'read' }.pluck('page')
     @curriculum.assign_page_kinds(kinds)
+    @withdrawn_pages = read_before.reject { |number| page_status(number) == 'read' }
     nil
+  end
+
+  def page_status(number)
+    @curriculum.pages.find { |page| page['page'] == number }['status']
+  end
+
+  # 種別を替えたページは読み取りの結果を外して未読に戻す。気づかないまま消えないよう、どのページか知らせる。
+  def saved_notice
+    return 'ページの指定を保存しました。' if @withdrawn_pages.blank?
+
+    "ページの指定を保存しました。種別を替えた#{@withdrawn_pages.join('・')}ページの読み取り結果は外しました" \
+      '(確認済みの科目は残ります)。必要なら読み直してください。'
   end
 end
 

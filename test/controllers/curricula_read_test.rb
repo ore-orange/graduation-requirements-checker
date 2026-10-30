@@ -199,6 +199,25 @@ class CurriculaReadTest < ActionDispatch::IntegrationTest
     assert_equal 'skip', page_entry(3)['kind']
   end
 
+  test '読み取り済みのページの種別を替えて保存すると、結果を外したページを知らせる' do
+    read_page(2, StubReader.new(requirements: REQUIREMENTS))
+
+    patch curriculum_path(@draft), params: { pages: { '2' => 'skip', '3' => 'courses' } }, env: ENV_LOCAL
+
+    assert_redirected_to curriculum_path(@draft)
+    assert_match(/2ページの読み取り結果は外しました/, flash[:notice])
+    assert_equal 'pending', page_entry(2)['status']
+  end
+
+  test '読み取り済みのページの種別を替えなければ、外したという知らせは出ない' do
+    read_page(2, StubReader.new(requirements: REQUIREMENTS))
+
+    patch curriculum_path(@draft), params: { pages: { '2' => 'requirements', '3' => 'skip' } }, env: ENV_LOCAL
+
+    assert_equal 'ページの指定を保存しました。', flash[:notice]
+    assert_equal 'read', page_entry(2)['status']
+  end
+
   test 'ローカル以外からは読み取れない' do
     CurriculumReader.stub(:available?, true) do
       post read_page_curriculum_path(@draft, page: 2), headers: STREAM, env: { 'REMOTE_ADDR' => '203.0.113.9' }

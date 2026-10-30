@@ -428,7 +428,16 @@ module CurriculumImport
       answer = requirements_answer(rule_id: 'total_2', categories: changed)
       read(4, with: StubReader.new(requirements: { '要件その2' => answer }))
 
-      assert_equal [true, true], document['categories'].pluck('counts_toward_total')
+      assert_equal [false, false], document['categories'].pluck('counts_toward_total'), '数えない側に倒す'
+      assert_match(/総単位に数えるか/, page_entry(4)['warnings'].join)
+    end
+
+    test '総単位に数えない区分は、あとのページが「数える」と読んでも数えないまま' do
+      first = CATEGORIES.map { |category| category.merge('counts_toward_total' => false) }
+      read(3, with: StubReader.new(requirements: { '要件' => requirements_answer(categories: first) }))
+      read(4)
+
+      assert_equal [false, false], document['categories'].pluck('counts_toward_total')
       assert_match(/総単位に数えるか/, page_entry(4)['warnings'].join)
     end
 
@@ -494,7 +503,7 @@ module CurriculumImport
 
       assert_equal %w[知能103], courses.pluck('number'), '確認済みの科目は残る'
       assert_equal 'pending', page_status(9)
-      assert_nil page_entry(9)['contributed']
+      assert_equal({ 'courses' => ['course_知能103'] }, page_entry(9)['contributed'], '残した確認済みの科目だけを持つ')
       assert_equal 'skip', page_entry(9)['kind']
       assert_equal 'read', page_status(3), '種別が変わらないページは触らない'
       assert_equal %w[common_total], document['rules'].pluck('id')
@@ -509,6 +518,35 @@ module CurriculumImport
       assert_empty document['rules']
       assert_empty document['display']['groups']
       assert_nil document['approval_notes']
+    end
+
+    test '確認済みの科目を残して skip にし、また科目表に戻して読んでも、同じ番号が二重に入らない' do
+      read(3)
+      read(9)
+      confirm_course('知能103')
+
+      @curriculum.reload.assign_page_kinds('9' => 'skip')
+      @curriculum.save!
+      assert_equal ['course_知能103'], page_entry(9)['contributed']['courses'], '残した科目は記録に残す'
+      @curriculum.reload.assign_page_kinds('9' => 'courses')
+      @curriculum.save!
+      read(9)
+
+      assert_equal %w[知能101 知能103], courses.pluck('number').sort
+      assert_nothing_raised { GraduationAssessment::Catalogue.new(document) }
+    end
+
+    test '1ページの中で同じ規則の id が3つあっても、読み直しで積もらず、すべて入れ替わる' do
+      answer = requirements_answer
+      answer['rules'] = [answer['rules'].first, answer['rules'].first.deep_dup, answer['rules'].first.deep_dup]
+      stub = StubReader.new(requirements: { '要件' => answer })
+      read(3, with: stub)
+      first = document['rules'].pluck('id')
+      assert_equal 3, first.uniq.size
+
+      read(3, with: stub)
+
+      assert_equal first.sort, document['rules'].pluck('id').sort
     end
 
     # --- 承認の注記がページを跨ぐ場合 ---
