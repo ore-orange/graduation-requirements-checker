@@ -234,7 +234,6 @@ module CurriculumImport
 
             assert_nothing_raised { validation.call }
             # 最上位の all_of は置けない型で警告にとどまる。空の経路([[]])だけの paths は形としては読める(警告)。
-            # 最上位の all_of は置けない型で警告にとどまる。空の経路([[]])だけの paths は形としては読める(警告)。
             # 5 は数の欄に、'x' は文字の欄に、正しい値。
             valid = (value == 5 && %i[number count].include?(kind)) || (value == 'x' && kind == :text)
             next if type == 'all_of' || valid || (type == 'one_of_paths' && value == [[]])
@@ -468,23 +467,37 @@ module CurriculumImport
       assert_blocking '規則が見つかりません: humanities', document, scope: :display
     end
 
-    test 'credits_from_check の行は categories を持たなくてよい(指す規則が数える区分を出すものとして扱う)' do
-      document = broken { |d| d['display']['groups'][2]['rows'][0].delete('categories') }
+    test 'credits_from_check の行は categories が空配列でもよい(指す規則が数える区分を出すものとして扱う)' do
+      document = broken { |d| d['display']['groups'][2]['rows'][0]['categories'] = [] }
 
       assert_quiet document
       assert_nothing_raised { GraduationAssessment::Catalogue.new(document) }
       strict = broken do |d|
-        d['display']['groups'][2]['rows'][0].delete('categories')
+        d['display']['groups'][2]['rows'][0]['categories'] = []
         d['display']['groups'][2]['rows'][0]['credits_from_check'] = false
       end
 
       assert_blocking '画面のどの行にも出てきません', strict
     end
 
-    test '科目が1つも無い区分が、必要単位のある行に出ていれば公開を止める' do
+    # 欄が無いと、計画表が row[:categories].include? を呼んで落ちる。Catalogue は通すので、ここで止める。
+    test '行の categories が無い・配列でないなら、credits_from_check の行でも公開を止める' do
+      [:absent, nil, 'fusion'].each do |value|
+        document = broken do |d|
+          row = d['display']['groups'][2]['rows'][0]
+          value == :absent ? row.delete('categories') : row['categories'] = value
+        end
+
+        assert_blocking 'categories が配列ではありません', document, scope: :display
+      end
+    end
+
+    # 学生は任意の算入区分に自分で科目を入れられるので、科目表に無い区分が満たせないわけではない。止めずに知らせる。
+    test '科目が1つも無い区分が、必要単位のある行に出ていれば警告する(止めない)' do
       document = broken { |d| d['courses'].reject! { |c| c['category'] == 'english' } }
 
-      assert_blocking '区分「英語」(english)に科目が1つもありません', document, scope: :display
+      assert_warning '区分「英語」(english)に科目が1つもありません', document, scope: :display
+      assert_not_predicate Validation.new(document), :blocking?
     end
 
     test '必要単位の無い行の、科目が無い区分は、学生が自由に入れる区分として許す' do
@@ -495,6 +508,17 @@ module CurriculumImport
       end
 
       assert_quiet document
+    end
+
+    test '要件表が内数を明記した自由科目の行(必要単位あり)も、公開を止めない' do
+      document = broken do |d|
+        d['categories'] << { 'key' => 'free', 'label' => '自由', 'counts_toward_total' => true }
+        d['display']['groups'][2]['rows'] << row('free', ['free'], ['fusion_provider'], 11)
+        rule_in(d, 'total')['categories'] << 'free'
+      end
+
+      assert_warning '区分「自由」(free)に科目が1つもありません', document
+      assert_not_predicate Validation.new(document), :blocking?
     end
 
     test '行が categories に無い区分を指していれば公開を止める' do
@@ -531,6 +555,19 @@ module CurriculumImport
 
       assert_blocking('章の必要単位の合計(130)が、卒業算入の総単位(126)を超えて', result)
       assert_predicate result, :blocking?
+    end
+
+    # 総単位に数えない区分だけの章(教職科目など)は、総単位とは別に積める。
+    test '総単位に数えない区分だけの章は、章の合計に入れない' do
+      document = broken do |d|
+        d['categories'] << { 'key' => 'teaching', 'label' => '教職', 'counts_toward_total' => false }
+        d['rules'] << rule('teaching_exclude', 'exclude', category: 'teaching', reason: '教職は算入対象外')
+        d['courses'] << course('教01', '教職入門', 'teaching')
+        d['display']['groups'] << { 'id' => 'teaching', 'title' => '4. 教職', 'required_credits' => 20,
+                                    'rows' => [row('teaching', ['teaching'], [], 20)] }
+      end
+
+      assert_quiet document
     end
 
     test '総単位が章の合計より大きいのは正当なので出さない' do

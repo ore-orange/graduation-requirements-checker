@@ -30,15 +30,22 @@ module CurriculumImport
         input.groups.each do |group|
           check_reference(group, 'check_id', Array.wrap(group['check_id']), "章「#{group['id']}」")
         end
-        input.rows.each do |row|
-          check_reference(row, 'check_ids', Array.wrap(row['check_ids']), "行「#{row['id']}」")
-          unknown = Array.wrap(row['categories']) - input.category_keys
-          next if unknown.empty?
-
-          findings.blocking(:display, row['id'],
-                            "行「#{row['id']}」が categories に無い区分を指しています: #{unknown.join('、')}。この行は区分の単位を数えられません。")
-        end
+        input.rows.each { |row| row_references(row) }
         input.subtotals.each { |subtotal| subtotal_references(subtotal) }
+      end
+
+      def row_references(row)
+        check_reference(row, 'check_ids', Array.wrap(row['check_ids']), "行「#{row['id']}」")
+        unless row['categories'].is_a?(Array)
+          return findings.blocking(:display, row['id'], "行「#{row['id']}」の categories が配列ではありません(空なら [] と書きます)。" \
+                                                        '画面の計画表が、この行の区分を引けずに落ちます。')
+        end
+
+        unknown = row['categories'] - input.category_keys
+        return if unknown.empty?
+
+        findings.blocking(:display, row['id'],
+                          "行「#{row['id']}」が categories に無い区分を指しています: #{unknown.join('、')}。この行は区分の単位を数えられません。")
       end
 
       def check_reference(item, field, ids, name)
@@ -67,12 +74,13 @@ module CurriculumImport
         end
       end
 
-      # 行が出す区分。categories を持たない行は、判定(check)から単位を取る credits_from_check の行なら正当な形
-      # (Catalogue は categories を必須にしていない)。その行は、指す規則が数える区分を出すものとして扱う。
+      # 行が出す区分。categories が空配列の行は、判定(check)から単位を取る credits_from_check の行なら正当な形。
+      # その行は、指す規則が数える区分を出すものとして扱う。categories の欄そのものが無い・配列でない行は、
+      # 画面(計画表・ダッシュボード)が categories.include? を呼んで落ちるので、references で別に止める。
       def shown_categories
         input.rows.flat_map do |row|
           categories = Array.wrap(row['categories'])
-          next categories if categories.any? || row['credits_from_check'] != true
+          next categories if categories.any? || row['credits_from_check'] != true || !row['categories'].is_a?(Array)
 
           Array.wrap(row['check_ids']).flat_map { |id| rule_categories(condition_for(id)) }
         end
@@ -84,18 +92,21 @@ module CurriculumImport
         %w[category categories].flat_map { |field| Array.wrap(rule[field]) }.grep(String)
       end
 
-      # 科目が1つも無い区分が、必要単位のある行に出ている。どの科目も満たせないので、この便覧はすべての学生を誤判定する
-      # (科目の読み落としで区分ごと消えたか、区分の綴りが違う)。読み進めても直らないので公開を止める。
-      # 必要単位を持たない行(必要単位が null の内数の行)の区分は、学生が自由に入れるもの(専門科目(自由)など)として許す。
+      # 科目が1つも無い区分が、必要単位のある行に出ている。科目の読み落としで区分ごと消えたか、区分の綴りが違う疑い。
+      # 公開は止めない。学生は任意の算入区分に自分で科目を入れられる(計画表の custom_categories)ので、科目表に無い区分が
+      # 満たせないわけではなく、止めると、要件表が内数を明記した年度(専門科目(自由)の11単位など)を公開できなくなる。
+      # 消えた区分の単位は数えられず、学生には不足・要確認と出る(安全側)ので、警告にとどめる。
+      # 必要単位を持たない行(必要単位が null の内数の行)の区分は、学生が自由に入れるものとして許す。
       def empty_required_categories
         input.rows.each do |row|
-          next unless positive_number?(row['required_credits'])
+          next unless positive_number?(row['required_credits']) && row['categories'].is_a?(Array)
 
-          (Array.wrap(row['categories']) & input.counted_category_keys).each do |category|
+          (row['categories'] & input.counted_category_keys).each do |category|
             next if input.courses_in(category).any?
 
-            findings.blocking(:display, row['id'], "行「#{row['id']}」は必要単位がありますが、区分「#{input.category_label(category)}」" \
-                                                   "(#{category})に科目が1つもありません。この行は誰も満たせません。")
+            findings.warning(:display, row['id'], "行「#{row['id']}」は必要単位がありますが、区分「#{input.category_label(category)}」" \
+                                                  "(#{category})に科目が1つもありません。読み落としで消えていると、この区分の単位は" \
+                                                  'どの行にも届きません。')
           end
         end
       end
@@ -134,9 +145,20 @@ module CurriculumImport
         total = input.display['total_credits']
         return unless positive_number?(total)
 
-        chapters = input.groups.sum { |group| number?(group['required_credits']) ? group['required_credits'] : 0 }
+        chapters = input.groups.sum { |group| chapter_requirement(group) }
         report_over_total('章の必要単位の合計', chapters, total, blocking: true)
         report_over_total('区分ごとの必要単位の合計', per_category_requirements.values.sum, total, blocking: false)
+      end
+
+      # 総単位に数えない区分だけでできた章(教職科目など)は、総単位とは別に積める。合計に入れない。
+      def chapter_requirement(group)
+        return 0 unless number?(group['required_credits'])
+
+        categories = Array.wrap(group['rows']).flat_map do |row|
+          Array.wrap(row['categories']) if row.is_a?(Hash)
+        end.compact
+        uncounted_only = categories.any? && (categories - input.uncounted_category_keys).empty?
+        uncounted_only ? 0 : group['required_credits']
       end
 
       def report_over_total(name, sum, total, blocking:)
