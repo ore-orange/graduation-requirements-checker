@@ -56,7 +56,10 @@ module CurriculumImport
     # 確認画面の保存と同じ道(RequirementsEdit)で直す。
     def edit(**params)
       result = nil
-      @curriculum.with_lock { result = RequirementsEdit.new(@curriculum, params).call }
+      @curriculum.with_lock do
+        signed = params.merge(revision: RequirementsEdit.revision(@curriculum.document))
+        result = RequirementsEdit.new(@curriculum, signed).call
+      end
       assert_predicate result, :ok?, result.errors.inspect
       result
     end
@@ -179,8 +182,8 @@ module CurriculumImport
       read(total: 130)
 
       assert_equal 128, document['display']['total_credits']
-      assert(warnings.any? { |text| text.include?('卒業に必要な総単位が別のページの値(128)と食い違います(このページ: 130)') })
-      assert_equal false, contributed['total_credits']
+      assert(warnings.any? { |text| text.include?('卒業に必要な総単位は、人が直した値(128)を残しました(読み直した結果: 130)') })
+      assert_equal 'human', contributed['total_credits']
     end
 
     test '直していない総単位は、読み直しで入れ替わる' do

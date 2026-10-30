@@ -17,7 +17,7 @@ module CurriculumImport
 
       def coerce(value, kind, name)
         case kind
-        when :text then text(value, name)
+        when :text, :optional_text then text(value, name)
         when :number then number(value, name)
         when :count then count(value, name)
         when :flag then flag(value, name)
@@ -86,7 +86,7 @@ module CurriculumImport
       # 画面が送り返してくる形に直した、いまの値。
       def baseline(kind, field, current)
         case kind
-        when :text then current.is_a?(String) ? normalize(current) : current
+        when :text, :optional_text then current.is_a?(String) ? normalize(current) : current
         when :list then Array(current)
         when :flag then current.nil? ? FLAG_DEFAULTS.fetch(field, false) : current
         else current

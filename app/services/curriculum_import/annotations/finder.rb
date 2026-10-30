@@ -20,11 +20,13 @@ module CurriculumImport
       def applied_notes(document)
         notes = document.is_a?(Hash) ? Array(document[ApprovalNotes::KEY]).grep(Hash) : []
         notes.map do |note|
-          text = note['text'].to_s
-          where = note['category'] || note['page']
-          Card.new(id: digest(:approval_applied, note['scope'], where, text), kind: :approval_applied, text: text,
+          Card.new(id: applied_id(note), kind: :approval_applied, text: note['text'].to_s,
                    page: note['source_page'] || note['page'], covers: covered_courses(document, note))
         end
+      end
+
+      def applied_id(note)
+        digest(:approval_applied, note['scope'], note['category'] || note['page'], note['text'].to_s)
       end
 
       def covered_courses(document, note)

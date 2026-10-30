@@ -22,7 +22,30 @@ module CurriculumImport
         keys = Array(contributed['courses'])
         document['courses']&.reject! { |course| keys.include?(course['key']) && !course[CONFIRMED] }
         kept['courses'] = Array(document['courses']).select { |course| keys.include?(course['key']) }.pluck('key')
-        kept.reject { |_, ids| ids.empty? }
+        kept = kept.reject { |_, ids| ids.empty? }
+        carry_over(kept, document, contributed)
+      end
+
+      # 残したものの由来(Origins)と、人が直した総単位の印は、次の記録に引き継ぐ。
+      def carry_over(kept, document, contributed)
+        origins = kept_origins(kept, document, contributed['origins'])
+        kept['origins'] = origins if origins.any?
+        kept['total_credits'] = contributed['total_credits'] if contributed['total_credits'] == HUMAN
+        kept
+      end
+
+      # 残した規則・章・小計と、残した章の中の行の由来だけを残す。
+      def kept_origins(kept, document, origins)
+        return {} unless origins.is_a?(Hash)
+
+        wanted = kept.slice('rules', 'groups', 'subtotals').merge('rows' => kept_row_ids(document, kept['groups']))
+        wanted.to_h { |kind, ids| [kind, Hash(origins[kind]).slice(*Array(ids))] }.reject { |_, table| table.empty? }
+      end
+
+      def kept_row_ids(document, group_ids)
+        groups = Array(document.dig('display', 'groups')).grep(Hash)
+        groups.select { |group| Array(group_ids).include?(group['id']) }
+              .flat_map { |group| Array(group['rows']).grep(Hash).pluck('id') }
       end
 
       def requirements(document, contributed)
@@ -30,7 +53,7 @@ module CurriculumImport
         kept = { 'rules' => drop(document['rules'], contributed['rules']),
                  'groups' => drop(display['groups'], contributed['groups']),
                  'subtotals' => drop(display['subtotals'], contributed['subtotals']) }
-        display.delete('total_credits') if contributed['total_credits']
+        display.delete('total_credits') if contributed['total_credits'] == true
         kept
       end
 

@@ -24,7 +24,7 @@ module CurriculumImport
       def edit_total_credits(display, section)
         return unless section.key?(:total_credits)
 
-        value = coerce(section[:total_credits], :number, '卒業に必要な総単位')
+        value = in_context('total', 'total') { coerce(section[:total_credits], :number, '卒業に必要な総単位') }
         return if value.nil? || value == :invalid || value == display['total_credits']
 
         display['total_credits'] = value
@@ -36,7 +36,7 @@ module CurriculumImport
         @pages.each do |page|
           next unless page.dig('contributed', 'total_credits')
 
-          page['contributed'] = page['contributed'].merge('total_credits' => false)
+          page['contributed'] = page['contributed'].merge('total_credits' => DraftMerge::HUMAN)
         end
       end
 
@@ -45,7 +45,7 @@ module CurriculumImport
         groups = list_of(display, 'groups') or return
 
         removed = []
-        merged = merge_in_order(groups, entries, '章') do |group, entry|
+        merged = merge_in_order(groups, entries, '章', 'group') do |group, entry|
           destroy?(entry) ? discard(group, 'group', removed) : edit_group(group, entry)
         end
         display['groups'] = merged
@@ -54,7 +54,7 @@ module CurriculumImport
 
       def edit_group(group, entry)
         group = group.deep_dup
-        mark(group, assign(group, entry, GROUP_FIELDS, "章「#{group['id']}」").any?)
+        mark(group, assign(group, entry, GROUP_FIELDS, 'group', group['id']).any?)
         edit_rows(group, entry[:rows]) if entry.key?(:rows)
         group
       end
@@ -64,10 +64,10 @@ module CurriculumImport
         rows = list_of(group, 'rows') or return
 
         removed = []
-        merged = merge_in_order(rows, entries, "行(章「#{group['id']}」)") do |row, entry|
+        merged = merge_in_order(rows, entries, "行(章「#{group['id']}」)", 'row') do |row, entry|
           next discard(row, 'row', removed, group['id']) if destroy?(entry)
 
-          row.deep_dup.tap { |copy| mark(copy, assign(copy, entry, ROW_FIELDS, "行「#{row['id']}」").any?) }
+          row.deep_dup.tap { |copy| mark(copy, assign(copy, entry, ROW_FIELDS, 'row', row['id']).any?) }
         end
         group['rows'] = merged
         mark_moved(rows.reject { |row| removed.include?(row['id']) }, merged)
@@ -78,11 +78,11 @@ module CurriculumImport
         subtotals = list_of(display, 'subtotals') or return
 
         removed = []
-        merged = merge_in_order(subtotals, entries, '小計') do |subtotal, entry|
+        merged = merge_in_order(subtotals, entries, '小計', 'subtotal') do |subtotal, entry|
           next discard(subtotal, 'subtotal', removed) if destroy?(entry)
 
           subtotal.deep_dup.tap do |copy|
-            mark(copy, assign(copy, entry, SUBTOTAL_FIELDS, "小計「#{subtotal['id']}」").any?)
+            mark(copy, assign(copy, entry, SUBTOTAL_FIELDS, 'subtotal', subtotal['id']).any?)
           end
         end
         display['subtotals'] = merged
@@ -91,12 +91,12 @@ module CurriculumImport
       # entries に出てきた項目を、entries の順(position があればその順)に並べ直す。出てこなかった項目は、消さず、動かさない。
       # 並べ直すのは、出てきた項目が元いた場所の中だけ(一部だけを送っても、ほかの項目の並びは変わらない)。
       # ブロックは (項目, 送られた値) を受けて、直した項目(消すなら nil)を返す。
-      def merge_in_order(items, entries, noun, &)
+      def merge_in_order(items, entries, noun, kind, &)
         by_id = items.group_by { |item| item['id'] }
         seen = []
         replacements = ordered(entries).filter_map do |entry|
           item = by_id[entry[:id]]&.first
-          next error("#{noun}「#{entry[:id]}」は下書きにありません。") unless item
+          next error("#{noun}「#{entry[:id]}」は下書きにありません。", kind, entry[:id]) unless item
 
           seen << item['id']
           yield(item, entry)

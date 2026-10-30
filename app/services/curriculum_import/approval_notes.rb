@@ -20,6 +20,7 @@ module CurriculumImport
     ROW_TEXT_FIELDS = %w[name subtitle required_label].freeze
     NESTED = %w[options conditions].freeze
     EXCERPT_LENGTH = 60
+    BY_NOTE = 'approval_by_note'
     # ページの警告に残す文。確認画面は、これらを「科目に当てられなかった承認の注記」のカードにする(警告が唯一の記録)。
     UNRESOLVED_PREFIX = '承認の注記らしい文がありますが、対象の区分が分からず科目に反映していません: '
     UNWRITTEN_WARNING = 'このページの文字に「承認」とありますが、規則にも表示の行にも書き取られていません。' \
@@ -37,6 +38,8 @@ module CurriculumImport
           next unless notes.any? { |note| covers?(note, course) }
 
           course['requires_approval'] = true
+          # 注記で真にしたことを残す。注記を外すとき、AI が行から読んだ真(この印が無い)は戻さず、これだけを戻す。
+          course[BY_NOTE] = true
           course['confirmed'] = false if course['confirmed']
           course['key']
         end
@@ -102,8 +105,6 @@ module CurriculumImport
           '科目の「承認が必要」を確かめてください。'
       end
 
-      private
-
       def covers?(note, course)
         case note['scope']
         when 'category' then course['category'] == note['category']
@@ -111,6 +112,8 @@ module CurriculumImport
         else false
         end
       end
+
+      private
 
       def rule_mentions(rules)
         rules.flat_map do |rule|

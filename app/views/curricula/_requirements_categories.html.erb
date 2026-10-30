@@ -24,15 +24,16 @@
               <% end %>
             </p>
           </div>
-          <details class="mt-1">
+          <%= render 'requirements_problems', review: review, kind: 'category', id: category['key'] %>
+          <details class="mt-1" <%= 'open' if review.open?('category', category['key']) %>>
             <summary class="cursor-pointer text-xs font-semibold text-slate-700">この区分を直す</summary>
             <div class="mt-2 flex flex-wrap items-end gap-3">
               <%= hidden_field_tag "#{key}[key]", category['key'], id: nil %>
               <label class="block"><span class="text-xs font-semibold text-slate-700">名前</span>
-                <%= text_field_tag "#{key}[label]", category['label'], id: nil, class: "mt-1 block w-64 #{field_class}" %></label>
+                <%= rv_text "#{key}[label]", category['label'], id: nil, class: "mt-1 block w-64 #{field_class}" %></label>
               <label class="flex items-center gap-1.5 text-xs text-slate-800">
                 <%= hidden_field_tag "#{key}[counts_toward_total]", '0', id: nil %>
-                <%= check_box_tag "#{key}[counts_toward_total]", '1', category['counts_toward_total'] != false, id: nil %>
+                <%= rv_check "#{key}[counts_toward_total]", '1', category['counts_toward_total'] != false, id: nil %>
                 卒業の総単位に数える
               </label>
             </div>

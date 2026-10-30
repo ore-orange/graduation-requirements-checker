@@ -50,14 +50,17 @@ module CurriculumImport
     end
 
     def removed_items(document, number)
-      Array(document[DraftMerge::REMOVED]).grep(Hash).select { |entry| entry['page'] == number }
-                                          .map do |entry|
-        "#{KIND_NAMES.fetch(entry['kind'],
-                            entry['kind'])}「#{entry['id']}」"
-      end
+      entries = Array(document[DraftMerge::REMOVED]).grep(Hash).select { |entry| entry['page'] == number }
+      entries.map { |entry| removed_name(entry) }
     end
 
     KIND_NAMES = { 'rule' => '規則', 'group' => '章', 'row' => '行', 'subtotal' => '小計' }.freeze
+
+    def removed_name(entry)
+      return "承認の注記(区分「#{entry['category']}」)" if entry['kind'] == 'approval_note'
+
+      "#{KIND_NAMES.fetch(entry['kind'], entry['kind'])}「#{entry['id']}」"
+    end
 
     def text(number, kept, removed)
       lines = ["#{number}ページを読み直します。"]

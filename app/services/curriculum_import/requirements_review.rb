@@ -8,13 +8,48 @@ module CurriculumImport
   class RequirementsReview
     SCOPE_NAMES = { course: '科目', rule: '規則', display: '画面の表', document: '文書全体' }.freeze
 
-    attr_reader :curriculum
+    # 保存できなかった送信の、送られたままの入力(欄の名前 → 値)。画面を同じ入力で開き直すために持つ。
+    # 画面のフォームごとに、持ち主を見分ける(要件表のフォームは form=requirements を送る)。
+    class Submission
+      def initialize(pairs)
+        @values = pairs.group_by(&:first).transform_values { |entries| entries.map(&:last) }
+      end
+
+      def main_form? = @values['form'] == ['requirements']
+
+      delegate :key?, to: :@values
+
+      def value(name) = @values[name]&.last
+
+      def values(name) = @values.fetch(name, [])
+    end
+
+    attr_reader :curriculum, :problems
 
     delegate :categories, :rules, :groups, :subtotals, :display, :courses, to: :input
 
-    def initialize(curriculum)
+    # submission は、保存できなかった送信の入力。problems と touched は RequirementsEdit の結果。
+    def initialize(curriculum, submission: nil, problems: [], touched: [])
       @curriculum = curriculum
+      @submission = submission
+      @problems = problems
+      @touched = touched
     end
+
+    # 入力欄の値。保存できなかった送信の入力があれば、それを残す(1つの打ち間違いで、打った全部を失わせない)。
+    def field_value(name, default)
+      @submission&.key?(name) ? @submission.value(name) : default
+    end
+
+    # チェックの箱の状態。送信が要件表のフォームからなら、そこで入っていた箱だけが入っている(入っていない箱は外れている)。
+    def field_checked?(name, value, default)
+      @submission&.main_form? ? @submission.values(name).include?(value) : default
+    end
+
+    def problems_for(kind, id) = problems.select { |problem| problem.kind == kind && problem.id == id.to_s }
+
+    # 値を変えた項目と、問題があった項目は、「直す」を開いたまま見せる(どこを直したか・どこが問題かを隠さない)。
+    def open?(kind, id) = @touched.include?([kind, id.to_s])
 
     # 読み取った要件表が何も無い下書き(まだ読んでいない)は、確認するものが無い。突き合わせの「何も無い」を並べない。
     def started?
@@ -52,6 +87,9 @@ module CurriculumImport
     def course_count(category) = input.courses_in(category).size
 
     def rule_ids = input.rules.pluck('id')
+
+    # 役割(経路が名指しするキー)を持つ科目の名前。規則が名指しする役割に科目が無いと、その規則は必ず要確認になる。
+    def role_names(role) = courses.select { |course| Array(course['roles']).include?(role) }.pluck('name')
 
     def rows_of(group) = Array(group['rows']).grep(Hash)
 

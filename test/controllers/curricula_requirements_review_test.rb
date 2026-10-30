@@ -8,8 +8,7 @@ require_relative '../support/requirements_draft_fixtures'
 # 見せること(誤読が見える)と、直した値が読み直しから守られること(印が付く)を確かめる。
 class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
   include RequirementsDraftFixtures
-
-  ENV_LOCAL = { 'REMOTE_ADDR' => '127.0.0.1' }.freeze
+  include RequirementsScreenHelpers
 
   setup do
     @previous_proxy = ENV.delete('LOCAL_DEMO_PROXY')
@@ -19,33 +18,6 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
   teardown do
     @previous_proxy.nil? ? ENV.delete('LOCAL_DEMO_PROXY') : ENV['LOCAL_DEMO_PROXY'] = @previous_proxy
   end
-
-  # 要件表のページ(2)を読み終えた下書き。そのページが足したものを contributed に持つ。
-  def draft(document: requirements_document, extra_pages: [])
-    contributed = { 'rules' => Array(document['rules']).grep(Hash).pluck('id'),
-                    'groups' => document.dig('display', 'groups').grep(Hash).pluck('id'), 'subtotals' => [],
-                    'total_credits' => true }
-    pages = [{ 'page' => 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => '表紙' },
-             { 'page' => 2, 'kind' => 'requirements', 'status' => 'read', 'error' => nil, 'text' => '要件',
-               'contributed' => contributed }] + extra_pages
-    Curriculum.create!(slug: 'x', admission_year: 2025, faculty_name: '工学部', department_name: '工学科 知能情報コース',
-                       source_filename: 'handbook.pdf', pages: pages, document: document)
-  end
-
-  def show(draft) = get(curriculum_path(draft), env: ENV_LOCAL)
-
-  def revision_of(draft) = CurriculumImport::RequirementsEdit.revision(draft.reload.document)
-
-  def save(draft, with_revision: true, **params)
-    params = params.merge(revision: revision_of(draft)) if with_revision
-    patch update_rules_curriculum_path(draft), params: params, env: ENV_LOCAL
-  end
-
-  def groups(draft) = draft.reload.document['display']['groups']
-
-  def group(draft, id) = groups(draft).find { |entry| entry['id'] == id }
-
-  def rule(draft, id) = draft.reload.document['rules'].find { |entry| entry['id'] == id }
 
   # ---- 見せる ----
 
@@ -331,14 +303,14 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     save draft, display: { total_credits: '16' }
 
     assert_equal 16, draft.reload.document['display']['total_credits']
-    assert_equal false, draft.pages.find { |page| page['page'] == 2 }['contributed']['total_credits']
+    assert_equal 'human', draft.pages.find { |page| page['page'] == 2 }['contributed']['total_credits']
   end
 
   test '数でない値は、何も保存せず、どの欄かを言う' do
     draft = draft()
     save draft, rules: [{ id: 'humanities', required_credits: 'たくさん' }], display: { total_credits: '16' }
 
-    assert_match(/規則「humanities」の必要単位は数で入れてください/, flash[:alert])
+    assert_match(/規則「humanities」の必要単位は数で入れてください/, response.body)
     assert_equal 4, rule(draft, 'humanities')['required_credits']
     assert_equal 14, draft.document['display']['total_credits'], '一部だけ保存せず、全部を保存しない'
   end
@@ -347,7 +319,7 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     draft = draft()
     save draft, rules: [{ id: 'nothing', label: 'x' }]
 
-    assert_match(/規則「nothing」は下書きにありません/, flash[:alert])
+    assert_match(/規則「nothing」は下書きにありません/, response.body)
   end
 
   test '全角の数字と小数も数として読む' do
@@ -370,11 +342,13 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_equal 8, draft.document['rules'].size
   end
 
-  test '指紋を送らない保存は受ける(画面以外からの呼び出し)' do
+  test '指紋を送らない保存は受けない(画面から保存するときだけ、古い画面かどうかが確かめられる)' do
     draft = draft()
     save draft, rules: [{ id: 'humanities', required_credits: '5' }], with_revision: false
 
-    assert_equal 5, rule(draft, 'humanities')['required_credits']
+    assert_response :unprocessable_content
+    assert_match(/指紋\(revision\)が送られていない/, response.body)
+    assert_equal 4, rule(draft, 'humanities')['required_credits']
   end
 
   test '規則全体を JSON で直せる。JSON を変えていなければ欄の値を採る' do
@@ -394,13 +368,13 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
   test 'JSON が壊れている・id を変えている・オブジェクトでないときは保存しない' do
     draft = draft()
     save draft, rules: [{ id: 'humanities', json: '{ こわれた' }]
-    assert_match(/JSON を読めません/, flash[:alert])
+    assert_match(/JSON を読めません/, response.body)
 
     save draft, rules: [{ id: 'humanities', json: '{"id":"other","type":"credit_sum"}' }]
-    assert_match(/id は変えられません/, flash[:alert])
+    assert_match(/id は変えられません/, response.body)
 
     save draft, rules: [{ id: 'humanities', json: '[1]' }]
-    assert_match(/規則1つ分のオブジェクト/, flash[:alert])
+    assert_match(/規則1つ分のオブジェクト/, response.body)
     assert_equal 4, rule(draft, 'humanities')['required_credits']
   end
 
@@ -414,11 +388,11 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_equal 8, draft.document['rules'].size
 
     save draft, new_rule_json: { id: 'extra', type: 'credit_sum' }.to_json
-    assert_match(/すでにあります/, flash[:alert])
+    assert_match(/すでにあります/, response.body)
     save draft, new_rule_json: { id: 'another', type: 'magic' }.to_json
-    assert_match(/type は次のどれかにしてください/, flash[:alert])
+    assert_match(/type は次のどれかにしてください/, response.body)
     save draft, new_rule_json: { type: 'credit_sum' }.to_json
-    assert_match(/id\(文字列\)が要ります/, flash[:alert])
+    assert_match(/id\(文字列\)が要ります/, response.body)
     assert_equal 8, draft.reload.document['rules'].size
   end
 
@@ -433,10 +407,6 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
   end
 
   # ---- 注釈 ----
-
-  def card_id(draft, kind)
-    CurriculumImport::Annotations.cards(draft.reload.document, draft.pages).find { |card| card.kind == kind }.id
-  end
 
   test '注釈を「判定に反映しない」にすると、記録だけ残して判定は変わらない' do
     page = { 'page' => 6, 'kind' => 'requirements', 'status' => 'read', 'text' => '備考 外国人留学生の特例は別に定める。' }
@@ -474,11 +444,11 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
                                   'warnings' => [warning] }])
     id = card_id(draft, :approval_unattached)
     save draft, annotations: { id => { disposition: 'approval', category: 'nowhere' } }
-    assert_match(/区分を選んでください/, flash[:alert])
+    assert_match(/区分を選んでください/, response.body)
 
     save draft, annotations: { id => { disposition: 'approval', category: 'fusion' } }
     save draft, annotations: { id => { disposition: 'ignore' } }
-    assert_match(/承認の注記は、ここからは外せません/, flash[:alert])
+    assert_match(/承認の注記は、注記の一覧から外してください/, response.body)
   end
 
   test '注釈を規則の型に割り当てると、中身が空の規則が足され、埋めるまで公開を止める' do
@@ -495,7 +465,7 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#requirements_findings [data-blocking=true]', text: /必要な欄が無いか、形が違います: required_credits/
 
     save draft, annotations: { id => { disposition: 'ignore' } }
-    assert_match(/すでに規則「annotation_#{id}」を作ってあります/, flash[:alert])
+    assert_match(/すでに規則「annotation_#{id}」を作ってあります/, response.body)
   end
 
   test '7つの型のどれでもない割り当てと、見つからない注釈は断る' do
@@ -503,10 +473,10 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     draft = draft(extra_pages: [page])
     id = card_id(draft, :foreign_student)
     save draft, annotations: { id => { disposition: 'all_of' } }
-    assert_match(/規則の型を選んでください/, flash[:alert])
+    assert_match(/規則の型を選んでください/, response.body)
 
     save draft, annotations: { 'deadbeef' => { disposition: 'ignore' } }
-    assert_match(/この注釈は見つかりません/, flash[:alert])
+    assert_match(/この注釈は見つかりません/, response.body)
   end
 
   test '反映済みの承認の注記は、ここでは選ばせない' do
@@ -516,10 +486,11 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     draft = draft(document: document)
     id = card_id(draft, :approval_applied)
     show(draft)
-    assert_select "#annotation-#{id} form", count: 0
+    assert_select "#annotation-#{id} select", count: 0
+    assert_select "#annotation-#{id} input[name=remove_approval_note][value=?]", id
 
     save draft, annotations: { id => { disposition: 'ignore' } }
-    assert_match(/見つかりません/, flash[:alert])
+    assert_match(/見つかりません/, response.body)
   end
 
   # ---- 実物と、画面からの読み直し ----
@@ -534,36 +505,6 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#requirements_rules li', count: document['rules'].size
     assert_select '#requirements_findings [data-blocking=true]', count: 0
     assert_select '#category-excluded', text: /総単位に数えない/
-  end
-
-  # 画面のフォームを、ブラウザと同じように送り返す(入力欄・チェック済みの箱・選択・テキストエリアの中身)。
-  # 触らずに送り返したとき、何も「直した」ことにならないこと(確認の印が付かないこと)を、実物の画面で確かめるため。
-  def browser_pairs(draft)
-    get curriculum_path(draft), env: ENV_LOCAL
-    form = response.parsed_body.at_css('#requirements_form')
-    form.css('input, textarea, select').filter_map { |field| browser_value(field) }
-  end
-
-  def browser_value(field)
-    name = field['name']
-    return if name.blank? || field['type'] == 'submit' || %w[_method authenticity_token].include?(name)
-    return if %w[checkbox radio].include?(field['type']) && field['checked'].nil?
-
-    [name, browser_field_value(field)]
-  end
-
-  def browser_field_value(field)
-    case field.name
-    when 'textarea' then field.text.delete_prefix("\n")
-    when 'select' then field.at_css('option[selected]')&.[]('value').to_s
-    else field['value'].to_s
-    end
-  end
-
-  def submit_pairs(draft, pairs)
-    patch update_rules_curriculum_path(draft), params: URI.encode_www_form(pairs),
-                                               headers: { 'CONTENT_TYPE' => 'application/x-www-form-urlencoded' },
-                                               env: ENV_LOCAL
   end
 
   test '触らずに保存しても、何も直したことにならず、確認の印も付かない(実物の文書)' do

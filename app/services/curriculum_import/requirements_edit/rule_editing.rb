@@ -12,7 +12,7 @@ module CurriculumImport
 
         entries.each do |entry|
           index = rules.index { |rule| rule['id'] == entry[:id] }
-          next error("規則「#{entry[:id]}」は下書きにありません。") unless index
+          next error("規則「#{entry[:id]}」は下書きにありません。", 'rule', entry[:id]) unless index
           next discard(rules.delete_at(index), 'rule') if destroy?(entry)
 
           rules[index] = edit_rule(rules[index], entry)
@@ -29,17 +29,19 @@ module CurriculumImport
           return replaced.merge('id' => rule['id'])
         end
 
-        rule.deep_dup.tap { |copy| mark(copy, assign(copy, entry, self.class.rule_fields(copy), name).any?) }
+        rule.deep_dup.tap do |copy|
+          mark(copy, assign(copy, entry, self.class.rule_fields(copy), 'rule', rule['id']).any?)
+        end
       end
 
       def parse_rule(json, rule, name)
         parsed = JSON.parse(json)
-        return error("#{name}の JSON は、規則1つ分のオブジェクトにしてください。") unless parsed.is_a?(Hash)
+        return error("#{name}の JSON は、規則1つ分のオブジェクトにしてください。", 'rule', rule['id']) unless parsed.is_a?(Hash)
         return parsed if parsed['id'].nil? || parsed['id'] == rule['id']
 
-        error("#{name}の id は変えられません。")
+        error("#{name}の id は変えられません。", 'rule', rule['id'])
       rescue JSON::ParserError
-        error("#{name}の JSON を読めません。括弧・引用符・カンマを確かめてください。")
+        error("#{name}の JSON を読めません。括弧・引用符・カンマを確かめてください。", 'rule', rule['id'])
       end
 
       # AI が読み落とした要件を、人が足す。足した規則は、読み直しで消えないよう印を付ける。
@@ -48,16 +50,17 @@ module CurriculumImport
         return if json.blank?
 
         rule = JSON.parse(json)
-        return error('足す規則の JSON は、規則1つ分のオブジェクトにしてください。') unless rule.is_a?(Hash)
+        return error('足す規則の JSON は、規則1つ分のオブジェクトにしてください。', 'new_rule', 'new') unless rule.is_a?(Hash)
 
         problem = new_rule_problem(rule)
-        return error(problem) if problem
+        return error(problem, 'new_rule', 'new') if problem
 
+        clear_removed('rule', rule['id'])
         list_of(@document, 'rules')&.push(rule.merge(DraftMerge::CONFIRMED => true))
         @edited += 1
         @notes << "規則「#{rule['id']}」を足しました。"
       rescue JSON::ParserError
-        error('足す規則の JSON を読めません。括弧・引用符・カンマを確かめてください。')
+        error('足す規則の JSON を読めません。括弧・引用符・カンマを確かめてください。', 'new_rule', 'new')
       end
 
       def new_rule_problem(rule)

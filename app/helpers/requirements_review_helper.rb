@@ -6,7 +6,8 @@ module RequirementsReviewHelper
                       'grouped_max' => '同じ提供元・言語から', 'any_of' => 'どれか1つを満たす', 'all_of' => 'すべてを満たす',
                       'cap' => '算入の上限', 'exclude' => '算入しない' }.freeze
   FIELD_NAMES = CurriculumImport::RequirementsEdit::FIELD_LABELS
-  SUMMARY_FIELDS = %w[categories required_categories category required_credits expected_course_count group_by].freeze
+  SUMMARY_FIELDS = %w[categories required_categories category required_credits expected_course_count group_by credits
+                      number_prefix reason].freeze
   FIELD_CLASS = 'rounded border border-slate-300 bg-white px-2 py-1.5 text-sm'
 
   # 単位の数。整数なら小数点を付けない。無ければダッシュ。
@@ -20,17 +21,41 @@ module RequirementsReviewHelper
     RULE_TYPE_NAMES.fetch(type, type.presence || '(型なし)')
   end
 
-  # 規則の中身を、画面が一覧できる短い文にする。入れ子や経路は、JSON で見られるので件数だけにする。
-  def rule_summary(rule, review)
-    fields = SUMMARY_FIELDS.filter_map do |field|
-      "#{FIELD_NAMES.fetch(field)}: #{summary_value(rule[field], field, review)}" if rule.key?(field)
+  # 規則の中身を、画面が一覧できる文の並びにする。判定の数字を決める値は、すべてここに出す
+  # (上限・接頭辞・経路・入れ子の選択肢の必要単位)。読み違えると、数えてはいけない単位が数えられる値が、
+  # 開かないと見えない JSON の中にあってはいけない。入れ子は、親の下に字下げして出す。
+  def rule_summary(rule, review, depth = 0)
+    indent = '　' * depth
+    lines = [fields_line(rule, review)].compact.map { |line| "#{indent}#{line}" }
+    lines.concat(path_lines(rule, review).map { |line| "#{indent}#{line}" })
+    nested_rules(rule).each do |name, index, child|
+      lines << "#{indent}#{name}#{index}: #{rule_type_name(child['type'])}"
+      lines.concat(rule_summary(child, review, depth + 1))
     end
-    fields + nested_summary(rule)
+    lines
   end
 
-  def nested_summary(rule)
-    { 'paths' => '経路', 'options' => '選択肢', 'conditions' => '条件' }.filter_map do |field, name|
-      "#{name}: #{rule[field].size}件" if rule[field].is_a?(Array)
+  def fields_line(rule, review)
+    parts = SUMMARY_FIELDS.filter_map do |field|
+      "#{FIELD_NAMES.fetch(field)}: #{summary_value(rule[field], field, review)}" if rule.key?(field)
+    end
+    parts << '科目番号の接頭辞: なし(区分の全体)' if rule['type'] == 'exclude' && !rule.key?('number_prefix')
+    parts.join(' / ').presence
+  end
+
+  # 経路は、役割のキーに、その役割を持つ科目の名前を添える。科目が1つも無い役割は、そう言う。
+  def path_lines(rule, review)
+    return [] unless rule['paths'].is_a?(Array)
+
+    rule['paths'].each_with_index.map do |path, index|
+      roles = Array(path).map { |role| "#{role}(#{review.role_names(role).first(3).join('・').presence || '科目なし'})" }
+      "経路#{index + 1}: #{roles.join(' ＋ ').presence || '(空)'}"
+    end
+  end
+
+  def nested_rules(rule)
+    { 'options' => '選択肢', 'conditions' => '条件' }.flat_map do |field, name|
+      Array(rule[field]).grep(Hash).each_with_index.map { |child, index| [name, index + 1, child] }
     end
   end
 
@@ -44,11 +69,33 @@ module RequirementsReviewHelper
 
   def category_field?(field) = %w[categories required_categories category].include?(field)
 
+  # 入力欄。保存できなかった送信の入力があれば、それを残して出す(RequirementsReview#field_value)。
+  # 数は文字の欄にする。数の欄(type=number)は、数でない文字をブラウザが捨てるので、打ち間違いが消えて、問題の文だけが残ってしまう。
+  def rv_text(name, default, **)
+    text_field_tag(name, requirements_review.field_value(name, default), **)
+  end
+
+  def rv_number(name, default, **)
+    text_field_tag(name, requirements_review.field_value(name, default), inputmode: 'decimal', **)
+  end
+
+  def rv_check(name, value, default, **)
+    check_box_tag(name, value, requirements_review.field_checked?(name, value, default), **)
+  end
+
+  def rv_area(name, default, **)
+    text_area_tag(name, requirements_review.field_value(name, default), **)
+  end
+
+  def rv_select(name, options, default, **)
+    select_tag(name, options_for_select(options, requirements_review.field_value(name, default)), **)
+  end
+
   # 区分を選ぶチェックの並び。1つも選ばないときも「空にする」と伝わるよう、先に空の値を送る。
   def category_checks(name, selected, review)
     boxes = review.category_keys.map do |key|
       tag.label(class: 'inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-800') do
-        check_box_tag("#{name}[]", key, Array(selected).include?(key), id: nil) + review.category_label(key)
+        rv_check("#{name}[]", key, Array(selected).include?(key), id: nil) + review.category_label(key)
       end
     end
     hidden_field_tag("#{name}[]", '', id: nil) + tag.div(safe_join(boxes), class: 'flex flex-wrap gap-x-3 gap-y-1')
@@ -56,27 +103,22 @@ module RequirementsReviewHelper
 
   # 規則の1つの欄の入力。欄の種類は RequirementsEdit.rule_fields と同じ表から決まる。
   def rule_field_input(name, field, kind, rule, review)
-    label = tag.span(FIELD_NAMES.fetch(field, field), class: 'text-xs font-semibold text-slate-700')
+    hint = field == 'number_prefix' ? '(空なら区分の全体)' : ''
+    label = tag.span("#{FIELD_NAMES.fetch(field, field)}#{hint}", class: 'text-xs font-semibold text-slate-700')
     tag.div(label + rule_field_control(name, field, kind, rule[field], review), class: 'space-y-1')
   end
 
   def rule_field_control(name, field, kind, value, review)
-    case kind
-    when :set then category_checks(name, value, review)
-    when :number then number_field_tag(name, value, step: 'any', class: "w-28 #{FIELD_CLASS}")
-    when :count then number_field_tag(name, value, step: 1, class: "w-28 #{FIELD_CLASS}")
-    else if field == 'category'
-           category_select(name, value,
-                           review)
-         else
-           text_field_tag(name, value, class: "w-full #{FIELD_CLASS}")
-         end
-    end
+    return category_checks(name, value, review) if kind == :set
+    return rv_number(name, value, id: nil, class: "w-28 #{FIELD_CLASS}") if %i[number count].include?(kind)
+    return category_select(name, value, review) if field == 'category'
+
+    rv_text(name, value, id: nil, class: "w-full #{FIELD_CLASS}")
   end
 
   def category_select(name, selected, review)
     options = review.category_keys.map { |key| [review.category_label(key), key] }
-    select_tag(name, options_for_select(options, selected), include_blank: true, class: FIELD_CLASS)
+    rv_select(name, options, selected, include_blank: true, id: nil, class: FIELD_CLASS)
   end
 
   # JSON の欄に出す規則。confirmed は人が直した印で、直す対象ではないので出さない。

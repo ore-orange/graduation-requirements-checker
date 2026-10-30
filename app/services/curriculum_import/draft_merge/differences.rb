@@ -19,6 +19,12 @@ module CurriculumImport
         "#{noun}「#{id}」は人が直した内容を残しました。読み直した結果は違います: #{differences.join('、')}。"
       end
 
+      def total_credits(current, incoming, human:)
+        return "卒業に必要な総単位は、人が直した値(#{current})を残しました(読み直した結果: #{incoming})。" if human
+
+        "卒業に必要な総単位が別のページの値(#{current})と食い違います(このページ: #{incoming})。"
+      end
+
       # 違うところの文の配列。同じなら空。行(rows)は id で突き合わせる。
       def between(kept, incoming)
         (kept.keys | incoming.keys).excluding(*IGNORED).flat_map do |field|

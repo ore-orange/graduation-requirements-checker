@@ -8,9 +8,10 @@ class CurriculaController < ApplicationController
   include LocalAccessOnly
 
   MAX_PDF_BYTES = 10.megabytes
-  MAX_FLASH_MESSAGES = 3
   FIELD_LABELS = { slug: '識別名(slug)', admission_year: '入学年度', faculty_name: '学部名',
                    department_name: '学科・コース名' }.freeze
+
+  helper_method :requirements_review
 
   before_action :load_draft, only: %i[show update update_rules destroy page_image read_page]
 
@@ -18,7 +19,9 @@ class CurriculaController < ApplicationController
     redirect_to requirements_path, alert: 'この下書きは見つかりません。削除された可能性があります。', status: :see_other
   end
 
-  def show; end
+  def show
+    @review = CurriculumImport::RequirementsReview.new(@curriculum)
+  end
 
   # 取り込み時に作ったページ画像。この下書きの置き場にあるものしか返さない。
   def page_image
@@ -74,9 +77,11 @@ class CurriculaController < ApplicationController
   def update_rules
     result = nil
     @curriculum.with_lock { result = CurriculumImport::RequirementsEdit.new(@curriculum, rules_params).call }
-    return redirect_to rules_review_path, alert: edit_failure_message(result), status: :see_other unless result.ok?
+    return redirect_to rules_review_path, notice: edit_success_message(result), status: :see_other if result.ok?
+    # 画面を開いたあとに中身が変わっていたら、いまの中身で開き直す(送られた入力は、古い中身の位置に結びついている)。
+    return redirect_to rules_review_path, alert: result.errors.first, status: :see_other if result.stale
 
-    redirect_to rules_review_path, notice: edit_success_message(result), status: :see_other
+    render_rejected(result)
   end
 
   # 下書きは作業中の文書なので、そのまま消す。公開済みは load_draft で弾く。
@@ -87,22 +92,38 @@ class CurriculaController < ApplicationController
 
   private
 
+  # 要件表の確認画面が見せるもの(show と、保存できなかったときの開き直しが作る)。ビューの入力欄の部品が読む。
+  def requirements_review = @review
+
   # 要件表の確認の入力。入れ子の形(章の中の行など)は、RequirementsEdit が1つずつ読んで型を確かめる。
   def rules_params
-    params.to_unsafe_h.slice('revision', 'categories', 'rules', 'display', 'new_rule_json', 'annotations')
+    params.to_unsafe_h.slice('revision', 'categories', 'rules', 'display', 'new_rule_json', 'new_group', 'new_row',
+                             'annotations', 'remove_approval_note')
   end
 
   def rules_review_path = curriculum_path(@curriculum, anchor: 'requirements_review')
 
-  # フラッシュは cookie に入るので、長くなりすぎないよう、先頭の数件だけ出す。
-  def edit_failure_message(result)
-    shown = result.errors.first(MAX_FLASH_MESSAGES).join(' ')
-    rest = result.errors.size - MAX_FLASH_MESSAGES
-    "要件表の修正を保存できませんでした(何も変えていません)。#{shown}#{" ほか#{rest}件。" if rest.positive?}"
+  # 保存できなかったときは、送られた入力を残したまま、要件表の画面を開き直す。問題は全部、項目の下と上に出す。
+  # 何百という欄を直した人が、1つの打ち間違いで、すべてを打ち直さなくて済むように。
+  def render_rejected(result)
+    submission = CurriculumImport::RequirementsReview::Submission.new(submitted_pairs)
+    @review = CurriculumImport::RequirementsReview.new(@curriculum, submission: submission, problems: result.problems,
+                                                                    touched: result.touched)
+    flash.now[:alert] = "要件表の修正を保存できませんでした(何も変えていません)。#{result.problems.size}件の問題を、下の要件表で直してください。"
+    render :show, status: :unprocessable_content
+  end
+
+  # 送られた欄を、送られた名前のまま取り出す(入れ子のパラメータに直す前の形)。
+  def submitted_pairs
+    return [] unless request.form_data?
+
+    URI.decode_www_form(request.raw_post)
+  rescue ArgumentError
+    []
   end
 
   def edit_success_message(result)
-    shown = result.notes.first(MAX_FLASH_MESSAGES).join(' ')
+    shown = result.notes.first(3).join(' ')
     return shown if result.edited.zero?
 
     "要件表の修正を保存しました(#{result.edited}件)。直した項目は人が確認した値として残り、読み直しでは上書きしません。#{shown}"

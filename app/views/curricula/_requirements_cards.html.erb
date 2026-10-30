@@ -1,5 +1,6 @@
 <%# 注釈のカード。表に収まらない便覧の但し書きを、判定に落とせるものも、落とせないものも、1つずつ人の目に出す。 %>
 <%# 赤いカードは、判定に反映できていない(または、できない)もの。見たうえでどう扱うかを選ぶ。 %>
+<% field_class = RequirementsReviewHelper::FIELD_CLASS %>
 <div id="annotation_cards" class="border-t border-slate-100 px-5 py-5 sm:px-6">
   <h4 class="text-sm font-bold text-slate-900">注釈</h4>
   <p class="mt-0.5 text-xs text-slate-500">
@@ -31,41 +32,50 @@
               画面の判定が当てはまらないことがあります。
             <% end %>
           </p>
+          <%= render 'requirements_problems', review: review, kind: 'annotation', id: card.id %>
 
-          <% if card.decidable? %>
-            <% if decision.present? && decision['disposition'] != CurriculumImport::Annotations::IGNORE %>
-              <p class="mt-2 text-xs font-semibold text-emerald-900">
-                <% if decision['disposition'] == CurriculumImport::Annotations::APPROVAL %>
-                  区分「<%= review.category_label(decision['category']) %>」の承認の注記にしました。その区分の科目に承認の関門が付いています。
-                <% else %>
-                  規則「<a href="#rule-<%= decision['rule_id'] %>" class="underline"><%= decision['rule_id'] %></a>」(<%= rule_type_name(decision['disposition']) %>)を足しました。
-                  必要な値は、規則の表で入れてください。入れるまで、突き合わせが公開を止めるか、警告を出します。
-                <% end %>
-              </p>
-            <% else %>
-              <% if decision.present? %>
-                <p class="mt-2 text-xs font-semibold text-slate-800">判定に反映しないと決めて、記録しました。変えるときは、もう一度選んでください。</p>
+          <% if card.kind == :approval_applied %>
+            <%# 注記を読み違えて(関係の無い文を承認の注記と読んで)いたときの、外す入口。外すと、その注記で付けた関門が戻る。 %>
+            <%= form_with url: update_rules_curriculum_path(review.curriculum), method: :patch, class: 'mt-2', data: { turbo: false } do %>
+              <%= hidden_field_tag :revision, review.revision, id: nil %>
+              <%= hidden_field_tag :remove_approval_note, card.id, id: nil %>
+              <%= submit_tag 'この承認の注記を外す', class: 'rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-100',
+                             data: { turbo_confirm: 'この注記で付けた承認の関門を外します。AI が科目の行から読んだ関門は残ります。読み直しても、この注記は戻りません。', disable_with: false } %>
+            <% end %>
+          <% elsif card.settled %>
+            <p class="mt-2 text-xs font-semibold text-emerald-900">
+              <% if decision['disposition'] == CurriculumImport::Annotations::APPROVAL %>
+                区分「<%= review.category_label(decision['category']) %>」の承認の注記にしました。その区分の科目に承認の関門が付いています。
+                外すときは、同じ注記のカード(承認の注記)から外してください。
+              <% else %>
+                規則「<a href="#rule-<%= decision['rule_id'] %>" class="underline"><%= decision['rule_id'] %></a>」(<%= rule_type_name(decision['disposition']) %>)を足しました。
+                必要な値は、規則の表で入れてください。入れるまで、突き合わせが公開を止めるか、警告を出します。
               <% end %>
-              <%= form_with url: update_rules_curriculum_path(review.curriculum), method: :patch, class: 'mt-2 flex flex-wrap items-end gap-2',
-                            data: { turbo: false } do %>
-                <%= hidden_field_tag :revision, review.revision, id: nil %>
+            </p>
+          <% else %>
+            <% if decision.present? && decision['disposition'] == CurriculumImport::Annotations::IGNORE %>
+              <p class="mt-2 text-xs font-semibold text-slate-800">判定に反映しないと決めて、記録しました。変えるときは、もう一度選んでください。</p>
+            <% elsif decision.present? %>
+              <p class="mt-2 text-xs font-semibold text-slate-800">前に決めた扱いは、いまは残っていません(足した規則や承認の注記が消えています)。もう一度選べます。</p>
+            <% end %>
+            <%= form_with url: update_rules_curriculum_path(review.curriculum), method: :patch, class: 'mt-2 flex flex-wrap items-end gap-2',
+                          data: { turbo: false } do %>
+              <%= hidden_field_tag :revision, review.revision, id: nil %>
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-800">どう扱うか</span>
+                <% options = [['判定に反映しない(記録だけする)', CurriculumImport::Annotations::IGNORE]] %>
+                <% options << ['承認の注記にする(右で区分を選ぶ)', CurriculumImport::Annotations::APPROVAL] if card.approval? %>
+                <%= rv_select "annotations[#{card.id}][disposition]", options + annotation_type_options, nil,
+                              include_blank: '選んでください', id: nil, class: "mt-1 block #{field_class}" %>
+              </label>
+              <% if card.approval? %>
                 <label class="block">
-                  <span class="text-xs font-semibold text-slate-800">どう扱うか</span>
-                  <% options = [['判定に反映しない(記録だけする)', CurriculumImport::Annotations::IGNORE]] %>
-                  <% options << ['承認の注記にする(右で区分を選ぶ)', CurriculumImport::Annotations::APPROVAL] if card.approval? %>
-                  <%= select_tag "annotations[#{card.id}][disposition]", options_for_select(options + annotation_type_options),
-                                 include_blank: '選んでください', id: nil, class: "mt-1 block #{RequirementsReviewHelper::FIELD_CLASS}" %>
+                  <span class="text-xs font-semibold text-slate-800">承認が要る区分</span>
+                  <%= rv_select "annotations[#{card.id}][category]", review.category_keys.map { |key| [review.category_label(key), key] }, nil,
+                                include_blank: '(承認の注記にするときだけ)', id: nil, class: "mt-1 block #{field_class}" %>
                 </label>
-                <% if card.approval? %>
-                  <label class="block">
-                    <span class="text-xs font-semibold text-slate-800">承認が要る区分</span>
-                    <%= select_tag "annotations[#{card.id}][category]",
-                                   options_for_select(review.category_keys.map { |key| [review.category_label(key), key] }),
-                                   include_blank: '(承認の注記にするときだけ)', id: nil, class: "mt-1 block #{RequirementsReviewHelper::FIELD_CLASS}" %>
-                  </label>
-                <% end %>
-                <%= submit_tag '決める', class: 'demo-button', data: { disable_with: false } %>
               <% end %>
+              <%= submit_tag '決める', class: 'demo-button', data: { disable_with: false } %>
             <% end %>
           <% end %>
         </li>

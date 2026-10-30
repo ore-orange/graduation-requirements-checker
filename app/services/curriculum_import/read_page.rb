@@ -97,7 +97,7 @@ module CurriculumImport
       # 前回の分を外すのは DraftMerge の仕事で、先に merge しないと、いま拾った注記まで外してしまう。
       contributed = merge.requirements(answer)
       notes, unresolved = ApprovalNotes.detect(answer, entry['page'])
-      ApprovalNotes.replace_page_notes(document, entry['page'], notes)
+      ApprovalNotes.replace_page_notes(document, entry['page'], ApprovalNotes::Removal.without_removed(document, notes))
       warnings = unresolved.map { |text| ApprovalNotes.unresolved_warning(text) }
       warnings << ApprovalNotes.requirements_page_warning(entry['text'], notes.any? || unresolved.any?)
       [contributed, warnings]
