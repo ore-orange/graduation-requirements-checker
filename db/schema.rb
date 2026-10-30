@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_27_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -52,6 +52,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_100000) do
     t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "curriculum_slug"
     t.index ["faculty_id", "name"], name: "index_departments_on_faculty_id_and_name", unique: true
     t.index ["faculty_id"], name: "index_departments_on_faculty_id"
   end
@@ -79,6 +80,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["department_id"], name: "index_programs_on_department_id"
+  end
+
+  create_table "sessions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "ip_address"
+    t.string "user_agent"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
   create_table "student_courses", force: :cascade do |t|
@@ -167,6 +177,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_100000) do
     t.string "email", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "password_digest", null: false
     t.index "lower((email)::text)", name: "index_users_on_lower_email", unique: true
   end
 
@@ -176,6 +187,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_100000) do
   add_foreign_key "planned_courses", "courses"
   add_foreign_key "planned_courses", "students"
   add_foreign_key "programs", "departments"
+  add_foreign_key "sessions", "users"
   add_foreign_key "student_courses", "courses"
   add_foreign_key "student_courses", "students"
   add_foreign_key "student_program_assignments", "programs"
