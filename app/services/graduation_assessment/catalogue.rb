@@ -13,6 +13,9 @@ class GraduationAssessment
     DISPLAY_ROW_KEYS = %w[id name subtitle required_credits required_label categories check_ids
                           credits_from_check].freeze
     DISPLAY_SUBTOTAL_KEYS = %w[id name required_credits row_ids check_ids].freeze
+    # 取り込みの確認画面で、人が直した章・行・小計に付ける印。AI の読み取りが返す欄ではないので、上の語彙には入れない
+    # (読み取りの出力の形は、上の語彙と一致させている)。画面は読まないが、下書きを公開するときに文書に残るので、ここで許す。
+    DISPLAY_DRAFT_KEYS = %w[confirmed].freeze
 
     attr_reader :courses, :categories, :conditions, :adjustments, :display, :required_roles
 
@@ -129,7 +132,7 @@ class GraduationAssessment
     def group_problems(group, path)
       return ["#{path} はハッシュでなければなりません"] unless group.is_a?(Hash)
 
-      problems = unknown_key_problems(group, DISPLAY_GROUP_KEYS, path)
+      problems = unknown_key_problems(group, DISPLAY_GROUP_KEYS + DISPLAY_DRAFT_KEYS, path)
       problems.concat(missing_string_problems(group, %w[id title], path))
       problems << "#{path}.required_credits は0以上の数でなければなりません" unless non_negative_number?(group['required_credits'])
       return problems << "#{path}.rows は配列でなければなりません" unless group['rows'].is_a?(Array)
@@ -143,7 +146,7 @@ class GraduationAssessment
     def row_problems(row, path)
       return ["#{path} はハッシュでなければなりません"] unless row.is_a?(Hash)
 
-      problems = unknown_key_problems(row, DISPLAY_ROW_KEYS, path)
+      problems = unknown_key_problems(row, DISPLAY_ROW_KEYS + DISPLAY_DRAFT_KEYS, path)
       problems.concat(missing_string_problems(row, %w[id name], path))
       # 欄が無い・綴りが違うと false 扱いになり、算入上限が効いた判定の単位と食い違う数字が出る。
       unless BOOLEANS.include?(row['credits_from_check'])
@@ -175,7 +178,7 @@ class GraduationAssessment
         path = "subtotals[#{element_name(subtotal, index)}]"
         next ["#{path} はハッシュでなければなりません"] unless subtotal.is_a?(Hash)
 
-        problems = unknown_key_problems(subtotal, DISPLAY_SUBTOTAL_KEYS, path)
+        problems = unknown_key_problems(subtotal, DISPLAY_SUBTOTAL_KEYS + DISPLAY_DRAFT_KEYS, path)
         unless non_negative_number?(subtotal['required_credits'])
           problems << "#{path}.required_credits は0以上の数でなければなりません"
         end

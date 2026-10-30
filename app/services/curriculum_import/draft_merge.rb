@@ -8,9 +8,13 @@ module CurriculumImport
   # ページを跨ぐと衝突するもの(規則・表示の id、科目の key)は、ここが決める。
   #
   # 同じページを読み直すと、そのページが前回足した分(previous = ページの contributed)を外してから入れ直す。
-  # 二重にならず、別のページが足した分には触れない。確認済みの科目だけは、人が見たものなので外さない。
+  # 二重にならず、別のページが足した分には触れない。確認済みの科目と、人が直した規則・章・行・小計・区分は、
+  # 人が見たものなので外さず、読み直した側の値で上書きもしない(Withdrawal)。
   class DraftMerge
     CONFIRMED = 'confirmed'
+    # 確認画面で人が消した規則・章・行・小計の記録。読み直しが、消したものを黙って戻さないための印。
+    # { 'kind' => 'rule' | 'group' | 'row' | 'subtotal', 'id' => 消した id, 'page' => それを足したページ(分からなければ nil) }
+    REMOVED = 'removed_by_human'
 
     # 規則・科目に付ける出典。便覧の PDF ページ番号で、規則の「出典」欄にそのまま出る。
     def self.source_page_label(page)
@@ -26,59 +30,40 @@ module CurriculumImport
       @label = self.class.source_page_label(page)
       @previous = previous || {}
       @warnings = []
+      @kept = {}
       ensure_skeleton
     end
 
     # そのページが前に足したもの(contributed)を、document から外す。ページの種別を替えたときにも使う。
-    # いまの種別ではなく、記録に何があるかで外す。種別を替えて読み直しても、前の種別の分を取り残さない。
-    # 確認済みの科目だけは人が見たものなので外さない。戻り値は、残した確認済みの科目の key。
-    #
-    # 暫定: 規則・表示は、人が直した分も外す。科目が確認済みを守るのと非対称で、いまは人が規則・表示を直す画面が無いので
-    # 失うものは無い。Task 19 で直せるようにするとき、次を一緒に入れること。
-    #  - 直した規則・章・行に confirmed を付け、ここでも「&& !rule[CONFIRMED]」の守りを足す(courses と同じ)
-    #  - add_rules は、残した(直した)規則が持つ id を取られたものとして扱う
-    #  - 「読み直す」を押す前に、直した分が消えることを警告する
+    # 人が見て直したもの(confirmed)は外さない。戻り値は、残したものの記録(Withdrawal.call)。
     def self.withdraw(document, contributed, page)
-      contributed ||= {}
-      withdraw_requirements(document, contributed)
-      ApprovalNotes.replace_page_notes(document, page, [])
-      keys = Array(contributed['courses'])
-      document['courses']&.reject! { |course| keys.include?(course['key']) && !course[CONFIRMED] }
-      Array(document['courses']).select { |course| keys.include?(course['key']) }.pluck('key')
+      Withdrawal.call(document, contributed, page)
     end
-
-    def self.withdraw_requirements(document, contributed)
-      display = document['display'] || {}
-      drop(document['rules'], contributed['rules'])
-      drop(display['groups'], contributed['groups'])
-      drop(display['subtotals'], contributed['subtotals'])
-      display.delete('total_credits') if contributed['total_credits']
-    end
-
-    def self.drop(list, ids)
-      list&.reject! { |item| Array(ids).include?(item['id']) }
-    end
-    private_class_method :withdraw_requirements, :drop
 
     # 要件表のページ。区分・役割はキーで足し合わせ(先にあるものを優先)、規則と表示はそのページの分を入れ直す。
-    # 戻り値は、このページが足したものの記録(次に読み直すときに外す)。
+    # 人が直した規則・章・行・小計は、入れ直さずに残す(withdraw)。読み直した側の内容は採らず、違うときは警告に残す。
+    # 戻り値は、このページが足したものの記録(次に読み直すときに外す)。残したものも、このページのものとして記録する。
     def requirements(answer)
       answer = answer.deep_dup
       # 科目表として読んだページを要件表に替えたとき、残した確認済みの科目の key も記録に引き継ぐ(取り残さない)。
-      kept = withdraw_previous
+      @kept = withdraw_previous
       add_keyed(@document['categories'], answer['categories'], '区分')
       add_roles(answer['roles'])
       rule_ids, added_rules = add_rules(Array(answer['rules']))
       display = add_display(answer['display'] || {}, rule_ids)
       touch_source
-      { 'rules' => added_rules, 'groups' => display[:groups], 'subtotals' => display[:subtotals],
-        'total_credits' => display[:total_credits] }.tap { |record| record['courses'] = kept if kept.any? }
+      record = { 'rules' => kept_ids('rules') + added_rules, 'groups' => kept_ids('groups') + display[:groups],
+                 'subtotals' => kept_ids('subtotals') + display[:subtotals],
+                 'total_credits' => display[:total_credits] }
+      record['courses'] = @kept['courses'] if @kept['courses']
+      record
     end
 
     # 科目表のページ。番号が別のページの科目と同じ行は上書きせず別の key で残す(重複の判断は、あとの突き合わせと人がする)。
     def courses(answer)
       courses = @document['courses']
-      kept_keys = withdraw_previous
+      @kept = withdraw_previous
+      kept_keys = kept_ids('courses')
       known = courses.select { |course| kept_keys.include?(course['key']) }.map { |course| identity(course) }
       added = answer['courses'].each_with_index.filter_map do |row, index|
         next if known.include?(identity(row))
@@ -86,7 +71,7 @@ module CurriculumImport
         course_entry(row, index, courses).tap { |entry| courses << entry }
       end
       touch_source
-      { 'courses' => kept_keys + added.pluck('key') }
+      @kept.except('courses').merge('courses' => kept_keys + added.pluck('key'))
     end
 
     private
@@ -127,6 +112,15 @@ module CurriculumImport
       self.class.withdraw(@document, @previous, @page)
     end
 
+    def kept_ids(field)
+      Array(@kept[field])
+    end
+
+    # 人が消したもの。読み直しで同じ id が戻ってきても、入れない(人の訂正を黙って取り消さない)。
+    def removed?(kind, id)
+      Array(@document[REMOVED]).any? { |entry| entry['kind'] == kind && entry['id'] == id }
+    end
+
     # key で足す。先にあるもの(別のページが足した・人が直した)を優先し、同じ key の読み取りでは上書きしない。
     # 同じ key で名前が違えば、先を残して警告に出す(総単位の食い違いと同じ扱い)。
     def add_keyed(target, incoming, noun)
@@ -134,6 +128,9 @@ module CurriculumImport
         existing = target.find { |other| other['key'] == entry['key'] }
         if existing.nil?
           target << entry
+        elsif existing[CONFIRMED]
+          # 人が直した区分は、読み直した内容で変えない。数えるかどうかの「数えない側に倒す」もしない(人が数えると決めた)。
+          @warnings.concat(Differences.kept_category(noun, existing, entry))
         else
           @warnings.concat(keyed_differences(noun, existing, entry))
           # 総単位に数えるかが食い違うときは、数えない側に倒す。数える側に倒すと単位の水増しになり、数えない側は要確認になる。
@@ -166,17 +163,33 @@ module CurriculumImport
     # 規則を足す。別のページ・同じページの規則と id がぶつかるものは付け替える。
     # 戻り値は [{読んだ id => 実際の id(参照の付け替えに使う。同じ id が複数なら最初のもの)}, 足した規則の実際の id すべて]。
     # 読み直しで外すのは後者。前者だけを記録すると、付け替えた重複が外れず、読み直すたびに積もる。
+    #
+    # 人が直して残した規則(withdraw が残したもの)と同じ id の規則は、入れない。入れると、同じ id が2つになって
+    # 付け替えが起き、直した規則と AI の読みが並ぶ(画面の行は先の1つを引くので、どちらが効くか分からなくなる)。
+    # 人が消した規則は戻さない。どちらも、行などからの参照は同じ id のまま。消えた規則を指す行は、突き合わせが止める。
     def add_rules(rules)
       taken = @document['rules'].pluck('id')
       mapping = {}
-      added = rules.map do |rule|
-        id = unique_id(rule['id'], taken)
+      added = rules.filter_map do |rule|
+        kept = kept_ids('rules').include?(rule['id'])
+        id = kept ? rule['id'] : unique_id(rule['id'], taken)
         mapping[rule['id']] ||= id
+        next note_kept('規則', @document['rules'], rule) if kept
+        next if removed?('rule', id)
+
         taken << id
         @document['rules'] << rule.merge('id' => id, 'source_page' => @label)
         id
       end
       [mapping, added]
+    end
+
+    # 残した(人が直した)ものと、読み直した結果が違えば、警告に残す。戻り値は nil(足したものに数えない)。
+    def note_kept(noun, list, incoming)
+      kept = list.find { |item| item['id'] == incoming['id'] }
+      differences = kept ? Differences.between(kept, incoming) : []
+      @warnings << Differences.sentence(noun, incoming['id'], differences) if differences.any?
+      nil
     end
 
     def add_display(display, rule_ids)
@@ -196,9 +209,10 @@ module CurriculumImport
     end
 
     # このページの中で同じ id が2つあっても付け替えられるよう、付けた id を taken に積みながら足す。
+    # ブロックが nil を返したもの(人が直して残した・人が消した)は足さない。
     def add_all(items, taken)
-      Array(items).map do |item|
-        yield(item, taken).tap { |added| taken << added['id'] }
+      Array(items).filter_map do |item|
+        yield(item, taken)&.tap { |added| taken << added['id'] }
       end
     end
 
@@ -215,23 +229,38 @@ module CurriculumImport
       nil
     end
 
+    # 人が直して残した章は、行ごと入れない(直した行は、その章の中にある)。
     def add_group(group, rule_ids, row_ids, taken, row_taken)
+      return note_kept('章', @document['display']['groups'], group) if kept_ids('groups').include?(group['id'])
+
       group = group.merge('id' => unique_id(group['id'], taken))
+      return if removed?('group', group['id'])
+
       group['check_id'] = rule_ids.fetch(group['check_id'], group['check_id']) if group['check_id']
-      group['rows'] = Array(group['rows']).map { |row| add_row(row, rule_ids, row_ids, row_taken) }
+      group['rows'] = Array(group['rows']).filter_map { |row| add_row(row, rule_ids, row_ids, row_taken) }
       group
     end
 
     # taken には、既にある行と、このページで付けた行の id をすべて積む(同じ id が3つ以上あっても重ならない)。
+    # 人が消した行は戻さない。
     def add_row(row, rule_ids, row_ids, taken)
       id = unique_id(row['id'], taken)
       taken << id
       row_ids[row['id']] ||= id
+      return if removed?('row', id)
+
       row.merge('id' => id, 'check_ids' => remap(row['check_ids'], rule_ids))
     end
 
     def add_subtotal(subtotal, rule_ids, row_ids, taken)
-      subtotal.merge('id' => unique_id(subtotal['id'], taken), 'row_ids' => remap(subtotal['row_ids'], row_ids),
+      if kept_ids('subtotals').include?(subtotal['id'])
+        return note_kept('小計', @document['display']['subtotals'], subtotal)
+      end
+
+      id = unique_id(subtotal['id'], taken)
+      return if removed?('subtotal', id)
+
+      subtotal.merge('id' => id, 'row_ids' => remap(subtotal['row_ids'], row_ids),
                      'check_ids' => remap(subtotal['check_ids'], rule_ids))
     end
 

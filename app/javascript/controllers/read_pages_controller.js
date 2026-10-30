@@ -25,6 +25,9 @@ export default class extends Controller {
 
   async readRows(rows) {
     if (this.busy || rows.length === 0) return
+    // 人が直した規則・章・行があるページは、読み直す前に、何が残り何が入れ替わるかを見せる(サーバーが文を作る)。
+    const warnings = rows.map((row) => row.dataset.rereadWarning).filter(Boolean)
+    if (warnings.length > 0 && !window.confirm(warnings.join("\n\n"))) return
     // 行は読むたびに差し替わるので、先に必要なものを取っておく。
     const jobs = rows.map((row) => ({ page: row.dataset.page, url: row.dataset.readUrl }))
     this.setBusy(true)
@@ -34,7 +37,11 @@ export default class extends Controller {
       if (!(await this.read(job))) failed += 1
     }
     this.setBusy(false)
-    this.show(failed === 0 ? "読み取りが終わりました。" : `読み取りが終わりました(${failed}ページは読めませんでした。行の表示を確認してください)。`)
+    let message = failed === 0 ? "読み取りが終わりました。" : `読み取りが終わりました(${failed}ページは読めませんでした。行の表示を確認してください)。`
+    // 下の要件表と注釈は、このページを開いたときの内容のまま。読み取った結果を見るには、開き直す必要がある。
+    // (古い表のまま直しても、保存のときに弾かれる。中身を取り違えて書き込むことはない)
+    if (failed < jobs.length) message += "要件表と注釈の表示は古いままです。ページを開き直すと、読み取った結果が出ます。"
+    this.show(message)
   }
 
   // 1ページ読む。行の差し替えは返ってきた Turbo Stream に任せる。

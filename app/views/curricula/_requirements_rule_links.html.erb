@@ -1,0 +1,13 @@
+<%# 画面の行が指す規則。無い規則は赤字にする(その行は、判定も見込みも出せない)。 %>
+<% if ids.empty? %>
+  <span class="text-slate-500">(なし)</span>
+<% else %>
+  <% ids.each_with_index do |id, index| %>
+    <%= ',' if index.positive? %>
+    <% if review.rule_ids.include?(id) %>
+      <a href="#rule-<%= id %>" class="font-semibold text-slate-800 underline underline-offset-2"><%= id %></a>
+    <% else %>
+      <span class="font-bold text-rose-700"><%= id %>(規則が見つかりません)</span>
+    <% end %>
+  <% end %>
+<% end %>

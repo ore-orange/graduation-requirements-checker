@@ -149,9 +149,10 @@ class Curriculum < ApplicationRecord
 
   def reset_page(document, page, kind)
     kept = CurriculumImport::DraftMerge.withdraw(document, page['contributed'], page['page'])
-    # 残した確認済みの科目は、このページの記録に残す。手放すと、読み直したときに同じ番号の科目が二重に入る。
+    # 残した確認済みの科目と、人が直した規則・章・行は、このページの記録に残す。
+    # 手放すと、読み直したときに同じものが二重に入る(総単位の印は、読み取りの結果と一緒に外れる)。
     page.except('warnings').merge('kind' => kind, 'status' => 'pending', 'error' => nil,
-                                  'contributed' => (kept.any? ? { 'courses' => kept } : nil))
+                                  'contributed' => kept.presence)
   end
 end
 

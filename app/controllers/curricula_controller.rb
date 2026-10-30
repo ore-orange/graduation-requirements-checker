@@ -8,10 +8,11 @@ class CurriculaController < ApplicationController
   include LocalAccessOnly
 
   MAX_PDF_BYTES = 10.megabytes
+  MAX_FLASH_MESSAGES = 3
   FIELD_LABELS = { slug: '識別名(slug)', admission_year: '入学年度', faculty_name: '学部名',
                    department_name: '学科・コース名' }.freeze
 
-  before_action :load_draft, only: %i[show update destroy page_image read_page]
+  before_action :load_draft, only: %i[show update update_rules destroy page_image read_page]
 
   rescue_from ActiveRecord::RecordNotFound do
     redirect_to requirements_path, alert: 'この下書きは見つかりません。削除された可能性があります。', status: :see_other
@@ -67,6 +68,17 @@ class CurriculaController < ApplicationController
     redirect_to @curriculum, notice: saved_notice, status: :see_other
   end
 
+  # 要件表の確認画面(規則・区分・章と行・総単位・注釈の扱い)で人が直した値を、下書きに入れる。
+  # 直したものは、読み直しから守る印(confirmed)を付けて持つ。送られなかった項目は消さない(RequirementsEdit)。
+  # 読み取り(ReadPage)も同じ行をロックして document を書くので、ここも行を取り直してロックし、最新の上で直す。
+  def update_rules
+    result = nil
+    @curriculum.with_lock { result = CurriculumImport::RequirementsEdit.new(@curriculum, rules_params).call }
+    return redirect_to rules_review_path, alert: edit_failure_message(result), status: :see_other unless result.ok?
+
+    redirect_to rules_review_path, notice: edit_success_message(result), status: :see_other
+  end
+
   # 下書きは作業中の文書なので、そのまま消す。公開済みは load_draft で弾く。
   def destroy
     @curriculum.destroy!
@@ -74,6 +86,27 @@ class CurriculaController < ApplicationController
   end
 
   private
+
+  # 要件表の確認の入力。入れ子の形(章の中の行など)は、RequirementsEdit が1つずつ読んで型を確かめる。
+  def rules_params
+    params.to_unsafe_h.slice('revision', 'categories', 'rules', 'display', 'new_rule_json', 'annotations')
+  end
+
+  def rules_review_path = curriculum_path(@curriculum, anchor: 'requirements_review')
+
+  # フラッシュは cookie に入るので、長くなりすぎないよう、先頭の数件だけ出す。
+  def edit_failure_message(result)
+    shown = result.errors.first(MAX_FLASH_MESSAGES).join(' ')
+    rest = result.errors.size - MAX_FLASH_MESSAGES
+    "要件表の修正を保存できませんでした(何も変えていません)。#{shown}#{" ほか#{rest}件。" if rest.positive?}"
+  end
+
+  def edit_success_message(result)
+    shown = result.notes.first(MAX_FLASH_MESSAGES).join(' ')
+    return shown if result.edited.zero?
+
+    "要件表の修正を保存しました(#{result.edited}件)。直した項目は人が確認した値として残り、読み直しでは上書きしません。#{shown}"
+  end
 
   def upload_params
     @upload_params ||= begin
@@ -166,7 +199,7 @@ class CurriculaController < ApplicationController
     return 'ページの指定を保存しました。' if @withdrawn_pages.blank?
 
     "ページの指定を保存しました。種別を替えた#{@withdrawn_pages.join('・')}ページの読み取り結果は外しました" \
-      '(確認済みの科目は残ります)。必要なら読み直してください。'
+      '(確認済みの科目と、人が直した規則・章・行は残ります)。必要なら読み直してください。'
   end
 end
 

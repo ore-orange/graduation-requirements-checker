@@ -1,0 +1,36 @@
+<%# 要件表の確認。AI が PDF から読んだ規則・区分・表示の並びを、学生に出る前に人が見て直す、ただ1つの場所。 %>
+<%# 直した項目には「人が確認した」印が付き、読み直しでは上書きされない(CurriculumImport::DraftMerge)。 %>
+<% review = CurriculumImport::RequirementsReview.new(curriculum) %>
+<section id="requirements_review" aria-labelledby="requirements-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs">
+  <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
+    <h3 id="requirements-heading" class="text-base font-bold text-slate-900">要件表の確認</h3>
+    <p class="mt-0.5 text-xs text-slate-500">
+      AI が読んだ卒業の要件です。必ず、PDFの要件表と見比べてください。違う数字・区分は直し、足りない規則は足します。
+      ここで直した項目は「人が確認した」印が付き、あとでそのページを読み直しても上書きされません。
+    </p>
+  </div>
+
+  <% if review.started? %>
+    <%= render 'requirements_findings', review: review %>
+
+    <%= form_with url: update_rules_curriculum_path(curriculum), method: :patch, id: 'requirements_form',
+                  class: 'space-y-8 p-5 sm:p-6', data: { turbo: false } do |form| %>
+      <%= hidden_field_tag :revision, review.revision, id: nil %>
+      <%= render 'requirements_table', review: review %>
+      <%= render 'requirements_categories', review: review %>
+      <%= render 'requirements_rules', review: review %>
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+        <p class="text-xs text-slate-600">
+          保存すると、値を変えた項目だけに「人が確認した」印が付きます。触っていない項目は、読み直すと AI の読みに入れ替わります。
+        </p>
+        <%= form.submit '要件表の修正を保存', class: 'demo-button' %>
+      </div>
+    <% end %>
+
+    <%= render 'requirements_cards', review: review %>
+  <% else %>
+    <p class="px-5 py-4 text-sm text-slate-700 sm:px-6">
+      まだ要件表を読み取っていません。上の「読むページ」で要件表のページを選び、「読む」を押すと、ここに規則と必要単位の表が出ます。
+    </p>
+  <% end %>
+</section>

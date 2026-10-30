@@ -196,6 +196,20 @@ class GraduationAssessment
       end
     end
 
+    # 取り込みの確認画面で人が直した章・行・小計には confirmed が付く。公開するときに、この印で読み込めなくならないこと。
+    # 読み取りが返す欄(DISPLAY_*_KEYS)ではないので、語彙とは別に許す。
+    test '人が直した印(confirmed)は、章・行・小計に付いていても読み込める。ほかの未知の欄は、これまでどおり弾く' do
+      row = display_row('confirmed' => true)
+      group = display_with_row(row)['groups'].first.merge('confirmed' => true)
+      subtotal = { 'id' => 'inner', 'name' => '内数', 'required_credits' => 22, 'row_ids' => ['basic'],
+                   'check_ids' => [], 'confirmed' => true }
+
+      assert_nothing_raised { load_with_display(display.merge('groups' => [group], 'subtotals' => [subtotal])) }
+      typo = group.merge('comfirmed' => true)
+      error = assert_raises(ArgumentError) { load_with_display(display.merge('groups' => [typo])) }
+      assert_includes error.message, 'comfirmed'
+    end
+
     test '語彙にある欄はすべて置ける' do
       row = display_row('subtitle' => '補足', 'required_label' => '枠')
       group = display_with_row(row)['groups'].first

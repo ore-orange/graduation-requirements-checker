@@ -20,6 +20,10 @@ module CurriculumImport
     ROW_TEXT_FIELDS = %w[name subtitle required_label].freeze
     NESTED = %w[options conditions].freeze
     EXCERPT_LENGTH = 60
+    # ページの警告に残す文。確認画面は、これらを「科目に当てられなかった承認の注記」のカードにする(警告が唯一の記録)。
+    UNRESOLVED_PREFIX = '承認の注記らしい文がありますが、対象の区分が分からず科目に反映していません: '
+    UNWRITTEN_WARNING = 'このページの文字に「承認」とありますが、規則にも表示の行にも書き取られていません。' \
+                        '承認が要る科目の区分を確かめ、必要なら承認の注記を足してください。'
 
     class << self
       # 注記に当たる科目を真にする(document を直接書き換える)。戻り値は、新しく真にした科目の key。
@@ -78,8 +82,11 @@ module CurriculumImport
       def requirements_page_warning(text, found)
         return if found || !text.to_s.match?(MENTION)
 
-        'このページの文字に「承認」とありますが、規則にも表示の行にも書き取られていません。' \
-          '承認が要る科目の区分を確かめ、必要なら承認の注記を足してください。'
+        UNWRITTEN_WARNING
+      end
+
+      def unresolved_warning(text)
+        "#{UNRESOLVED_PREFIX}#{text}"
       end
 
       # 科目表のページの文字に「承認」とあるのに、そのページのどの科目にも承認の印が付いていないとき、確認を促す文。

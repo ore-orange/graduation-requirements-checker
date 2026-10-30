@@ -98,7 +98,7 @@ module CurriculumImport
       contributed = merge.requirements(answer)
       notes, unresolved = ApprovalNotes.detect(answer, entry['page'])
       ApprovalNotes.replace_page_notes(document, entry['page'], notes)
-      warnings = unresolved.map { |text| "承認の注記らしい文がありますが、対象の区分が分からず科目に反映していません: #{text}" }
+      warnings = unresolved.map { |text| ApprovalNotes.unresolved_warning(text) }
       warnings << ApprovalNotes.requirements_page_warning(entry['text'], notes.any? || unresolved.any?)
       [contributed, warnings]
     end

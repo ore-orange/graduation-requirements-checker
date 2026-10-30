@@ -23,7 +23,7 @@ Rails.application.routes.draw do
 
   resources :course_registrations, only: :index
   # 便覧PDFのアップロードと下書きの確認。確認画面は「卒業要件の確認」タブの中にいる扱い。
-  # publish・read_page・update_courses・update_rules・page_image は、後続のタスクで動かす。
+  # publish・update_courses は、後続のタスクで動かす。update_rules は要件表の確認画面の保存。
   resources :curricula, only: %i[create show update destroy] do
     member do
       post :publish

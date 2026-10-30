@@ -1,0 +1,61 @@
+<%# 規則の一覧。判定は、ここに書かれた規則だけで決まる。値は欄で、入れ子や経路は JSON で直す。 %>
+<% field_class = RequirementsReviewHelper::FIELD_CLASS %>
+<div id="requirements_rules">
+  <h4 class="text-sm font-bold text-slate-900">規則</h4>
+  <p class="mt-0.5 text-xs text-slate-500">学生の判定は、これらの規則だけで決まります。要件表に書かれているのに、ここに無い規則は、判定されません。</p>
+
+  <% if review.rules.empty? %>
+    <p class="mt-2 text-sm text-slate-600">規則がまだありません。</p>
+  <% else %>
+    <ul class="mt-3 space-y-2">
+      <% review.rules.each_with_index do |rule, index| %>
+        <% key = "rules[#{index}]" %>
+        <li id="rule-<%= rule['id'] %>" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <p class="font-semibold text-slate-900">
+              <%= rule['label'].presence || rule_type_name(rule['type']) %>
+              <span class="text-xs font-normal text-slate-500">(<%= rule['id'] %>)</span>
+              <% if human_confirmed?(rule) %><span class="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">人が確認した</span><% end %>
+            </p>
+            <p class="text-xs text-slate-600"><%= rule_type_name(rule['type']) %> / 出典 <%= rule['source_page'].presence || '(なし)' %></p>
+          </div>
+          <p class="mt-1 text-xs text-slate-700"><%= rule_summary(rule, review).join(' / ') %></p>
+          <% if rule['detail'].present? %><p class="mt-0.5 text-xs text-slate-600"><%= rule['detail'] %></p><% end %>
+          <%= render 'requirements_finding_notes', findings: review.findings_for(:rule, rule['id']) %>
+          <details class="mt-1">
+            <summary class="cursor-pointer text-xs font-semibold text-slate-700">この規則を直す・消す</summary>
+            <div class="mt-2 grid gap-3 sm:grid-cols-2">
+              <%= hidden_field_tag "#{key}[id]", rule['id'], id: nil %>
+              <% CurriculumImport::RequirementsEdit.rule_fields(rule).each do |field, kind| %>
+                <div class="<%= 'sm:col-span-2' if %i[set text].include?(kind) %>">
+                  <%= rule_field_input "#{key}[#{field}]", field, kind, rule, review %>
+                </div>
+              <% end %>
+            </div>
+            <div class="mt-3">
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-700">規則全体(JSON)。経路・入れ子の選択肢などは、ここで直します。ここを変えたときは、上の欄の値より、こちらを採ります。</span>
+                <%= text_area_tag "#{key}[json]", rule_json(rule), id: nil, rows: 8, spellcheck: false,
+                                  class: "mt-1 block w-full font-mono text-xs #{field_class}" %>
+              </label>
+            </div>
+            <label class="mt-2 flex items-center gap-1.5 text-xs text-rose-800">
+              <%= check_box_tag "#{key}[_destroy]", '1', false, id: nil %>
+              この規則を消す(読み直しても戻りません。この規則を指す行は「規則が見つかりません」になります)
+            </label>
+          </details>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <details class="mt-3 rounded-lg border border-dashed border-slate-300 px-3 py-2">
+    <summary class="cursor-pointer text-xs font-semibold text-slate-700">規則を足す(AI が読み落とした要件)</summary>
+    <p class="mt-2 text-xs text-slate-600">
+      規則1つ分を JSON で書きます。type は次のどれかです: <%= CurriculumImport::Annotations::RULE_TYPES.join('・') %>。
+      id は他の規則と重ならない文字列にしてください。例:
+    </p>
+    <pre class="mt-1 overflow-x-auto rounded bg-slate-100 p-2 text-xs">{"id": "elective_total", "type": "credit_sum", "label": "専門選択の合計", "categories": ["elective_math"], "required_credits": 37, "source_page": "PDF11ページ"}</pre>
+    <%= text_area_tag :new_rule_json, nil, id: nil, rows: 5, spellcheck: false, class: "mt-2 block w-full font-mono text-xs #{field_class}" %>
+  </details>
+</div>
