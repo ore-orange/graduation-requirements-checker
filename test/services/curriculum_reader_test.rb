@@ -33,7 +33,9 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     reader(client, **).read_courses(text: 't', image_path: nil, categories: categories)
   end
 
-  def failure(status) = CurriculumReader::RequestFailed.new("HTTP #{status}", status: status)
+  def failure(status, retry_after: nil)
+    CurriculumReader::RequestFailed.new("HTTP #{status}", status: status, retry_after: retry_after)
+  end
 
   def with_key(value)
     original = ENV.fetch('CURRICULUM_READER_API_KEY', nil)
@@ -50,6 +52,7 @@ class CurriculumReaderTest < ActiveSupport::TestCase
 
   def requirements_answer
     { 'categories' => [{ 'key' => 'health', 'label' => '健康運動系', 'counts_toward_total' => true }],
+      'roles' => [],
       'rules' => [{ 'id' => 'health', 'type' => 'credit_sum', 'label' => '健康運動系', 'categories' => ['health'],
                     'required_credits' => 2 }],
       'display' => { 'total_credits' => 130, 'groups' => [] } }
@@ -116,6 +119,18 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     end
   end
 
+  test '並んだ表の注意は条件で書き、ページ番号は書かない(1ページずつ送るので、何ページ目かを考えさせない)' do
+    requirements = StubClient.new(requirements_answer)
+    reader(requirements).read_requirements(text: 't', image_path: nil)
+    courses = StubClient.new(EMPTY_COURSES)
+    read_courses(courses)
+
+    [requirements, courses].each do |client|
+      assert_includes client.last[:prompt], 'このページに2つ以上の表が左右に並んでいるとき'
+      assert_no_match(/ページ目|14/, client.last[:prompt])
+    end
+  end
+
   test 'ページのテキストと画像の場所がそのままクライアントに渡る' do
     client = StubClient.new(EMPTY_COURSES)
     reader(client).read_courses(text: '知能101 プログラミング演習Ⅰ', image_path: '/x/p3.png', categories: [])
@@ -136,7 +151,7 @@ class CurriculumReaderTest < ActiveSupport::TestCase
   test '要件表の答えは categories と rules と display を返す' do
     result = reader(StubClient.new(requirements_answer)).read_requirements(text: 't', image_path: nil)
 
-    assert_equal %w[categories display rules], result.keys.sort
+    assert_equal %w[categories display roles rules], result.keys.sort
     assert_equal 'health', result['categories'].first['key']
     assert_equal 130, result['display']['total_credits']
   end
@@ -167,7 +182,7 @@ class CurriculumReaderTest < ActiveSupport::TestCase
   test '科目表の答えは courses を返す' do
     result = read_courses(StubClient.new('courses' => [course]), categories: %w[a])
 
-    assert_equal [course], result['courses']
+    assert_equal [course.merge('roles' => [])], result['courses']
   end
 
   test 'any_of の入れ子の規則も通る' do
@@ -184,6 +199,126 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     result = reader(StubClient.new(answer)).read_requirements(text: 't', image_path: nil)
 
     assert_equal 2, result['rules'].size
+  end
+
+  # --- 役割(roles)
+
+  ROLES = [{ 'key' => 'calculus_1', 'label' => '微分積分学Ⅰ' }, { 'key' => 'physics_1', 'label' => '物理学Ⅰ' }].freeze
+
+  def read_courses_with_roles(client, roles: ROLES)
+    reader(client).read_courses(text: 't', image_path: nil, categories: %w[a], roles: roles)
+  end
+
+  test '科目表のプロンプトには、役割のkeyとlabelが入り、複数の科目が担ってよいと伝える' do
+    client = StubClient.new(EMPTY_COURSES)
+    read_courses_with_roles(client)
+
+    assert_includes client.last[:prompt], 'calculus_1'
+    assert_includes client.last[:prompt], '微分積分学Ⅰ'
+    assert_includes client.last[:prompt], 'physics_1'
+    assert_includes client.last[:prompt], '複数の科目が担ってよい'
+    assert_includes client.last[:prompt], '一覧にない key を作らない'
+  end
+
+  test '役割がキーだけの文字列で渡されても通る' do
+    client = StubClient.new(EMPTY_COURSES)
+    read_courses_with_roles(client, roles: %w[calculus_1])
+
+    assert_includes client.last[:prompt], 'calculus_1'
+  end
+
+  test '役割の一覧が無ければ、プロンプトにもスキーマにも roles の欄は出ない' do
+    client = StubClient.new(EMPTY_COURSES)
+    read_courses(client, categories: %w[a])
+
+    assert_no_match(/役割の一覧|- roles:/, client.last[:prompt])
+    assert_not client.last[:schema].dig(:properties, :courses, :items, :properties).key?(:roles)
+  end
+
+  test '科目の roles の出力スキーマは、渡された役割の一覧に限る(配列。0個以上)' do
+    client = StubClient.new(EMPTY_COURSES)
+    read_courses_with_roles(client)
+    roles = client.last[:schema].dig(:properties, :courses, :items, :properties, :roles)
+
+    assert_equal 'array', roles[:type]
+    assert_equal %w[calculus_1 physics_1], roles.dig(:items, :enum)
+    assert_includes client.last[:schema].dig(:properties, :courses, :items, :required), :roles
+  end
+
+  test '1つの役割を複数の科目が、1つの科目が複数の役割を担える' do
+    courses = [course('number' => '工共110', 'roles' => %w[calculus_1]),
+               course('number' => '工共111', 'roles' => %w[calculus_1]),
+               course('number' => '工共120', 'roles' => %w[calculus_1 physics_1]),
+               course('number' => '知能101', 'roles' => [])]
+    result = read_courses_with_roles(StubClient.new('courses' => courses))
+
+    assert_equal courses.pluck('roles'), result['courses'].pluck('roles')
+  end
+
+  test '渡した一覧にない役割を付けたら Error(役割を作らせない)' do
+    error = assert_raises(CurriculumReader::Error) do
+      read_courses_with_roles(StubClient.new('courses' => [course('roles' => %w[invented])]))
+    end
+    assert_includes error.message, 'roles'
+  end
+
+  test 'rolesが配列でなければ Error' do
+    assert_raises(CurriculumReader::Error) do
+      read_courses_with_roles(StubClient.new('courses' => [course('roles' => 'calculus_1')]))
+    end
+  end
+
+  test '役割を渡したのに roles の欄が欠けた科目は Error' do
+    assert_raises(CurriculumReader::Error) { read_courses_with_roles(StubClient.new('courses' => [course])) }
+  end
+
+  test '役割を渡していないのに roles を返したら Error(知らない欄)' do
+    assert_raises(CurriculumReader::Error) do
+      read_courses(StubClient.new('courses' => [course('roles' => %w[x])]), categories: %w[a])
+    end
+  end
+
+  test '要件表は役割の一覧を返す' do
+    answer = requirements_answer
+    answer['roles'] = ROLES
+    result = reader(StubClient.new(answer)).read_requirements(text: 't', image_path: nil)
+
+    assert_equal ROLES, result['roles']
+  end
+
+  test '要件表の prompt は roles を聞き、one_of_paths には roles の key だけを書かせる' do
+    client = StubClient.new(requirements_answer)
+    reader(client).read_requirements(text: 't', image_path: nil)
+
+    assert_includes client.last[:prompt], '### roles(役割)'
+    assert_includes client.last[:prompt], 'roles にある key だけを書く'
+  end
+
+  test 'one_of_paths が roles にない役割を指していたら Error(科目に付かず、永久に満たされない規則になる)' do
+    answer = requirements_answer
+    answer['roles'] = [{ 'key' => 'calculus_1', 'label' => '微分積分学Ⅰ' }]
+    answer['rules'] << { 'id' => 'math', 'type' => 'one_of_paths', 'label' => '微分積分',
+                         'paths' => [%w[calculus_1], %w[calculus_2]] }
+    error = assert_raises(CurriculumReader::Error) do
+      reader(StubClient.new(answer)).read_requirements(text: 't', image_path: nil)
+    end
+
+    assert_includes error.message, 'calculus_2'
+  end
+
+  test 'one_of_paths の役割がすべて roles にあれば通る' do
+    answer = requirements_answer
+    answer['roles'] = ROLES
+    answer['rules'] << { 'id' => 'math', 'type' => 'one_of_paths', 'label' => '微分積分',
+                         'paths' => [%w[calculus_1], %w[physics_1]] }
+
+    assert_nothing_raised { reader(StubClient.new(answer)).read_requirements(text: 't', image_path: nil) }
+  end
+
+  test '要件表で roles が欠けていたら Error' do
+    assert_raises(CurriculumReader::Error) do
+      reader(StubClient.new(requirements_answer.except('roles'))).read_requirements(text: 't', image_path: nil)
+    end
   end
 
   # --- 再試行
@@ -209,11 +344,65 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     assert_equal 2, client.calls
   end
 
-  test '待ち時間は倍々に増える' do
+  test '5xx の待ち時間は倍々に増える' do
+    sleeps = []
+    read_courses(StubClient.new([failure(503), failure(500), EMPTY_COURSES]), sleeps: sleeps)
+
+    assert_equal [CurriculumReader::BACKOFF_BASE, CurriculumReader::BACKOFF_BASE * 2], sleeps
+  end
+
+  test '429 の待ちは、5xx より長い所から倍々に増える(無料枠の上限は1分あたりで数えられる)' do
     sleeps = []
     read_courses(StubClient.new([failure(429), failure(429), EMPTY_COURSES]), sleeps: sleeps)
 
-    assert_equal [CurriculumReader::BACKOFF_BASE, CurriculumReader::BACKOFF_BASE * 2], sleeps
+    assert_equal [CurriculumReader::RATE_LIMIT_BACKOFF_BASE, CurriculumReader::RATE_LIMIT_BACKOFF_BASE * 2], sleeps
+    assert_operator CurriculumReader::RATE_LIMIT_BACKOFF_BASE, :>, CurriculumReader::BACKOFF_BASE
+  end
+
+  test '通信の失敗の待ちは 5xx と同じ' do
+    sleeps = []
+    read_courses(StubClient.new([CurriculumReader::RequestFailed.new('x'), EMPTY_COURSES]), sleeps: sleeps)
+
+    assert_equal [CurriculumReader::BACKOFF_BASE], sleeps
+  end
+
+  test '429 に Retry-After があれば、その秒数だけ待つ' do
+    sleeps = []
+    read_courses(StubClient.new([failure(429, retry_after: 37), failure(429, retry_after: 12), EMPTY_COURSES]),
+                 sleeps: sleeps)
+
+    assert_equal [37, 12], sleeps
+  end
+
+  test '5xx の Retry-After も守る' do
+    sleeps = []
+    read_courses(StubClient.new([failure(503, retry_after: 9), EMPTY_COURSES]), sleeps: sleeps)
+
+    assert_equal [9], sleeps
+  end
+
+  test 'Retry-After は上限で切る(誤った値や悪意のある値でリクエストを止めない)' do
+    sleeps = []
+    read_courses(StubClient.new([failure(429, retry_after: 86_400), EMPTY_COURSES]), sleeps: sleeps)
+
+    assert_equal [CurriculumReader::MAX_RETRY_AFTER], sleeps
+    assert_equal 60, CurriculumReader::MAX_RETRY_AFTER
+  end
+
+  test 'Retry-After が0でも、すぐには叩き直さず1秒は待つ' do
+    sleeps = []
+    read_courses(StubClient.new([failure(429, retry_after: 0), EMPTY_COURSES]), sleeps: sleeps)
+
+    assert_equal [1], sleeps
+  end
+
+  test 'Retry-After があっても試しは3回まで' do
+    sleeps = []
+    client = StubClient.new { failure(429, retry_after: 5) }
+
+    assert_raises(CurriculumReader::Error) { read_courses(client, sleeps: sleeps) }
+    assert_equal 3, client.calls
+    assert_equal [5, 5], sleeps
   end
 
   test '再試行しても駄目なら Error。3回で諦め、最後の待ちは入れない' do

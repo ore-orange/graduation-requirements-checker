@@ -14,17 +14,33 @@ class CurriculumReader
         return problems if problems.any?
 
         answer['rules'].each_with_index { |rule, index| problems.concat(rule_problems(rule, "$.rules[#{index}]")) }
+        problems.concat(role_problems(answer))
         problems.concat(display_problems(answer['display']))
       end
 
       # null の欄を落とす(規則の読み込みは、欄が無いことと null を別に扱う)。表示の行の必要単位とラベルだけは null を残す。
       def tidy_requirements(answer)
         { 'categories' => answer['categories'],
+          'roles' => answer['roles'],
           'rules' => compact(answer['rules'], keep_null: []),
           'display' => compact(answer['display'], keep_null: KEEP_NULL) }
       end
 
+      # 科目表の答えを整える。roles を聞かなかったとき(役割が無い便覧)は、どの科目も空の roles を持たせる。
+      def tidy_courses(answer)
+        { 'courses' => answer['courses'].map { |course| course.key?('roles') ? course : course.merge('roles' => []) } }
+      end
+
       private
+
+      # one_of_paths が名指しする役割は、roles に載っていなければならない。載っていない役割は、
+      # 科目表の読み取りで誰にも付かず、その規則は永久に満たされない(学生は直しようのない要確認になる)。
+      def role_problems(answer)
+        known = answer['roles'].pluck('key')
+        paths_rules = answer['rules'].select { |rule| rule['type'] == 'one_of_paths' }
+        named = paths_rules.flat_map { |rule| rule['paths'].flatten }
+        (named.uniq - known).map { |key| "one_of_paths が roles にない役割 #{key.to_s.first(30)} を指しています" }
+      end
 
       def rule_problems(rule, path)
         missing = Schemas::RULE_REQUIRED.fetch(rule['type']).select { |field| rule[field].nil? }

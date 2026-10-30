@@ -16,19 +16,27 @@ class CurriculumReader
   class RequestFailed < StandardError
     attr_reader :status
 
-    def initialize(message = nil, status: nil)
+    # retry_after は、応答の Retry-After が言う待ち秒数(無ければ nil)。
+    attr_reader :retry_after
+
+    def initialize(message = nil, status: nil, retry_after: nil)
       super(message)
       @status = status
+      @retry_after = retry_after
     end
   end
 
   PROVIDER = Gemini
 
   API_KEY_ENV = 'CURRICULUM_READER_API_KEY'
-  # 同じ問いを最大3回まで。待ちは BACKOFF_BASE 秒、その倍…と増やす(3回目の失敗のあとには待たない)。
-  # 無料枠の1分あたりの上限に当たったときも、2回待てば窓が動く見込みで、リクエストを何十秒も止めない長さにする。
+  # 同じ問いを最大3回まで(3回目の失敗のあとには待たない)。
+  # 待ちは、応答に Retry-After があればその秒数(MAX_RETRY_AFTER を上限にする。誤った値や悪意のある値で、リクエストを止めないため)。
+  # 無ければ、5xx と通信の失敗は BACKOFF_BASE 秒から、429 は RATE_LIMIT_BACKOFF_BASE 秒から、倍々に増やす。
+  # 無料枠の上限は1分あたりで数えられることが多く、数秒の待ちでは窓が動かないので、429 は長く待つ。
   MAX_ATTEMPTS = 3
   BACKOFF_BASE = 4
+  RATE_LIMIT_BACKOFF_BASE = 15
+  MAX_RETRY_AFTER = 60
 
   # APIキーが設定されているか。無ければ、取り込み画面は読み取りボタンを出さず、手入力で使う。
   def self.available?
@@ -40,7 +48,7 @@ class CurriculumReader
     @sleeper = sleeper
   end
 
-  # 要件表のページを読む。{ 'categories' =>, 'rules' =>, 'display' => }。
+  # 要件表のページを読む。{ 'categories' =>, 'roles' =>, 'rules' =>, 'display' => }。
   # 1ページに書かれている分だけで、複数ページにまたがる要件をまとめるのは呼び出し側。
   def read_requirements(text:, image_path:)
     answer = ask(Prompts.requirements(text: text), image_path, Schemas.requirements)
@@ -50,16 +58,20 @@ class CurriculumReader
     Answer.tidy_requirements(answer)
   end
 
-  # 科目表のページを読む。{ 'courses' => }。categories は要件表の読み取りで確定した区分(キーの文字列か、key・label を持つ Hash)。
-  # 科目の区分は、この一覧のどれかに限る。
-  def read_courses(text:, image_path:, categories:)
-    entries = category_entries(categories)
-    schema = Schemas.courses(entries.pluck(:key))
-    answer = ask(Prompts.courses(text: text, categories: entries), image_path, schema)
+  # 科目表のページを読む。{ 'courses' => }。
+  # categories・roles は、要件表の読み取りで確定したもの(キーの文字列か、key・label を持つ Hash)。
+  # 科目の区分は categories のどれか1つ、科目の役割(roles)は roles のうち0個以上に限る。一覧にないキーは作らせない。
+  # roles を渡さなければ、どの科目の roles も空になる。
+  def read_courses(text:, image_path:, categories:, roles: [])
+    category_entries = keyed_entries(categories, 'categories')
+    role_entries = keyed_entries(roles, 'roles')
+    schema = Schemas.courses(category_entries.pluck(:key), role_entries.pluck(:key))
+    prompt = Prompts.courses(text: text, categories: category_entries, roles: role_entries)
+    answer = ask(prompt, image_path, schema)
     problems = Shape.problems(answer, schema)
     raise Error, "読み取りの答えが科目表の形ではありません: #{problems.first(3).join('、')}" if problems.any?
 
-    answer
+    Answer.tidy_courses(answer)
   end
 
   private
@@ -81,7 +93,7 @@ class CurriculumReader
       @client.generate(prompt: prompt, image_path: image_path, schema: schema)
     rescue RequestFailed => e
       if retryable?(e) && attempts < MAX_ATTEMPTS
-        @sleeper.call(BACKOFF_BASE * (2**(attempts - 1)))
+        @sleeper.call(wait_seconds(e, attempts))
         retry
       end
       detail = e.status ? "HTTP #{e.status}" : e.message
@@ -94,18 +106,26 @@ class CurriculumReader
     status.nil? || status == 429 || status.between?(500, 599)
   end
 
-  # 区分を { key:, label: } にそろえる。キーだけの文字列も、便覧の categories の要素(String キーの Hash)も受ける。
-  def category_entries(categories)
-    entries = Array(categories).map { |category| category_entry(category) }
-    raise ArgumentError, 'categories に key のない区分があります' if entries.any? { |entry| entry[:key].empty? }
+  # 次の試しまでの待ち秒数。attempts は、いま失敗した試しの回数(1始まり)。
+  def wait_seconds(error, attempts)
+    return error.retry_after.clamp(1, MAX_RETRY_AFTER) if error.retry_after
+
+    base = error.status == 429 ? RATE_LIMIT_BACKOFF_BASE : BACKOFF_BASE
+    base * (2**(attempts - 1))
+  end
+
+  # 区分・役割を { key:, label: } にそろえる。キーだけの文字列も、便覧の categories の要素(String キーの Hash)も受ける。
+  def keyed_entries(list, name)
+    entries = Array(list).map { |item| keyed_entry(item) }
+    raise ArgumentError, "#{name} に key のない要素があります" if entries.any? { |entry| entry[:key].empty? }
 
     entries.uniq { |entry| entry[:key] }
   end
 
-  def category_entry(category)
-    return { key: category.to_s, label: nil } unless category.is_a?(Hash)
+  def keyed_entry(item)
+    return { key: item.to_s, label: nil } unless item.is_a?(Hash)
 
-    { key: (category['key'] || category[:key]).to_s, label: (category['label'] || category[:label]).presence }
+    { key: (item['key'] || item[:key]).to_s, label: (item['label'] || item[:label]).presence }
   end
 end
 

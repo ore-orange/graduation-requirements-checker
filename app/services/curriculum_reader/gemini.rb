@@ -3,6 +3,7 @@
 require 'net/http'
 require 'json'
 require 'base64'
+require 'time'
 
 class CurriculumReader
   # Google AI Studio(Gemini API)の generateContent を1回呼ぶ。プロバイダが替わるときに直すのは、このファイルだけ。
@@ -27,7 +28,8 @@ class CurriculumReader
     MIME_TYPES = { '.png' => 'image/png', '.jpg' => 'image/jpeg', '.jpeg' => 'image/jpeg' }.freeze
     NETWORK_ERRORS = [Timeout::Error, SystemCallError, SocketError, IOError, OpenSSL::SSL::SSLError].freeze
 
-    # transport は (uri, headers, body) を受けて [状態コード, 本文] を返す呼び出し可能なもの。テストが偽物を渡す。
+    # transport は (uri, headers, body) を受けて [状態コード, 本文] か [状態コード, 本文, 応答のヘッダ(小文字のキーの Hash)] を返す
+    # 呼び出し可能なもの。テストが偽物を渡す。
     def initialize(api_key: ENV.fetch(CurriculumReader::API_KEY_ENV, nil), model: ENV.fetch(MODEL_ENV, DEFAULT_MODEL),
                    transport: nil)
       raise ArgumentError, 'モデル名に使えない文字があります' unless model.to_s.match?(MODEL_FORMAT)
@@ -42,8 +44,8 @@ class CurriculumReader
       raise CurriculumReader::Error, 'APIキーが設定されていません。' if @api_key.to_s.empty?
 
       body = JSON.generate(request_body(prompt, image_path, schema))
-      status, response = @transport.call(uri, headers, body)
-      raise failure(status, response) unless status == 200
+      status, response, response_headers = @transport.call(uri, headers, body)
+      raise failure(status, response, response_headers) unless status == 200
 
       parse(response)
     end
@@ -91,9 +93,22 @@ class CurriculumReader
     end
 
     # 失敗の理由。Google の状態名(PERMISSION_DENIED など、大文字と下線だけのもの)は載せるが、本文の文章は載せない。
-    def failure(status, response)
+    def failure(status, response, response_headers)
       reason = google_status(response)
-      CurriculumReader::RequestFailed.new(["HTTP #{status}", reason].compact.join(' '), status: status)
+      retry_after = retry_after_seconds(response_headers&.[]('retry-after'))
+      CurriculumReader::RequestFailed.new(["HTTP #{status}", reason].compact.join(' '),
+                                          status: status, retry_after: retry_after)
+    end
+
+    # Retry-After は秒数か、HTTP の日時。読めなければ nil(窓口が決めた待ちを使う)。上限は窓口が掛ける。
+    def retry_after_seconds(value)
+      value = value.to_s.strip
+      return if value.empty?
+      return value.to_i if value.match?(/\A\d{1,9}\z/)
+
+      [(Time.httpdate(value) - Time.current).ceil, 0].max
+    rescue ArgumentError
+      nil
     end
 
     def google_status(response)
@@ -147,7 +162,7 @@ class CurriculumReader
         request = Net::HTTP::Post.new(uri, headers)
         request.body = body
         response = http.request(request)
-        [response.code.to_i, response.body.to_s]
+        [response.code.to_i, response.body.to_s, { 'retry-after' => response['retry-after'] }]
       end
     rescue *NETWORK_ERRORS => e
       # 例外のメッセージには接続先などが入り得るので、種類だけを載せる。

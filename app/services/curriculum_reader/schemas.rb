@@ -26,14 +26,15 @@ class CurriculumReader
 
     class << self
       def requirements
-        object({ categories: array(category), rules: array(rule), display: display },
-               required: %i[categories rules display])
+        object({ categories: array(category), roles: array(role), rules: array(rule), display: display },
+               required: %i[categories roles rules display])
       end
 
       # category_keys が空でなければ、科目の区分はその一覧のどれかに限る。
-      def courses(category_keys)
+      # role_keys が空でなければ、科目は roles(その一覧から0個以上)を持つ。空なら roles の欄を聞かない(空の enum は書けないため)。
+      def courses(category_keys, role_keys = [])
         category_schema = category_keys.empty? ? STRING : { type: 'string', enum: category_keys }
-        object({ courses: array(course(category_schema)) }, required: %i[courses])
+        object({ courses: array(course(category_schema, role_keys)) }, required: %i[courses])
       end
 
       private
@@ -100,10 +101,17 @@ class CurriculumReader
                required: %i[id name required_credits row_ids check_ids])
       end
 
-      def course(category_schema)
-        object({ number: nullable(STRING), name: STRING, credits: nullable(NUMBER), category: category_schema,
-                 required: BOOLEAN, language: nullable(STRING), review_reason: nullable(STRING) },
-               required: %i[number name credits category required language review_reason])
+      def course(category_schema, role_keys)
+        properties = { number: nullable(STRING), name: STRING, credits: nullable(NUMBER), category: category_schema,
+                       required: BOOLEAN, language: nullable(STRING), review_reason: nullable(STRING) }
+        required = %i[number name credits category required language review_reason]
+        return object(properties, required: required) if role_keys.empty?
+
+        object(properties.merge(roles: array(type: 'string', enum: role_keys)), required: required + [:roles])
+      end
+
+      def role
+        object({ key: STRING, label: STRING }, required: %i[key label])
       end
     end
   end

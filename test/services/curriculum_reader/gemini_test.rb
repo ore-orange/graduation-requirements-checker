@@ -152,6 +152,35 @@ class CurriculumReaderGeminiTest < ActiveSupport::TestCase
     assert_not_includes error.message, KEY
   end
 
+  def failed_with(headers)
+    assert_raises(CurriculumReader::RequestFailed) { generate(Transport.new([429, '{}', headers])) }
+  end
+
+  test '429 の Retry-After(秒数)を RequestFailed に載せる' do
+    assert_equal 37, failed_with('retry-after' => '37').retry_after
+    assert_equal 5, failed_with('retry-after' => ' 5 ').retry_after
+  end
+
+  test 'Retry-After が日時のときは、いまからの秒数にする' do
+    header = (Time.current + 30).httpdate
+    seconds = failed_with('retry-after' => header).retry_after
+
+    assert_includes 28..31, seconds
+    assert_equal 0, failed_with('retry-after' => (Time.current - 3600).httpdate).retry_after
+  end
+
+  test 'Retry-After が無い・読めない・負のときは nil(窓口の既定の待ちを使う)' do
+    assert_nil failed_with({}).retry_after
+    assert_nil failed_with('retry-after' => 'soon').retry_after
+    assert_nil failed_with('retry-after' => '-5').retry_after
+    assert_nil failed_with('retry-after' => '').retry_after
+    assert_nil generate_failure_without_headers.retry_after
+  end
+
+  def generate_failure_without_headers
+    assert_raises(CurriculumReader::RequestFailed) { generate(Transport.new([429, '{}'])) }
+  end
+
   test '200 でも本文がJSONでなければ Error(RequestFailed ではない。再試行しない)' do
     error = assert_raises(CurriculumReader::Error) { generate(Transport.new([200, '<html>busy</html>'])) }
 
@@ -198,7 +227,17 @@ class CurriculumReaderGeminiTest < ActiveSupport::TestCase
 
   # --- 既定の通信(Net::HTTP)。Net::HTTP.start だけを偽物にして、組み立てを確かめる。
 
-  FakeResponse = Struct.new(:code, :body)
+  class FakeResponse
+    attr_reader :code, :body
+
+    def initialize(code, body, headers = {})
+      @code = code
+      @body = body
+      @headers = headers
+    end
+
+    def [](name) = @headers[name.downcase]
+  end
 
   class FakeHttp
     attr_reader :sent_request
@@ -238,6 +277,17 @@ class CurriculumReaderGeminiTest < ActiveSupport::TestCase
       assert_equal KEY, fake.sent_request['x-goog-api-key']
       assert_equal 'application/json', fake.sent_request['content-type']
       assert_not_includes fake.sent_request.path, KEY
+    end
+  end
+
+  test '既定の通信は、応答の Retry-After を窓口に渡す' do
+    with_net_http(FakeResponse.new('429', '{}', 'retry-after' => '42')) do
+      error = assert_raises(CurriculumReader::RequestFailed) do
+        CurriculumReader::Gemini.new(api_key: KEY).generate(prompt: 'P', image_path: nil, schema: SCHEMA)
+      end
+
+      assert_equal 429, error.status
+      assert_equal 42, error.retry_after
     end
   end
 
