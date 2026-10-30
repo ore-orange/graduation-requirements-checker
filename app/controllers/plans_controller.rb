@@ -8,10 +8,26 @@ class PlansController < ApplicationController
     load_history
     load_plans
     @assessment = assess
+    load_term
     load_catalogue
   end
 
   private
+
+  # 表示する学期（1年前期〜4年後期）と、その学期の履修履歴・予定を決める。
+  def load_term
+    @current_term = current_term
+    @term = parse_term(params[:term]) || @current_term
+    index = TERMS.index(@term)
+    @terms = TERMS
+    @prev_term = TERMS[index - 1] if index.positive?
+    @next_term = TERMS[index + 1]
+    @term_year = term_year(@term)
+    @term_open = term_open?(@term)
+    @term_enrollments = @enrollments.select { |enrollment| term_of(enrollment) == @term }
+    @term_plans = @plans.select { |plan| term_of(plan) == @term }
+    @unplaced_enrollments = @enrollments.reject { |enrollment| SEMESTERS.include?(enrollment.semester) }
+  end
 
   def load_catalogue
     @unavailable_keys = (@completed + @current).map { |enrollment| enrollment.course.curriculum_key } +
