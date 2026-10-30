@@ -1416,6 +1416,14 @@ git commit -m "feat: 便覧の突き合わせと科目番号からの区分の�
 - Consumes: `Validation`（Task 17）
 - Produces: `PATCH /curricula/:id/update_rules` が `document['rules']` / `['categories']` / `['display']` を置き換える
 
+- **人が直した規則・group・row を、読み直しから守るのはこのタスク。** Task 16 の
+  `DraftMerge#forget_requirements` は、そのページが入れた規則と display を無条件に消して入れ直す。
+  科目には `confirmed` の番人があるのに、規則側には無い（`draft_merge.rb` の該当箇所にコメントあり）。
+  今は確認画面が無いので失われるものが無いだけで、このタスクが編集を足した瞬間に実害が出る。
+  4つ必要: (1) 編集した規則・group・row に `confirmed` を付ける (2) `forget_requirements` に
+  科目と同じ `&& !rule[CONFIRMED]` の番人を足す (3) `add_rules` は、保持された編集済みの id を
+  再追加しない (4)「読み直す」が人の修正を捨てる前に警告する。
+
 - [ ] **Step 1: 失敗するテストを書く**
 
 ```ruby
@@ -1483,13 +1491,6 @@ git commit -m "feat: 要件表の確認画面を足す"
 - **`selectable` は読み取り時に全科目 true になっている。** 便覧の「自分のコースの工学融合科目は
   選べない」のような例外は、この確認画面で人が落とす。見落とすと選べない科目が選べてしまうので、
   確認画面がその違いを目立たせること。
-- **人が直した規則・group・row を、読み直しから守るのはこのタスク。** Task 16 の
-  `DraftMerge#forget_requirements` は、そのページが入れた規則と display を無条件に消して入れ直す。
-  科目には `confirmed` の番人があるのに、規則側には無い（`draft_merge.rb` の該当箇所にコメントあり）。
-  今は確認画面が無いので失われるものが無いだけで、このタスクが編集を足した瞬間に実害が出る。
-  4つ必要: (1) 編集した規則・group・row に `confirmed` を付ける (2) `forget_requirements` に
-  科目と同じ `&& !rule[CONFIRMED]` の番人を足す (3) `add_rules` は、保持された編集済みの id を
-  再追加しない (4)「読み直す」が人の修正を捨てる前に警告する。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
