@@ -20,19 +20,26 @@
         <button type="button" onclick="toggleRowAddBox('<%= box_id %>')" class="text-slate-400 hover:text-slate-600 text-xs cursor-pointer" aria-label="追加を閉じる">✕</button>
       </div>
 
-      <!-- この行の区分の科目だけ -->
-      <%= form_with url: plan_courses_path, class: 'space-y-2' do |f| %>
+      <!-- この行の区分の科目だけ。打った文字で一覧を絞り込む -->
+      <%= form_with url: plan_courses_path, class: 'space-y-2', data: { controller: 'course-filter' } do |f| %>
         <%= hidden_field_tag :term, term_param(@term), id: nil %>
-        <select name="course_key" aria-label="<%= row[:name] %>の科目を選択"
-                class="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
-          <% selectable_in_row.each do |c| %>
-            <option value="<%= c.fetch('key') %>">
+        <input type="search" placeholder="科目名・科目番号で絞り込み" autocomplete="off"
+               aria-label="<%= row[:name] %>の科目を絞り込み"
+               data-course-filter-target="query" data-action="input->course-filter#filter"
+               class="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
+        <select name="course_key" size="6" required aria-label="<%= row[:name] %>の科目を選択"
+                data-course-filter-target="select"
+                class="w-full border border-slate-200 rounded-md px-1 py-1 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
+          <% selectable_in_row.each_with_index do |c, index| %>
+            <option value="<%= c.fetch('key') %>" data-search="<%= [c['number'], c.fetch('name')].compact.join(' ') %>"<% if index.zero? %> selected<% end %>>
               <%= [c['number'], c.fetch('name'), "(#{credit_label(c['credits'])})"].compact.join(' ') %>
             </option>
           <% end %>
         </select>
+        <p class="text-[11px] text-slate-500" data-course-filter-target="empty" hidden>見つかりません</p>
         <div class="flex justify-end">
-          <%= f.submit '予定に追加', class: 'px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer' %>
+          <%= f.submit '予定に追加', data: { course_filter_target: 'submit' },
+                                    class: 'px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed cursor-pointer' %>
         </div>
       <% end %>
     </div>

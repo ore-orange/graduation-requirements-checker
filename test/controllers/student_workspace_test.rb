@@ -442,6 +442,11 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     assert_select "[name^='custom_course']", count: 0
     assert_select "[data-add-course='general_subtotal'] select[name='course_key']", count: 1
+    # 便覧の科目は科目名・科目番号で絞り込める
+    assert_select "[data-add-course='general_subtotal'] form[data-controller='course-filter']" do
+      assert_select "input[type='search'][data-course-filter-target='query']", count: 1
+      assert_select 'option:not([data-search])', count: 0
+    end
     # 便覧に科目がない区分
     assert_select "[data-add-course='free'] [data-no-selectable-course='no_catalogue']",
                   text: 'この区分は便覧に科目がないため、追加できません'
