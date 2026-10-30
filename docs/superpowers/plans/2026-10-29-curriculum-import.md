@@ -1315,6 +1315,10 @@ git commit -m "feat: 便覧を1ページずつ読んで下書きに入れる"
 - `exclude` に `reason` が無い
 - `cap` の `credits` が負・非数・無限
 - `rules` が名指しする役割を、どの科目も `roles` に持っていない（規則が永久に満たされない）
+- 承認の注記の取りこぼし。`ApprovalNotes` の2つの警告はどちらもページの抽出テキストを見るが、
+  テキスト層の無いスキャンPDFでは `entry['text']` が nil になり、両方とも死ぬ。
+  `approval_notes` と `pages[n]['warnings']` をこの検証の入力にし、
+  **テキストが空のページがあるのに承認の注記が1つも無い便覧**を疑わしいものとして挙げる
 - `roles` に宣言されているのに、どの規則からも参照されない役割
 
 - [ ] **Step 1: 推定の失敗するテストを書く**
@@ -1469,6 +1473,23 @@ git commit -m "feat: 要件表の確認画面を足す"
 **Interfaces:**
 - Consumes: `CategoryInference`（Task 17）、`PageSource` の `page_image`（Task 14）
 - Produces: `PATCH /curricula/:id/update_courses` が1科目ぶんの値と `confirmed` を `jsonb_set` で更新する
+
+**Task 16 からの申し送り（2点）。**
+
+- **`update_courses` のフォームの確認は、このタスクが書く。** Task 16 のブリーフは
+  `assert_select 'form[action=?]', update_courses_curriculum_path(draft)` を確認画面のテストに
+  入れていたが、そのフォームも action も Task 19 のもので当時は存在しなかった。
+  存在しない先を指すフォームを足すより移すほうが健全、と判断して移した。ここで必ず書く。
+- **`selectable` は読み取り時に全科目 true になっている。** 便覧の「自分のコースの工学融合科目は
+  選べない」のような例外は、この確認画面で人が落とす。見落とすと選べない科目が選べてしまうので、
+  確認画面がその違いを目立たせること。
+- **人が直した規則・group・row を、読み直しから守るのはこのタスク。** Task 16 の
+  `DraftMerge#forget_requirements` は、そのページが入れた規則と display を無条件に消して入れ直す。
+  科目には `confirmed` の番人があるのに、規則側には無い（`draft_merge.rb` の該当箇所にコメントあり）。
+  今は確認画面が無いので失われるものが無いだけで、このタスクが編集を足した瞬間に実害が出る。
+  4つ必要: (1) 編集した規則・group・row に `confirmed` を付ける (2) `forget_requirements` に
+  科目と同じ `&& !rule[CONFIRMED]` の番人を足す (3) `add_rules` は、保持された編集済みの id を
+  再追加しない (4)「読み直す」が人の修正を捨てる前に警告する。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
