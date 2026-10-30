@@ -48,6 +48,9 @@ class CurriculumReader
           - required: 必修なら true、そうでなければ false。画像の表の凡例や見出し(必修・選択の印など)で決める。
           - language: 外国語の科目なら、その言語を英小文字の英語で(english, german, french, spanish, chinese, korean,
             indonesian, thai, latin, russian など)。外国語でなければ null。
+          - requires_approval: 表の行・見出し・このページの注記が、この科目の履修登録に指導教員の承認が必要だとしているときだけ true。
+            そうでなければ false。注記が別のページにありそうで、この科目に当たるか分からないときは false にして review_reason に書く。
+            (承認を得たかどうかは、学生ごとの話なので読まない。)
           #{roles_bullet(roles)}- review_reason: 読み取りに自信がない・区分が決めにくい・表の中で食い違っているときに、その理由を一言。問題がなければ null。
 
           ## 区分の一覧
@@ -88,8 +91,6 @@ class CurriculumReader
       end
 
       def category_lines(categories)
-        return '(区分の一覧は渡されていない。category には、画像の見出しから決めた区分の名前を書く。)' if categories.empty?
-
         entry_lines(categories)
       end
 

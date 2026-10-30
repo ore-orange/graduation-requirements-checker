@@ -29,7 +29,7 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     CurriculumReader.new(client: client, sleeper: ->(seconds) { sleeps << seconds })
   end
 
-  def read_courses(client, categories: [], **)
+  def read_courses(client, categories: %w[a], **)
     reader(client, **).read_courses(text: 't', image_path: nil, categories: categories)
   end
 
@@ -47,7 +47,7 @@ class CurriculumReaderTest < ActiveSupport::TestCase
 
   def course(overrides = {})
     { 'number' => '知能101', 'name' => 'プログラミング演習Ⅰ', 'credits' => 1, 'category' => 'a',
-      'required' => true, 'language' => nil, 'review_reason' => nil }.merge(overrides)
+      'required' => true, 'requires_approval' => false, 'language' => nil, 'review_reason' => nil }.merge(overrides)
   end
 
   def requirements_answer
@@ -133,7 +133,7 @@ class CurriculumReaderTest < ActiveSupport::TestCase
 
   test 'ページのテキストと画像の場所がそのままクライアントに渡る' do
     client = StubClient.new(EMPTY_COURSES)
-    reader(client).read_courses(text: '知能101 プログラミング演習Ⅰ', image_path: '/x/p3.png', categories: [])
+    reader(client).read_courses(text: '知能101 プログラミング演習Ⅰ', image_path: '/x/p3.png', categories: %w[a])
 
     assert_includes client.last[:prompt], '知能101 プログラミング演習Ⅰ'
     assert_equal '/x/p3.png', client.last[:image_path]
@@ -141,7 +141,7 @@ class CurriculumReaderTest < ActiveSupport::TestCase
 
   test 'テキストが空のときは、取り出せなかったと伝える' do
     client = StubClient.new(EMPTY_COURSES)
-    reader(client).read_courses(text: nil, image_path: '/x/p3.png', categories: [])
+    reader(client).read_courses(text: nil, image_path: '/x/p3.png', categories: %w[a])
 
     assert_includes client.last[:prompt], '取り出せませんでした'
   end
@@ -199,6 +199,15 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     result = reader(StubClient.new(answer)).read_requirements(text: 't', image_path: nil)
 
     assert_equal 2, result['rules'].size
+  end
+
+  # --- 区分が空のとき
+
+  test '区分が空なら ArgumentError(要件表の読み取りで先に区分を決める順序を守らせる)。呼び出しもしない' do
+    client = StubClient.new(EMPTY_COURSES)
+
+    assert_raises(ArgumentError) { reader(client).read_courses(text: 't', image_path: nil, categories: []) }
+    assert_equal 0, client.calls
   end
 
   # --- 役割(roles)
@@ -319,6 +328,58 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     assert_raises(CurriculumReader::Error) do
       reader(StubClient.new(requirements_answer.except('roles'))).read_requirements(text: 't', image_path: nil)
     end
+  end
+
+  test '役割の依頼文は、役割を科目1つにつき1つとし、別の系列の科目に同じ key を付けさせない' do
+    client = StubClient.new(EMPTY_COURSES)
+    read_courses_with_roles(client)
+    prompt = client.last[:prompt]
+
+    assert_includes prompt, '役割1つが、名指しされた科目1つに当たる'
+    assert_includes prompt, '別の系列や経路の科目に、同じ key を付けない'
+    assert_includes prompt, '微分積分学ＳＴⅠと微分積分学入門Ⅰは、別の役割'
+    assert_includes prompt, '同じ枠の入れ替えられる科目として扱っているとき'
+  end
+
+  test '要件表の依頼文は、経路ごとに別の path にし、経路を合併した悪い例を示す' do
+    client = StubClient.new(requirements_answer)
+    reader(client).read_requirements(text: 't', image_path: nil)
+    prompt = client.last[:prompt]
+
+    assert_includes prompt, '科目1つにつき、役割を1つ'
+    assert_includes prompt, 'calculus_st_1'
+    assert_includes prompt, '選べる系列・経路ごとに別の path にする'
+    assert_includes prompt, '経路を1つに合併してはいけない'
+    assert_includes prompt, '悪い例'
+    assert_includes prompt, '[[calculus_st_1, calculus_st_2], [calculus_intro_1, calculus_intro_2]]'
+    assert_not_includes prompt, 'calculus_1(微分積分学Ⅰ)'
+  end
+
+  test 'one_of_paths の paths が無い規則は、NoMethodError ではなく Error' do
+    answer = requirements_answer
+    answer['rules'] << { 'id' => 'math', 'type' => 'one_of_paths', 'label' => '微分積分' }
+    error = assert_raises(CurriculumReader::Error) do
+      reader(StubClient.new(answer)).read_requirements(text: 't', image_path: nil)
+    end
+
+    assert_includes error.message, 'paths'
+  end
+
+  test 'one_of_paths の review_note を聞き、答えに残す' do
+    answer = requirements_answer
+    answer['roles'] = ROLES
+    answer['rules'] << { 'id' => 'math', 'type' => 'one_of_paths', 'label' => '微分積分', 'review_note' => '系列が混在',
+                         'paths' => [%w[calculus_1], %w[physics_1]] }
+    result = reader(StubClient.new(answer)).read_requirements(text: 't', image_path: nil)
+
+    assert_equal '系列が混在', result['rules'].last['review_note']
+  end
+
+  test '要件表の依頼文は review_note を聞く' do
+    client = StubClient.new(requirements_answer)
+    reader(client).read_requirements(text: 't', image_path: nil)
+
+    assert_includes client.last[:prompt], 'review_note'
   end
 
   # --- 再試行
@@ -444,7 +505,7 @@ class CurriculumReaderTest < ActiveSupport::TestCase
   end
 
   test 'クライアントが配列を返しても Error' do
-    assert_raises(CurriculumReader::Error) { read_courses(StubClient.new([[]]), categories: []) }
+    assert_raises(CurriculumReader::Error) { read_courses(StubClient.new([[]]), categories: %w[a]) }
   end
 
   test 'スキーマにない形が返ってきたら Error' do
@@ -538,11 +599,73 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     secret = 'zzz-secret-in-the-answer'
     error = assert_raises(CurriculumReader::Error) do
       reader(StubClient.new('courses' => [], 'extra' => secret))
-        .read_courses(text: 't', image_path: '/x/p1.png', categories: [])
+        .read_courses(text: 't', image_path: '/x/p1.png', categories: %w[a])
     end
 
     assert_not_includes error.message, secret
     assert_not_includes error.message, '/x/p1.png'
+  end
+
+  # --- group_by・必要単位・承認・読み方
+
+  test 'group_by は Ledger が解釈できる値に限る(スキーマの enum と同じ)' do
+    leaf = CurriculumReader::Schemas.requirements.dig(:properties, :rules, :items, :properties, :group_by)
+    allowed = GraduationAssessment::Ledger::NUMBER_GROUPERS.keys + ['field:language']
+
+    assert_equal allowed.sort, leaf[:enum].sort
+  end
+
+  test '知らない group_by の規則は Error(学生の判定の最中の KeyError にしない)' do
+    answer = requirements_answer
+    answer['rules'] << { 'id' => 'fusion', 'type' => 'grouped_max', 'label' => '融合', 'category' => 'health',
+                         'group_by' => 'provider', 'required_credits' => 4 }
+    error = assert_raises(CurriculumReader::Error) do
+      reader(StubClient.new(answer)).read_requirements(text: 't', image_path: nil)
+    end
+
+    assert_includes error.message, 'group_by'
+  end
+
+  test '入れ子の中の知らない group_by も Error' do
+    answer = requirements_answer
+    answer['rules'] << { 'id' => 'fl', 'type' => 'any_of', 'label' => '外国語',
+                         'options' => [{ 'type' => 'grouped_max', 'category' => 'fl', 'group_by' => 'language',
+                                         'required_credits' => 4 }] }
+
+    assert_raises(CurriculumReader::Error) { reader(StubClient.new(answer)).read_requirements(text: 't', image_path: nil) }
+  end
+
+  test '見出しの必要単位は、印字を写すか、行から足すか、見出しごと返さないかにする(数を作らせない)' do
+    client = StubClient.new(requirements_answer)
+    reader(client).read_requirements(text: 't', image_path: nil)
+    prompt = client.last[:prompt]
+
+    assert_includes prompt, '印字がなければ、見出しの下の行の必要単位を足した数にする'
+    assert_includes prompt, 'その group は返さない'
+    assert_includes prompt, '印字がなければその小計は返さない'
+  end
+
+  test 'テキストを使う場面は、科目表に限らず、印字された文字や数字を写すときと書く' do
+    client = StubClient.new(requirements_answer)
+    reader(client).read_requirements(text: 't', image_path: nil)
+
+    assert_includes client.last[:prompt], '印字された文字や数字(科目番号・科目名、区分の名前、見出し、単位数など)を正確に写す'
+    assert_not_includes client.last[:prompt], '科目番号や科目名の文字を正確に写すときだけ'
+  end
+
+  test '承認が要るかは科目ごとに読む(真偽。欠けたり真偽でなければ Error)' do
+    client = StubClient.new('courses' => [course('requires_approval' => true)])
+    result = read_courses(client)
+
+    assert_equal true, result['courses'][0]['requires_approval']
+    assert_includes client.last[:prompt], 'requires_approval'
+    assert_includes client.last[:prompt], '承認を得たかどうかは、学生ごとの話なので読まない'
+    assert_raises(CurriculumReader::Error) do
+      read_courses(StubClient.new('courses' => [course('requires_approval' => 'yes')]))
+    end
+    assert_raises(CurriculumReader::Error) do
+      read_courses(StubClient.new('courses' => [course.except('requires_approval')]))
+    end
   end
 
   # --- 窓口の形

@@ -38,7 +38,7 @@ class CurriculumReader
       def role_problems(answer)
         known = answer['roles'].pluck('key')
         paths_rules = answer['rules'].select { |rule| rule['type'] == 'one_of_paths' }
-        named = paths_rules.flat_map { |rule| rule['paths'].flatten }
+        named = paths_rules.flat_map { |rule| Array(rule['paths']).flatten }
         (named.uniq - known).map { |key| "one_of_paths が roles にない役割 #{key.to_s.first(30)} を指しています" }
       end
 

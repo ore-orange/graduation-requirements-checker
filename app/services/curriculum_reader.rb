@@ -59,11 +59,14 @@ class CurriculumReader
   end
 
   # 科目表のページを読む。{ 'courses' => }。
-  # categories・roles は、要件表の読み取りで確定したもの(キーの文字列か、key・label を持つ Hash)。
+  # categories・roles は、要件表の読み取りで確定したもの(キーの文字列か、key・label を持つ Hash)。categories は空にできない(ArgumentError)。
   # 科目の区分は categories のどれか1つ、科目の役割(roles)は roles のうち0個以上に限る。一覧にないキーは作らせない。
   # roles を渡さなければ、どの科目の roles も空になる。
   def read_courses(text:, image_path:, categories:, roles: [])
     category_entries = keyed_entries(categories, 'categories')
+    # 区分は要件表の読み取りで先に決める。空のまま科目表を読ませると、ページごとに別の区分名が返る。
+    raise ArgumentError, 'categories が空です。先に要件表を読んで区分を決めてください。' if category_entries.empty?
+
     role_entries = keyed_entries(roles, 'roles')
     schema = Schemas.courses(category_entries.pluck(:key), role_entries.pluck(:key))
     prompt = Prompts.courses(text: text, categories: category_entries, roles: role_entries)
