@@ -23,7 +23,7 @@ module CurriculumImport
       return false unless entry && Curriculum::READABLE_PAGE_KINDS.include?(entry['kind'])
 
       answer = ask(entry)
-      record_success(number, answer)
+      record_success(number, entry['kind'], answer)
       true
     rescue Failure => e
       record_failure(number, e.message)
@@ -59,21 +59,34 @@ module CurriculumImport
       @reader.read_courses(text: text, image_path: image_path, categories: categories, roles: Array(document['roles']))
     end
 
-    def record_success(number, answer)
+    # kind は、読み取りを頼んだときの種別。待っている間に人が種別を替えていたら、その答えは別の種別の形なので入れない。
+    # どんな形の答えでも500にはしない(入れられなければ、そのページだけ failed にする)。
+    def record_success(number, kind, answer)
       @curriculum.with_lock do
-        document = @curriculum.document.deep_dup
         entry = find_entry(@curriculum.pages, number)
-        merge = DraftMerge.new(document, curriculum: @curriculum, page: number, previous: entry['contributed'])
-        contributed, warnings = merge_page(merge, document, entry, answer)
-        # 注記は読む順番に関わらず効かせる。科目表が先でも、あとで要件表を読めば、その時点で科目に当たる。
-        ApprovalNotes.apply(document)
-        warnings << ApprovalNotes.course_page_warning(document, number, entry['text']) if entry['kind'] == 'courses'
-        @curriculum.document = document
-        @curriculum.pages = replace_entry(number, 'status' => 'read', 'error' => nil,
-                                                  'warnings' => (warnings + merge.warnings).compact.uniq,
-                                                  'contributed' => contributed)
-        @curriculum.save!
+        raise Failure, '読み取りの途中でページの種別が変わったため、結果を入れていません。もう一度読んでください。' unless entry && entry['kind'] == kind
+
+        save_merged(number, entry, answer)
       end
+    rescue Failure
+      raise
+    rescue StandardError => e
+      Rails.logger.warn("読み取りの結果を下書きに入れられませんでした: #{e.class}: #{e.message}")
+      raise Failure, '読み取りの結果を下書きに入れられませんでした。読み取りの答えの形が想定と違います。'
+    end
+
+    def save_merged(number, entry, answer)
+      document = @curriculum.document.deep_dup
+      merge = DraftMerge.new(document, curriculum: @curriculum, page: number, previous: entry['contributed'])
+      contributed, warnings = merge_page(merge, document, entry, answer)
+      # 注記は読む順番に関わらず効かせる。科目表が先でも、あとで要件表を読めば、その時点で科目に当たる。
+      ApprovalNotes.apply(document)
+      warnings << ApprovalNotes.course_page_warning(document, number, entry['text']) if entry['kind'] == 'courses'
+      @curriculum.document = document
+      @curriculum.pages = replace_entry(number, 'status' => 'read', 'error' => nil,
+                                                'warnings' => (warnings + merge.warnings).compact.uniq,
+                                                'contributed' => contributed)
+      @curriculum.save!
     end
 
     # 戻り値は [このページが足したものの記録, 警告の文]。
@@ -84,6 +97,7 @@ module CurriculumImport
       notes, unresolved = ApprovalNotes.detect(answer, entry['page'])
       ApprovalNotes.replace_page_notes(document, entry['page'], notes)
       warnings = unresolved.map { |text| "承認の注記らしい文がありますが、対象の区分が分からず科目に反映していません: #{text}" }
+      warnings << ApprovalNotes.requirements_page_warning(entry['text'], notes.any? || unresolved.any?)
       [merge.requirements(answer), warnings]
     end
 

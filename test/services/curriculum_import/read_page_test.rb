@@ -339,6 +339,76 @@ module CurriculumImport
       assert_nil answer['rules'].first['source_page']
     end
 
+    def with_subtotal(answer)
+      answer['display']['subtotals'] = [{ 'id' => 'sub1', 'name' => '内数の合計', 'required_credits' => 20,
+                                          'row_ids' => ["r_#{answer['rules'].first['id']}"],
+                                          'check_ids' => [answer['rules'].first['id']] }]
+      answer
+    end
+
+    test '小計の参照は、付け替えた行・規則の id を追い、読み直しでは外れる' do
+      other = StubReader.new(requirements: { '要件' => with_subtotal(requirements_answer),
+                                             '要件その2' => with_subtotal(requirements_answer) })
+      read(3, with: other)
+      read(4, with: other)
+
+      subtotals = document['display']['subtotals']
+      assert_equal %w[sub1 sub1_p4], subtotals.pluck('id')
+      assert_equal ['r_common_total_p4'], subtotals.last['row_ids']
+      assert_equal ['common_total_p4'], subtotals.last['check_ids']
+      assert_equal ['r_common_total'], subtotals.first['row_ids']
+
+      read(4, with: other)
+      assert_equal %w[sub1 sub1_p4], document['display']['subtotals'].pluck('id')
+    end
+
+    test '1ページの中で同じ章・小計の id が2つあっても、付け替えて別々にする' do
+      answer = with_subtotal(requirements_answer)
+      answer['display']['groups'] << answer['display']['groups'].first.deep_dup
+      answer['display']['subtotals'] << answer['display']['subtotals'].first.deep_dup
+      read(3, with: StubReader.new(requirements: { '要件' => answer }))
+
+      assert_equal %w[g_common_total g_common_total_p3], document['display']['groups'].pluck('id')
+      assert_equal %w[sub1 sub1_p3], document['display']['subtotals'].pluck('id')
+    end
+
+    test '区分・役割の名前が別のページと食い違えば、先を残して警告する' do
+      read(3)
+      changed = CATEGORIES.map { |category| category.merge('label' => '別の名前') }
+      roles = [{ 'key' => 'calculus_st_1', 'label' => '別の呼び名' }]
+      answer = requirements_answer(rule_id: 'total_2', categories: changed, roles: roles)
+      read(4, with: StubReader.new(requirements: { '要件その2' => answer }))
+
+      assert_equal 'コース専門必修', document['categories'].first['label']
+      assert_match(/course_required/, page_entry(4)['warnings'].join)
+      assert_match(/calculus_st_1/, page_entry(4)['warnings'].join)
+    end
+
+    test '読み取りの途中でページの種別が替わったら、入れずにそのページを failed にする' do
+      read(3)
+      flip = reader(courses: { '科目' => { 'courses' => [course_row('知能101')] } })
+      other = Curriculum.find(@curriculum.id)
+      flip.define_singleton_method(:read_courses) do |text:, **|
+        other.update!(pages: other.pages.map { |page| page['page'] == 9 ? page.merge('kind' => 'requirements') : page })
+        @courses.fetch(text)
+      end
+
+      assert_not read(9, with: flip)
+      assert_equal 'failed', page_entry(9)['status']
+      assert_match(/種別が変わった/, page_entry(9)['error'])
+      assert_empty courses
+    end
+
+    test '答えの形が想定と違っても落とさず、そのページだけ failed にする' do
+      read(3)
+      broken = StubReader.new(courses: { '科目' => { 'courses' => nil } })
+
+      assert_not read(9, with: broken)
+      assert_equal 'failed', page_entry(9)['status']
+      assert_predicate page_entry(9)['error'], :present?
+      assert_equal 'read', page_status(3)
+    end
+
     # --- 承認の注記がページを跨ぐ場合 ---
 
     test '区分の承認の注記は、別のページの科目の requires_approval を真にする(要件表が先)' do
@@ -391,6 +461,37 @@ module CurriculumImport
 
       assert_match(/承認/, page_entry(3)['warnings'].join)
       assert_equal 'read', page_status(3)
+    end
+
+    test '要件表のページの文字に承認とあるのに、規則にも行にも書き取られていなければ警告する' do
+      @curriculum.pages = @curriculum.pages.map do |page|
+        page['page'] == 3 ? page.merge('text' => '※自然系は承認を得て履修') : page
+      end
+      @curriculum.save!
+      read(3, with: StubReader.new(requirements: { '※自然系は承認を得て履修' => requirements_answer }))
+
+      assert_match(/承認/, page_entry(3)['warnings'].join)
+      assert_nil document['approval_notes']
+    end
+
+    test '行の名前にある承認(承認要)も注記として拾う' do
+      answer = requirements_answer
+      answer['display']['groups'].first['rows'].first['name'] = '自然系(承認要)'
+      read(3, with: StubReader.new(requirements: { '要件' => answer }))
+
+      assert_equal ['natural'], document['approval_notes'].pluck('category')
+    end
+
+    test '同じ区分の注記が別のページにもあれば、ページごとに残し、片方を読み直して消えても、もう片方は残る' do
+      read(3, with: StubReader.new(requirements: { '要件' => requirements_answer(detail: '承認が必要') }))
+      read_second_requirements_page('承認が必要')
+      assert_equal %w[PDF3ページ PDF4ページ], document['approval_notes'].pluck('source_page').sort
+
+      read_second_requirements_page(nil)
+
+      assert_equal %w[PDF3ページ], document['approval_notes'].pluck('source_page')
+      read(9, with: reader(courses: { '科目' => { 'courses' => [course_row('自101', category: 'natural')] } }))
+      assert_equal true, courses.first['requires_approval']
     end
 
     test 'ページ単位の承認の注記は、そのページから読んだ科目すべてに反映される' do

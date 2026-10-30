@@ -34,7 +34,7 @@ module CurriculumImport
     def requirements(answer)
       answer = answer.deep_dup
       forget_requirements
-      add_keyed(@document['categories'], answer['categories'])
+      add_keyed(@document['categories'], answer['categories'], '区分')
       add_roles(answer['roles'])
       rule_ids = add_rules(Array(answer['rules']))
       display = add_display(answer['display'] || {}, rule_ids)
@@ -93,6 +93,11 @@ module CurriculumImport
       source['pages'] = "PDF#{numbers.join('・')}ページ"
     end
 
+    # 暫定: 規則・表示は、読み直すと人が直した分も外す。科目(courses)が確認済みを守るのと非対称で、いまは
+    # 人が規則・表示を直す画面が無いので失うものは無い。Task 19 で直せるようにするとき、次を一緒に入れること。
+    #  - 直した規則・章・行に confirmed を付け、ここでも「&& !rule[CONFIRMED]」の守りを足す(courses と同じ)
+    #  - add_rules は、残した(直した)規則が持つ id を取られたものとして扱う
+    #  - 「読み直す」を押す前に、直した分が消えることを警告する
     def forget_requirements
       @document['rules'].reject! { |rule| Array(@previous['rules']).include?(rule['id']) }
       display = @document['display']
@@ -102,9 +107,15 @@ module CurriculumImport
     end
 
     # key で足す。先にあるもの(別のページが足した・人が直した)を優先し、同じ key の読み取りでは上書きしない。
-    def add_keyed(target, incoming)
+    # 同じ key で名前が違えば、先を残して警告に出す(総単位の食い違いと同じ扱い)。
+    def add_keyed(target, incoming, noun)
       incoming.to_a.each do |entry|
-        target << entry if target.none? { |existing| existing['key'] == entry['key'] }
+        existing = target.find { |other| other['key'] == entry['key'] }
+        if existing.nil?
+          target << entry
+        elsif existing['label'] != entry['label']
+          @warnings << "#{noun} #{entry['key']} の名前が別のページと食い違います(先: #{existing['label']}、このページ: #{entry['label']})。"
+        end
       end
     end
 
@@ -112,7 +123,7 @@ module CurriculumImport
     def add_roles(incoming)
       return if incoming.blank?
 
-      add_keyed(@document['roles'] ||= [], incoming)
+      add_keyed(@document['roles'] ||= [], incoming, '役割')
     end
 
     # 規則を足す。別のページの規則と id がぶつかるものは付け替え、{読んだ id => 実際の id} を返す。
@@ -130,11 +141,22 @@ module CurriculumImport
       target = @document['display']
       total = !adopt_total_credits(display['total_credits']).nil?
       row_ids = {}
-      groups = Array(display['groups']).map { |group| add_group(group, rule_ids, row_ids) }
-      subtotals = Array(display['subtotals']).map { |subtotal| add_subtotal(subtotal, rule_ids, row_ids) }
+      groups = add_all(display['groups'], target['groups'].pluck('id')) do |group, taken|
+        add_group(group, rule_ids, row_ids, taken)
+      end
+      subtotals = add_all(display['subtotals'], Array(target['subtotals']).pluck('id')) do |subtotal, taken|
+        add_subtotal(subtotal, rule_ids, row_ids, taken)
+      end
       target['groups'].concat(groups)
       (target['subtotals'] ||= []).concat(subtotals) if subtotals.any?
       { groups: groups.pluck('id'), subtotals: subtotals.pluck('id'), total_credits: total }
+    end
+
+    # このページの中で同じ id が2つあっても付け替えられるよう、付けた id を taken に積みながら足す。
+    def add_all(items, taken)
+      Array(items).map do |item|
+        yield(item, taken).tap { |added| taken << added['id'] }
+      end
     end
 
     # 総単位は、先に別のページで読めた値を優先する。食い違うときは捨てずに警告に残す。
@@ -150,9 +172,8 @@ module CurriculumImport
       nil
     end
 
-    def add_group(group, rule_ids, row_ids)
-      taken_groups = @document['display']['groups'].pluck('id')
-      group = group.merge('id' => unique_id(group['id'], taken_groups))
+    def add_group(group, rule_ids, row_ids, taken)
+      group = group.merge('id' => unique_id(group['id'], taken))
       group['check_id'] = rule_ids.fetch(group['check_id'], group['check_id']) if group['check_id']
       group['rows'] = Array(group['rows']).map { |row| add_row(row, rule_ids, row_ids) }
       group
@@ -165,8 +186,7 @@ module CurriculumImport
       row.merge('id' => id, 'check_ids' => remap(row['check_ids'], rule_ids))
     end
 
-    def add_subtotal(subtotal, rule_ids, row_ids)
-      taken = Array(@document['display']['subtotals']).pluck('id')
+    def add_subtotal(subtotal, rule_ids, row_ids, taken)
       subtotal.merge('id' => unique_id(subtotal['id'], taken), 'row_ids' => remap(subtotal['row_ids'], row_ids),
                      'check_ids' => remap(subtotal['check_ids'], rule_ids))
     end

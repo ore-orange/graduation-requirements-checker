@@ -54,11 +54,16 @@ class CurriculaController < ApplicationController
     redirect_to curriculum, notice: '下書きを作りました。読むページを選んでください。', status: :see_other
   end
 
+  # pages は読み取り(ReadPage)も、数分かかる要求の最後に書く。読み込んだ手元の pages を書き戻すと、その間に
+  # 読み終わったページが未読に戻り、読み直しで要件が二重に入る。行を取り直してロックし、その上で替える。
   def update
-    notice = params[:page_count].present? ? assign_page_count : assign_page_kinds
+    notice = nil
+    @curriculum.with_lock do
+      notice = params[:page_count].present? ? assign_page_count : assign_page_kinds
+      @curriculum.save! unless notice.is_a?(String)
+    end
     return redirect_to @curriculum, alert: notice, status: :see_other if notice.is_a?(String)
 
-    @curriculum.save!
     redirect_to @curriculum, notice: 'ページの指定を保存しました。', status: :see_other
   end
 

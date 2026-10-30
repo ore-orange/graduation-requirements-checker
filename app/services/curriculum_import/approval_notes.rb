@@ -17,7 +17,7 @@ module CurriculumImport
     KEY = 'approval_notes'
     MENTION = /承認/
     RULE_TEXT_FIELDS = %w[label detail review_note reason].freeze
-    ROW_TEXT_FIELDS = %w[subtitle required_label].freeze
+    ROW_TEXT_FIELDS = %w[name subtitle required_label].freeze
     NESTED = %w[options conditions].freeze
     EXCERPT_LENGTH = 60
 
@@ -65,11 +65,21 @@ module CurriculumImport
       end
 
       # そのページが前回の読み取りで足した注記を外して、今回の分に入れ替える。人が足した注記(source_page なし)は残す。
+      # 注記はページごとに持つ。同じ区分の注記が別のページにもあるとき、片方を捨てると、残した側のページを
+      # 読み直して文言が消えた時に、注記が誰にも残らない。重なりは apply が見るだけなので害がない。
       def replace_page_notes(document, page, notes)
         label = DraftMerge.source_page_label(page)
-        kept = Array(document[KEY]).reject { |note| note['source_page'] == label }
-        merged = kept + notes.reject { |note| kept.any? { |other| same_target?(other, note) } }
+        merged = Array(document[KEY]).reject { |note| note['source_page'] == label } + notes
         merged.empty? ? document.delete(KEY) : document[KEY] = merged
+      end
+
+      # 要件表のページの文字に「承認」とあるのに、そこから注記を拾えなかったとき(規則にも行にも書かれなかった)の警告。
+      # 要件表の注は、別のページの科目の承認を決める。見落とすと関門が付かず、単位が無条件に数えられる。
+      def requirements_page_warning(text, found)
+        return if found || !text.to_s.match?(MENTION)
+
+        'このページの文字に「承認」とありますが、規則にも表示の行にも書き取られていません。' \
+          '承認が要る科目の区分を確かめ、必要なら承認の注記を足してください。'
       end
 
       # 科目表のページの文字に「承認」とあるのに、そのページのどの科目にも承認の印が付いていないとき、確認を促す文。
@@ -93,10 +103,6 @@ module CurriculumImport
         when 'page' then course['source_page'] == DraftMerge.source_page_label(note['page'])
         else false
         end
-      end
-
-      def same_target?(left, right)
-        left['scope'] == right['scope'] && left['category'] == right['category'] && left['page'] == right['page']
       end
 
       def rule_mentions(rules)

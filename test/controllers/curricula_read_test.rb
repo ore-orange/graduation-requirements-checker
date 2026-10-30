@@ -183,6 +183,22 @@ class CurriculaReadTest < ActionDispatch::IntegrationTest
     assert_redirected_to requirements_path
   end
 
+  test '読み取りが終わる前に読み込んだ手元の pages で種別を保存しても、読み終わったページは未読に戻らない' do
+    stale = Curriculum.find(@draft.id)
+    read_page(2, StubReader.new(requirements: REQUIREMENTS))
+    assert_equal 'read', page_entry(2)['status']
+
+    # 保存の要求が、読み取りの完了より前に行を読み込んでいた状況
+    Curriculum.stub(:find, stale) do
+      patch curriculum_path(@draft), params: { pages: { '3' => 'skip' } }, env: ENV_LOCAL
+    end
+
+    assert_redirected_to curriculum_path(@draft)
+    assert_equal 'read', page_entry(2)['status']
+    assert_predicate page_entry(2)['contributed'], :present?
+    assert_equal 'skip', page_entry(3)['kind']
+  end
+
   test 'ローカル以外からは読み取れない' do
     CurriculumReader.stub(:available?, true) do
       post read_page_curriculum_path(@draft, page: 2), headers: STREAM, env: { 'REMOTE_ADDR' => '203.0.113.9' }
