@@ -82,7 +82,7 @@ module CurriculumImport
 
     delegate :category_label, to: :input
 
-    delegate :category_keys, to: :input
+    delegate :category_keys, :uncounted_category_keys, to: :input
 
     def course_count(category) = input.courses_in(category).size
 

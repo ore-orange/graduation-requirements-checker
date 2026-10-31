@@ -1,0 +1,11 @@
+<%# 保存できなかった科目の問題。上にも出す(Turbo では、その科目の行が画面の外にあることがある)。入力は、その科目の「直す」に残してある。 %>
+<div id="courses_errors">
+  <% if review.problems? %>
+    <div role="alert" class="border-b border-rose-200 bg-rose-50 px-5 py-4 sm:px-6">
+      <p class="text-sm font-bold text-rose-900">科目を保存できませんでした(何も変えていません)。入力は、その科目の「直す」に残してあります。</p>
+      <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-rose-900">
+        <% review.problems.each do |problem| %><li><%= problem.message %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+</div>

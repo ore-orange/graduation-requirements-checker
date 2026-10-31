@@ -61,9 +61,17 @@ module CurriculumImport
     CONTRIBUTED_FIELD = { 'rule' => 'rules', 'group' => 'groups', 'subtotal' => 'subtotals' }.freeze
     ORIGIN_FIELD = { 'rule' => 'rules', 'group' => 'groups', 'subtotal' => 'subtotals', 'row' => 'rows' }.freeze
 
+    # 科目を消した記録(kind=course)は数えない。科目表の確認画面が足す記録で、要件表の画面の中身ではない。
+    # 数えると、科目を1つ消しただけで、開いたままの要件表の画面が「中身が変わった」と断られる。
     def self.revision(document)
       document = {} unless document.is_a?(Hash)
-      Digest::SHA256.hexdigest(JSON.generate(document.slice(*TRACKED)))
+      tracked = document.slice(*TRACKED)
+      removed = tracked[DraftMerge::REMOVED]
+      if removed.is_a?(Array)
+        removed = removed.reject { |entry| entry.is_a?(Hash) && entry['kind'] == DraftMerge::HumanCourses::COURSE }
+        removed.empty? ? tracked.delete(DraftMerge::REMOVED) : tracked[DraftMerge::REMOVED] = removed
+      end
+      Digest::SHA256.hexdigest(JSON.generate(tracked))
     end
 
     # 規則の型で、フォームの欄で直せる欄の { 欄 => 種類 }。画面とここで同じ表を使う。

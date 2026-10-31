@@ -27,9 +27,21 @@ module CurriculumImport
       display = document['display'].is_a?(Hash) ? document['display'] : {}
       groups = edited(display['groups'], contributed['groups'])
       rows = groups.flat_map { |group| Array(group['rows']).grep(Hash).select { |row| row[DraftMerge::CONFIRMED] == true } }
-      [['規則', names(edited(document['rules'], contributed['rules']))], ['章', names(groups, 'title')],
+      [['科目', course_names(document, contributed)], ['規則', names(edited(document['rules'], contributed['rules']))],
+       ['章', names(groups, 'title')],
        ['行', names(rows)], ['小計', names(edited(display['subtotals'], contributed['subtotals']))]]
         .reject { |_, list| list.empty? }
+    end
+
+    # このページが足した科目のうち、人が確認した(直した)もの。名前は「番号 名前」。
+    def course_names(document, contributed)
+      keys = Array(contributed['courses'])
+      confirmed = Array(document['courses']).grep(Hash).select do |course|
+        keys.include?(course['key']) && course[DraftMerge::CONFIRMED] == true
+      end
+      confirmed.map do |course|
+        [course['number'], course['name']].compact_blank.join(' ').presence || course['key'].to_s
+      end
     end
 
     # list のうち、ids に挙がっていて、人が直したもの。章は行のどれかが直されていれば直した章。
@@ -54,7 +66,7 @@ module CurriculumImport
       entries.map { |entry| removed_name(entry) }
     end
 
-    KIND_NAMES = { 'rule' => '規則', 'group' => '章', 'row' => '行', 'subtotal' => '小計' }.freeze
+    KIND_NAMES = { 'rule' => '規則', 'group' => '章', 'row' => '行', 'subtotal' => '小計', 'course' => '科目' }.freeze
 
     def removed_name(entry)
       return "承認の注記(区分「#{entry['category']}」)" if entry['kind'] == 'approval_note'

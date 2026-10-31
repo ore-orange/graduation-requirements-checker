@@ -46,4 +46,66 @@
   .status-in-progress {
     @apply bg-sky-50 text-sky-800 ring-1 ring-sky-200;
   }
+
+  /* 科目表の確認画面。484行並ぶので、行ごとに長い class を繰り返さず、ここに集める(ページの重さに効く)。 */
+  .cr-btn {
+    @apply cursor-pointer rounded border border-slate-400 bg-white px-1.5 py-0.5 text-xs font-semibold text-slate-800 hover:bg-slate-100;
+  }
+
+  .cr-btn-bad {
+    @apply border-rose-700 bg-rose-700 text-white hover:bg-rose-800;
+  }
+
+  .cr-btn-ok {
+    @apply border-emerald-300 bg-emerald-100 text-emerald-900 hover:bg-emerald-200;
+  }
+
+  /* 行の欄の余白と、上揃えは、表で1回だけ決める(484行の td ごとに class を書かない)。cr-sub は、指摘・編集欄の行。 */
+  .cr-table {
+    @apply text-xs;
+  }
+
+  .cr-table tbody {
+    @apply border-b border-slate-200;
+  }
+
+  .cr-table td {
+    @apply px-2 py-2 align-top;
+  }
+
+  .cr-table a {
+    @apply font-semibold underline;
+  }
+
+  .cr-table td.cr-sub {
+    @apply pt-0;
+  }
+
+  .cr-chip {
+    @apply inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-semibold;
+  }
+
+  .cr-ok {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+
+  .cr-warn {
+    @apply bg-amber-100 text-amber-900;
+  }
+
+  .cr-bad {
+    @apply bg-rose-700 text-white;
+  }
+
+  .cr-muted {
+    @apply bg-slate-100 text-slate-700;
+  }
+
+  .cr-field {
+    @apply rounded border border-slate-300 bg-white px-2 py-1.5 text-sm;
+  }
+
+  .cr-note {
+    @apply mt-1 rounded border px-2 py-1 text-xs font-medium;
+  }
 }

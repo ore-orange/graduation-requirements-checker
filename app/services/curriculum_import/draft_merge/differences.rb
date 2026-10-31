@@ -11,7 +11,8 @@ module CurriculumImport
                  'subtitle' => '副題', 'categories' => '区分', 'category' => '区分', 'check_id' => '確認する規則',
                  'check_ids' => '確認する規則', 'required_categories' => '必修の区分', 'expected_course_count' => '科目数',
                  'required_label' => '必要単位の表示', 'credits_from_check' => '規則から単位を取るか', 'detail' => '注記',
-                 'row_ids' => '行', 'group_by' => 'グループの分け方', 'type' => '規則の型' }.freeze
+                 'row_ids' => '行', 'group_by' => 'グループの分け方', 'type' => '規則の型', 'number' => '科目番号',
+                 'credits' => '単位', 'required' => '必修', 'requires_approval' => '指導教員の承認' }.freeze
 
       module_function
 

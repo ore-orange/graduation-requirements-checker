@@ -107,6 +107,12 @@ class Curriculum < ApplicationRecord
     path if path.file?
   end
 
+  # ページ画像の実寸(横幅px)。PDFペインの倍率は、これをもとに決める。無ければ nil。
+  def page_image_width(page)
+    path = page_image_path(page)
+    TimetableImport::PageImages.width(path) if path
+  end
+
   # ページ画像の中身。無ければ nil。
   def page_image_data(page)
     path = page_image_path(page)

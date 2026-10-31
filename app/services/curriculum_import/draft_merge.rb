@@ -13,6 +13,7 @@ module CurriculumImport
   class DraftMerge
     include KeyedMerge
     include DisplayMerge
+    include HumanCourses
 
     CONFIRMED = 'confirmed'
     # 確認画面で人が消した規則・章・行・小計の記録。読み直しが、消したものを黙って戻さないための印。
@@ -67,9 +68,10 @@ module CurriculumImport
       courses = @document['courses']
       @kept = withdraw_previous
       kept_keys = kept_ids('courses')
-      known = courses.select { |course| kept_keys.include?(course['key']) }.map { |course| identity(course) }
+      held = held_identities(courses, kept_keys)
+      removed = removed_course_identities
       added = answer['courses'].each_with_index.filter_map do |row, index|
-        next if known.include?(identity(row))
+        next if human_owned?(row, held, removed)
 
         course_entry(row, index, courses).tap { |entry| courses << entry }
       end

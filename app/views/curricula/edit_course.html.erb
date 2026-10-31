@@ -1,0 +1,9 @@
+<%# 科目の「直す」を、Turbo を使わずに開いたときの画面(Turbo では、行のあとへ直す欄だけが入る)。 %>
+<% content_for :title, "科目を直す | #{app_name}" %>
+<div class="min-h-screen bg-slate-100 pb-16 font-sans text-slate-800">
+  <main class="mx-auto max-w-5xl space-y-4 px-4 pt-8 sm:px-6 lg:px-8">
+    <h2 class="text-lg font-bold text-slate-900"><%= course_label(@course) %> を直す</h2>
+    <%= render 'courses_edit_form', review: courses_review, course: @course %>
+    <%= link_to '下書きに戻る', curriculum_path(@curriculum, anchor: course_dom_id(@course['key'])), class: 'text-sm font-semibold underline' %>
+  </main>
+</div>

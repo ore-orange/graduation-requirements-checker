@@ -6,6 +6,7 @@
 # 読み取り(AI)は1ページずつ、画面から1リクエストごとに同期で行う。公開は後続のタスクで、ここでは動かさない。
 class CurriculaController < ApplicationController
   include LocalAccessOnly
+  include CurriculaCourses
 
   MAX_PDF_BYTES = 10.megabytes
   FIELD_LABELS = { slug: '識別名(slug)', admission_year: '入学年度', faculty_name: '学部名',
@@ -13,7 +14,8 @@ class CurriculaController < ApplicationController
 
   helper_method :requirements_review
 
-  before_action :load_draft, only: %i[show update update_rules destroy page_image read_page]
+  # update_courses・edit_course は CurriculaCourses(concern)が定義する。
+  before_action :load_draft, only: %i[show update update_rules update_courses edit_course destroy page_image read_page] # rubocop:disable Rails/LexicallyScopedActionFilter
 
   rescue_from ActiveRecord::RecordNotFound do
     redirect_to requirements_path, alert: 'この下書きは見つかりません。削除された可能性があります。', status: :see_other

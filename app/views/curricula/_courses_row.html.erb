@@ -1,0 +1,36 @@
+<%# 科目1つ。1行目は「読む行」(判定の単位を水増しする値を、開かなくても見えるところに出す)。指摘・問題・編集欄は、あれば下に続く。 %>
+<%# 確認・選べる/選べないの切り替えは、画面に1つだけある共有のフォーム(course_action_form)へ送る(course_action)。 %>
+<%# 484行ぶん並ぶので、1行を軽く保つ(余白・文字の大きさ・リンクの見た目は、表の cr-table が決める)。 %>
+<% course = row.course %>
+<% category = course['category'] %>
+<tbody id="<%= course_dom_id(row.key) %>" class="<%= course_tone(row) %>">
+  <tr>
+    <td><%= course_action review, row, row.confirmed? ? '✓ 確認した' : '確認した', class_name: (row.confirmed? ? 'cr-btn cr-btn-ok' : 'cr-btn'), confirmed: !row.confirmed?, pressed: row.confirmed? %></td>
+    <td class="tabular-nums"><%= course['number'].presence || tag.span('番号なし', class: 'cr-chip cr-warn') %>
+      <%= tag.span('必修', class: 'cr-chip cr-muted') if course['required'] == true %></td>
+    <td class="text-sm"><%= course['name'] %>
+      <%= tag.span('手で足した', class: 'cr-chip cr-muted') if course['added_by_hand'] %>
+      <%= tag.span("AIの要確認: #{course['review_reason']}", class: 'block text-xs font-medium text-amber-900') if course['review_reason'].present? %>
+      <%= tag.span("役割: #{Array(course['roles']).join('・')}", class: 'block text-slate-600') if course['roles'].present? %></td>
+    <td class="text-base font-bold tabular-nums"><%= course['credits'].is_a?(Numeric) ? review_credits(course['credits']) : tag.span('読めない', class: 'cr-chip cr-bad') %></td>
+    <td><% if review.category_keys.include?(category) %><%= review.category_label(category) %>
+      <%= tag.span('総単位に数えない', class: 'cr-chip cr-bad') if review.uncounted?(category) %>
+      <% else %><%= tag.span("区分が便覧に無い: #{category.presence || '(空)'}", class: 'cr-chip cr-bad') %><% end %>
+      <% if row.inferred %><span class="mt-1 block text-amber-900">番号帯の他の科目は「<%= review.category_label(row.inferred) %>」</span>
+        <%= course_action review, row, '推定の区分にする', category: row.inferred %><% end %></td>
+    <td><%= course['selectable'] == true ? course_action(review, row, '選べる', selectable: false) : course_action(review, row, '選べない', class_name: 'cr-btn cr-btn-bad', selectable: true) %>
+      <%= tag.span('承認が必要', class: 'cr-chip cr-warn') if course['requires_approval'] == true %></td>
+    <td><% targets = review.jump_targets(course) %><% if targets.any? %><% targets.each do |number, index| %><button type="button" class="cr-btn" data-action="pdf-pane#jump" data-page="<%= index %>"><%= number %>頁</button> <% end %><% else %><%= course['source_page'] %><% end %></td>
+    <td><%= link_to '直す', edit_course_curriculum_path(review.curriculum, key: row.key), data: { turbo_stream: true } %></td>
+  </tr>
+  <% problems = review.problems_for(row.key) %>
+  <% if row.findings.any? || problems.any? %>
+    <tr>
+      <td colspan="8" class="cr-sub">
+        <%= render 'requirements_finding_notes', findings: row.findings %>
+        <% problems.each do |problem| %><p role="alert" class="cr-note border-rose-300 bg-rose-100 font-bold text-rose-900">入力を直してください: <%= problem.message %></p><% end %>
+      </td>
+    </tr>
+  <% end %>
+  <%= render 'courses_edit_row', review: review, course: course if review.open?(row.key) %>
+</tbody>

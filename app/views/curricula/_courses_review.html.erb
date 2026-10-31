@@ -1,0 +1,81 @@
+<%# 科目表の確認。AI が PDF から読んだ科目を、PDFのページと見比べて、人が直す場所。誤読を「見える」ようにするのが目的。 %>
+<%# 単位・区分・選べるか・承認が要るか・総単位に数えるか、は判定の単位を水増しする値なので、行に出す(開かない)。 %>
+<%# 1科目ずつ保存する。直した科目は「人が確認した」印が付き、読み直しでは上書きされない(CurriculumImport::CourseEdit)。 %>
+<section id="course-review" aria-labelledby="courses-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs">
+  <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
+    <h3 id="courses-heading" class="text-base font-bold text-slate-900">科目表の確認</h3>
+    <p class="mt-0.5 text-xs text-slate-500">
+      AI が読んだ科目です。必ず、PDFの科目表と見比べてください。違う単位・区分は直し、読み落とした科目は足します。
+      合っている科目は「確認した」を押します。直した科目と確認した科目は「人が確認した」印が付き、あとでそのページを読み直しても上書きされません。
+    </p>
+    <p class="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-900">
+      AI は、すべての科目を「学生が選べる」と読みます。便覧に「自分のコースの◯◯科目は選べない」のような但し書きがあれば、
+      該当の科目を「選べない」に直してください。見落とすと、選べない科目が履修に選べてしまいます。
+    </p>
+  </div>
+
+  <% if review.started? %>
+    <%= render 'courses_errors', review: review %>
+    <%= render 'courses_summary', review: review %>
+    <p id="courses_notice" role="status" aria-live="polite" class="px-5 pt-2 text-xs font-medium text-emerald-800 empty:hidden sm:px-6"></p>
+
+    <%# 行の「確認した」などのボタンが送る、共有のフォーム(科目ごとにフォームを置かない) %>
+    <%= form_with url: update_courses_curriculum_path(review.curriculum), method: :patch, id: 'course_action_form' do %><% end %>
+
+    <div class="p-5 sm:p-6">
+      <table class="cr-table w-full table-fixed" <%= tag.attributes(data: { controller: 'pdf-pane', pdf_pane_page_width_value: review.pane_width }) if review.panes.any? %>>
+        <caption class="sr-only">科目表</caption>
+        <%# 列の幅は固定する。PDFの画像(横に長い)に表が引き伸ばされないように。 %>
+        <colgroup><col class="w-24"><col class="w-20"><col><col class="w-12"><col class="w-36"><col class="w-24"><col class="w-24"><col class="w-12"></colgroup>
+        <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs text-slate-700 shadow-sm">
+          <%= render 'pdf_pane', review: review if review.panes.any? %>
+          <tr <%= tag.attributes(data: { pdf_pane_target: 'headRow' }) if review.panes.any? %>>
+            <% %w[確認 科目番号 科目名 単位 区分 学生の選択 出典 修正].each do |label| %><th scope="col" class="px-2 py-2"><%= label %></th><% end %>
+          </tr>
+        </thead>
+
+        <% if review.first_look.any? %>
+          <tbody id="course-first-look">
+            <tr class="bg-amber-100">
+              <th colspan="8" class="px-2 py-2 text-left">
+                <h4 class="inline text-sm font-bold text-amber-950">最初に見る科目 ・ <%= review.first_look.size %>科目</h4>
+                <span class="ml-2 text-xs font-normal text-amber-950">
+                  番号帯の他の科目と区分が違う・突き合わせに指摘された・AIが要確認とした科目です。AIの誤りと決まったわけではありません
+                  (便覧には、必修が選択の番号帯に入るような例外があります)。PDFと見比べて、合っていれば「確認した」を押してください。
+                </span>
+              </th>
+            </tr>
+          </tbody>
+          <% review.first_look.each do |row| %>
+            <%= render 'courses_row', review: review, row: row %>
+          <% end %>
+        <% end %>
+
+        <% review.sections.each do |section| %>
+          <tbody id="course-category-<%= section.key %>">
+            <tr class="bg-slate-100">
+              <th colspan="8" class="px-2 py-2 text-left">
+                <h4 class="inline text-sm font-bold text-slate-900"><%= section.title %> ・ <%= section.total %>科目 ・ 必修<%= review_credits(section.required_credits) %>単位</h4>
+                <% unless section.counted %><span class="cr-chip cr-bad ml-2">総単位に数えない</span><% end %>
+                <span class="cr-chip cr-muted ml-2">選べる<%= section.selectable %></span>
+                <% if section.unselectable.positive? %><span class="cr-chip cr-bad ml-1">選べない<%= section.unselectable %></span><% end %>
+                <% if section.rows.size < section.total %>
+                  <span class="ml-2 text-xs font-normal text-slate-600">うち<%= section.total - section.rows.size %>科目は、上の「最初に見る科目」にあります</span>
+                <% end %>
+              </th>
+            </tr>
+          </tbody>
+          <% section.rows.each do |row| %>
+            <%= render 'courses_row', review: review, row: row %>
+          <% end %>
+        <% end %>
+      </table>
+
+      <%= render 'courses_add', review: review %>
+    </div>
+  <% else %>
+    <p class="px-5 py-4 text-sm text-slate-700 sm:px-6">
+      まだ科目表を読み取っていません。上の「読むページ」で科目表のページを選び、「読む」を押すと、ここに科目が並びます。
+    </p>
+  <% end %>
+</section>

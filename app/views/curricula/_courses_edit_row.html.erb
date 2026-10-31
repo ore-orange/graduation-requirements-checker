@@ -1,0 +1,6 @@
+<%# 1科目の直す欄の行。「直す」を押したときに、その科目の行のあとへ入る(Turbo Stream)。保存できなかったときは、最初から付いている。 %>
+<tr id="<%= course_edit_row_id(course['key']) %>">
+  <td colspan="8" class="cr-sub">
+    <%= render 'courses_edit_form', review: review, course: course %>
+  </td>
+</tr>

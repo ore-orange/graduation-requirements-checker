@@ -1,0 +1,38 @@
+<%# 1科目の直す欄。保存すると「人が確認した」科目になり、読み直しでは上書きされない。 %>
+<% key = course['key'] %>
+<%= form_with url: update_courses_curriculum_path(review.curriculum), method: :patch,
+              class: 'mt-2 space-y-2 rounded-lg border border-slate-300 bg-white p-3' do %>
+  <%= hidden_field_tag :key, key, id: nil %>
+  <%= hidden_field_tag :rev, review.revision(course), id: nil %>
+  <div class="flex flex-wrap items-end gap-3">
+    <label class="block"><span class="text-xs font-semibold text-slate-700">科目番号</span>
+      <%= cf_text review, key, 'number', course['number'], class: 'cr-field mt-1 block w-28' %></label>
+    <label class="block"><span class="text-xs font-semibold text-slate-700">科目名</span>
+      <%= cf_text review, key, 'name', course['name'], class: 'cr-field mt-1 block w-64' %></label>
+    <label class="block"><span class="text-xs font-semibold text-slate-700">単位</span>
+      <%= cf_number review, key, 'credits', course['credits'], class: 'cr-field mt-1 block w-20' %></label>
+    <label class="block"><span class="text-xs font-semibold text-slate-700">区分</span>
+      <%= cf_select review, key, 'category', course['category'], class: 'cr-field mt-1 block' %></label>
+  </div>
+  <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-800">
+    <label class="flex items-center gap-1.5"><%= cf_check review, key, 'selectable', course['selectable'] == true %>学生が履修に選べる</label>
+    <label class="flex items-center gap-1.5"><%= cf_check review, key, 'requires_approval', course['requires_approval'] == true %>指導教員の承認が要る</label>
+    <label class="flex items-center gap-1.5"><%= cf_check review, key, 'required', course['required'] == true %>必修</label>
+  </div>
+  <div class="flex flex-wrap items-end gap-3">
+    <label class="block"><span class="text-xs font-semibold text-slate-700">言語</span>
+      <%= cf_text review, key, 'language', course['language'], class: 'cr-field mt-1 block w-28' %></label>
+    <label class="block"><span class="text-xs font-semibold text-slate-700">役割(カンマ区切り)</span>
+      <%= cf_text review, key, 'roles', Array(course['roles']).join(', '), class: 'cr-field mt-1 block w-48' %></label>
+    <label class="block"><span class="text-xs font-semibold text-slate-700">要確認の理由(空にすると外れます)</span>
+      <%= cf_text review, key, 'review_reason', course['review_reason'], class: 'cr-field mt-1 block w-72' %></label>
+  </div>
+  <div class="flex flex-wrap items-center gap-3">
+    <%= submit_tag '直して確認済みにする', class: 'demo-button' %>
+    <%= link_to 'やめる', edit_course_curriculum_path(review.curriculum, key: key, cancel: 1), class: 'text-xs font-semibold text-slate-700 underline',
+                data: { turbo_stream: true } %>
+    <%= button_tag 'この科目を消す', type: 'submit', name: '_destroy', value: '1', class: 'cr-btn ml-auto text-rose-800',
+                   data: { turbo_confirm: "#{course_label(course)} を消します。読み直しても戻りません。" } %>
+  </div>
+  <p class="text-xs text-slate-600">値を変えて保存すると、確認済みの科目になります。確認済みの科目は、あとでそのページを読み直しても上書きされません。</p>
+<% end %>
