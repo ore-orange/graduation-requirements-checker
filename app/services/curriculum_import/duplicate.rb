@@ -10,7 +10,7 @@ module CurriculumImport
   module Duplicate
     def self.call(published)
       document = published.document.deep_dup
-      Array(document['courses']).each { |course| course['confirmed'] = true if course.is_a?(Hash) }
+      CourseEdit.confirm_all!(document)
       Curriculum.create!(slug: published.slug, admission_year: published.admission_year, title: published.title,
                          faculty_name: published.faculty_name, department_name: published.department_name,
                          source_filename: '公開済みの複製', pages: [], document: document)

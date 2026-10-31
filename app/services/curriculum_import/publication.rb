@@ -106,7 +106,7 @@ module CurriculumImport
 
     def apply!
       twin_id = twin&.id
-      twin&.update_columns(published_at: nil, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+      demote_twin if twin
       curriculum.update!(document: document, title: document['title'].presence || curriculum.title, pages: [],
                          source_filename: nil, import_error: nil, published_at: Time.current)
       return unless twin_id
@@ -115,6 +115,14 @@ module CurriculumImport
     end
 
     private
+
+    # 差し替えで下書きに戻る、もとの公開済み。公開の関門を一度通った文書なので、科目は確認済みのまま戻す(Duplicate と同じ理由。
+    # 戻すたびに484科目を確認し直させては、差し替えという機能そのものが使われなくなる)。
+    def demote_twin
+      document = twin.document.deep_dup
+      CourseEdit.confirm_all!(document)
+      twin.update_columns(document: document, published_at: nil, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+    end
 
     def draft_findings
       @draft_findings ||= Validation.for(curriculum).call

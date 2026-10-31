@@ -14,9 +14,9 @@ class CurriculaController < ApplicationController
 
   helper_method :requirements_review, :publication
 
-  # update_courses・edit_course は CurriculaCourses(concern)が定義する。
+  # update_courses・edit_course・bulk_confirm_courses は CurriculaCourses(concern)が定義する。
   before_action :load_draft, only: # rubocop:disable Rails/LexicallyScopedActionFilter
-    %i[show update update_rules update_courses edit_course destroy page_image read_page publish]
+    %i[show update update_rules update_courses bulk_confirm_courses edit_course destroy page_image read_page publish]
 
   rescue_from ActiveRecord::RecordNotFound do
     redirect_to requirements_path, alert: 'この下書きは見つかりません。削除された可能性があります。', status: :see_other
@@ -41,6 +41,25 @@ class CurriculaController < ApplicationController
     published = Curriculum.published.find(params.expect(:id))
     draft = CurriculumImport::Duplicate.call(published)
     redirect_to draft, notice: '公開済みの便覧を複製して、下書きを作りました。直したあとに公開すると、差し替えられます。', status: :see_other
+  end
+
+  # 区分ごとに、まだ確認していない科目をまとめて確認する。対象と指紋は CoursesReview が決める(courses_review と同じ1か所)。
+  # 区分全体の行がまとめて変わるので、Turbo にはせず素直に画面を開き直す(「読み落とした科目を足す」と同じ考え方)。
+  # ロックの中で公開済みに変わっていないかも確かめる(update_courses と同じ理由)。
+  def bulk_confirm_courses
+    result = nil
+    published = false
+    @curriculum.with_lock do
+      published = @curriculum.published?
+      unless published
+        result = CurriculumImport::BulkConfirm.new(@curriculum, category: params[:category], rev: params[:rev]).call
+      end
+    end
+    return redirect_to requirements_path, alert: published_alert, status: :see_other if published
+
+    anchor = helpers.course_category_dom_id(params[:category])
+    redirect_to curriculum_path(@curriculum, anchor: anchor), (result.ok? ? :notice : :alert) => result.message,
+                                                              status: :see_other
   end
 
   # 取り込み時に作ったページ画像。この下書きの置き場にあるものしか返さない。
@@ -80,12 +99,19 @@ class CurriculaController < ApplicationController
 
   # pages は読み取り(ReadPage)も、数分かかる要求の最後に書く。読み込んだ手元の pages を書き戻すと、その間に
   # 読み終わったページが未読に戻り、読み直しで要件が二重に入る。行を取り直してロックし、その上で替える。
+  #
+  # load_draft は下書きのときだけ通すが、ロックが明くまでの間に別の操作がこの便覧を公開していることがある
+  # (公開も with_lock で行をロックするので、ロックの順番で先に公開が済んでいれば、ここが見るのは公開済みの行)。
+  # ロックの中でもう一度確かめ、公開済みなら何もせず断る。
   def update
     notice = nil
     @curriculum.with_lock do
+      next notice = published_alert if @curriculum.published?
+
       notice = params[:page_count].present? ? assign_page_count : assign_page_kinds
       @curriculum.save! unless notice.is_a?(String)
     end
+    return redirect_to requirements_path, alert: published_alert, status: :see_other if notice == published_alert
     return redirect_to @curriculum, alert: notice, status: :see_other if notice.is_a?(String)
 
     redirect_to @curriculum, notice: saved_notice, status: :see_other
@@ -94,9 +120,15 @@ class CurriculaController < ApplicationController
   # 要件表の確認画面(規則・区分・章と行・総単位・注釈の扱い)で人が直した値を、下書きに入れる。
   # 直したものは、読み直しから守る印(confirmed)を付けて持つ。送られなかった項目は消さない(RequirementsEdit)。
   # 読み取り(ReadPage)も同じ行をロックして document を書くので、ここも行を取り直してロックし、最新の上で直す。
+  # ロックの中で公開済みに変わっていないかも、もう一度確かめる(update と同じ理由)。
   def update_rules
     result = nil
-    @curriculum.with_lock { result = CurriculumImport::RequirementsEdit.new(@curriculum, rules_params).call }
+    published = false
+    @curriculum.with_lock do
+      published = @curriculum.published?
+      result = CurriculumImport::RequirementsEdit.new(@curriculum, rules_params).call unless published
+    end
+    return redirect_to requirements_path, alert: published_alert, status: :see_other if published
     return redirect_to rules_review_path, notice: edit_success_message(result), status: :see_other if result.ok?
     # 画面を開いたあとに中身が変わっていたら、いまの中身で開き直す(送られた入力は、古い中身の位置に結びついている)。
     return redirect_to rules_review_path, alert: result.errors.first, status: :see_other if result.stale
@@ -104,9 +136,17 @@ class CurriculaController < ApplicationController
     render_rejected(result)
   end
 
-  # 下書きは作業中の文書なので、そのまま消す。公開済みは load_draft で弾く。
+  # 下書きは作業中の文書なので、そのまま消す。公開済みは load_draft で弾く。それでも、消す直前にロックが明くまでの
+  # 間に公開が済んでいることがあるので、行をロックしてもう一度確かめてから消す(公開済みの行を消させない)。
   def destroy
-    return redirect_to requirements_path, alert: destroy_refusal, status: :see_other unless @curriculum.destroy
+    published = false
+    destroyed = false
+    @curriculum.with_lock do
+      published = @curriculum.published?
+      destroyed = @curriculum.destroy unless published
+    end
+    return redirect_to requirements_path, alert: published_alert, status: :see_other if published
+    return redirect_to requirements_path, alert: destroy_refusal, status: :see_other unless destroyed
 
     redirect_to requirements_path, notice: '下書きを削除しました。', status: :see_other
   end
@@ -167,12 +207,16 @@ class CurriculaController < ApplicationController
     @curriculum.errors.full_messages.to_sentence.presence || '削除できませんでした。'
   end
 
+  # 公開済みになったあとの操作を断るときの文言。load_draft がここへ来させないための関門だが、
+  # ロックが明くまでの間に別の操作が先に公開していることがあるので、行をロックする操作はもう一度ここで確かめる。
+  def published_alert = '公開済みの便覧は、この画面からは開けません。'
+
   # 公開済みの便覧は学生の判定に使われているので、この画面では開かず、直さず、消さない。直すときは「複製して直す」。
   def load_draft
     @curriculum = Curriculum.find(params.expect(:id))
     return unless @curriculum.published?
 
-    redirect_to requirements_path, alert: '公開済みの便覧は、この画面からは開けません。', status: :see_other
+    redirect_to requirements_path, alert: published_alert, status: :see_other
   end
 
   def upload_error(curriculum, file)

@@ -10,6 +10,9 @@ module CoursesReviewHelper
   # 「直す」で入る編集欄の行の id。
   def course_edit_row_id(key) = "course-edit-#{course_dom_id(key).delete_prefix('course-')}"
 
+  # 区分の節の id(見出しの tbody と同じ)。まとめて確認したあと、その区分へ戻るのに使う。
+  def course_category_dom_id(key) = "course-category-#{key}"
+
   # 行の色。公開を止める指摘 → 最初に見る科目 → 選べない科目 → 確認済み。
   def course_tone(row)
     return 'bg-rose-50' if row.reasons.include?(:blocking)

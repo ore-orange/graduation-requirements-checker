@@ -32,7 +32,13 @@
           <ul class="mt-2 list-disc space-y-1 pl-5 text-xs">
             <% warnings.first(shown).each do |warning| %><li><%= warning %></li><% end %>
           </ul>
-          <% if warnings.size > shown %><p class="mt-2 text-xs">ほか<%= warnings.size - shown %>件あります。</p><% end %>
+          <% if warnings.size > shown %>
+            <p class="mt-2 text-xs">
+              ほか<%= warnings.size - shown %>件は、上の
+              <%= link_to '要件表の確認の指摘一覧', '#requirements_findings', class: 'underline' %>
+              にすべて出ています。
+            </p>
+          <% end %>
           <label class="mt-3 flex items-start gap-2 text-sm font-semibold">
             <%= check_box_tag :acknowledged, publication.digest, false, required: true, class: 'mt-1' %>
             <span>上の警告をすべて読み、このまま公開してよいと確認しました。</span>

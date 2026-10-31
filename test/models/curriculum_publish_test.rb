@@ -85,13 +85,21 @@ class CurriculumPublishTest < ActiveSupport::TestCase
     assert_includes reason, 'fusion'
   end
 
-  test '科目が無い便覧・規則が無い便覧・display が無い便覧は公開できない' do
-    [->(d) { d['courses'] = [] }, ->(d) { d['rules'] = [] }, ->(d) { d.delete('display') }].each do |breaker|
-      document = requirements_document.tap(&breaker)
+  test '科目が無い便覧・規則が無い便覧・display が無い便覧は、科目を確認済みにしても公開できない' do
+    # 科目は先に確認済みにしておく。そうしないと、止めた理由が「確認していない科目がある」なのか
+    # 「骨組みが欠けている」(DocumentChecks)なのか見分けが付かない。
+    cases = { '科目が1つもありません' => ->(d) { d['courses'] = [] },
+              '判定の規則が1つもありません' => ->(d) { d['rules'] = [] },
+              '画面の要件表(display)がありません' => ->(d) { d.delete('display') } }
+    cases.each do |fragment, breaker|
+      document = requirements_document
+      document['courses'].each { |course| course['confirmed'] = true }
+      document.tap(&breaker)
       draft = Curriculum.create!(slug: 'y', admission_year: 2025, document: document,
                                  pages: pages_of(requirements_document))
 
       assert_not_predicate draft, :publishable?
+      assert(draft.blocking_reasons.any? { |text| text.include?(fragment) }, draft.blocking_reasons.inspect)
     end
   end
 
@@ -237,6 +245,40 @@ class CurriculumPublishTest < ActiveSupport::TestCase
     assert_predicate draft, :published?
   end
 
+  test '警告の一覧が変わると、前の指紋ではもう公開できない(答えの使い回しを防ぐ)' do
+    document = requirements_document
+    document['courses'][0]['source_page'] = '' # 出典が無い(警告その1)
+    draft = ready_draft(document: document)
+    old_digest = CurriculumImport::Publication.new(draft).digest
+
+    # 別の警告が増える(単位が0)。読んだはずの一覧には無かった警告なので、前の指紋はもう当てはまらない。
+    updated = draft.document.deep_dup
+    updated['courses'][1]['credits'] = 0
+    draft.update!(document: updated)
+
+    assert_not_equal old_digest, CurriculumImport::Publication.new(draft).digest
+    assert_raises(CurriculumImport::Publication::Refused) { draft.publish!(acknowledged: old_digest) }
+    assert_not_predicate draft.reload, :published?
+
+    draft.publish!(acknowledged: CurriculumImport::Publication.new(draft).digest)
+
+    assert_predicate draft, :published?
+  end
+
+  test '下書き自体には止める指摘が無くても、公開する形にした文書が壊れていれば止める(2回検める網)' do
+    draft = ready_draft
+    broken = { 'broken' => true } # courses も rules も無い形。本物の PublishedDocument.build はこうは作らないが、
+    # 「公開する形にした文書も同じ検査にかける」が外れていないかを、ここで直に確かめる。
+
+    CurriculumImport::PublishedDocument.stub(:build, broken) do
+      assert_empty CurriculumImport::Validation.for(draft).call, '下書き自体は、公開を止める指摘が無い'
+      assert_not_predicate draft, :publishable?
+      assert(draft.blocking_reasons.any? { |text| text.include?('courses がありません') }, draft.blocking_reasons.inspect)
+      assert_raises(CurriculumImport::Publication::Refused) { draft.publish! }
+    end
+    assert_not_predicate draft.reload, :published?
+  end
+
   test '警告が無ければ、確認の答えは要らない' do
     draft = ready_draft
 
@@ -287,6 +329,20 @@ class CurriculumPublishTest < ActiveSupport::TestCase
     assert_not_predicate first.reload, :published?
     assert_equal [second.id], students.map { |student| student.reload.curriculum_id }.uniq
     assert_equal [second], Curriculum.published.where(slug: 'x', admission_year: 2025).to_a
+  end
+
+  test '差し替えで下書きに戻った便覧は、科目が確認済みのまま戻るので、直さなくても再び公開できる' do
+    first = ready_draft
+    first.publish!
+    second = ready_draft
+    second.publish!(replace: true)
+
+    demoted = first.reload
+    assert_not_predicate demoted, :published?
+    assert(demoted.document['courses'].all? do |course|
+      course['confirmed'] == true
+    end, '複製(Duplicate)と同じ理由で、484科目を確認し直させない')
+    assert demoted.publishable?(replace: true)
   end
 
   test '差し替えの途中で失敗したら、何も変わらない' do

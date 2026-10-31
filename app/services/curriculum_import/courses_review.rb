@@ -74,6 +74,19 @@ module CurriculumImport
 
     def uncounted?(category) = review.uncounted_category_keys.include?(category)
 
+    # 区分の節を key で引く。見出しの「まとめて確認する」が対象にする科目と指紋は、ここから作る1か所
+    # (画面に出す区分の節と、まとめて確認する科目をそろえる。最初に見る科目は、その節の rows に入っていない=対象にならない)。
+    def section_for(key) = sections.find { |section| section.key == key.to_s }
+
+    # 区分の節のうち、まだ確認し終えていない科目(CourseEdit.confirmed? が false)。
+    def section_pending(key) = section_for(key)&.rows&.reject(&:confirmed?) || []
+
+    # 区分の節の指紋。画面を開いたときの中身(確認済みも含む全部)と、まとめて確認するときの中身が同じかを確かめる。
+    def section_revision(key)
+      section = section_for(key)
+      section && CourseEdit.fingerprint(section.rows.map(&:course))
+    end
+
     def category_options = category_keys.map { |key| [category_label(key), key] }
 
     def problems_for(key) = problems.select { |problem| problem.id == key.to_s }

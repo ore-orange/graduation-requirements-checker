@@ -28,10 +28,17 @@ module CurriculaCourses
   end
 
   # 科目1つの確認・修正・削除、または読み落とした科目の追加。document 全体は書き戻さない(CourseEdit)。
-  # 行をロックして、読み取り(ReadPage)・要件表の保存と順に並べる。
+  # 行をロックして、読み取り(ReadPage)・要件表の保存と順に並べる。ロックの中で公開済みに変わっていないかも確かめる
+  # (publish も with_lock で行をロックするので、ロックの順番で先に公開が済んでいることがある)。
   def update_courses
     result = nil
-    @curriculum.with_lock { result = CurriculumImport::CourseEdit.new(@curriculum, courses_params).call }
+    published = false
+    @curriculum.with_lock do
+      published = @curriculum.published?
+      result = CurriculumImport::CourseEdit.new(@curriculum, courses_params).call unless published
+    end
+    return respond_published_conflict if published
+
     respond_to do |format|
       format.turbo_stream { turbo_course_response(result) }
       format.html { html_course_response(result) }
@@ -39,6 +46,14 @@ module CurriculaCourses
   end
 
   private
+
+  # update_courses が公開済みを検めたときの応答。turbo・html のどちらでも、画面を開き直させる(load_draft と同じ文言)。
+  def respond_published_conflict
+    respond_to do |format|
+      format.turbo_stream { head :conflict }
+      format.html { redirect_to requirements_path, alert: published_alert, status: :see_other }
+    end
+  end
 
   def courses_review
     # 突き合わせは画面を開くたびに走る重い処理。要件表の画面と同じ結果を共有する(編集欄だけを取りに来たときは、走らせない)。

@@ -30,6 +30,7 @@ Rails.application.routes.draw do
       post :duplicate
       post 'pages/:page/read', action: :read_page, as: :read_page
       patch :update_courses
+      patch 'courses/bulk_confirm', action: :bulk_confirm_courses, as: :bulk_confirm_courses
       get :edit_course
       patch :update_rules
       get 'page_image/:page', action: :page_image, as: :page_image

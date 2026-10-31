@@ -181,5 +181,88 @@ class CurriculaPublishTest < ActionDispatch::IntegrationTest
     assert_no_difference('Curriculum.count') { post duplicate_curriculum_path(record), env: ENV_LOCAL }
     assert_redirected_to requirements_path
   end
+
+  test '差し替えで下書きに戻った便覧は、科目が確認済みのまま戻る' do
+    first = ready_draft
+    publish(first)
+    second = ready_draft
+    publish(second, replace: '1')
+
+    demoted = first.reload
+    assert_not_predicate demoted, :published?
+    assert(demoted.document['courses'].all? { |course| course['confirmed'] == true })
+  end
+
+  # ---- まとめて確認する ----
+
+  test '確認していない科目が残る区分には、件数入りの「まとめて確認する」が出る' do
+    record = draft # どの科目も確認していない(humanities に3件)
+    show(record)
+
+    # 行ごとの操作と同じく、共有のフォーム(course_action_form)に formaction だけを足す(専用のフォームは置かない)。
+    assert_select "#course-category-humanities button[formaction^='#{bulk_confirm_courses_curriculum_path(record)}']",
+                  text: 'まとめて確認する(3科目)'
+  end
+
+  test '全部確認済みの区分には、まとめて確認するボタンが出ない' do
+    record = ready_draft # 全科目を確認済みにした下書き
+    show(record)
+
+    assert_select '#course-category-humanities button[formaction*=bulk_confirm]', false
+  end
+
+  test 'まとめて確認すると、その区分の未確認の科目がすべて確認済みになり、区分へ戻る' do
+    record = draft.reload # GET で開いたときと同じ(DBから読み直した)並びにそろえる
+    rev = CurriculumImport::CoursesReview.new(CurriculumImport::RequirementsReview.new(record)).section_revision('humanities')
+
+    patch bulk_confirm_courses_curriculum_path(record), params: { category: 'humanities', rev: rev }, env: ENV_LOCAL
+
+    assert_redirected_to curriculum_path(record, anchor: 'course-category-humanities')
+    assert_match '3科目をまとめて確認済みにしました', flash[:notice]
+    humanities = record.reload.document['courses'].select { |course| course['category'] == 'humanities' }
+    assert(humanities.all? { |course| CurriculumImport::CourseEdit.confirmed?(course) })
+  end
+
+  test '画面を開いたあとに区分の中身が変わっていれば、まとめて確認は何も変えず断る' do
+    record = draft.reload
+    rev = CurriculumImport::CoursesReview.new(CurriculumImport::RequirementsReview.new(record)).section_revision('humanities')
+    document = record.document.deep_dup
+    document['courses'][0]['name'] = '哲学(改)'
+    record.update!(document: document)
+
+    patch bulk_confirm_courses_curriculum_path(record), params: { category: 'humanities', rev: rev }, env: ENV_LOCAL
+
+    assert_redirected_to curriculum_path(record, anchor: 'course-category-humanities')
+    assert_match '変わっています', flash[:alert]
+    assert(record.reload.document['courses'].none? { |course| course['confirmed'] })
+  end
+
+  test 'まとめて確認しても、確認済みの下書きは引き続き公開できる' do
+    record = draft.reload
+    rev = CurriculumImport::CoursesReview.new(CurriculumImport::RequirementsReview.new(record)).section_revision('humanities')
+    %w[english required_core fusion excluded].each do |category|
+      r = CurriculumImport::CoursesReview.new(CurriculumImport::RequirementsReview.new(record)).section_revision(category)
+      patch bulk_confirm_courses_curriculum_path(record), params: { category: category, rev: r }, env: ENV_LOCAL
+    end
+    patch bulk_confirm_courses_curriculum_path(record), params: { category: 'humanities', rev: rev }, env: ENV_LOCAL
+
+    assert_predicate record.reload, :publishable?
+  end
+
+  # ---- 警告の案内 ----
+
+  test '警告が20件を超えると、要件表の確認への案内が出る' do
+    document = JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2024.json').read)
+    document['courses'] = document['courses'].first(20) # 実物から20件だけ残すと、警告が20件を超える(Task 20 で確認済み)
+    document['courses'].each { |course| course['confirmed'] = true }
+    record = Curriculum.create!(slug: 'tiny', admission_year: 2024, faculty_name: '工学部', department_name: '工学科',
+                                source_filename: 'handbook.pdf', document: document)
+    publication = CurriculumImport::Publication.new(record)
+    assert_operator publication.warnings.size, :>, 20
+
+    show(record)
+
+    assert_select '#publish a[href="#requirements_findings"]', text: '要件表の確認の指摘一覧'
+  end
 end
 

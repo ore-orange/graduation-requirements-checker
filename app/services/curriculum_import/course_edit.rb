@@ -57,6 +57,13 @@ module CurriculumImport
       course.is_a?(Hash) && course['confirmed'] == true && course[REVIEW_AGAIN] != true
     end
 
+    # すべての科目に確認済みを付ける(document を直接書き換える)。公開済みを複製する(Duplicate)・差し替えで公開済みを
+    # 下書きに戻す(Publication)ときに使う。どちらも、公開の関門を一度通った(または人が書いた)文書を、
+    # 作業を増やさずに下書きへ戻すためのもの。484科目を確認し直させると、1か所を直すためだけの作業が重すぎる。
+    def self.confirm_all!(document)
+      Array(document['courses']).each { |course| course['confirmed'] = true if course.is_a?(Hash) }
+    end
+
     # 科目の指紋。画面を開いたときの値と、保存のときの値を比べる。
     def self.fingerprint(course)
       Digest::SHA256.hexdigest(JSON.generate(course))[0, 16]

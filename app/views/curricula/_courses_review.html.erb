@@ -52,7 +52,8 @@
         <% end %>
 
         <% review.sections.each do |section| %>
-          <tbody id="course-category-<%= section.key %>">
+          <% pending = review.section_pending(section.key) %>
+          <tbody id="<%= course_category_dom_id(section.key) %>">
             <tr class="bg-slate-100">
               <th colspan="8" class="px-2 py-2 text-left">
                 <h4 class="inline text-sm font-bold text-slate-900"><%= section.title %> ・ <%= section.total %>科目 ・ 必修<%= review_credits(section.required_credits) %>単位</h4>
@@ -61,6 +62,17 @@
                 <% if section.unselectable.positive? %><span class="cr-chip cr-bad ml-1">選べない<%= section.unselectable %></span><% end %>
                 <% if section.rows.size < section.total %>
                   <span class="ml-2 text-xs font-normal text-slate-600">うち<%= section.total - section.rows.size %>科目は、上の「最初に見る科目」にあります</span>
+                <% end %>
+                <% if pending.any? %>
+                  <%# まとめて確認する前に、必ず件数を見せる(PDFと見比べずに押せてしまう操作なので、何件に効くかを隠さない)。 %>
+                  <%# 行ごとの操作(course_action)と同じく、共有のフォーム(course_action_form)に formaction だけ足す。 %>
+                  <%# 484行×区分の数ぶん欄を増やさない(区分ごとにフォームと隠し欄を置くと、画面の重さの予算を超える)。 %>
+                  <%= button_tag "まとめて確認する(#{pending.size}科目)", type: 'submit', form: 'course_action_form',
+                                 formaction: bulk_confirm_courses_curriculum_path(review.curriculum, category: section.key,
+                                                                                 rev: review.section_revision(section.key)),
+                                 class: 'cr-btn ml-2',
+                                 data: { turbo_confirm: "「#{section.title}」の#{pending.size}科目を、まとめて確認済みにします。" \
+                                                        '個別の食い違いが無い科目だけが対象です。よろしいですか。' } %>
                 <% end %>
               </th>
             </tr>
