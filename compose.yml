@@ -24,6 +24,11 @@ services:
     # そのため Docker では foreman を使わず、css を別サービスに分離している。
     # -b 0.0.0.0 が無いとコンテナ外（ホストのブラウザ）から繋がらない
     command: bin/rails server -b 0.0.0.0 -p 3000
+    # .env は無くても壊れない(required: false)。便覧を読むAIの鍵(CURRICULUM_READER_API_KEY)は
+    # ここでしか渡らないので、無いままでも手入力の画面として使える(CurriculumReader.available?)。
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_HOST: db
       DATABASE_USER: postgres
