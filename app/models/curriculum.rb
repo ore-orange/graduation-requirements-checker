@@ -7,6 +7,9 @@ require 'json'
 class Curriculum < ApplicationRecord
   SLUG_FORMAT = /\A[a-z][a-z0-9_]*\z/
 
+  # 学生が指している便覧は消せない(判定に使われている)。外部キーが先に落ちて500にならないよう、モデルで断る。
+  has_many :students, dependent: :restrict_with_error
+
   validates :slug, presence: true, format: { with: SLUG_FORMAT }
   validates :admission_year, numericality: { only_integer: true, in: 1..9999 }
   # 画面から上げる下書きは、学部とコースも必須。年度のない・学部のない下書きは便覧にならない。
@@ -121,6 +124,18 @@ class Curriculum < ApplicationRecord
 
   def published?
     published_at.present?
+  end
+
+  # 公開できるか、できないなら理由(人が直せる文)。決めるのは CurriculumImport::Publication の1か所。
+  # replace は、同じ識別名・入学年度の公開済みを下書きに戻して差し替える(学生の判定が切り替わる)と明示したとき。
+  def publishable?(replace: false) = blocking_reasons(replace: replace).empty?
+
+  def blocking_reasons(replace: false) = CurriculumImport::Publication.new(self, replace: replace).blocking_reasons
+
+  # 公開する。確認用の欄・ページの記録・ページ画像を落とし、公開済みにする。できなければ Publication::Refused。
+  # acknowledged は、画面が見せた警告の一覧の指紋(Publication#digest)。警告があるときだけ要る。
+  def publish!(acknowledged: nil, replace: false)
+    CurriculumImport::Publication.publish!(self, acknowledged: acknowledged, replace: replace)
   end
 
   # kinds は { ページ番号 => 種別 }。知らない種別や、存在しないページが混ざっていないか。

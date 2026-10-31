@@ -105,8 +105,11 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select 'button[onclick]', count: 0
     assert_select '[onclick], [onchange], [oninput], [onkeyup]', count: 0
     # このページで編集できるのは、便覧のアップロードだけ。そのフォームを名指しで1つだけ認め、ほかの部品は置かない。
-    assert_select 'main form', count: 1
+    # 例外は、公開済みの便覧ごとの「複製して直す」。下書きを1つ作るだけで、公開済みの行は書き換えない。
+    published = Curriculum.published.pluck(:id)
+    assert_select 'main form', count: 1 + published.size
     assert_select 'main form[action=?]', curricula_path, count: 1
+    published.each { |id| assert_select 'main form[action=?]', duplicate_curriculum_path(id), count: 1 }
     assert_select 'main textarea', count: 0
     assert_select 'main select', count: 0
     # input と button は、そのフォームの中のものだけ

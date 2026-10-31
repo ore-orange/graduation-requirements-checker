@@ -1,0 +1,60 @@
+<%# 公開の欄。公開は、この便覧が学生に「卒業できます」と言い始める瞬間。止める理由があるうちはボタンを出さず、理由を並べる。 %>
+<%# 可否は CurriculumImport::Publication が決める(ここでは判定しない)。止める理由は、直せる場所を【】で言う。 %>
+<% reasons = publication.blocking_reasons %>
+<% warnings = publication.warnings %>
+<% twin = publication.twin %>
+<% shown = 20 %>
+<section id="publish" aria-labelledby="publish-heading" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+  <h3 id="publish-heading" class="text-base font-bold text-slate-900">公開する</h3>
+  <p class="mt-0.5 text-xs text-slate-500">
+    公開すると、この便覧が学生の卒業判定に使われます。確認画面の印・ページの記録・ページ画像は、公開のときに消えます(学生の画面には出ません)。
+  </p>
+
+  <% if reasons.any? %>
+    <div role="alert" class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+      <p class="font-bold">まだ公開できません(<%= reasons.size %>件)。次を直してください。</p>
+      <ul class="mt-2 list-disc space-y-1 pl-5 text-xs">
+        <% reasons.first(shown).each do |reason| %><li><%= reason %></li><% end %>
+      </ul>
+      <% if reasons.size > shown %>
+        <p class="mt-2 text-xs">ほか<%= reasons.size - shown %>件あります。上から直すと、減っていきます。</p>
+      <% end %>
+    </div>
+    <button type="button" disabled class="mt-3 cursor-not-allowed rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">公開する</button>
+  <% else %>
+    <%= form_with url: publish_curriculum_path(curriculum), method: :post, class: 'mt-3 space-y-3' do |form| %>
+      <% if warnings.any? %>
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p class="font-bold">警告が<%= warnings.size %>件あります(公開は止めません)。</p>
+          <p class="mt-1 text-xs">
+            警告は、読み落とした科目や、数字の食い違いなどの印です。公開すると、学生の画面には「要確認」「不足」として出つづけます。
+          </p>
+          <ul class="mt-2 list-disc space-y-1 pl-5 text-xs">
+            <% warnings.first(shown).each do |warning| %><li><%= warning %></li><% end %>
+          </ul>
+          <% if warnings.size > shown %><p class="mt-2 text-xs">ほか<%= warnings.size - shown %>件あります。</p><% end %>
+          <label class="mt-3 flex items-start gap-2 text-sm font-semibold">
+            <%= check_box_tag :acknowledged, publication.digest, false, required: true, class: 'mt-1' %>
+            <span>上の警告をすべて読み、このまま公開してよいと確認しました。</span>
+          </label>
+        </div>
+      <% end %>
+      <% if twin %>
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
+          <p class="font-bold">同じ識別名・入学年度の公開済みの便覧があります。</p>
+          <p class="mt-1 text-xs">
+            公開すると、いまの公開済みの便覧(<%= twin.title.presence || "#{twin.admission_year}年度入学 #{twin.slug}" %>)は下書きに戻り、
+            それを使っている学生<%= publication.twin_student_count %>人の判定が、この便覧に切り替わります。
+          </p>
+          <label class="mt-3 flex items-start gap-2 text-sm font-semibold">
+            <%= check_box_tag :replace, '1', false, required: true, class: 'mt-1' %>
+            <span>差し替えて公開する。</span>
+          </label>
+        </div>
+      <% end %>
+      <%= form.submit twin ? '差し替えて公開する' : '公開する',
+                      class: 'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700',
+                      data: { turbo_confirm: 'この便覧を公開します。学生の卒業判定に使われます。よろしいですか。' } %>
+    <% end %>
+  <% end %>
+</section>

@@ -14,7 +14,7 @@ module CurriculumImport
   #          安全側に倒れるが、人が一度目を通すべきもの。
   # 要確認は常に安全な結果なので、迷ったら警告に置いた。逆に、止める側に置くものは、止めた理由を直す手段が人にあること。
   class Validation
-    CHECKS = [CourseChecks, RuleShape, RuleChecks, DisplayChecks, PageChecks].freeze
+    CHECKS = [DocumentChecks, CourseChecks, RuleShape, RuleChecks, DisplayChecks, PageChecks].freeze
 
     # 下書きの Curriculum から作る。ページの状態(pages)は document には無いので、一緒に渡す。
     def self.for(curriculum)

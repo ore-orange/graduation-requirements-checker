@@ -681,6 +681,24 @@ module CurriculumImport
       assert_blocking 'name がありません', document
     end
 
+    # ---- 文書の骨組み ----
+
+    test '科目が1つも無い便覧は、他の検査が何も見ないまま通るので、公開を止める' do
+      assert_blocking '科目が1つもありません', broken { |d| d['courses'] = [] }, scope: :course
+    end
+
+    test '規則が1つも無い便覧は、公開を止める' do
+      assert_blocking '判定の規則が1つもありません', broken { |d| d['rules'] = [] }, scope: :rule
+    end
+
+    test '規則があるのに display が無い便覧は、画面が開けないので公開を止める' do
+      assert_blocking '画面の要件表(display)がありません', broken { |d| d.delete('display') }, scope: :display
+    end
+
+    test '骨組みが揃っていれば、骨組みの指摘は出ない' do
+      assert_empty(findings_for(base_document).select { |finding| finding[:target].in?(%w[courses rules display]) })
+    end
+
     test '警告だけの文書は公開を止めない' do
       document = broken { |d| d['courses'][0]['source_page'] = '' }
 

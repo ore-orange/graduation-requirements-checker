@@ -3,7 +3,7 @@
 # 便覧PDFを上げて下書き（Curriculum）を作り、どのページを読むかを人が決める画面。
 # 一覧とアップロードの入口は /requirements にあり、ここは下書きの確認画面。
 # アップロードと同じリクエストの中で、ページ画像とページごとの文字を取り出し、PDFは捨てる。
-# 読み取り(AI)は1ページずつ、画面から1リクエストごとに同期で行う。公開は後続のタスクで、ここでは動かさない。
+# 読み取り(AI)は1ページずつ、画面から1リクエストごとに同期で行う。公開の可否は CurriculumImport::Publication が1か所で決める。
 class CurriculaController < ApplicationController
   include LocalAccessOnly
   include CurriculaCourses
@@ -12,10 +12,11 @@ class CurriculaController < ApplicationController
   FIELD_LABELS = { slug: '識別名(slug)', admission_year: '入学年度', faculty_name: '学部名',
                    department_name: '学科・コース名' }.freeze
 
-  helper_method :requirements_review
+  helper_method :requirements_review, :publication
 
   # update_courses・edit_course は CurriculaCourses(concern)が定義する。
-  before_action :load_draft, only: %i[show update update_rules update_courses edit_course destroy page_image read_page] # rubocop:disable Rails/LexicallyScopedActionFilter
+  before_action :load_draft, only: # rubocop:disable Rails/LexicallyScopedActionFilter
+    %i[show update update_rules update_courses edit_course destroy page_image read_page publish]
 
   rescue_from ActiveRecord::RecordNotFound do
     redirect_to requirements_path, alert: 'この下書きは見つかりません。削除された可能性があります。', status: :see_other
@@ -23,6 +24,23 @@ class CurriculaController < ApplicationController
 
   def show
     @review = CurriculumImport::RequirementsReview.new(@curriculum)
+  end
+
+  # 下書きを公開する。可否は Publication が決め、止めるときは理由を画面に返す(何も変えない)。
+  # 警告があれば、画面が見せた一覧の指紋(acknowledged)が要る。同じ識別名・入学年度の公開済みの差し替えは、replace を選んだときだけ。
+  def publish
+    @curriculum.publish!(acknowledged: params[:acknowledged], replace: params[:replace] == '1')
+    redirect_to requirements_path, notice: '便覧を公開しました。学生の卒業判定に使われます。', status: :see_other
+  rescue CurriculumImport::Publication::Refused => e
+    redirect_to curriculum_path(@curriculum, anchor: 'publish'), status: :see_other,
+                                                                 alert: "公開できませんでした(何も変えていません)。#{e.reasons.first}"
+  end
+
+  # 公開済みの便覧を直すための下書き。公開済みの行は書き換えず、document をコピーした下書きを新しく作る。
+  def duplicate
+    published = Curriculum.published.find(params.expect(:id))
+    draft = CurriculumImport::Duplicate.call(published)
+    redirect_to draft, notice: '公開済みの便覧を複製して、下書きを作りました。直したあとに公開すると、差し替えられます。', status: :see_other
   end
 
   # 取り込み時に作ったページ画像。この下書きの置き場にあるものしか返さない。
@@ -88,7 +106,8 @@ class CurriculaController < ApplicationController
 
   # 下書きは作業中の文書なので、そのまま消す。公開済みは load_draft で弾く。
   def destroy
-    @curriculum.destroy!
+    return redirect_to requirements_path, alert: destroy_refusal, status: :see_other unless @curriculum.destroy
+
     redirect_to requirements_path, notice: '下書きを削除しました。', status: :see_other
   end
 
@@ -96,6 +115,10 @@ class CurriculaController < ApplicationController
 
   # 要件表の確認画面が見せるもの(show と、保存できなかったときの開き直しが作る)。ビューの入力欄の部品が読む。
   def requirements_review = @review
+
+  # 公開の欄が見せるもの。差し替えを選んだ前提で理由を並べる(差し替えの要・不要は、欄の中で別に聞く)。
+  # 保存できなかった要件表の画面(render_rejected)も show を描くので、show では作らず、使うときに作る。
+  def publication = @publication ||= CurriculumImport::Publication.new(@curriculum, replace: true)
 
   # 要件表の確認の入力。入れ子の形(章の中の行など)は、RequirementsEdit が1つずつ読んで型を確かめる。
   def rules_params
@@ -140,7 +163,11 @@ class CurriculaController < ApplicationController
     end
   end
 
-  # 公開済みの便覧は学生の判定に使われているので、この画面では開かず、直さず、消さない。
+  def destroy_refusal
+    @curriculum.errors.full_messages.to_sentence.presence || '削除できませんでした。'
+  end
+
+  # 公開済みの便覧は学生の判定に使われているので、この画面では開かず、直さず、消さない。直すときは「複製して直す」。
   def load_draft
     @curriculum = Curriculum.find(params.expect(:id))
     return unless @curriculum.published?

@@ -19,7 +19,7 @@ module CurriculumImport
       def key = course['key']
 
       # 確認済みで、もう一度見る印(承認の注記があとから付いた)が無い科目。
-      def confirmed? = course['confirmed'] == true && course[CourseEdit::REVIEW_AGAIN] != true
+      def confirmed? = CourseEdit.confirmed?(course)
 
       def look_first? = reasons.any?
     end

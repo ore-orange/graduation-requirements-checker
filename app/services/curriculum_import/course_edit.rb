@@ -51,6 +51,12 @@ module CurriculumImport
     REVIEW_AGAIN = ApprovalNotes::REVIEW_AGAIN
     ADDED_BY_HAND = 'added_by_hand'
 
+    # 人が確認し終えた科目か。確認の印があっても、承認の注記があとから付いて「もう一度見る」印(review_again)が立っていれば、
+    # まだ終えていない。確認画面の「確認済み」の数と、公開の関門(Publication)は、この1つの定義を使う。
+    def self.confirmed?(course)
+      course.is_a?(Hash) && course['confirmed'] == true && course[REVIEW_AGAIN] != true
+    end
+
     # 科目の指紋。画面を開いたときの値と、保存のときの値を比べる。
     def self.fingerprint(course)
       Digest::SHA256.hexdigest(JSON.generate(course))[0, 16]
