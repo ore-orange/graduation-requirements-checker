@@ -216,6 +216,17 @@ module CurriculumImport
       assert_equal ['dup_p3'], document['display']['groups'].first['rows'].flat_map { |entry| entry['check_ids'] }.uniq
     end
 
+    test 'AI が自分で _p<ページ> で終わる id を出しても、別の読んだ id とは結ばない' do
+      read(3, answer(30, rules: [rule('total', 10), rule('total_p3', 20)], ref: 'total'))
+      edit(rules: [{ id: 'total_p3', required_credits: '99' }])
+      read(3, answer(30, rules: [rule('total', 11)], ref: 'total'))
+
+      assert_equal({ 'total' => 11, 'total_p3' => 99 }, rules)
+      chapter = document['display']['groups'].first
+      assert_equal [['total'], ['total']], chapter['rows'].pluck('check_ids')
+      assert_equal 'total', chapter['check_id']
+    end
+
     test '別の読んだ id とは、形が似ていても結ばない' do
       read(3, answer(30, rules: [rule('alpha', 10), rule('beta', 20)]))
       edit(rules: [{ id: 'beta', required_credits: '99' }])
@@ -237,10 +248,7 @@ module CurriculumImport
     test '由来の記録が無い(古い)下書きでも、付け替えのない id のものは守られる' do
       read(3, answer(30))
       edit(rules: [{ id: 'common_total', required_credits: '37' }])
-      pages = @curriculum.reload.pages.map do |page|
-        page.merge('contributed' => page['contributed']&.except('origins'))
-      end
-      @curriculum.update!(pages: pages)
+      strip_origins
       read(3, answer(38))
 
       assert_equal({ 'common_total' => 37 }, rules)

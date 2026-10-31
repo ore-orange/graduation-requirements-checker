@@ -32,7 +32,7 @@ module CurriculumImport
         claimed = []
         exact = origins.map { |origin| claim(stored_ids, claimed) { |stored| previous_of(kind, stored) == origin } }
         exact.each_with_index.map do |stored, index|
-          [origins[index], stored || claim(stored_ids, claimed) { |candidate| unsuffixed(candidate) == raws[index] }]
+          [origins[index], stored || claim(stored_ids, claimed) { |candidate| loose?(kind, candidate, raws[index]) }]
         end
       end
 
@@ -74,6 +74,13 @@ module CurriculumImport
         found = stored_ids.find { |stored| claimed.exclude?(stored) && yield(stored) }
         claimed << found if found
         found
+      end
+
+      # 形で結んでよいか。由来の記録が無いものだけを、付け替えの形で結ぶ。記録があるものは、記録の読んだ id が
+      # 結ぶ相手のものでなければ結ばない(AI が自分で _p<ページ> で終わる id を出しても、別の読んだ id の直しを奪わない)。
+      def loose?(kind, stored, raw)
+        known = recorded(kind, stored)
+        known ? known.first == raw : unsuffixed(stored) == raw
       end
 
       # 付け替えの形を外した id。
