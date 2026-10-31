@@ -108,6 +108,95 @@ module CurriculumImport
       assert_equal 2, courses.size
     end
 
+    test '消した科目は、AI が番号の前後に空白を残して返しても、読み直しで戻らない' do
+      read(row(' 知能103 '), row('知能101'))
+      edit(key: key('知能103'), _destroy: '1')
+
+      read(row(' 知能103 '), row('知能101'))
+
+      assert_equal %w[知能101], courses.pluck('number')
+    end
+
+    test '番号が空白だけの科目(番号なし)も、消せば読み直しで戻らず、直せば二重に入らない' do
+      read(row('  ', name: '番号のない科目'), row('知能101'))
+      assert_nil course('')&.dig('number').presence, '空白だけの番号は空として持つ'
+      keys = courses.reject { |entry| entry['number'] == '知能101' }.pluck('key')
+      edit(key: keys.first, credits: '3')
+
+      read(row('  ', name: '番号のない科目'), row('知能101'))
+
+      assert_equal 2, courses.size, '直した番号なしの科目が、二重に入った'
+      edit(key: keys.first, _destroy: '1')
+      read(row('  ', name: '番号のない科目'), row('知能101'))
+      assert_equal %w[知能101], courses.pluck('number')
+    end
+
+    test '同じ番号の2行のうち、あとの行を消したら、読み直しで消した行が戻らず、残した行が残る' do
+      read(row('知能103', name: 'ただしい', credits: 3), row('知能103', name: 'まちがい', credits: 8))
+      wrong = courses.find { |entry| entry['name'] == 'まちがい' }
+      edit(key: wrong['key'], _destroy: '1')
+      assert_equal([%w[ただしい 3]], courses.map { |entry| [entry['name'], entry['credits'].to_s] })
+
+      read(row('知能103', name: 'ただしい', credits: 3), row('知能103', name: 'まちがい', credits: 8))
+
+      assert_equal([%w[ただしい 3]], courses.map { |entry| [entry['name'], entry['credits'].to_s] })
+    end
+
+    test '消した行の内容が変わって戻ってきたら、入れるが、消した記録と同じ番号だと警告に残す' do
+      read(row('知能103', credits: 3))
+      edit(key: key('知能103'), _destroy: '1')
+
+      read(row('知能103', credits: 8))
+
+      assert_equal 1, courses.size
+      assert_match(/人が消した科目と同じ番号の行\(知能103\).*内容が違うため入れました/, warnings.join)
+    end
+
+    test '直した値を持つ科目の確認を外すと、読み直しで AI の読みに入れ替わる。その前に、警告が先に言う' do
+      read
+      edit(key: key('知能103'), credits: '3')
+      result = edit(key: key('知能103'), confirmed: 'false')
+      assert_match(/読み直すと、AI の読みに入れ替わります/, result.notes.first)
+
+      text = RereadWarning.for(@curriculum.reload.document, @curriculum.pages.first)
+      assert_match(/確認を外した次の科目は.*知能103 科目知能103/m, text)
+
+      read
+      assert_equal 2, course('知能103')['credits']
+    end
+
+    test '番号を直した科目の、直す前の読みは、種別を替えて読み直しても残り、二重に入らない' do
+      read
+      edit(key: key('知能103'), number: '知能108')
+
+      @curriculum.reload.assign_page_kinds('9' => 'skip')
+      @curriculum.save!
+      @curriculum.assign_page_kinds('9' => 'courses')
+      @curriculum.save!
+      read
+
+      assert_equal %w[知能101 知能108], courses.pluck('number').sort
+      assert_equal '知能103', course('知能108')['read_as']
+    end
+
+    test '確認済みの科目に承認の注記があとから付いても、確認は外れず、もう一度見る印が付く。確認し直すと外れる' do
+      read
+      edit(key: key('知能101'), credits: '3')
+      ApprovalNotes.add(@curriculum, 'scope' => 'category', 'category' => 'core', 'text' => '承認が要る',
+                                     'source_page' => 'PDF3ページ')
+
+      assert course('知能101')['requires_approval']
+      assert_equal true, course('知能101')['confirmed'], '確認を外すと、直した単位まで読み直しで戻る'
+      assert_equal true, course('知能101')['review_again']
+      assert_nil course('知能103')['review_again'], '確認していない科目には付けない'
+
+      read(row('知能101', credits: 9), row('知能103'))
+      assert_equal 3, course('知能101')['credits']
+
+      edit(key: key('知能101'), confirmed: 'true')
+      assert_nil course('知能101')['review_again']
+    end
+
     test '消した科目が、ほかの科目を巻き込まない' do
       read
       edit(key: key('知能103'), _destroy: '1')

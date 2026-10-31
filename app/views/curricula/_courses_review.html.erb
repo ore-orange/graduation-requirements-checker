@@ -30,7 +30,7 @@
         <thead class="sticky top-0 z-10 bg-slate-100 text-left text-xs text-slate-700 shadow-sm">
           <%= render 'pdf_pane', review: review if review.panes.any? %>
           <tr <%= tag.attributes(data: { pdf_pane_target: 'headRow' }) if review.panes.any? %>>
-            <% %w[確認 科目番号 科目名 単位 区分 学生の選択 出典 修正].each do |label| %><th scope="col" class="px-2 py-2"><%= label %></th><% end %>
+            <% %w[確認 科目番号 科目名 単位 区分 学生の選択(押すと切替) 出典 修正].each do |label| %><th scope="col" class="px-2 py-2"><%= label %></th><% end %>
           </tr>
         </thead>
 

@@ -18,9 +18,10 @@ module CurriculumImport
       contributed = page['contributed'] || {}
       kept = kept_items(document, contributed)
       removed = removed_items(document, page['page'])
-      return if kept.empty? && removed.empty?
+      reverted = reverted_courses(document, contributed)
+      return if kept.empty? && removed.empty? && reverted.empty?
 
-      text(page['page'], kept, removed)
+      text(page['page'], kept, removed, reverted)
     end
 
     def kept_items(document, contributed)
@@ -33,15 +34,27 @@ module CurriculumImport
         .reject { |_, list| list.empty? }
     end
 
+    # このページが足した科目のうち、人が値を直したあとで確認を外したもの。確認済みでないので、読み直すと AI の読みに入れ替わる
+    # (直した値を持つ印 read_fp が残っている)。気づかないまま直しが消えないよう、先に言う。
+    def reverted_courses(document, contributed)
+      keys = Array(contributed['courses'])
+      lost = Array(document['courses']).grep(Hash).select do |course|
+        keys.include?(course['key']) && course['confirmed'] != true && course[CourseEdit::READ_FP].present?
+      end
+      lost.map { |course| course_label(course) }
+    end
+
+    def course_label(course)
+      [course['number'], course['name']].compact_blank.join(' ').presence || course['key'].to_s
+    end
+
     # このページが足した科目のうち、人が確認した(直した)もの。名前は「番号 名前」。
     def course_names(document, contributed)
       keys = Array(contributed['courses'])
       confirmed = Array(document['courses']).grep(Hash).select do |course|
         keys.include?(course['key']) && course[DraftMerge::CONFIRMED] == true
       end
-      confirmed.map do |course|
-        [course['number'], course['name']].compact_blank.join(' ').presence || course['key'].to_s
-      end
+      confirmed.map { |course| course_label(course) }
     end
 
     # list のうち、ids に挙がっていて、人が直したもの。章は行のどれかが直されていれば直した章。
@@ -74,12 +87,16 @@ module CurriculumImport
       "#{KIND_NAMES.fetch(entry['kind'], entry['kind'])}「#{entry['id']}」"
     end
 
-    def text(number, kept, removed)
+    def text(number, kept, removed, reverted)
       lines = ["#{number}ページを読み直します。"]
       if kept.any?
         lines << '人が直した次の項目は、読み直した結果では上書きせず、そのまま残します(読み直した値が違えば、このページの警告に出ます)。' \
                  "#{kept.map { |noun, list| "#{noun}: #{summary(list)}" }.join(' / ')}。" \
                  '直した行を含む章は、直していない行も含めて、章ごと残ります。'
+      end
+      if reverted.any?
+        lines << '人が値を直したあとで確認を外した次の科目は、読み直すと、直した値が AI の読みに入れ替わります' \
+                 "(確認済みの科目だけが残ります): #{summary(reverted)}。"
       end
       lines << "人が消した次の項目は、読み直しても戻しません: #{summary(removed)}。" if removed.any?
       lines << 'このページが足した、それ以外の規則・章・行は、読み直した結果に入れ替わります。よろしいですか?'

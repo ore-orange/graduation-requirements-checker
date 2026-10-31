@@ -10,6 +10,7 @@ module CurriculumImport
   # 指摘した科目・AI が要確認の理由を付けた科目。食い違いは「AI が誤り」の断定ではなく、人が見る印
   # (2024年度の便覧では、必修が選択の番号帯に入る2科目が正しいまま食い違う)。人が確認した科目は、食い違いも要確認の理由も
   # 見たうえでの判断なので、ここには出さない。公開を止める指摘だけは、確認しても残す(直るまで見せる)。
+  # 確認したあとに承認の注記が付いた科目(review_again)も出す(確認は残るが、承認が変わったので、もう一度見る)。
   #
   # 要件表の確認画面(RequirementsReview)の上に作る。突き合わせは画面を開くたびに走るので、結果を共有する(二度走らせない)。
   class CoursesReview
@@ -17,7 +18,8 @@ module CurriculumImport
     Row = Struct.new(:course, :index, :findings, :inferred, :reasons, keyword_init: true) do
       def key = course['key']
 
-      def confirmed? = course['confirmed'] == true
+      # 確認済みで、もう一度見る印(承認の注記があとから付いた)が無い科目。
+      def confirmed? = course['confirmed'] == true && course[CourseEdit::REVIEW_AGAIN] != true
 
       def look_first? = reasons.any?
     end
@@ -45,7 +47,7 @@ module CurriculumImport
 
     def total = courses.size
 
-    def confirmed_count = courses.count { |course| course['confirmed'] == true }
+    def confirmed_count = rows.count(&:confirmed?)
 
     def blocking_count = rows.count { |row| row.reasons.include?(:blocking) }
 
@@ -129,12 +131,12 @@ module CurriculumImport
     def reasons_for(course, findings, inferred)
       reasons = []
       reasons << :blocking if findings.any? { |finding| finding[:blocking] }
-      return reasons if course['confirmed'] == true
+      reasons << :review_again if course[CourseEdit::REVIEW_AGAIN] == true
+      course['confirmed'] == true ? reasons : reasons + unconfirmed_reasons(course, findings, inferred)
+    end
 
-      reasons << :mismatch if inferred
-      reasons << :finding if findings.any?
-      reasons << :reason if course['review_reason'].present?
-      reasons
+    def unconfirmed_reasons(course, findings, inferred)
+      [(:mismatch if inferred), (:finding if findings.any?), (:reason if course['review_reason'].present?)].compact
     end
 
     def priority(row)

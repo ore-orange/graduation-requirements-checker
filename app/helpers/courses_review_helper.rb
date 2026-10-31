@@ -19,6 +19,13 @@ module CoursesReviewHelper
     row.confirmed? ? 'bg-emerald-50/50' : ''
   end
 
+  # 確認を外すボタンの確認文。人が直した値を持つ科目は、外すと読み直しで AI の読みに戻る(1回のクリックで、黙って起きない)。
+  UNCONFIRM_WARNING = 'この科目には、人が直した値があります。確認を外すと、このページを読み直したとき、直した値は AI の読みに戻ります。外しますか?'
+
+  def unconfirm_warning(course)
+    UNCONFIRM_WARNING if course[CurriculumImport::CourseEdit::READ_FP].present?
+  end
+
   def course_label(course)
     [course['number'], course['name']].compact_blank.join(' ').presence || course['key'].to_s
   end
@@ -29,9 +36,10 @@ module CoursesReviewHelper
   # 1行に何度も出るので、HTML は最小にする(読み上げは、押すと切り替わる状態を aria-pressed で言う)。
   def course_action(review, row, text, class_name: 'cr-btn', **params)
     pressed = params.delete(:pressed)
+    confirm = params.delete(:confirm)
     path = update_courses_curriculum_path(review.curriculum, key: row.key, **params, rev: review.revision(row.course))
     tag.button(text, type: 'submit', form: 'course_action_form', formaction: path, class: class_name,
-                     'aria-pressed': pressed)
+                     'aria-pressed': pressed, data: confirm && { turbo_confirm: confirm })
   end
 
   # 編集欄の入力。保存できなかった送信の入力があれば、それを残す(CoursesReview#field_value)。

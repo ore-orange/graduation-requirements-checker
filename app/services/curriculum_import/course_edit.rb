@@ -21,6 +21,7 @@ module CurriculumImport
   class CourseEdit
     include RequirementsEdit::Coercion
     include Storage
+    include Adding
 
     Problem = RequirementsEdit::Problem
 
@@ -44,6 +45,10 @@ module CurriculumImport
     MAX_CREDITS = 20
     BY_NOTE = ApprovalNotes::BY_NOTE
     READ_AS = 'read_as'
+    # 直す前の(AI が読んだままの)中身の指紋。最初に値を直したときに残す。消した科目の記録が、同じ番号の行のどれかを見分けるのに使う。
+    READ_FP = 'read_fp'
+    # 承認の注記があとから付いて、確認済みの科目の承認が変わったときの印(ApprovalNotes)。人がもう一度確認すると外れる。
+    REVIEW_AGAIN = ApprovalNotes::REVIEW_AGAIN
     ADDED_BY_HAND = 'added_by_hand'
 
     # 科目の指紋。画面を開いたときの値と、保存のときの値を比べる。
@@ -162,6 +167,7 @@ module CurriculumImport
     def settle(before, changed, confirmed)
       remember_read(before, changed)
       @course['confirmed'] = confirmed if confirmed || @course.key?('confirmed')
+      clear_review_again(changed)
       # 人が確認した、または承認の要否を人が決めた科目は、注記が付けた印を外す(あとで注記を外しても、巻き込まれない)。
       @course.delete(BY_NOTE) if confirmed || changed.include?('requires_approval')
       return result([], ['変えた箇所はありませんでした。']) if @course == before
@@ -170,26 +176,32 @@ module CurriculumImport
       result(changed, [saved_note(changed, confirmed)])
     end
 
+    # 確認する・外す・直すのどれでも、「もう一度確認してください」の印は役目を終える。
+    def clear_review_again(changed)
+      @course.delete(REVIEW_AGAIN) if changed.any? || @params.key?(:confirmed)
+    end
+
     def saved_note(changed, confirmed)
       return "#{label}を確認済みにしました。" if changed.empty? && confirmed
-      return "#{label}の確認を外しました。" if changed.empty?
+      return "#{label}の確認を外しました。直した値も、このページを読み直すと、AI の読みに入れ替わります。" if changed.empty?
 
       "#{label}を直しました(#{changed.map { |field| LABELS.fetch(field) }.join('・')})。確認済みの科目として残り、読み直しでは上書きしません。"
     end
 
-    # 番号や名前を直すと、AI の読みとは別の科目に見える。直す前の読みを残して、読み直しが二重に入れないようにする(最初の読みを残す)。
+    # 人が初めて値を直すとき、直す前の(AI が読んだままの)中身を指紋で残す(消した科目の記録が使う)。
+    # 番号や名前を直すと、AI の読みとは別の科目に見える。直す前の読みも残して、読み直しが二重に入れないようにする(最初の読みを残す)。
     def remember_read(before, changed)
+      return if changed.empty? || @course[ADDED_BY_HAND]
+
+      @course[READ_FP] ||= DraftMerge::CourseReading.fingerprint(before)
       return unless changed.intersect?(%w[number name])
-      return if @course[READ_AS] || @course[ADDED_BY_HAND]
-      return if identity(before) == identity(@course)
+      return if @course[READ_AS] || identity(before) == identity(@course)
 
       @course[READ_AS] = identity(before)
     end
 
-    # DraftMerge#identity と同じ数え方(番号があれば番号、無ければ「name:名前」)。
-    def identity(course)
-      course['number'].presence || "name:#{course['name']}"
-    end
+    # DraftMerge の読み直しと同じ数え方(CourseReading)。
+    def identity(course) = DraftMerge::CourseReading.identity(course)
 
     # ---- 消す ----
 
@@ -208,59 +220,8 @@ module CurriculumImport
       return unless page
 
       { 'kind' => 'course', 'id' => @course['key'], 'page' => page['page'],
-        'identity' => @course[READ_AS] || identity(@course) }
-    end
-
-    # ---- 足す ----
-
-    def add_course(document)
-      courses = document['courses'].is_a?(Array) ? document['courses'] : []
-      values = ADDED_REQUIRED.index_with { |field| added_value(field, document, courses) }
-      return result if @problems.any?
-
-      @course = build_added(courses, values)
-      @key = @course['key']
-      append_course(@course)
-      forget_removal(document, @course)
-      result(ADDED_REQUIRED, ["#{label}を足しました。確認済みの科目として残り、読み直しでは上書きしません。"])
-    end
-
-    def added_value(field, document, courses)
-      value = coerce(@params[field], FIELDS.fetch(field), "科目の#{LABELS.fetch(field)}")
-      value == :invalid ? value : check(field, value, document, courses)
-    end
-
-    def build_added(courses, values)
-      { 'key' => unused_key(values['number'], courses), 'number' => values['number'], 'name' => values['name'],
-        'credits' => values['credits'], 'category' => values['category'], 'required' => flag_given?('required'),
-        'language' => nil, 'roles' => [], 'source' => "handbook_#{@curriculum.admission_year}",
-        'source_page' => ADDED_SOURCE_PAGE, 'review_reason' => nil,
-        'requires_approval' => flag_given?('requires_approval'),
-        'selectable' => !@params.key?('selectable') || flag_given?('selectable'), 'confirmed' => true,
-        ADDED_BY_HAND => true }
-    end
-
-    # 手で足すときの、はい/いいえの欄。送られなければ「いいえ」(足す科目の既定)。
-    def flag_given?(field)
-      value = @params.key?(field) ? coerce(@params[field], :flag, "科目の#{LABELS.fetch(field)}") : false
-      value == true
-    end
-
-    def unused_key(number, courses)
-      taken = courses.grep(Hash).pluck('key')
-      base = "course_#{number}"
-      return base unless taken.include?(base)
-
-      (2..).lazy.map { |n| "#{base}_hand#{n}" }.find { |candidate| taken.exclude?(candidate) }
-    end
-
-    # 足した科目と同じ読みの、消した記録は外す(人が戻した)。
-    def forget_removal(document, course)
-      entries = Array(document['removed_by_human'])
-      kept = entries.reject do |entry|
-        entry.is_a?(Hash) && entry['kind'] == 'course' && entry['identity'] == identity(course)
-      end
-      replace_removed(kept) if kept.size != entries.size
+        'identity' => @course[READ_AS] || identity(@course),
+        'fingerprint' => @course[READ_FP] || DraftMerge::CourseReading.fingerprint(@course) }
     end
 
     # ---- 値の検め ----

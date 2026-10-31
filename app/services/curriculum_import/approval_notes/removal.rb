@@ -19,6 +19,8 @@ module CurriculumImport
 
           course['requires_approval'] = false
           course.delete(BY_NOTE)
+          # もう一度見る印は、承認を付けたことへの印。承認を戻したら、役目を終える。
+          course.delete(REVIEW_AGAIN)
           course['key']
         end
       end

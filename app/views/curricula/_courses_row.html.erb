@@ -5,7 +5,8 @@
 <% category = course['category'] %>
 <tbody id="<%= course_dom_id(row.key) %>" class="<%= course_tone(row) %>">
   <tr>
-    <td><%= course_action review, row, row.confirmed? ? '✓ 確認した' : '確認した', class_name: (row.confirmed? ? 'cr-btn cr-btn-ok' : 'cr-btn'), confirmed: !row.confirmed?, pressed: row.confirmed? %></td>
+    <td><% if row.confirmed? %><%= course_action review, row, '✓ 確認した', class_name: 'cr-btn cr-btn-ok', confirmed: false, pressed: true, confirm: unconfirm_warning(course) %>
+      <% else %><%= course_action review, row, course['review_again'] ? 'もう一度確認した' : '確認した', confirmed: true, pressed: false %><% end %></td>
     <td class="tabular-nums"><%= course['number'].presence || tag.span('番号なし', class: 'cr-chip cr-warn') %>
       <%= tag.span('必修', class: 'cr-chip cr-muted') if course['required'] == true %></td>
     <td class="text-sm"><%= course['name'] %>
@@ -18,8 +19,9 @@
       <% else %><%= tag.span("区分が便覧に無い: #{category.presence || '(空)'}", class: 'cr-chip cr-bad') %><% end %>
       <% if row.inferred %><span class="mt-1 block text-amber-900">番号帯の他の科目は「<%= review.category_label(row.inferred) %>」</span>
         <%= course_action review, row, '推定の区分にする', category: row.inferred %><% end %></td>
-    <td><%= course['selectable'] == true ? course_action(review, row, '選べる', selectable: false) : course_action(review, row, '選べない', class_name: 'cr-btn cr-btn-bad', selectable: true) %>
-      <%= tag.span('承認が必要', class: 'cr-chip cr-warn') if course['requires_approval'] == true %></td>
+    <td><%= course['selectable'] == true ? course_action(review, row, '選べる', selectable: false, pressed: true) : course_action(review, row, '選べない', class_name: 'cr-btn cr-btn-bad', selectable: true, pressed: false) %>
+      <%= course['requires_approval'] == true ? tag.span('承認が必要', class: 'cr-chip cr-warn') : tag.span('承認不要', class: 'text-slate-500') %>
+      <%= tag.span('承認の注記が付きました。もう一度確認してください', class: 'block font-medium text-amber-900') if course['review_again'] %></td>
     <td><% targets = review.jump_targets(course) %><% if targets.any? %><% targets.each do |number, index| %><button type="button" class="cr-btn" data-action="pdf-pane#jump" data-page="<%= index %>"><%= number %>頁</button> <% end %><% else %><%= course['source_page'] %><% end %></td>
     <td><%= link_to '直す', edit_course_curriculum_path(review.curriculum, key: row.key), data: { turbo_stream: true } %></td>
   </tr>

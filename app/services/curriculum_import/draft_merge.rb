@@ -69,7 +69,7 @@ module CurriculumImport
       @kept = withdraw_previous
       kept_keys = kept_ids('courses')
       held = held_identities(courses, kept_keys)
-      removed = removed_course_identities
+      removed = removed_course_records
       added = answer['courses'].each_with_index.filter_map do |row, index|
         next if human_owned?(row, held, removed)
 
@@ -203,10 +203,8 @@ module CurriculumImport
       candidate
     end
 
-    # 同じ科目かどうか。番号があれば番号、無ければ科目名(分類表にしか載っていない科目)。
-    def identity(course)
-      course['number'].presence || "name:#{course['name']}"
-    end
+    # 同じ科目かどうか(CourseReading が正規形を決める)。
+    def identity(course) = CourseReading.identity(course)
 
     def course_entry(row, index, existing)
       number = row['number'].presence&.strip

@@ -21,6 +21,8 @@ module CurriculumImport
     NESTED = %w[options conditions].freeze
     EXCERPT_LENGTH = 60
     BY_NOTE = 'approval_by_note'
+    # 確認済みの科目に、注記があとから承認を付けたときの印。確認(と、確認済みの値を守る印)は残したまま、もう一度見るよう促す。
+    REVIEW_AGAIN = 'review_again'
     # ページの警告に残す文。確認画面は、これらを「科目に当てられなかった承認の注記」のカードにする(警告が唯一の記録)。
     UNRESOLVED_PREFIX = '承認の注記らしい文がありますが、対象の区分が分からず科目に反映していません: '
     UNWRITTEN_WARNING = 'このページの文字に「承認」とありますが、規則にも表示の行にも書き取られていません。' \
@@ -28,7 +30,8 @@ module CurriculumImport
 
     class << self
       # 注記に当たる科目を真にする(document を直接書き換える)。戻り値は、新しく真にした科目の key。
-      # 偽には戻さない(戻す側の誤りは水増しになる)。確認済みだった科目は、承認の有無が変わったので確認を外して見直しに戻す。
+      # 偽には戻さない(戻す側の誤りは水増しになる)。確認済みだった科目は、承認の有無が変わったので、もう一度見るよう印を付ける。
+      # 確認(confirmed)は外さない。外すと、人が直したほかの値(単位・区分など)まで、読み直しの上書きから守られなくなる。
       def apply(document)
         notes = Array(document[KEY])
         return [] if notes.empty?
@@ -40,7 +43,7 @@ module CurriculumImport
           course['requires_approval'] = true
           # 注記で真にしたことを残す。注記を外すとき、AI が行から読んだ真(この印が無い)は戻さず、これだけを戻す。
           course[BY_NOTE] = true
-          course['confirmed'] = false if course['confirmed']
+          course[REVIEW_AGAIN] = true if course['confirmed']
           course['key']
         end
       end

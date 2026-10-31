@@ -416,8 +416,10 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     update_course(draft, key: 'course_人103', _destroy: '1')
 
     assert_nil course_in(draft, '人103')
-    assert_equal [{ 'kind' => 'course', 'id' => 'course_人103', 'page' => 3, 'identity' => '人103' }],
-                 draft.document['removed_by_human']
+    tombstone = draft.document['removed_by_human'].first
+    assert_equal({ 'kind' => 'course', 'id' => 'course_人103', 'page' => 3, 'identity' => '人103' },
+                 tombstone.except('fingerprint'))
+    assert_match(/\A\h{16}\z/, tombstone['fingerprint'], '同じ番号の行のどれかを見分ける、読みの中身の指紋')
     show(draft)
     assert_select '#course-course_人103', count: 0
     assert_select '#course-review h4', text: /人文系 ・ 2科目/
@@ -444,14 +446,29 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     assert course_in(draft, '人101')['requires_approval']
   end
 
-  test '承認の印: 承認の要否を人が直した科目も、印が外れる。確認を外しても印は戻らない' do
+  test '承認の印: 承認の要否を人が直した科目も、印が外れる' do
     document = requirements_document
     document['courses'][0].merge!('requires_approval' => true, 'approval_by_note' => true)
     draft = course_draft(document: document)
 
     update_course(draft, key: 'course_人101', requires_approval: '0')
+
     assert_not course_in(draft, '人101')['requires_approval']
     assert_nil course_in(draft, '人101')['approval_by_note']
+  end
+
+  test '承認の印: 確認を外しても、いちど外した印は戻らない' do
+    document = requirements_document
+    document['courses'][0].merge!('requires_approval' => true, 'approval_by_note' => true)
+    draft = course_draft(document: document)
+
+    update_course(draft, number: '人101', confirmed: true)
+    assert_nil course_in(draft, '人101')['approval_by_note']
+    update_course(draft, number: '人101', confirmed: false)
+
+    assert_equal false, course_in(draft, '人101')['confirmed']
+    assert_nil course_in(draft, '人101')['approval_by_note']
+    assert course_in(draft, '人101')['requires_approval'], '承認の関門は残る(安全側)'
   end
 
   test '確認していない科目の印は、ほかの科目を確認しても残る' do
@@ -462,6 +479,48 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     update_course(draft, number: '人101', confirmed: true)
 
     assert course_in(draft, '人102')['approval_by_note']
+  end
+
+  test '承認の要否は、どちらの状態でも行に書く。選べる/選べないのボタンは、押したときに切り替わると読み上げに言う' do
+    document = requirements_document
+    document['courses'][0]['requires_approval'] = true
+    show(course_draft(document: document))
+
+    assert_select '#course-course_人101 .cr-warn', text: '承認が必要'
+    assert_select '#course-course_人102', text: /承認不要/
+    assert_select '#course-course_人102 td button[aria-pressed=true]', text: '選べる'
+    assert_select '#course-course_情01 td button.cr-btn-bad[aria-pressed=false]', text: '選べない'
+  end
+
+  test '人が直した値を持つ科目の確認を外すボタンは、押す前に確かめる。直していない科目は確かめない' do
+    draft = course_draft
+    update_course(draft, key: 'course_人101', credits: '3')
+    update_course(draft, key: 'course_人102', confirmed: '1')
+
+    show(draft)
+
+    assert_select '#course-course_人101 button[aria-pressed=true][data-turbo-confirm*="直した値は AI の読みに戻ります"]'
+    assert_select '#course-course_人102 button[aria-pressed=true]:not([data-turbo-confirm])'
+  end
+
+  test '確認したあとに承認の注記が付いた科目は、もう一度見る印つきで最初に見る科目に出て、確認し直すと外れる' do
+    document = requirements_document
+    document['courses'][0].merge!('confirmed' => true, 'requires_approval' => true, 'review_again' => true)
+    draft = course_draft(document: document)
+
+    show(draft)
+    assert_equal '人101', rows.first.at_css('td.tabular-nums').text.squish.split.first
+    assert_select '#course-first-look h4', text: /最初に見る科目 ・ 1科目/
+    assert_select '#course-course_人101', text: /承認の注記が付きました。もう一度確認してください/
+    assert_select '#course-course_人101 button[aria-pressed=false]', text: 'もう一度確認した'
+    assert_select '#courses_summary', text: /確認済み 0件/
+
+    patch css_select('#course-course_人101 button[aria-pressed=false]').first['formaction'], env: ENV_LOCAL
+
+    assert_nil course_in(draft, '人101')['review_again']
+    assert confirmed?(draft, '人101')
+    show(draft)
+    assert_select '#course-first-look', count: 0
   end
 
   test '画面のボタンは、そのまま科目1つを保存する(押したときと同じ要求を送る)' do
@@ -601,6 +660,7 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     report_weight(section, fields, elapsed) if ENV['COURSES_REVIEW_STATS']
     assert_equal 484, rows.size
     assert_operator section.bytesize, :<, 700_000, '1科目あたり約1.4KBを超えて、画面が重くなった'
+    assert_operator response.body.bytesize, :<, 1_000_000, '画面全体(要件表の半分を含む)が1MBを超えた'
     assert_operator fields, :<=, 30, '科目ごとに欄を置いた(484行ぶんの欄は、フォームの送信とブラウザの描画を重くする)'
   end
 end

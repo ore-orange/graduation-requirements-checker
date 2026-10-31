@@ -570,7 +570,7 @@ module CurriculumImport
       assert_equal true, courses.first['requires_approval']
     end
 
-    test '承認が反映されたとき、確認済みだった科目は確認を外して見直しに戻す' do
+    test '承認が反映されたとき、確認済みだった科目は、確認を残したまま、もう一度見る印を付ける' do
       read(3)
       read(9, with: reader(courses: { '科目' => { 'courses' => [course_row('自101', category: 'natural')] } }))
       confirm_course('自101')
@@ -578,7 +578,8 @@ module CurriculumImport
       read_second_requirements_page('承認が必要')
 
       assert_equal true, courses.first['requires_approval']
-      assert_not confirmed?('自101')
+      assert confirmed?('自101'), '確認を外すと、人が直したほかの値まで、読み直しの上書きから守られなくなる'
+      assert_equal true, courses.first['review_again']
     end
 
     test '承認の注記のある要件表を読み直して注記が消えても、いったん立てた真は戻さない' do

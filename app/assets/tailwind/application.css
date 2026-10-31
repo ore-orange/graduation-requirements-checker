@@ -85,10 +85,6 @@
     @apply inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-semibold;
   }
 
-  .cr-ok {
-    @apply bg-emerald-100 text-emerald-800;
-  }
-
   .cr-warn {
     @apply bg-amber-100 text-amber-900;
   }
