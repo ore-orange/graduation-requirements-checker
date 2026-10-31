@@ -1,0 +1,5 @@
+# /etc/caddy/Caddyfile に置く。<HOST> は公開するホスト名に置き換える。
+# Let's Encryptが使えない学内専用の名前なら、次の行に「tls internal」を足す。
+<HOST> {
+	reverse_proxy 127.0.0.1:3000
+}
