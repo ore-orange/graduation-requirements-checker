@@ -131,6 +131,51 @@ module CurriculumImport
       assert_equal %w[知能101], courses.pluck('number')
     end
 
+    test '英字の大文字小文字だけが揺れても、同じ科目として扱う。消した科目は戻らず、直した科目は二重に入らない' do
+      read(row('C101'), row('知能101'))
+      edit(key: key('C101'), credits: '3')
+
+      read(row('c101'), row('知能101'))
+      assert_equal 2, courses.size
+      assert_equal 3, course('C101')['credits']
+
+      edit(key: key('C101'), _destroy: '1')
+      read(row('Ｃ101'), row('知能101'))
+      assert_equal %w[知能101], courses.pluck('number')
+    end
+
+    test '番号のない科目は、AI が名前に全角の空白や語中の空白を入れても、同じ科目として扱う(直した科目が二重に入らない)' do
+      read(row(nil, name: '情報工学'), row('知能101'))
+      edit(key: courses.find { |entry| entry['number'].nil? }['key'], credits: '3')
+
+      ['　情報工学', '情報 工学', '情報工学　'].each do |name|
+        read(row(nil, name: name), row('知能101'))
+
+        assert_equal 2, courses.size, "#{name.inspect} で二重に入った"
+        assert_equal 3, courses.find { |entry| entry['number'].nil? }['credits']
+      end
+    end
+
+    test '番号のない科目を消したら、AI が名前の空白だけ変えて読み直しても、戻らない' do
+      read(row(nil, name: '情報工学'), row('知能101'))
+      edit(key: courses.find { |entry| entry['number'].nil? }['key'], _destroy: '1')
+
+      read(row(nil, name: '　情報工学'), row('知能101'))
+
+      assert_equal %w[知能101], courses.pluck('number')
+    end
+
+    test '科目を消した旨の文は、戻らない保証ではなく、実際に起きることを言う' do
+      read
+      result = edit(key: key('知能103'), _destroy: '1')
+
+      assert_includes result.notes.first, '同じ読みの行は入れません'
+      assert_includes result.notes.first, '内容が変わっていれば、警告をつけて入ります'
+      assert_no_match(/読み直しても戻りません/, result.notes.first)
+      assert_includes RereadWarning.for(@curriculum.reload.document, @curriculum.pages.first),
+                      '読み直した内容が変わっていれば、警告をつけて入ります'
+    end
+
     test '同じ番号の2行のうち、あとの行を消したら、読み直しで消した行が戻らず、残した行が残る' do
       read(row('知能103', name: 'ただしい', credits: 3), row('知能103', name: 'まちがい', credits: 8))
       wrong = courses.find { |entry| entry['name'] == 'まちがい' }

@@ -76,7 +76,7 @@ module CurriculumImport
 
     def removed_items(document, number)
       entries = Array(document[DraftMerge::REMOVED]).grep(Hash).select { |entry| entry['page'] == number }
-      entries.map { |entry| removed_name(entry) }
+      entries.map { |entry| [entry['kind'], removed_name(entry)] }
     end
 
     KIND_NAMES = { 'rule' => '規則', 'group' => '章', 'row' => '行', 'subtotal' => '小計', 'course' => '科目' }.freeze
@@ -98,9 +98,21 @@ module CurriculumImport
         lines << '人が値を直したあとで確認を外した次の科目は、読み直すと、直した値が AI の読みに入れ替わります' \
                  "(確認済みの科目だけが残ります): #{summary(reverted)}。"
       end
-      lines << "人が消した次の項目は、読み直しても戻しません: #{summary(removed)}。" if removed.any?
+      lines.concat(removed_lines(removed))
       lines << 'このページが足した、それ以外の規則・章・行は、読み直した結果に入れ替わります。よろしいですか?'
       lines.join("\n")
+    end
+
+    # 規則・章・行などは、読み直しても戻らない。科目は、同じ読みの行を入れないが、読んだ内容が変わっていれば、警告つきで入る。
+    def removed_lines(removed)
+      courses, others = removed.partition { |kind, _| kind == DraftMerge::HumanCourses::COURSE }.map { |list| list.map(&:last) }
+      lines = []
+      lines << "人が消した次の項目は、読み直しても戻しません: #{summary(others)}。" if others.any?
+      if courses.any?
+        lines << '人が消した次の科目は、同じ読みの行を入れません。ただし、読み直した内容が変わっていれば、警告をつけて入ります' \
+                 "(消した科目かどうか、ページの警告で確かめてください): #{summary(courses)}。"
+      end
+      lines
     end
 
     def summary(list)

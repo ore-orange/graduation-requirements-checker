@@ -210,7 +210,8 @@ module CurriculumImport
       tombstone = removal_record unless @course[ADDED_BY_HAND]
       delete_course(@index, tombstone)
       @key = nil
-      result([], ["#{label}を消しました。#{'読み直しても戻りません。' if tombstone}"])
+      note = '読み直しでは、同じ読みの行は入れません(読み直した内容が変わっていれば、警告をつけて入ります)。' if tombstone
+      result([], ["#{label}を消しました。#{note}"])
     end
 
     # 消した科目を足したページ(読み直しの対象)と、AI の読み。ページが分からなければ、記録は要らない
