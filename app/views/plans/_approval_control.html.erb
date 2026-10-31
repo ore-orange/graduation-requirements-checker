@@ -1,0 +1,17 @@
+<%# 指導教員の承認が要る科目の行にだけ出す「承認あり／なし／未回答」。押した時点で保存し、この行だけを
+    Turbo で差し替える。未回答のままなら判定は要確認のまま（黙って算入しない）。
+    locals: record（PlannedCourse または StudentCourse）, kind（'plan' か 'enrollment'） %>
+<% if (course = @courses_by_number[record.course.course_number]) && course['requires_approval'] %>
+  <div class="mt-1.5 flex flex-wrap items-center gap-1" data-approval-control="<%= kind %>-<%= record.id %>">
+    <span class="text-[10px] font-semibold text-amber-800">指導教員の承認:</span>
+    <% approval_choices.each do |value, label| %>
+      <%= button_to label, approvals_path, method: :patch,
+                    params: { kind: kind, id: record.id, approved: value.nil? ? '' : value,
+                              term: term_param(@term) },
+                    form: { class: 'inline' },
+                    class: approval_button_class(record.approval_confirmed == value),
+                    aria: { label: "#{record.course.name}の指導教員の承認を「#{label}」にする",
+                            pressed: record.approval_confirmed == value } %>
+    <% end %>
+  </div>
+<% end %>

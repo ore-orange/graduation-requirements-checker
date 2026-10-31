@@ -20,6 +20,9 @@ Rails.application.routes.draw do
   get 'profile', to: 'profiles#show'
 
   resources :plan_courses, only: %i[create destroy], path: 'plan/courses'
+  # 指導教員の承認が要る科目に対する、学生自身の「承認あり／なし／未回答」の回答。対象は student_courses か
+  # planned_courses のどちらか一方（kind で区別）。
+  patch 'approvals', to: 'approvals#update'
 
   resources :course_registrations, only: :index
   # 便覧PDFのアップロードと下書きの確認。確認画面は「卒業要件の確認」タブの中にいる扱い。
