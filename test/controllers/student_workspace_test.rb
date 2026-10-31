@@ -105,7 +105,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     get plan_path, env: local_env
     assert_response :success
-    assert_select "[data-plan='#{plan.id}'][data-course-number='#{@candidate.fetch('number')}']", count: 1
+    assert_select "[data-plan='#{plan.id}'][data-course='#{@candidate.fetch('number')}']", count: 1
 
     get root_path, env: local_env
     assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')

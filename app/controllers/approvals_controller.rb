@@ -3,6 +3,10 @@
 # 指導教員の承認が要る科目について、学生自身が「承認を得たか」に答える。便覧(courses)は承認が要ることまでしか
 # 言えず、実際に得たかどうかは学生側の事実なので、それをここで確定させる。答えるまでは nil のまま残し、
 # 見込み判定は要確認のままにする（EntryNormalizer が nil・複数不一致を要確認、false を算入対象外にする）。
+#
+# 承認の有無は、その科目の行だけでなく、区分の合計・充足状況の表示（@assessment 全体）にも効く。行だけを
+# Turbo Stream で差し替えると、区分の見出しや小計のバッジが答える前の判定のまま残ってしまう。計画表の追加・削除
+# （PlanCoursesController）と同じく、計画表全体を作り直すリダイレクトにして、ここだけ別の見た目にしない。
 class ApprovalsController < ApplicationController
   include StudentWorkspace
 
@@ -18,11 +22,7 @@ class ApprovalsController < ApplicationController
 
     record.update!(approval_confirmed: approved_param)
     @term = parse_term(params[:term]) || current_term
-
-    respond_to do |format|
-      format.turbo_stream { render turbo_stream: replace_stream(record) }
-      format.html { redirect_to plan_path(term: helpers.term_param(@term)), status: :see_other }
-    end
+    redirect_to plan_path(term: helpers.term_param(@term)), status: :see_other, notice: '回答を保存しました。判定を更新しました。'
   end
 
   private
@@ -42,15 +42,6 @@ class ApprovalsController < ApplicationController
     case params[:approved]
     when 'true' then true
     when 'false' then false
-    end
-  end
-
-  # 保存した1行だけを差し替える。画面全体を作り直さないので、スクロール位置や他の行の状態はそのまま。
-  def replace_stream(record)
-    if record.is_a?(PlannedCourse)
-      turbo_stream.replace("plan_#{record.id}", partial: 'plans/plan_card', locals: { plan: record })
-    else
-      turbo_stream.replace("enrollment_#{record.id}", partial: 'plans/enrollment_card', locals: { enrollment: record })
     end
   end
 end

@@ -2,8 +2,7 @@
   course_num = plan.course.course_number
   is_custom = plan.course.custom?
 %>
-<div id="plan_<%= plan.id %>" data-plan="<%= plan.id %>" data-course-number="<%= plan.course.course_number %>"
-     data-course="<%= plan.course.course_number %>"
+<div id="plan_<%= plan.id %>" data-plan="<%= plan.id %>" data-course="<%= course_num %>"
      class="p-2 rounded-lg border <%= is_custom ? 'border-amber-300 bg-amber-50/70' : 'border-sky-200 bg-sky-50/70' %> shadow-2xs">
   <div class="flex items-center justify-between gap-1 text-[10px] font-mono <%= is_custom ? 'text-amber-800' : 'text-sky-700' %>">
     <span>
