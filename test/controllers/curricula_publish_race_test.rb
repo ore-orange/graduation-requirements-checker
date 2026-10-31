@@ -42,7 +42,7 @@ class CurriculaPublishRaceTest < ActionDispatch::IntegrationTest
     before = record.reload.pages
 
     simulate_race_after_load_draft do
-      patch curriculum_path(record), params: { pages: { '3' => 'courses' } }, env: ENV_LOCAL
+      patch curriculum_path(record), params: { pages: { '1' => 'courses' } }, env: ENV_LOCAL
     end
 
     assert_redirected_to requirements_path
@@ -54,7 +54,7 @@ class CurriculaPublishRaceTest < ActionDispatch::IntegrationTest
     record = draft
     before = record.reload.document
 
-    simulate_race_after_load_draft { save(record, categories: {}) }
+    simulate_race_after_load_draft { save(record, rules: [{ id: 'humanities', required_credits: '5' }]) }
 
     assert_redirected_to requirements_path
     assert_equal PUBLISHED_ALERT, flash[:alert]
