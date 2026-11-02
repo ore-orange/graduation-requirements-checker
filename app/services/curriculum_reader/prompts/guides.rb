@@ -106,7 +106,9 @@ class CurriculumReader
           group を返さなくても、その要件の規則は rules に書く。
         - rows: 見出しの下の行。id、name、subtitle(行の補足。なければ null)、
           required_credits(その行の必要単位。数字が書かれていない「内数」の行は null)、
-          required_label(required_credits が null の行に、その理由を便覧の言い方のまま書く。数字がある行は null)、
+          required_label(required_credits が null の行に、その理由を書く。書いてある言葉があれば、そのまま使う。
+          グレーの空欄など、言葉も印字されていなければ、数を作らずに代わりに見たままを短く書く
+          (例:「印字なし」「別の欄の単位に含む」)。required_label を空にしない。数字がある行は null)、
           categories(その行が数える区分の key)、check_ids(その行を判定する規則の id)、
           credits_from_check(その行の修得単位を、区分の合計ではなく規則の算入結果から出すなら true。
           cap の上限がかかる区分を含む行は true、そうでなければ false)。

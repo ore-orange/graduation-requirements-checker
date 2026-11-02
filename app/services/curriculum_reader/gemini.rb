@@ -16,7 +16,12 @@ class CurriculumReader
   # (URLに入れると、例外や接続のログに載ってしまう)。
   class Gemini
     ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models'
-    DEFAULT_MODEL = 'gemini-2.5-flash'
+    # gemini-2.5-flash は新規キーに提供されなくなった(2026-11-02 確認。404
+    # 「This model models/gemini-2.5-flash is no longer available to new users.」)。
+    # Google の案内は gemini-3.8-flash だが、確認時点では混雑して応答が無く(503・タイムアウト)、
+    # gemini-3.5-flash と gemini-3.6-flash は200で応答した。古い方の gemini-3.5-flash を選ぶ
+    # (番号が若いほうが長く使われている=次に欠番になりにくいと見た。確実ではない)。
+    DEFAULT_MODEL = 'gemini-3.5-flash'
     MODEL_ENV = 'CURRICULUM_READER_MODEL'
     MODEL_FORMAT = /\A[A-Za-z0-9._-]+\z/
     OPEN_TIMEOUT = 10

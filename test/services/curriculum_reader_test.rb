@@ -652,6 +652,15 @@ class CurriculumReaderTest < ActiveSupport::TestCase
     assert_includes prompt, '印字がなければその小計は返さない'
   end
 
+  test '行の required_label は、印字された言葉が無くても空にしない' do
+    client = StubClient.new(requirements_answer)
+    reader(client).read_requirements(text: 't', image_path: nil)
+    prompt = client.last[:prompt]
+
+    assert_includes prompt, 'グレーの空欄など、言葉も印字されていなければ、数を作らずに代わりに見たままを短く書く'
+    assert_includes prompt, 'required_label を空にしない'
+  end
+
   test 'テキストを使う場面は、科目表に限らず、印字された文字や数字を写すときと書く' do
     client = StubClient.new(requirements_answer)
     reader(client).read_requirements(text: 't', image_path: nil)
