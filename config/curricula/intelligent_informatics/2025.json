@@ -1,0 +1,2075 @@
+{
+  "roles": [
+    {
+      "key": "calculus_st_1",
+      "label": "微分積分学ＳＴⅠ"
+    },
+    {
+      "key": "calculus_st_2",
+      "label": "微分積分学ＳＴⅡ"
+    },
+    {
+      "key": "calculus_intro_1",
+      "label": "微分積分学入門Ⅰ"
+    },
+    {
+      "key": "calculus_intro_2",
+      "label": "微分積分学入門Ⅱ"
+    },
+    {
+      "key": "physics_1",
+      "label": "物理学Ⅰ"
+    },
+    {
+      "key": "physics_intro_1",
+      "label": "物理学入門Ⅰ"
+    }
+  ],
+  "rules": [
+    {
+      "id": "rule_foreign_lang",
+      "type": "any_of",
+      "label": "外国語（第一外国語・第二外国語）履修条件",
+      "detail": "（注2）外国語（第一外国語と第二外国語）の履修方法は，「第一外国語8単位以上かつ第二外国語4単位以上の計12単位以上」または，「第一外国語12単位以上」であること。",
+      "options": [
+        {
+          "type": "all_of",
+          "conditions": [
+            {
+              "type": "credit_sum",
+              "categories": [
+                "ge_first_foreign_language"
+              ],
+              "required_credits": 8
+            },
+            {
+              "type": "credit_sum",
+              "categories": [
+                "ge_second_foreign_language"
+              ],
+              "required_credits": 4
+            }
+          ]
+        },
+        {
+          "type": "credit_sum",
+          "categories": [
+            "ge_first_foreign_language"
+          ],
+          "required_credits": 12
+        }
+      ],
+      "source_page": "PDF10ページ"
+    },
+    {
+      "id": "rule_academic_skills",
+      "type": "credit_sum",
+      "label": "アカデミックスキル",
+      "categories": [
+        "ge_academic_skills"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 6
+    },
+    {
+      "id": "rule_calculus_path",
+      "type": "one_of_paths",
+      "label": "微分積分学 履修選択",
+      "paths": [
+        [
+          "calculus_st_1",
+          "calculus_st_2"
+        ],
+        [
+          "calculus_intro_1",
+          "calculus_intro_2"
+        ]
+      ],
+      "review_note": "ＳＴ系列または入門系列のいずれかを統一して修得すること。",
+      "source_page": "PDF10ページ"
+    },
+    {
+      "id": "rule_physics_path",
+      "type": "one_of_paths",
+      "label": "物理学 履修選択",
+      "paths": [
+        [
+          "physics_1"
+        ],
+        [
+          "physics_intro_1"
+        ]
+      ],
+      "source_page": "PDF10ページ"
+    },
+    {
+      "id": "rule_health_sports",
+      "type": "credit_sum",
+      "label": "健康運動",
+      "categories": [
+        "ge_health_sports"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 2
+    },
+    {
+      "id": "rule_liberal_arts",
+      "type": "credit_sum",
+      "label": "学問分野別教養・琉大特色・地域創生",
+      "categories": [
+        "ge_humanities_social",
+        "ge_natural_science",
+        "ge_ryudai_local"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 12
+    },
+    {
+      "id": "rule_humanities_min",
+      "type": "credit_sum",
+      "label": "人文社会科学（最低2単位）",
+      "categories": [
+        "ge_humanities_social"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 2
+    },
+    {
+      "id": "rule_natural_science_min",
+      "type": "credit_sum",
+      "label": "自然科学（最低2単位）",
+      "categories": [
+        "ge_natural_science"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 2
+    },
+    {
+      "id": "rule_ryudai_local_min",
+      "type": "credit_sum",
+      "label": "琉大特色・地域創生（最低2単位）",
+      "categories": [
+        "ge_ryudai_local"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 2
+    },
+    {
+      "id": "rule_ge_total",
+      "type": "credit_sum",
+      "label": "共通教育科目 合計",
+      "categories": [
+        "ge_first_foreign_language",
+        "ge_second_foreign_language",
+        "ge_academic_skills",
+        "ge_health_sports",
+        "ge_humanities_social",
+        "ge_natural_science",
+        "ge_ryudai_local"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 34
+    },
+    {
+      "id": "rule_exclude_data_literacy",
+      "type": "exclude",
+      "label": "データリテラシー 算入外",
+      "reason": "卒業要件に含めない",
+      "category": "ge_data_literacy",
+      "source_page": "PDF10ページ"
+    },
+    {
+      "id": "rule_exclude_career",
+      "type": "exclude",
+      "label": "キャリア・ダイバーシティ 算入外",
+      "reason": "卒業要件に含めない",
+      "category": "ge_career_diversity",
+      "source_page": "PDF10ページ"
+    },
+    {
+      "id": "rule_exclude_global",
+      "type": "exclude",
+      "label": "グローバル 算入外",
+      "reason": "卒業要件に含めない",
+      "category": "ge_global",
+      "source_page": "PDF10ページ"
+    },
+    {
+      "id": "rule_exclude_fusion",
+      "type": "exclude",
+      "label": "工学融合科目 算入外",
+      "detail": "（注5）本コースが提供する工学融合科目は卒業要件の単位に含めない。",
+      "reason": "本コースが提供する工学融合科目は卒業要件の単位に含めない。",
+      "category": "pe_engineering_fusion",
+      "source_page": "PDF10ページ"
+    },
+    {
+      "id": "rule_pe_required",
+      "type": "credit_sum",
+      "label": "専門教育科目 必修",
+      "categories": [
+        "pe_required_common",
+        "pe_required_course"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 69
+    },
+    {
+      "id": "rule_pe_elective",
+      "type": "credit_sum",
+      "label": "専門教育科目 選択",
+      "categories": [
+        "pe_elective_common",
+        "pe_elective_course",
+        "pe_free_specialized"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 21
+    },
+    {
+      "id": "rule_pe_elective_course",
+      "type": "credit_sum",
+      "label": "コース専門（選択）",
+      "detail": "（注4）「（全教412） 教職実践演習（高）」については，専門教育科目（選択）のコース専門科目として卒業単位に含める。",
+      "categories": [
+        "pe_elective_common",
+        "pe_elective_course"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 14
+    },
+    {
+      "id": "rule_pe_total",
+      "type": "credit_sum",
+      "label": "専門教育科目 合計",
+      "categories": [
+        "pe_required_common",
+        "pe_required_course",
+        "pe_elective_common",
+        "pe_elective_course",
+        "pe_free_specialized"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 90
+    },
+    {
+      "id": "rule_total",
+      "type": "credit_sum",
+      "label": "卒業要件 合計",
+      "categories": [
+        "ge_first_foreign_language",
+        "ge_second_foreign_language",
+        "ge_academic_skills",
+        "ge_health_sports",
+        "ge_humanities_social",
+        "ge_natural_science",
+        "ge_ryudai_local",
+        "pe_required_common",
+        "pe_required_course",
+        "pe_elective_common",
+        "pe_elective_course",
+        "pe_free_specialized"
+      ],
+      "source_page": "PDF10ページ",
+      "required_credits": 124
+    }
+  ],
+  "title": "2025年度入学 工学部 工学科 知能情報コース",
+  "courses": [
+    {
+      "key": "course_工共100",
+      "name": "工学基礎演習",
+      "roles": [],
+      "number": "工共100",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共111",
+      "name": "工業数学Ⅰ",
+      "roles": [],
+      "number": "工共111",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共112",
+      "name": "工業数学Ⅱ",
+      "roles": [],
+      "number": "工共112",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共118",
+      "name": "基礎数学Ⅰ",
+      "roles": [],
+      "number": "工共118",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共119",
+      "name": "基礎数学Ⅱ",
+      "roles": [],
+      "number": "工共119",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共120",
+      "name": "情報リテラシー",
+      "roles": [],
+      "number": "工共120",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共121",
+      "name": "プログラミング基礎",
+      "roles": [],
+      "number": "工共121",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共122",
+      "name": "データサイエンス基礎",
+      "roles": [],
+      "number": "工共122",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共150",
+      "name": "工学概論",
+      "roles": [],
+      "number": "工共150",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共211",
+      "name": "工業数学Ⅲ",
+      "roles": [],
+      "number": "工共211",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共212",
+      "name": "工業数学Ⅳ",
+      "roles": [],
+      "number": "工共212",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共221",
+      "name": "プログラミング応用",
+      "roles": [],
+      "number": "工共221",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共222",
+      "name": "データサイエンス応用",
+      "roles": [],
+      "number": "工共222",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共300",
+      "name": "技術者の倫理",
+      "roles": [],
+      "number": "工共300",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共301",
+      "name": "キャリアデザイン",
+      "roles": [],
+      "number": "工共301",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共302",
+      "name": "エンジニアリングデザイン演習",
+      "roles": [],
+      "number": "工共302",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共323",
+      "name": "技術英語基礎",
+      "roles": [],
+      "number": "工共323",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共324",
+      "name": "技術英語応用",
+      "roles": [],
+      "number": "工共324",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共325",
+      "name": "機械学習",
+      "roles": [],
+      "number": "工共325",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共330",
+      "name": "地域課題解決実践演習",
+      "roles": [],
+      "number": "工共330",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共331",
+      "name": "産業社会学原論Ⅰ",
+      "roles": [],
+      "number": "工共331",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共332",
+      "name": "産業社会学原論Ⅱ",
+      "roles": [],
+      "number": "工共332",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共334",
+      "name": "国際協力論",
+      "roles": [],
+      "number": "工共334",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共335",
+      "name": "知的財産権",
+      "roles": [],
+      "number": "工共335",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共336",
+      "name": "品質管理",
+      "roles": [],
+      "number": "工共336",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共337",
+      "name": "経営工学概論",
+      "roles": [],
+      "number": "工共337",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共338",
+      "name": "インターンシップⅠ",
+      "roles": [],
+      "number": "工共338",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共339",
+      "name": "インターンシップⅡ",
+      "roles": [],
+      "number": "工共339",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共340",
+      "name": "インターンシップⅢ",
+      "roles": [],
+      "number": "工共340",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共341",
+      "name": "国際インターンシップⅠ",
+      "roles": [],
+      "number": "工共341",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共342",
+      "name": "インターンシップⅣ",
+      "roles": [],
+      "number": "工共342",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共351",
+      "name": "工業科教育法A",
+      "roles": [],
+      "number": "工共351",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共352",
+      "name": "工業科教育法B",
+      "roles": [],
+      "number": "工共352",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共401",
+      "name": "卒業研究Ⅰ",
+      "roles": [],
+      "number": "工共401",
+      "source": "handbook_2025",
+      "credits": 3,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共402",
+      "name": "卒業研究Ⅱ",
+      "roles": [],
+      "number": "工共402",
+      "source": "handbook_2025",
+      "credits": 3,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共403",
+      "name": "卒業設計または卒業研究Ⅰ",
+      "roles": [],
+      "number": "工共403",
+      "source": "handbook_2025",
+      "credits": 3,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共404",
+      "name": "卒業設計または卒業研究Ⅱ",
+      "roles": [],
+      "number": "工共404",
+      "source": "handbook_2025",
+      "credits": 3,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共405",
+      "name": "セミナーⅠ",
+      "roles": [],
+      "number": "工共405",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共406",
+      "name": "セミナーⅡ",
+      "roles": [],
+      "number": "工共406",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_required_common",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共407",
+      "name": "卒業研究",
+      "roles": [],
+      "number": "工共407",
+      "source": "handbook_2025",
+      "credits": 6,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共408",
+      "name": "セミナー",
+      "roles": [],
+      "number": "工共408",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共441",
+      "name": "国際インターンシップⅡ",
+      "roles": [],
+      "number": "工共441",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共450",
+      "name": "職業指導（工業）",
+      "roles": [],
+      "number": "工共450",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共451",
+      "name": "情報科教育法A",
+      "roles": [],
+      "number": "工共451",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共452",
+      "name": "情報科教育法B",
+      "roles": [],
+      "number": "工共452",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_工共453",
+      "name": "教職総合演習（情報）",
+      "roles": [],
+      "number": "工共453",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_common",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_機械990",
+      "name": "機械工学概論",
+      "roles": [],
+      "number": "機械990",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_engineering_fusion",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_電情991",
+      "name": "電気電子工学基礎",
+      "roles": [],
+      "number": "電情991",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_engineering_fusion",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_建築991",
+      "name": "居住建築概論",
+      "roles": [],
+      "number": "建築991",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_engineering_fusion",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能993",
+      "name": "知能情報技術概論",
+      "roles": [],
+      "number": "知能993",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_engineering_fusion",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_エネ982",
+      "name": "腐食防食工学",
+      "roles": [],
+      "number": "エネ982",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_engineering_fusion",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_電気985",
+      "name": "発電工学",
+      "roles": [],
+      "number": "電気985",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_engineering_fusion",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_社基984",
+      "name": "減災計画",
+      "roles": [],
+      "number": "社基984",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_engineering_fusion",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_建築984",
+      "name": "都市および地方計画",
+      "roles": [],
+      "number": "建築984",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_engineering_fusion",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能103",
+      "name": "離散数学",
+      "roles": [],
+      "number": "知能103",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能104",
+      "name": "コンピュータシステム",
+      "roles": [],
+      "number": "知能104",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能105",
+      "name": "プログラミング演習基礎",
+      "roles": [],
+      "number": "知能105",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能106",
+      "name": "情報ネットワークⅠ",
+      "roles": [],
+      "number": "知能106",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能107",
+      "name": "知能情報演習Ⅰ",
+      "roles": [],
+      "number": "知能107",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能108",
+      "name": "知能情報演習Ⅱ",
+      "roles": [],
+      "number": "知能108",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能203",
+      "name": "アルゴリズムとデータ構造",
+      "roles": [],
+      "number": "知能203",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能207",
+      "name": "プロジェクトデザイン",
+      "roles": [],
+      "number": "知能207",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能210",
+      "name": "データベースシステム",
+      "roles": [],
+      "number": "知能210",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能211",
+      "name": "人工知能",
+      "roles": [],
+      "number": "知能211",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能212",
+      "name": "ソフトウエア開発演習I",
+      "roles": [],
+      "number": "知能212",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能215",
+      "name": "プログラミング演習応用",
+      "roles": [],
+      "number": "知能215",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能221",
+      "name": "ディジタル回路",
+      "roles": [],
+      "number": "知能221",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能223",
+      "name": "情報ネットワークⅡ",
+      "roles": [],
+      "number": "知能223",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能226",
+      "name": "ディジタル信号処理",
+      "roles": [],
+      "number": "知能226",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能227",
+      "name": "情報理論",
+      "roles": [],
+      "number": "知能227",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能230",
+      "name": "知能情報演習Ⅲ",
+      "roles": [],
+      "number": "知能230",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能231",
+      "name": "知能情報演習Ⅳ",
+      "roles": [],
+      "number": "知能231",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能232",
+      "name": "IoTシステム演習",
+      "roles": [],
+      "number": "知能232",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能302",
+      "name": "AIoTメディアコンピューティング",
+      "roles": [],
+      "number": "知能302",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能303",
+      "name": "OSと並列処理",
+      "roles": [],
+      "number": "知能303",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能304",
+      "name": "知能情報総合演習",
+      "roles": [],
+      "number": "知能304",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能321",
+      "name": "ソフトウェア工学",
+      "roles": [],
+      "number": "知能321",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能322",
+      "name": "数理計画とアルゴリズム",
+      "roles": [],
+      "number": "知能322",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能327",
+      "name": "ヒューマンコンピュータインタラクション",
+      "roles": [],
+      "number": "知能327",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能329",
+      "name": "ディジタル制御論",
+      "roles": [],
+      "number": "知能329",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能330",
+      "name": "マルチメディア情報処理",
+      "roles": [],
+      "number": "知能330",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能331",
+      "name": "ネットワークセキュリティ",
+      "roles": [],
+      "number": "知能331",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能332",
+      "name": "知能ロボット",
+      "roles": [],
+      "number": "知能332",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能338",
+      "name": "ソフトウエア開発演習II",
+      "roles": [],
+      "number": "知能338",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能339",
+      "name": "ソフトウエア開発演習III",
+      "roles": [],
+      "number": "知能339",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能340",
+      "name": "深層学習",
+      "roles": [],
+      "number": "知能340",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能341",
+      "name": "深層学習応用",
+      "roles": [],
+      "number": "知能341",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能342",
+      "name": "自然言語処理",
+      "roles": [],
+      "number": "知能342",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能343",
+      "name": "Webアプリケーション開発基礎",
+      "roles": [],
+      "number": "知能343",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能344",
+      "name": "論文講読演習",
+      "roles": [],
+      "number": "知能344",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_required_course",
+      "language": null,
+      "required": true,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能481",
+      "name": "情報技術演習I",
+      "roles": [],
+      "number": "知能481",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能482",
+      "name": "情報技術演習II",
+      "roles": [],
+      "number": "知能482",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能483",
+      "name": "情報技術演習III",
+      "roles": [],
+      "number": "知能483",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能484",
+      "name": "情報技術演習IV",
+      "roles": [],
+      "number": "知能484",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能491",
+      "name": "知能情報特別講義I",
+      "roles": [],
+      "number": "知能491",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能492",
+      "name": "知能情報特別講義II",
+      "roles": [],
+      "number": "知能492",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能493",
+      "name": "知能情報特別講義III",
+      "roles": [],
+      "number": "知能493",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能494",
+      "name": "知能情報特別講義IV",
+      "roles": [],
+      "number": "知能494",
+      "source": "handbook_2025",
+      "credits": 1,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    },
+    {
+      "key": "course_知能495",
+      "name": "情報システム管理演習",
+      "roles": [],
+      "number": "知能495",
+      "source": "handbook_2025",
+      "credits": 2,
+      "category": "pe_elective_course",
+      "language": null,
+      "required": false,
+      "selectable": true,
+      "source_page": "PDF2ページ",
+      "review_reason": null,
+      "requires_approval": false
+    }
+  ],
+  "display": {
+    "groups": [
+      {
+        "id": "group_ge",
+        "rows": [
+          {
+            "id": "row_ge_fl1",
+            "name": "第一外国語",
+            "subtitle": "(注2)",
+            "check_ids": [
+              "rule_foreign_lang"
+            ],
+            "categories": [
+              "ge_first_foreign_language"
+            ],
+            "required_label": null,
+            "required_credits": 8,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_ge_fl2",
+            "name": "第二外国語",
+            "subtitle": "(注1,2)",
+            "check_ids": [
+              "rule_foreign_lang"
+            ],
+            "categories": [
+              "ge_second_foreign_language"
+            ],
+            "required_label": null,
+            "required_credits": 4,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_ge_data",
+            "name": "データリテラシー",
+            "check_ids": [],
+            "categories": [
+              "ge_data_literacy"
+            ],
+            "required_label": "卒業要件に含めない",
+            "required_credits": null,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_ge_academic",
+            "name": "アカデミックスキル",
+            "check_ids": [
+              "rule_academic_skills",
+              "rule_calculus_path",
+              "rule_physics_path"
+            ],
+            "categories": [
+              "ge_academic_skills"
+            ],
+            "required_label": null,
+            "required_credits": 6,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_ge_career",
+            "name": "キャリア・ダイバーシティ",
+            "check_ids": [],
+            "categories": [
+              "ge_career_diversity"
+            ],
+            "required_label": "卒業要件に含めない",
+            "required_credits": null,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_ge_health",
+            "name": "健康運動",
+            "check_ids": [
+              "rule_health_sports"
+            ],
+            "categories": [
+              "ge_health_sports"
+            ],
+            "required_label": null,
+            "required_credits": 2,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_ge_liberal_arts",
+            "name": "学問分野別教養（人文社会科学、自然科学）・琉大特色・地域創生",
+            "subtitle": "※人文社会2単位以上、自然科学2単位以上、琉大特色・地域創生2単位以上",
+            "check_ids": [
+              "rule_liberal_arts",
+              "rule_humanities_min",
+              "rule_natural_science_min",
+              "rule_ryudai_local_min"
+            ],
+            "categories": [
+              "ge_humanities_social",
+              "ge_natural_science",
+              "ge_ryudai_local"
+            ],
+            "required_label": null,
+            "required_credits": 12,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_ge_global",
+            "name": "グローバル",
+            "check_ids": [],
+            "categories": [
+              "ge_global"
+            ],
+            "required_label": "卒業要件に含めない",
+            "required_credits": null,
+            "credits_from_check": false
+          }
+        ],
+        "title": "共通教育科目",
+        "check_id": "rule_ge_total",
+        "required_credits": 34
+      },
+      {
+        "id": "group_pe",
+        "rows": [
+          {
+            "id": "row_pe_req_common",
+            "name": "必修 工学共通",
+            "subtitle": "(注3)",
+            "check_ids": [],
+            "categories": [
+              "pe_required_common"
+            ],
+            "required_label": null,
+            "required_credits": 31,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_pe_req_course",
+            "name": "必修 コース専門",
+            "check_ids": [],
+            "categories": [
+              "pe_required_course"
+            ],
+            "required_label": null,
+            "required_credits": 38,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_pe_ele_course",
+            "name": "選択 工学共通・コース専門",
+            "subtitle": "(注4)",
+            "check_ids": [
+              "rule_pe_elective_course"
+            ],
+            "categories": [
+              "pe_elective_common",
+              "pe_elective_course"
+            ],
+            "required_label": null,
+            "required_credits": 14,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_pe_fusion",
+            "name": "選択 工学融合科目",
+            "subtitle": "(注5)",
+            "check_ids": [],
+            "categories": [
+              "pe_engineering_fusion"
+            ],
+            "required_label": "卒業要件に含めない",
+            "required_credits": null,
+            "credits_from_check": false
+          },
+          {
+            "id": "row_pe_free",
+            "name": "選択 専門科目（自由）",
+            "subtitle": "(注6)",
+            "check_ids": [],
+            "categories": [
+              "pe_free_specialized"
+            ],
+            "required_label": "選択21単位以上に含む",
+            "required_credits": null,
+            "credits_from_check": false
+          }
+        ],
+        "title": "専門教育科目",
+        "check_id": "rule_pe_total",
+        "required_credits": 90
+      }
+    ],
+    "subtotals": [
+      {
+        "id": "subtotal_pe_required",
+        "name": "必修 合計",
+        "row_ids": [
+          "row_pe_req_common",
+          "row_pe_req_course"
+        ],
+        "check_ids": [
+          "rule_pe_required"
+        ],
+        "required_credits": 69
+      },
+      {
+        "id": "subtotal_pe_elective",
+        "name": "選択 合計",
+        "row_ids": [
+          "row_pe_ele_course",
+          "row_pe_fusion",
+          "row_pe_free"
+        ],
+        "check_ids": [
+          "rule_pe_elective"
+        ],
+        "required_credits": 21
+      }
+    ],
+    "total_credits": 124
+  },
+  "sources": [
+    {
+      "id": "handbook_2025",
+      "pages": "PDF2・3・4・5・6・7・8・9・10ページ",
+      "title": "2025年度入学 工学部 工学科 知能情報コース 学生便覧(取り込み)"
+    }
+  ],
+  "categories": [
+    {
+      "key": "ge_first_foreign_language",
+      "label": "第一外国語",
+      "counts_toward_total": true
+    },
+    {
+      "key": "ge_second_foreign_language",
+      "label": "第二外国語",
+      "counts_toward_total": true
+    },
+    {
+      "key": "ge_data_literacy",
+      "label": "データリテラシー",
+      "counts_toward_total": false
+    },
+    {
+      "key": "ge_academic_skills",
+      "label": "アカデミックスキル",
+      "counts_toward_total": true
+    },
+    {
+      "key": "ge_career_diversity",
+      "label": "キャリア・ダイバーシティ",
+      "counts_toward_total": false
+    },
+    {
+      "key": "ge_health_sports",
+      "label": "健康運動",
+      "counts_toward_total": true
+    },
+    {
+      "key": "ge_humanities_social",
+      "label": "人文社会科学",
+      "counts_toward_total": true
+    },
+    {
+      "key": "ge_natural_science",
+      "label": "自然科学",
+      "counts_toward_total": true
+    },
+    {
+      "key": "ge_ryudai_local",
+      "label": "琉大特色・地域創生",
+      "counts_toward_total": true
+    },
+    {
+      "key": "ge_global",
+      "label": "グローバル",
+      "counts_toward_total": false
+    },
+    {
+      "key": "pe_required_common",
+      "label": "工学共通（必修）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "pe_required_course",
+      "label": "コース専門（必修）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "pe_elective_common",
+      "label": "工学共通（選択）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "pe_elective_course",
+      "label": "コース専門（選択）",
+      "counts_toward_total": true
+    },
+    {
+      "key": "pe_engineering_fusion",
+      "label": "工学融合科目",
+      "counts_toward_total": false
+    },
+    {
+      "key": "pe_free_specialized",
+      "label": "専門科目（自由）",
+      "counts_toward_total": true
+    }
+  ],
+  "department": "intelligent_informatics",
+  "admission_year": 2025,
+  "format_version": 2
+}

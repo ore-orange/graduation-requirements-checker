@@ -7,3 +7,11 @@ intelligent_informatics:
   source_filename: 2024.json
   published_at: <%= Time.utc(2026, 4, 1).iso8601 %>
   document: <%= JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2024.json').read).to_json %>
+
+intelligent_informatics_2025:
+  slug: intelligent_informatics
+  admission_year: 2025
+  title: 2025年度入学 琉球大学工学部工学科 知能情報コース
+  source_filename: 2025.json
+  published_at: <%= Time.utc(2026, 4, 1).iso8601 %>
+  document: <%= JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2025.json').read).to_json %>

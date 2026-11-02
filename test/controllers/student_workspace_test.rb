@@ -555,8 +555,20 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_unmatched_enrollment_needs_review(Course.create!(course_number: '他学999', name: '便覧に無い科目', credits: 2))
   end
 
-  test '同じ科目番号の Course が複数ある科目は、予定に追加しない' do
+  test '同じ科目番号で名前だけ違う Course があっても、便覧の名前で特定できれば予定に追加できる' do
+    # 別の入学年度の便覧に同じ番号で名前だけ違う行があるケース(ローマ数字の全角・半角など)の再現。
+    # 今の学生の便覧が指す名前の行は1つに決まるので、取り違えずに追加できる。
     Course.create!(course_number: @candidate.fetch('number'), name: "#{@candidate.fetch('name')}（別表記）", credits: 1)
+
+    assert_difference 'PlannedCourse.count', 1 do
+      post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM },
+                              env: local_env
+    end
+    assert_redirected_to plan_path(term: CURRENT_TERM)
+  end
+
+  test '同じ科目番号・同じ名前の Course が複数あり、便覧の1行に特定できない科目は、予定に追加しない' do
+    Course.create!(course_number: @candidate.fetch('number'), name: @candidate.fetch('name'), credits: 1)
 
     assert_no_difference 'PlannedCourse.count' do
       post plan_courses_path, params: { course_number: @candidate.fetch('number'), term: CURRENT_TERM },

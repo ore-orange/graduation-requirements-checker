@@ -1,0 +1,277 @@
+{
+  "description": "ローカル開発専用の人工的な履修データです。実在の学生の成績・履修登録・大学システムの取得結果ではありません。科目と単位は2025年度公式便覧（知能情報コース別表）のカタログに対応しますが、年度・学期・履修状態は動作説明用の架空設定であり、時間割や履修前提条件を保証しません。この別表には共通教育科目（外国語・健康運動・教養領域など）が1つも掲載されていないため（大学全体の共通教育要項は別文書）、共通教育の単位は履修データで埋められません。このデモ学生は共通教育のすべての区分が恒久的に未修得・要確認のままになります。2027年度前期を履修中の学生を想定し、専門必修（工学共通・コース専門）47単位・専門選択（工学共通・コース専門）10単位の計57単位を修得済み、専門必修のエンジニアリングデザイン演習・知能情報演習Ⅳと工学融合（卒業要件には算入されない）の電気電子工学基礎の計3科目6単位を履修中（見込み63単位）、専門選択のディジタル信号処理を履修登録済みとしています。専門必修の機械学習・知能情報総合演習・ヒューマンコンピュータインタラクション・深層学習・論文講読演習、卒業研究Ⅰ・Ⅱ、セミナーⅠ・Ⅱはわざと未修得かつ未登録で残し、専門選択も必要単位（コース専門選択14単位・選択合計21単位）に届かないよう残しているので、区分ごとに進捗の差が出るようにしています。",
+  "enrollments": [
+    {
+      "course_number": "工共100",
+      "academic_year": 2025,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共111",
+      "academic_year": 2025,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共112",
+      "academic_year": 2025,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共120",
+      "academic_year": 2025,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 1,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共121",
+      "academic_year": 2025,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共122",
+      "academic_year": 2025,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能103",
+      "academic_year": 2025,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能104",
+      "academic_year": 2025,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能105",
+      "academic_year": 2025,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能106",
+      "academic_year": 2025,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能107",
+      "academic_year": 2025,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能108",
+      "academic_year": 2025,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共221",
+      "academic_year": 2026,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共222",
+      "academic_year": 2026,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能203",
+      "academic_year": 2026,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能207",
+      "academic_year": 2026,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能210",
+      "academic_year": 2026,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能211",
+      "academic_year": 2026,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能212",
+      "academic_year": 2026,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能215",
+      "academic_year": 2026,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能227",
+      "academic_year": 2026,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共300",
+      "academic_year": 2027,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共301",
+      "academic_year": 2027,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能230",
+      "academic_year": 2027,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共302",
+      "academic_year": 2027,
+      "semester": "後期",
+      "enrollment_status": "in_progress",
+      "credits_earned": null,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能231",
+      "academic_year": 2027,
+      "semester": "後期",
+      "enrollment_status": "in_progress",
+      "credits_earned": null,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共118",
+      "academic_year": 2025,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 1,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共119",
+      "academic_year": 2025,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 1,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共211",
+      "academic_year": 2026,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "工共212",
+      "academic_year": 2026,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能221",
+      "academic_year": 2026,
+      "semester": "前期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能223",
+      "academic_year": 2026,
+      "semester": "後期",
+      "enrollment_status": "completed",
+      "credits_earned": 2,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "知能226",
+      "academic_year": 2027,
+      "semester": "前期",
+      "enrollment_status": "registered",
+      "credits_earned": null,
+      "approval_confirmed": null
+    },
+    {
+      "course_number": "電情991",
+      "academic_year": 2027,
+      "semester": "後期",
+      "enrollment_status": "in_progress",
+      "credits_earned": null,
+      "approval_confirmed": null
+    }
+  ]
+}

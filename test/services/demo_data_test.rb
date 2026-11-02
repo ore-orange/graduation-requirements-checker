@@ -33,8 +33,22 @@ class DemoDataTest < ActiveSupport::TestCase
     assert_equal before, record_counts
   end
 
+  test '2025年度入学のデモ学生ができる' do
+    assert_equal [2024, 2025], DemoAccount.students.map(&:admission_year).sort
+  end
+
+  test '2025年度の学生は2025年度の便覧で判定される' do
+    assert_equal 2025, DemoAccount.students.last.curriculum.admission_year
+  end
+
+  test '2025年度の便覧がなければ2025年度の学生は作らない' do
+    Curriculum.where(admission_year: 2025).destroy_all
+    assert_equal 1, DemoData.load!.size
+  end
+
   test 'loading repeatedly preserves plans unrelated data and non-seeded history' do
-    student = DemoData.load!
+    students = DemoData.load!
+    student = students.first
     course = student.student_courses.first.course
     plan = student.planned_courses.create!(course: course, academic_year: 2026, semester: '後期')
     history = student.student_courses.create!(course: course, academic_year: 2023, semester: 'manual-test',
@@ -49,7 +63,7 @@ class DemoDataTest < ActiveSupport::TestCase
     before_history = history.attributes
     before_course = unrelated_course.attributes
 
-    2.times { assert_equal student, DemoData.load! }
+    2.times { assert_equal students, DemoData.load! }
 
     assert_equal before_counts, record_counts
     assert_equal plan, student.planned_courses.find(plan.id)
@@ -65,7 +79,7 @@ class DemoDataTest < ActiveSupport::TestCase
     entry = document.fetch('courses').find { |course| course.fetch('number') == number }
     entry['credits'] = nil
     published_curriculum.update!(document: document)
-    student = DemoData.load!
+    student = DemoData.load!.first
 
     course = Course.find_by!(course_number: number, name: entry.fetch('name'))
     assert_nil course.credits
@@ -82,10 +96,19 @@ class DemoDataTest < ActiveSupport::TestCase
     assert(demo_enrollments.none? { |entry| entry.key?('course_key') })
   end
 
-  test 'the demo student is tied to the published curriculum for their admission year' do
-    student = DemoData.load!
+  test '2025年度のデモ履修データも科目番号で便覧と対応する' do
+    numbers = curriculum(2025).fetch('courses').pluck('number').compact
 
-    assert_equal published_curriculum, student.curriculum
+    assert_equal 34, demo_enrollments(2025).size
+    assert_empty demo_enrollments(2025).pluck('course_number') - numbers
+    assert(demo_enrollments(2025).none? { |entry| entry.key?('course_key') })
+  end
+
+  test 'the demo student is tied to the published curriculum for their admission year' do
+    students = DemoData.load!
+
+    assert_equal published_curriculum, students.first.curriculum
+    assert_equal published_curriculum(2025), students.last.curriculum
   end
 
   test 'courses are found or created by number and name, like the timetable importer' do
@@ -100,7 +123,7 @@ class DemoDataTest < ActiveSupport::TestCase
   test 'conflicting existing cohort is not overwritten and loading is atomic' do
     faculty = Faculty.create!(name: '既存学部')
     department = faculty.departments.create!(name: '既存学科')
-    user = User.create!(email: DemoAccount::EMAIL)
+    user = User.create!(email: DemoAccount.students.first.email)
     student = user.create_student!(department: department, admission_year: 2025)
     before = record_counts
 
@@ -110,20 +133,36 @@ class DemoDataTest < ActiveSupport::TestCase
     assert_equal 2025, student.reload.admission_year
     assert_equal department, student.department
     assert_raises(DemoAccount::Unavailable) { DemoAccount.student }
+    # 1人目(2024年度)が衝突で止まったら、2人目(2025年度)も作られない(全員まとめて1つのトランザクション)。
+    assert_nil User.find_by(email: DemoAccount.students.last.email)
+  end
+
+  test 'a conflict on the 2025 demo student rolls back the 2024 demo student too' do
+    faculty = Faculty.create!(name: '既存学部')
+    department = faculty.departments.create!(name: '既存学科')
+    user = User.create!(email: DemoAccount.students.last.email)
+    user.create_student!(department: department, admission_year: 1999)
+    before = record_counts
+
+    assert_raises(DemoAccount::Unavailable) { DemoData.load! }
+
+    assert_equal before, record_counts
+    # 2人目(2025年度)が衝突で止まったら、1人目(2024年度)が成功するはずでも作られない。
+    assert_nil User.find_by(email: DemoAccount.students.first.email)
   end
 
   private
 
-  def published_curriculum
-    Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024)
+  def published_curriculum(year = 2024)
+    Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: year)
   end
 
-  def curriculum
-    published_curriculum.document
+  def curriculum(year = 2024)
+    published_curriculum(year).document
   end
 
-  def demo_enrollments
-    JSON.parse(Rails.root.join('db/demo_enrollments.json').read).fetch('enrollments')
+  def demo_enrollments(year = 2024)
+    JSON.parse(Rails.root.join(DemoData::ENROLLMENT_FILES.fetch(year)).read).fetch('enrollments')
   end
 
   def record_counts

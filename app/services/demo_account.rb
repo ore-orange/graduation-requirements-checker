@@ -3,9 +3,25 @@
 class DemoAccount
   class Unavailable < StandardError; end
 
-  EMAIL = 'demo@graduation-checker.example.test'
-  ADMISSION_YEAR = 2024
+  # デモ学生1人分の定義。email は入学年度ごとに固有(同じメールで入学年度違いの学生を2つ作ることはできない)。
+  Student = Data.define(:email, :admission_year, :department) do
+    # この学生が判定に使う、公開済みの便覧。便覧をまだ取り込んでいない入学年度は nil になる。
+    def curriculum
+      Curriculum.published.find_by(slug: department, admission_year: admission_year)
+    end
+  end
+
   DEPARTMENT = 'intelligent_informatics'
+
+  # 既存の呼び口(demo_data.rb や student_workspace.rb)を壊さないよう、1人目は元のメールのまま。
+  STUDENTS = [
+    Student.new(email: 'demo@graduation-checker.example.test', admission_year: 2024, department: DEPARTMENT),
+    Student.new(email: 'demo-2025@graduation-checker.example.test', admission_year: 2025, department: DEPARTMENT)
+  ].freeze
+
+  def self.students
+    STUDENTS
+  end
 
   # PUBLIC_DEMO=1 は、認証が入るまでの仮公開用。ローカル限定の制限を外し、固定のデモ学生を誰にでも見せる。
   # 実際の成績データを入れた環境では設定しない。
@@ -17,11 +33,13 @@ class DemoAccount
     Rails.env.local? || public_demo?
   end
 
+  # アプリ全体が今も参照する「唯一のデモ学生」。呼び口を壊さないよう、常に1人目(2024年度入学)を返す。
   def self.student
     raise Unavailable, 'ローカルデモは開発・テスト環境でのみ利用できます。' unless enabled?
 
-    student = User.find_by(email: EMAIL)&.student
-    return student if student&.admission_year == ADMISSION_YEAR
+    definition = STUDENTS.first
+    student = User.find_by(email: definition.email)&.student
+    return student if student&.admission_year == definition.admission_year
 
     raise Unavailable, 'デモデータが未設定です。開発環境で bin/rails db:seed を実行してください。'
   end
