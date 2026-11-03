@@ -355,13 +355,13 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select '[data-total-credits]', text: /124\s*単位/
   end
 
-  # 実物の2024年度が持つ27件の規則のうち、上のカードと同じことを言うだけの7件(1区分だけを、カードと同じ単位数で数える
-  # credit_sum)を除いた20件が、便覧の並びのまま出る。
-  SHOWN_2024 = %w[humanities social general_integrated general_without_natural general_subtotal japanese
-                  english_required foreign_language common_total calculus physics required_all required_total
-                  elective_inner elective_total fusion_provider total natural_cap excluded_category own_fusion].freeze
-  OMITTED_2024 = %w[health basic_total required_information required_comprehensive required_research required_math
-                    required_core].freeze
+  # 実物の2024年度が持つ27件の規則のうち、上のカード（章・行・小計）がすでに同じ単位数で言っている11件の credit_sum
+  # を除いた16件が、便覧の並びのまま出る。
+  SHOWN_2024 = %w[humanities social general_integrated general_without_natural japanese english_required
+                  foreign_language calculus physics required_all required_total fusion_provider total natural_cap
+                  excluded_category own_fusion].freeze
+  OMITTED_2024 = %w[health general_subtotal common_total basic_total required_information required_comprehensive
+                    required_research required_math required_core elective_inner elective_total].freeze
 
   test '判定の規則は、上のカードから読み取れないものだけが、便覧の並びのまま出る' do
     show_selected
@@ -373,15 +373,18 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select 'li[data-rule-id="own_fusion"]', text: /知能/
   end
 
-  test '2025年度の規則は、アカデミックスキルと健康運動の2件だけを省く' do
+  test '2025年度の規則は、カードが同じ単位数で言っている8件を省く' do
     show_selected(admission_year: 2025)
 
     document = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2025).document
     all_ids = document.fetch('rules').pluck('id')
     assert_equal 19, all_ids.size
     shown = css_select('#judgement-rules li[data-rule-id]').pluck('data-rule-id')
-    assert_equal %w[rule_academic_skills rule_health_sports], all_ids - shown
-    assert_equal 17, shown.size
+    assert_equal %w[rule_academic_skills rule_health_sports rule_liberal_arts rule_ge_total rule_pe_required
+                    rule_pe_elective rule_pe_elective_course rule_pe_total], all_ids - shown
+    assert_equal 11, shown.size
+    # 名指しされない卒業要件の合計は残る
+    assert_select '#judgement-rules li[data-rule-id=?]', 'rule_total'
     # 区分の下限、系列の選択、外国語の経路、算入しない規則は残る
     assert_select '#judgement-rules li[data-rule-id=?]', 'rule_humanities_min'
     assert_select '#judgement-rules li[data-rule-id=?]', 'rule_calculus_path'
@@ -399,13 +402,17 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select '#judgement-rules', text: /微分積分学/
     assert_select '#judgement-rules', text: /自然系は卒業算入の上限/
     assert_select '#judgement-rules', text: /外国語の選択経路/
-    assert_select '#judgement-rules', text: /数学基礎（選択）・知能情報アドバンスト・知能情報関連の合計/
+    # 章の見出しと同じことを言う合計は出さない。必修すべては、見出しが言えない「すべて修得」を言うので残る
+    assert_select '#judgement-rules li[data-rule-id=common_total]', count: 0
+    assert_select '#judgement-rules li[data-rule-id=elective_total]', count: 0
+    assert_select '#judgement-rules li[data-rule-id=required_all]', text: /すべて修得/
+    assert_select '#judgement-rules li[data-rule-id=total]', text: /備考/
   end
 
   test '省いた件数を、規則の節で伝える(黙って消さない)' do
     show_selected
 
-    assert_select '#judgement-rules [data-omitted-rules]', text: /7件/
+    assert_select '#judgement-rules [data-omitted-rules]', text: /11件/
   end
 
   test '省くかどうかは便覧の中身で決まる。健康運動の行を消せば、健康運動の規則が出る' do
@@ -416,7 +423,7 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     show_selected
 
     assert_select '#judgement-rules li[data-rule-id=health]', count: 1
-    assert_select '#judgement-rules [data-omitted-rules]', text: /6件/
+    assert_select '#judgement-rules [data-omitted-rules]', text: /10件/
   end
 
   test '規則には出典のページを添える' do

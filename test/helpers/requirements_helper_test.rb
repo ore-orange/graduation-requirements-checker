@@ -353,33 +353,91 @@ class RequirementsHelperTest < ActionView::TestCase
     assert_equal ['x1'], shown_ids(handbook.merge('display' => {}))
   end
 
-  test '実物2024: 省く7件は、カードと同じ単位数の1区分の規則だけ' do
-    omitted = @real.fetch('rules').pluck('id') - shown_ids(@real)
-
-    assert_equal %w[health basic_total required_information required_comprehensive required_research required_math
-                    required_core], omitted
-    assert_equal 20, shown_ids(@real).size
+  # 便覧自身が「この要素はこの規則の見せ方」と書いている（check_id / check_ids）。
+  def referenced_handbook(rules:, groups: [], rows: [], subtotals: [])
+    { 'display' => { 'groups' => groups.presence || [{ 'id' => 'g', 'rows' => rows }], 'subtotals' => subtotals },
+      'rules' => rules }
   end
 
-  test '実物2024: 人文系・社会系の下限は、まとめたカードの中にあるので残る' do
+  test '章が名指しする credit_sum は、章の必要単位と同じなら省く(複数の区分をまたいでいても)' do
+    handbook = referenced_handbook(rules: [sum_rule('ch_total', %w[a b c], 30)],
+                                   groups: [{ 'id' => 'g', 'check_id' => 'ch_total', 'required_credits' => 30,
+                                              'rows' => [] }])
+
+    assert_empty visible_rules(handbook)
+  end
+
+  test '行・小計が名指しする credit_sum も、単位数が同じなら省く' do
+    rules = [sum_rule('r_sum', %w[a b], 14), sum_rule('s_sum', %w[a b c], 22)]
+    handbook = referenced_handbook(rules: rules,
+                                   rows: [{ 'id' => 'r', 'check_ids' => ['r_sum'], 'required_credits' => 14 }],
+                                   subtotals: [{ 'id' => 's', 'check_ids' => ['s_sum'], 'required_credits' => 22 }])
+
+    assert_empty visible_rules(handbook)
+  end
+
+  test '名指しされていても、要素の単位数が規則と違えば残す(14単位の行が名指す、人文2単位の下限)' do
+    handbook = referenced_handbook(rules: [sum_rule('min_a', ['a'], 2)],
+                                   rows: [{ 'id' => 'r', 'check_ids' => ['min_a'], 'categories' => %w[a b],
+                                            'required_credits' => 14 }])
+
+    assert_equal ['min_a'], shown_ids(handbook)
+  end
+
+  test '名指しされない credit_sum は、複数の区分でも、総単位と同じ数字があっても残す' do
+    handbook = referenced_handbook(rules: [sum_rule('grand', %w[a b c], 130)],
+                                   rows: [{ 'id' => 'r', 'check_ids' => [], 'required_credits' => 130 }])
+    handbook['display']['total_credits'] = 130
+
+    assert_equal ['grand'], shown_ids(handbook)
+  end
+
+  test '名指しされていても、credit_sum 以外は残す(all_required は、章の見出しが言えない「すべて修得」を言う)' do
+    rules = [{ 'id' => 'all_req', 'type' => 'all_required', 'categories' => %w[a b] }]
+    handbook = referenced_handbook(rules: rules,
+                                   groups: [{ 'id' => 'g', 'check_id' => 'all_req', 'required_credits' => 57,
+                                              'rows' => [] }])
+
+    assert_equal ['all_req'], shown_ids(handbook)
+  end
+
+  test '実物2024: 省く11件は、章・行・小計が同じ単位数で見せている規則だけ' do
+    omitted = @real.fetch('rules').pluck('id') - shown_ids(@real)
+
+    assert_equal %w[health general_subtotal common_total basic_total required_information required_comprehensive
+                    required_research required_math required_core elective_inner elective_total], omitted
+    assert_equal 16, shown_ids(@real).size
+  end
+
+  test '実物2024: 人文系・社会系の下限は、14単位の行が名指すが単位数が違うので残る' do
     assert_includes shown_ids(@real), 'humanities'
     assert_includes shown_ids(@real), 'social'
   end
 
+  test '実物2024: 卒業算入総単位と専門必修の合計は、名指しされないので残る' do
+    assert_includes shown_ids(@real), 'total'
+    assert_includes shown_ids(@real), 'required_total'
+  end
+
+  test '実物2024: 必修すべては、章の見出しが57単位でも残る(型が all_required)' do
+    assert_includes shown_ids(@real), 'required_all'
+  end
+
   test '実物2024: 系列・選択経路・上限・算入しない・複数区分の合計は1つも消えない' do
     kept = %w[japanese english_required calculus physics foreign_language required_all fusion_provider natural_cap
-              excluded_category own_fusion general_integrated general_without_natural general_subtotal common_total
-              required_total elective_inner elective_total total]
+              excluded_category own_fusion general_integrated general_without_natural required_total total]
 
     assert_empty kept - shown_ids(@real)
   end
 
-  test '実物2025: 省くのはアカデミックスキルと健康運動の2件だけ' do
+  test '実物2025: 省く8件は、章・行・小計が同じ単位数で見せている規則だけ' do
     real2025 = JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2025.json').read)
     omitted = real2025.fetch('rules').pluck('id') - shown_ids(real2025)
 
-    assert_equal %w[rule_academic_skills rule_health_sports], omitted
-    assert_equal 17, shown_ids(real2025).size
+    assert_equal %w[rule_academic_skills rule_health_sports rule_liberal_arts rule_ge_total rule_pe_required
+                    rule_pe_elective rule_pe_elective_course rule_pe_total], omitted
+    assert_equal 11, shown_ids(real2025).size
+    assert_includes shown_ids(real2025), 'rule_total'
     # 学問分野別教養の中の3つの下限は、カードに出ているのは12単位のまとまりだけなので残す
     assert_empty %w[rule_humanities_min rule_natural_science_min rule_ryudai_local_min] - shown_ids(real2025)
   end
