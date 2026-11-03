@@ -51,6 +51,37 @@ class CurriculumTest < ActiveSupport::TestCase
     assert_equal '2024年度入学 琉球大学工学部工学科 知能情報コース', curriculum.title
   end
 
+  # プルダウンは学部名・学科コース名で選択肢を作る。文書が持つので、ファイルからの seed でも画面からの取り込みでも同じ値が入る。
+  test 'ファイルから読み込んだ便覧にも学部名と学科コース名が入る' do
+    curriculum = Curriculum.seed_from_file(FILE)
+
+    assert_equal '工学部', curriculum.faculty_name
+    assert_equal '工学科 知能情報コース', curriculum.department_name
+    assert_equal '工学部', curriculum.document['faculty_name']
+    assert_equal '工学科 知能情報コース', curriculum.document['department_name']
+    # department は slug(機械用の識別名)のまま。department_name と取り違えない。
+    assert_equal 'intelligent_informatics', curriculum.document['department']
+  end
+
+  test '2024年度と2025年度のファイルは、同じ学部名・学科コース名を持つ(プルダウンで1つの学科にまとまる)' do
+    names = %w[2024 2025].map do |year|
+      document = JSON.parse(Rails.root.join("config/curricula/intelligent_informatics/#{year}.json").read)
+      document.values_at('faculty_name', 'department_name')
+    end
+
+    assert_equal [['工学部', '工学科 知能情報コース']] * 2, names
+  end
+
+  test 'seed_from_file は、既存の行の学部名・学科コース名が空でも、overwrite のときはファイルの値で埋める' do
+    existing = curricula(:intelligent_informatics)
+    existing.update!(faculty_name: nil, department_name: nil)
+
+    Curriculum.seed_from_file(FILE, overwrite: true)
+
+    assert_equal '工学部', existing.reload.faculty_name
+    assert_equal '工学科 知能情報コース', existing.department_name
+  end
+
   test 'seed_from_file は何度流しても同じ行を更新し、増やさない' do
     first = Curriculum.seed_from_file(FILE)
     count = Curriculum.where(slug: 'intelligent_informatics', admission_year: 2024).count

@@ -62,8 +62,11 @@ class Curriculum < ApplicationRecord
     return curriculum if curriculum.persisted? && !overwrite
 
     document = parse_document(path)
+    # 学部名・学科コース名は、文書が持つ値を列へ写す(プルダウンの選択肢はこの列から作る)。文書の department は slug で
+    # 別物なので読まない。文書に無いファイルは、列を nil で上書きして消さない。
+    names = document.slice('faculty_name', 'department_name').compact_blank.symbolize_keys
     curriculum.update!(document: document, title: document['title'], source_filename: path.basename.to_s,
-                       published_at: curriculum.published_at || Time.current)
+                       published_at: curriculum.published_at || Time.current, **names)
     curriculum
   end
 

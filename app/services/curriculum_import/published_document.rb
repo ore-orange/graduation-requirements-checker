@@ -14,8 +14,10 @@ module CurriculumImport
   # 区分・規則・章・行・小計: confirmed。最上位: approval_notes・removed_by_human・annotation_decisions。
   # review_reason は、学生の画面に「要確認」として出る欄なので残す。
   module PublishedDocument
-    TOP_LEVEL_KEYS = %w[format_version department admission_year title sources categories rules display courses
-                        roles].freeze
+    # faculty_name・department_name は、人が読む学部名・学科コース名(プルダウンの選択肢の元)。
+    # department は slug(機械用の識別名)で別物。
+    TOP_LEVEL_KEYS = %w[format_version department admission_year title faculty_name department_name sources categories
+                        rules display courses roles].freeze
     SOURCE_KEYS = %w[id title url local_path pages note].freeze
     CATEGORY_KEYS = %w[key label counts_toward_total].freeze
     COURSE_KEYS = %w[key number name credits category required language roles source source_page review_reason
@@ -26,13 +28,17 @@ module CurriculumImport
     class << self
       # 下書きの document を、公開する形にして返す(元は変えない)。slug・入学年度は、便覧の行が正本。
       # 文書の department・admission_year が違っても、学生が便覧を引くのは行の値なので、行に合わせる。
+      # 学部名・学科コース名も、便覧の行の列が正本(画面から作った便覧も、ファイルから seed した便覧と同じ形になる)。
+      # 行に無いとき(古い行)は、文書に書かれた値をそのまま残す。
       # 無い欄は無いまま(null を足すと、Catalogue は「欄はあるが配列でない」と見て読み込みを拒む)。
-      def build(document, slug:, admission_year:)
+      def build(document, slug:, admission_year:, faculty_name: nil, department_name: nil)
         return document unless document.is_a?(Hash)
 
         clean = document.slice(*TOP_LEVEL_KEYS).deep_dup
         clean['department'] = slug
         clean['admission_year'] = admission_year
+        clean['faculty_name'] = faculty_name if faculty_name.present?
+        clean['department_name'] = department_name if department_name.present?
         replace(clean, 'sources') { |list| pick(list, SOURCE_KEYS) }
         replace(clean, 'categories') { |list| pick(list, CATEGORY_KEYS) }
         replace(clean, 'courses') { |list| pick(list, COURSE_KEYS) }

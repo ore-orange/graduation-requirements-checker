@@ -58,7 +58,9 @@ module CurriculumImport
     # 公開する文書。下書きの document から、作業用の欄を落としたもの。
     def document
       @document ||= PublishedDocument.build(curriculum.document, slug: curriculum.slug,
-                                                                 admission_year: curriculum.admission_year)
+                                                                 admission_year: curriculum.admission_year,
+                                                                 faculty_name: curriculum.faculty_name,
+                                                                 department_name: curriculum.department_name)
     end
 
     def publishable? = blocking_reasons.empty?

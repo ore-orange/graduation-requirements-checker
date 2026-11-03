@@ -194,7 +194,50 @@ class CurriculumPublishTest < ActiveSupport::TestCase
 
     draft.publish!
 
-    assert_equal real_document.merge('department' => 'real_copy'), draft.reload.document
+    # 学部名・学科コース名は、便覧の行(ready_draft の列)の値が文書に入る。実物の値は列の値で置き換わる。
+    assert_equal real_document.merge('department' => 'real_copy', 'faculty_name' => '工学部', 'department_name' => '工学科'),
+                 draft.reload.document
+  end
+
+  # ---- 学部名・学科コース名(department は slug、department_name は人が読む名前。別物) ----
+
+  test '公開すると、便覧の行の学部名・学科コース名が文書に入る(department は slug のまま)' do
+    draft = ready_draft(slug: 'dept_a')
+    draft.update!(faculty_name: '工学部', department_name: '工学科 知能情報コース')
+    draft.publish!
+
+    assert_equal '工学部', draft.document['faculty_name']
+    assert_equal '工学科 知能情報コース', draft.document['department_name']
+    assert_equal 'dept_a', draft.document['department']
+    assert_equal draft.document, draft.reload.document
+  end
+
+  test '公開しても、文書に書かれた学部名・学科コース名は落ちない(行に無いときは文書の値を残す)' do
+    document = requirements_document.merge('faculty_name' => '理学部', 'department_name' => '数理コース')
+    draft = ready_draft(document: document)
+    draft.update_columns(faculty_name: nil, department_name: nil) # rubocop:disable Rails/SkipsModelValidations
+
+    assert_equal %w[理学部 数理コース],
+                 CurriculumImport::PublishedDocument.build(draft.document, slug: 'x', admission_year: 2025,
+                                                                           faculty_name: draft.faculty_name,
+                                                                           department_name: draft.department_name)
+                                                    .values_at('faculty_name', 'department_name')
+  end
+
+  test '文書の学部名・学科コース名が行と違えば、行に合わせる(学生が便覧を引くのは行の値)' do
+    document = requirements_document.merge('faculty_name' => '古い学部', 'department_name' => '古いコース')
+    draft = ready_draft(document: document)
+    draft.publish!
+
+    assert_equal '工学部', draft.document['faculty_name']
+    assert_equal '工学科', draft.document['department_name']
+  end
+
+  test '行にも文書にも学部名・学科コース名が無ければ、null を足さない' do
+    document = CurriculumImport::PublishedDocument.build(requirements_document, slug: 'x', admission_year: 2025)
+
+    assert_not document.key?('faculty_name')
+    assert_not document.key?('department_name')
   end
 
   test '文書の department と admission_year は、便覧の行に合わせる' do
