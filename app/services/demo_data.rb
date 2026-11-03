@@ -39,10 +39,13 @@ class DemoData
 
     # 科目番号の無い科目は、履修や予定から引き当てる手がかりが無いので作らない。
     # 時間割の取り込みと同じく (科目番号, 科目名) で行を探す。同じ番号で名前だけ違う行は別の行になる。
+    # 単位数は最初に取り込んだ便覧の値を正とする(先着優先)。2024年度と2025年度の便覧には(科目番号, 科目名)が
+    # 一致する行が57件あり、後から読む便覧の値で無条件に上書きすると、片方の便覧で単位数を「未確認」にしていても
+    # もう片方の便覧が読み込まれた瞬間に値が復活してしまう。
     def import_courses(entries)
       entries.select { |entry| entry['number'].present? }.to_h do |entry|
         course = Course.find_or_initialize_by(course_number: entry.fetch('number'), name: entry.fetch('name'))
-        course.update!(credits: entry.fetch('credits'))
+        course.update!(credits: entry.fetch('credits')) if course.credits.nil?
         [course.course_number, course]
       end
     end

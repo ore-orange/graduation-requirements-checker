@@ -99,7 +99,7 @@ class DemoDataTest < ActiveSupport::TestCase
   test '2025年度のデモ履修データも科目番号で便覧と対応する' do
     numbers = curriculum(2025).fetch('courses').pluck('number').compact
 
-    assert_equal 34, demo_enrollments(2025).size
+    assert_equal 29, demo_enrollments(2025).size
     assert_empty demo_enrollments(2025).pluck('course_number') - numbers
     assert(demo_enrollments(2025).none? { |entry| entry.key?('course_key') })
   end

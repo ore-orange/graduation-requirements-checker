@@ -54,8 +54,9 @@ class PlanCoursesController < ApplicationController
   # 便覧の科目は (科目番号, 科目名) で Course に当たる(科目の作られ方=DemoData・時間割の取り込みと揃える)。
   # 番号だけで探すと、別の入学年度の便覧に同じ番号で名前だけ違う行があるとき(ローマ数字の全角・半角など、
   # 2024年度と2025年度の便覧の知能212のような実例がある)に、今の学生の便覧が指す行をはっきり特定できるのに
-  # 「複数ある」と取り違えて追加できなくしてしまう。名前まで一致する行が1つに決まるときはそれを使い、
-  # 決まらないとき(名前が便覧のどの行にも一致しない重複など)だけ、どれかを選ばず追加しない。
+  # 「複数ある」と取り違えて追加できなくしてしまう。そこで便覧の名前まで条件にする。
+  # 一致する行が無ければ(bin/rails db:seed をやり直すべき状態なので) Unavailable、
+  # 2行以上あれば(名前も一致する重複行で、どちらを使うべきか決められない)AmbiguousCourse。
   def find_catalogue_course(number)
     catalogue_course = @courses_by_number[number]
     return unless catalogue_course && catalogue_course['selectable'] == true

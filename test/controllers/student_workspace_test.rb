@@ -565,6 +565,9 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
                               env: local_env
     end
     assert_redirected_to plan_path(term: CURRENT_TERM)
+    # 件数だけでなく、追加された行が「別表記」ではなく今の学生の便覧が指す名前の方であることを確かめる。
+    # (@student.planned_courses は setup の delete_all で空のまま読み込み済みなので reload する)
+    assert_equal @candidate.fetch('name'), @student.planned_courses.reload.last.course.name
   end
 
   test '同じ科目番号・同じ名前の Course が複数あり、便覧の1行に特定できない科目は、予定に追加しない' do

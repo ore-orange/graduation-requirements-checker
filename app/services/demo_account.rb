@@ -3,8 +3,9 @@
 class DemoAccount
   class Unavailable < StandardError; end
 
-  # デモ学生1人分の定義。email は入学年度ごとに固有(同じメールで入学年度違いの学生を2つ作ることはできない)。
-  Student = Data.define(:email, :admission_year, :department) do
+  # デモ学生1人分の定義(実在の Student モデルの行ではない)。email は入学年度ごとに固有
+  # (同じメールで入学年度違いの学生を2つ作ることはできない)。
+  Definition = Data.define(:email, :admission_year, :department) do
     # この学生が判定に使う、公開済みの便覧。便覧をまだ取り込んでいない入学年度は nil になる。
     def curriculum
       Curriculum.published.find_by(slug: department, admission_year: admission_year)
@@ -15,8 +16,8 @@ class DemoAccount
 
   # 既存の呼び口(demo_data.rb や student_workspace.rb)を壊さないよう、1人目は元のメールのまま。
   STUDENTS = [
-    Student.new(email: 'demo@graduation-checker.example.test', admission_year: 2024, department: DEPARTMENT),
-    Student.new(email: 'demo-2025@graduation-checker.example.test', admission_year: 2025, department: DEPARTMENT)
+    Definition.new(email: 'demo@graduation-checker.example.test', admission_year: 2024, department: DEPARTMENT),
+    Definition.new(email: 'demo-2025@graduation-checker.example.test', admission_year: 2025, department: DEPARTMENT)
   ].freeze
 
   def self.students
