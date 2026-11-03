@@ -1741,3 +1741,110 @@ Expected: 章の見出しが「共通教育 34以上」「専門教育 90以上�
 git add -A
 git commit -m "feat: 2025年度の便覧とデモ学生を足す"
 ```
+
+
+**Task 23 は実行中に足した追加タスク。** Task 22 のレビューで、設計文書の動機
+「2025年度を画面で確かめるために」がTask 22単体では満たされていない（画面を切り替える手段が無い）
+ことが分かり、ユーザーに確認のうえ追加した。
+
+---
+
+### Task 23: デモ学生を画面で切り替える
+
+**背景:** 設計文書は「2025年度を画面で確かめるために、2025年度入学のデモ学生をseedに足す」としていたが、
+Task 22 の実装では全ての画面が `DemoAccount.student`（常に1人目=2024年度）を読むため、2025年度のデモ学生を
+画面で見る手段がどこにも無い。`DemoAccount.student` の「常に1人目を返す」という保証は複数のテストに
+守られた既存の契約なので、これを変えてはいけない。代わりに、表示の層にだけ切り替えを足す。
+
+**Files:**
+- Modify: `app/services/demo_account.rb`（`student_for` を切り出し、年度で引く口を足す）
+- Modify: `app/controllers/concerns/student_workspace.rb`（`load_workspace` がセッションの上書きを見る）
+- Create: `app/controllers/demo_switch_controller.rb`
+- Modify: `config/routes.rb`
+- Modify: `app/views/shared/_nav.html.erb`（デモ学生が2人以上のときだけ、切り替えの小さなボタンを出す）
+- Test: `test/services/demo_account_test.rb`（無ければ作る）、`test/controllers/demo_switch_test.rb`
+
+**Interfaces:**
+- Consumes: `DemoAccount::STUDENTS`（Task 22）
+- Produces:
+  - `DemoAccount.student_for(definition) => Student`（`definition` から学生を引く。無ければ `Unavailable`）
+  - `DemoAccount.student_for_year(admission_year) => Student`（`STUDENTS` に無い年度なら `DemoAccount.student` にそのまま落ちる＝安全側）
+  - `DemoAccount.student` は内部で `student_for(STUDENTS.first)` を呼ぶだけにする（挙動は一切変えない。既存のテストが退行していないことで確かめる）
+  - `PATCH /demo_switch` が `session[:demo_admission_year]` を設定し、元の画面に戻す
+  - `StudentWorkspace#load_workspace` は `session[:demo_admission_year]` が `DemoAccount.students` のどれかの年度と一致すればその学生を、そうでなければ今までどおり `DemoAccount.student` を使う
+
+**この切り替えが何に触れてはいけないか:**
+
+- `DemoAccount.student`（単数）を直接呼ぶ既存のコード・テストは一切変更しない。常に2024年度を返す、という保証は今までどおり。
+- デモ学生が1人しかいない環境（`DemoAccount.students.size == 1`）では、ナビに切り替えを出さない。
+- ローカルデモの制限（`local_demo_access?`）の外からは `PATCH /demo_switch` も `head :not_found` にする（他の画面と同じ扱い）。
+- セッションに不正な値（`DemoAccount.students` に無い年度、空文字、数字でない文字列）が入っても、`DemoAccount.student` に静かに戻るだけで、例外にも別の学生にもならない。
+
+- [ ] **Step 1: 失敗するテストを書く**
+
+```ruby
+# test/services/demo_account_test.rb
+test 'student は常に1人目(2024年度)を返す。STUDENTS の並びを入れ替えても変わらない契約' do
+  assert_equal 2024, DemoAccount.student.admission_year
+end
+
+test 'student_for_year は STUDENTS に無い年度なら student にそのまま落ちる' do
+  assert_equal DemoAccount.student, DemoAccount.student_for_year(1999)
+end
+
+test 'student_for_year は一致する年度のデモ学生を返す' do
+  DemoData.load!
+  assert_equal 2025, DemoAccount.student_for_year(2025).admission_year
+end
+
+# test/controllers/demo_switch_test.rb
+test '切り替えるとセッションに年度が入り、以後の画面がその学生になる' do
+  DemoData.load!
+  patch demo_switch_path(admission_year: 2025), env: local_env
+  get plan_path, env: local_env
+  assert_select 'body', text: /2025年度/
+end
+
+test '知らない年度を送っても、今までどおり2024年度のまま' do
+  patch demo_switch_path(admission_year: 1999), env: local_env
+  get plan_path, env: local_env
+  assert_select 'body', text: /2024年度/
+end
+
+test 'デモ学生が1人しかいないときは、ナビに切り替えを出さない' do
+  Curriculum.where(admission_year: 2025).destroy_all
+  get plan_path, env: local_env
+  assert_select 'form[action=?]', demo_switch_path, count: 0
+end
+```
+
+- [ ] **Step 2: 失敗を確認**
+
+Run: `docker compose exec web bin/rails test test/services/demo_account_test.rb test/controllers/demo_switch_test.rb`
+Expected: FAIL
+
+- [ ] **Step 3: 実装する**
+
+`DemoAccount.student` の中身を `student_for` に切り出す。既存の呼び口・既存のテストが一切変わらないことを
+`bin/ci` で確かめる。`StudentWorkspace#load_workspace` の `@student = DemoAccount.student` を、セッションの
+値があればそれを使う形に変える。ナビには、`DemoAccount.students.size > 1` のときだけ、今の学生の年度と
+別の年度への切り替えボタンを出す（`button_to` で PATCH、2024年度と2025年度の両方を一度に見せる小さな
+フォームでよい）。
+
+- [ ] **Step 4: 通ることを確認**
+
+Run: `docker compose exec web bin/ci`
+Expected: PASS（golden フィクスチャと `config/curricula/intelligent_informatics/2024.json` は無変更であることも確かめる）
+
+- [ ] **Step 5: 実際に2025年度を画面で見る**
+
+Run: 開発環境でアプリを開き、ナビの切り替えで2025年度に変え、ダッシュボードと履修計画表を見る。
+Expected: 2025年度の便覧（共通教育34以上・専門教育90以上・総単位124）で判定され、共通教育の区分は
+（この便覧にその科目が無いため）不足のまま表示される。2024年度に戻すと元の画面に戻る。
+
+- [ ] **Step 6: コミット**
+
+```bash
+git add -A
+git commit -m "feat: デモ学生を画面で切り替えられるようにする"
+```
