@@ -26,12 +26,21 @@ module StudentWorkspace
 
   # 全画面で必要になる最小限。履修履歴は使う画面だけが enrollments で読む。
   def load_workspace
-    @student = DemoAccount.student
+    @student = demo_switch_student
     # @curriculum は便覧の文書（Hash）。読み手は fetch で引くので、レコードは渡さない。
     @curriculum = published_curriculum(@student).document
     # 履修・予定の Course は、科目番号で便覧の科目に当たる。番号の無い科目は当たりようがないので入れない。
     @courses_by_number = @curriculum.fetch('courses').select { |course| course['number'].present? }
                                     .index_by { |course| course.fetch('number') }
+  end
+
+  # ナビの切り替え(session[:demo_admission_year])が DemoAccount.students のどれかの年度と一致すれば
+  # その学生を使う。一致しなければ(未設定・不正な値のどちらでも) DemoAccount.student に静かに落ちる。
+  def demo_switch_student
+    year = session[:demo_admission_year]
+    return DemoAccount.student unless DemoAccount.students.any? { |definition| definition.admission_year == year }
+
+    DemoAccount.student_for_year(year)
   end
 
   # 学生が持つ便覧。無い、または公開済みでなければ、判定せずに初期設定の案内を出す。

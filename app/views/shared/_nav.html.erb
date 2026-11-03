@@ -28,5 +28,23 @@
                       active ? 'bg-white text-indigo-600 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'] %>
       <% end %>
     </nav>
+
+    <%# デモ学生が2人以上いるときだけ、年度の切り替えを出す(開発・テスト環境限定の仮の仕組み)。
+        @student は StudentWorkspace を使わない画面(講義登録など)では nil なので、それに依存せず
+        セッションの値だけで「今どちらか」を決める。 %>
+    <% if DemoAccount.students.size > 1 %>
+      <div class="flex items-center gap-1 text-xs" aria-label="デモ学生の切り替え">
+        <% current_year = session[:demo_admission_year] %>
+        <% DemoAccount.students.each do |definition| %>
+          <% active = definition.admission_year == current_year ||
+                      (current_year.blank? && definition == DemoAccount.students.first) %>
+          <%= button_to "#{definition.admission_year}年度", demo_switch_path(admission_year: definition.admission_year),
+                method: :patch,
+                class: ['px-2.5 py-1 rounded-lg border font-medium transition-colors',
+                        active ? 'bg-indigo-50 border-indigo-200 text-indigo-700' :
+                                 'bg-white border-slate-200 text-slate-500 hover:text-slate-800'] %>
+        <% end %>
+      </div>
+    <% end %>
   </div>
 </header>
