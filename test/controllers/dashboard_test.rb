@@ -59,6 +59,8 @@ class DashboardTest < ActionDispatch::IntegrationTest
       assert_select 'nav a[href=?]', path, text: label
     end
     assert_select 'nav a', count: 5
+    # デモ学生の年度切り替えボタンはヘッダーに出さない
+    assert_select 'header form', count: 0
     assert_select 'nav a[aria-current="page"]', text: '卒業ダッシュボード'
   end
 

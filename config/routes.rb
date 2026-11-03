@@ -24,12 +24,6 @@ Rails.application.routes.draw do
   # planned_courses のどちらか一方（kind で区別）。
   patch 'approvals', to: 'approvals#update'
 
-  # デモ学生の画面切り替え(開発・テスト環境限定)。年度違いの2人目を画面で確かめるためだけのもの。
-  # admission_year はクエリパラメータ(demo_switch_path(admission_year: 2025))。
-  # demo_switch_path を引数無しで呼べる必要がある(ナビに切り替えを出さないときのテストが使う)ため、
-  # 動的セグメントにはしない。
-  patch 'demo_switch', to: 'demo_switch#update', as: :demo_switch
-
   resources :course_registrations, only: :index
   # 便覧PDFのアップロードと下書きの確認。確認画面は「卒業要件の確認」タブの中にいる扱い。
   # publish は下書きの公開、duplicate は公開済みを複製して直すための下書きを作る。update_rules は要件表の確認画面の保存、update_courses・edit_course は科目表の確認画面の保存と編集欄。

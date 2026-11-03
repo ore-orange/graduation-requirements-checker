@@ -2,8 +2,8 @@
 
 require 'test_helper'
 
-# DemoAccount.student（単数）の「常に1人目(2024年度)を返す」契約と、
-# 年度で引く student_for_year の振る舞いを確かめる。
+# DemoAccount.student（単数）の「常に1人目(2024年度)を返す」契約を確かめる。
+# 2025年度のデモ学生は DemoData.load! が投入し続けるが、画面からは選べない。
 class DemoAccountTest < ActiveSupport::TestCase
   setup { DemoData.load! }
 
@@ -12,16 +12,9 @@ class DemoAccountTest < ActiveSupport::TestCase
     assert_equal 2024, DemoAccount.student.admission_year
   end
 
-  test 'student_for_year は STUDENTS に無い年度なら student にそのまま落ちる' do
-    assert_equal DemoAccount.student, DemoAccount.student_for_year(1999)
-  end
-
-  test 'student_for_year は一致する年度のデモ学生を返す' do
-    assert_equal 2025, DemoAccount.student_for_year(2025).admission_year
-  end
-
-  test 'available_students は実際にDBへ投入済みのデモ学生だけを返す' do
-    assert_equal [2024, 2025], DemoAccount.available_students.map(&:admission_year).sort
+  test '切り替えの口は無くなっている' do
+    assert_not DemoAccount.respond_to?(:student_for_year)
+    assert_not DemoAccount.respond_to?(:available_students)
   end
 end
 
