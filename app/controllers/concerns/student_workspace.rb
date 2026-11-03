@@ -34,13 +34,14 @@ module StudentWorkspace
                                     .index_by { |course| course.fetch('number') }
   end
 
-  # ナビの切り替え(session[:demo_admission_year])が DemoAccount.students のどれかの年度と一致すれば
-  # その学生を使う。一致しなければ(未設定・不正な値のどちらでも) DemoAccount.student に静かに落ちる。
+  # ナビの切り替え(session[:demo_admission_year])が、実在するデモ学生(DemoAccount.available_students)の
+  # どれかの年度と一致すればその学生を使う。一致しなければ(未設定・不正な値・便覧が未公開で実在しない年度の
+  # どれでも) DemoAccount.student に静かに落ちる。STUDENTS の定義だけで判定すると、便覧を未公開に戻した
+  # 年度へ切り替えた直後に DemoAccount.student_for_year が例外を投げ、全画面がロックアウトしてしまう。
   def demo_switch_student
     year = session[:demo_admission_year]
-    return DemoAccount.student unless DemoAccount.students.any? { |definition| definition.admission_year == year }
-
-    DemoAccount.student_for_year(year)
+    available = DemoAccount.available_students.any? { |definition| definition.admission_year == year }
+    available ? DemoAccount.student_for_year(year) : DemoAccount.student
   end
 
   # 学生が持つ便覧。無い、または公開済みでなければ、判定せずに初期設定の案内を出す。
