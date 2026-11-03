@@ -175,6 +175,58 @@ class CurriculumTest < ActiveSupport::TestCase
     assert_equal %i[faculty_name department_name], draft.errors.attribute_names
   end
 
+  # ---- 識別名(slug)は人に入力させず、学部名・学科コース名から決める ----
+
+  def upload_draft(faculty: '工学部', department: '工学科 知能情報コース', year: 2026, slug: nil)
+    draft = Curriculum.new(slug: slug, admission_year: year, faculty_name: faculty, department_name: department,
+                           source_filename: 'handbook.pdf', pages: [])
+    draft.save_upload!
+    draft
+  end
+
+  test '同じ学部名・学科コース名の便覧が既にあれば、その識別名を引き継ぐ(同じ課程の別の年度になる)' do
+    assert_equal 'intelligent_informatics', upload_draft.slug
+  end
+
+  test '学部名・学科コース名が無い組み合わせには、形の正しい新しい識別名ができる' do
+    draft = upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科')
+
+    assert_match Curriculum::SLUG_FORMAT, draft.slug
+    assert_not_equal 'intelligent_informatics', draft.slug
+    assert_equal 1, Curriculum.where(slug: draft.slug).count
+  end
+
+  test '違う課程には違う識別名が付き、同じ新しい課程を続けて上げると同じ識別名になる' do
+    first = upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科')
+    other = upload_draft(faculty: '農学部', department: '亜熱帯地域農学科')
+    again = upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科', year: 2027)
+
+    assert_not_equal first.slug, other.slug
+    assert_equal first.slug, again.slug
+  end
+
+  test '名前の前後や途中の余分な空白(全角を含む)は揃えるので、同じ課程として識別名を引き継ぐ' do
+    draft = upload_draft(faculty: " 工学部\u3000", department: "工学科\u3000 知能情報コース ")
+
+    assert_equal 'intelligent_informatics', draft.slug
+    assert_equal ['工学部', '工学科 知能情報コース'], [draft.faculty_name, draft.department_name]
+  end
+
+  test '識別名は渡されても信用しない(画面に欄が無いので、決めるのは学部名・学科コース名だけ)' do
+    assert_equal 'intelligent_informatics', upload_draft(slug: 'forged').slug
+  end
+
+  test '識別名を決めるあいだ、同じ課程の取り込みは1つずつにする(同じ新課程の識別名が割れないように)' do
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') { |*, payload| statements << payload[:sql] }
+    upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科')
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+
+    lock = statements.index { |sql| sql.include?('pg_advisory_xact_lock') }
+    insert = statements.index { |sql| sql.start_with?('INSERT INTO "curricula"') }
+    assert lock && insert && lock < insert, 'ロックを取ってから保存していない'
+  end
+
   test '画像の置き場は環境ごとに分かれ、テストでは並列のワーカーごとに差し替わる' do
     curriculum = Curriculum.create!(slug: 'x', admission_year: 2025)
 

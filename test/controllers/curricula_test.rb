@@ -28,7 +28,7 @@ class CurriculaTest < ActionDispatch::IntegrationTest
   end
 
   def upload_params(**overrides)
-    { curriculum: { slug: 'x', admission_year: 2025, faculty_name: '工学部',
+    { curriculum: { admission_year: 2025, faculty_name: '工学部',
                     department_name: '工学科 知能情報コース', file: pdf_fixture }.merge(overrides) }
   end
 
@@ -52,7 +52,7 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_equal({ 'page' => 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil },
                  curriculum.pages.first.except('text'))
     assert_equal (1..14).to_a, curriculum.pages.pluck('page')
-    assert_equal 'x', curriculum.slug
+    assert_equal 'intelligent_informatics', curriculum.slug
     assert_equal 2025, curriculum.admission_year
     assert_equal '工学部', curriculum.faculty_name
     assert_equal '工学科 知能情報コース', curriculum.department_name
@@ -192,14 +192,14 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_select 'input[type=radio][value=skip][checked]', count: 14
   end
 
-  test 'slug と年度と学部・学科とPDFが欠けていたら作らない' do
+  test '年度と学部・学科とPDFが欠けていたら作らない' do
     assert_no_difference('Curriculum.count') do
-      post curricula_path, params: { curriculum: { slug: '' } }, env: ENV_LOCAL
+      post curricula_path, params: { curriculum: { admission_year: '' } }, env: ENV_LOCAL
     end
     assert_redirected_to requirements_path
     assert_predicate flash[:alert], :present?
 
-    { slug: '', admission_year: '', faculty_name: '', department_name: '', file: nil }.each do |field, value|
+    { admission_year: '', faculty_name: '', department_name: '', file: nil }.each do |field, value|
       assert_no_difference('Curriculum.count', "#{field} が欠けていても作ってしまった") do
         post curricula_path, params: upload_params(field => value), env: ENV_LOCAL
       end
@@ -215,13 +215,12 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_predicate flash[:alert], :present?
   end
 
-  test '同じ slug と年度の公開済みがあっても、下書きを作れて、公開済みは変わらない' do
-    published = Curriculum.published.first
+  test '同じ課程・同じ年度の公開済みがあっても、下書きを作れて、公開済みは変わらない' do
+    published = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2025)
     before = published.attributes
 
     assert_difference('Curriculum.count', 1) do
-      post curricula_path, params: upload_params(slug: published.slug, admission_year: published.admission_year),
-                           env: ENV_LOCAL
+      post curricula_path, params: upload_params(admission_year: published.admission_year), env: ENV_LOCAL
     end
 
     draft = Curriculum.drafts.last
@@ -247,11 +246,76 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'slug は半角英小文字で始まる形だけを受ける' do
+  # ---- 識別名は人に入力させない。学部名・学科コース名から決める ----
+
+  test '識別名を送らなくても、学部名と学科コース名から決まる' do
+    post curricula_path, params: upload_params(admission_year: 2026), env: ENV_LOCAL
+
+    assert_equal 'intelligent_informatics', Curriculum.order(:id).last.slug
+  end
+
+  test '新しい学部・コースには、新しい識別名が作られる' do
+    post curricula_path, params: upload_params(faculty_name: '農学部', department_name: '亜熱帯農林環境科学科'), env: ENV_LOCAL
+
+    created = Curriculum.order(:id).last
+    assert_predicate created.slug, :present?
+    assert_match Curriculum::SLUG_FORMAT, created.slug
+    assert_not_equal 'intelligent_informatics', created.slug
+  end
+
+  test '識別名を送られても使わない(欄が無いので、古い画面や手書きの送信でも課程を取り違えない)' do
+    post curricula_path, params: upload_params(slug: 'Bad Slug'), env: ENV_LOCAL
+
+    assert_redirected_to curriculum_path(Curriculum.order(:id).last)
+    assert_equal 'intelligent_informatics', Curriculum.order(:id).last.slug
+  end
+
+  # ---- 「その他（新しく登録する）」: 初めての学部・コースを登録する道は塞がない ----
+
+  test 'その他を選んで打った学部名・学科コース名で、新しい課程の下書きを作れる' do
+    post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM,
+                                               faculty_name_other: '農学部',
+                                               department_name: CurriculaController::NEW_PROGRAM,
+                                               department_name_other: '亜熱帯農林環境科学科'), env: ENV_LOCAL
+
+    created = Curriculum.order(:id).last
+    assert_redirected_to curriculum_path(created)
+    assert_equal %w[農学部 亜熱帯農林環境科学科], [created.faculty_name, created.department_name]
+  end
+
+  test '学部は既存で、学科コースだけその他を選んで新しく打てる' do
+    post curricula_path, params: upload_params(department_name: CurriculaController::NEW_PROGRAM,
+                                               department_name_other: '工学科 情報通信コース'), env: ENV_LOCAL
+
+    created = Curriculum.order(:id).last
+    assert_equal ['工学部', '工学科 情報通信コース'], [created.faculty_name, created.department_name]
+    assert_not_equal 'intelligent_informatics', created.slug
+  end
+
+  test 'その他を選んだのに何も打たなければ、作らずに学部名・学科コース名を求める' do
     assert_no_difference('Curriculum.count') do
-      post curricula_path, params: upload_params(slug: 'Bad Slug'), env: ENV_LOCAL
+      post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM,
+                                                 department_name: CurriculaController::NEW_PROGRAM,
+                                                 faculty_name_other: ' ', department_name_other: ''), env: ENV_LOCAL
     end
+
     assert_redirected_to requirements_path
+    assert_match(/学部名・学科・コース名/, flash[:alert])
+  end
+
+  test '選んだ名前の方が使われ、選ばなかった方に打ってあった名前は無視する' do
+    post curricula_path, params: upload_params(faculty_name_other: '農学部', department_name_other: '別のコース'),
+                         env: ENV_LOCAL
+
+    created = Curriculum.order(:id).last
+    assert_equal ['工学部', '工学科 知能情報コース'], [created.faculty_name, created.department_name]
+  end
+
+  test '選んだ印そのもの(その他)を学部名として保存しない' do
+    assert_no_difference('Curriculum.count') do
+      post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM), env: ENV_LOCAL
+    end
+    assert_not Curriculum.exists?(faculty_name: CurriculaController::NEW_PROGRAM)
   end
 
   test 'PDFでないファイルは作らない' do
@@ -402,6 +466,17 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_select 'a[aria-current=page]', count: 1
   end
 
+  test '確認画面は内部の識別名(slug)を見せない' do
+    curriculum = draft
+    curriculum.update!(slug: 'internal_key_abc')
+
+    get curriculum_path(curriculum), env: ENV_LOCAL
+
+    assert_response :success
+    assert_select 'body', text: /識別名|internal_key_abc/, count: 0
+    assert_select 'body', text: /handbook\.pdf/
+  end
+
   test '確認画面は、下書きの情報とページごとの種別を出す' do
     curriculum = draft(pages: blank_pages(5).each_with_index.map do |page, i|
       i == 2 ? page.merge('kind' => 'requirements') : page
@@ -443,12 +518,103 @@ class CurriculaTest < ActionDispatch::IntegrationTest
 
     get requirements_path(faculty: '工学部', department: 'X', admission_year: 2030), env: ENV_LOCAL
     assert_select 'form[action=?][enctype="multipart/form-data"]', curricula_path do
-      assert_select 'input[name="curriculum[slug]"]'
-      assert_select 'input[name="curriculum[admission_year]"]'
-      assert_select 'input[name="curriculum[faculty_name]"]'
-      assert_select 'input[name="curriculum[department_name]"]'
+      assert_select 'input[name="curriculum[slug]"]', count: 0
+      assert_select 'select[name="curriculum[admission_year]"]'
+      assert_select 'select[name="curriculum[faculty_name]"]'
+      assert_select 'select[name="curriculum[department_name]"]'
       assert_select 'input[type=file][name="curriculum[file]"][accept="application/pdf"]'
     end
+  end
+
+  # ---- 取り込みフォーム: 識別名の欄は無く、3つの欄はプルダウン ----
+
+  def this_year = Time.zone.today.year
+
+  test 'フォームに識別名の入力欄は無い' do
+    get requirements_path, env: ENV_LOCAL
+
+    assert_select 'input[name=?]', 'curriculum[slug]', count: 0
+    assert_select 'select[name=?]', 'curriculum[admission_year]'
+    assert_select 'body', text: /識別名|slug/, count: 0
+  end
+
+  test '入学年度は、今年の10年前から再来年までのプルダウン(新しい順)で、今年が選ばれている' do
+    get requirements_path, env: ENV_LOCAL
+
+    options = css_select("select[name='curriculum[admission_year]'] option")
+    assert_equal ((this_year - 10)..(this_year + 2)).to_a.reverse.map(&:to_s), options.pluck('value')
+    assert_equal [this_year.to_s], options.select { |option| option['selected'] }.pluck('value')
+    # 検証が受ける範囲の中だけ(選べるのに、送ったら断られる年度を出さない)
+    assert(options.all? { |option| Curriculum.upload_year_range.cover?(option['value'].to_i) })
+  end
+
+  test '学部名・学科コース名は、既存の便覧の組み合わせから作ったプルダウンで、最後に「その他」がある' do
+    get requirements_path, env: ENV_LOCAL
+
+    faculty = css_select("select[name='curriculum[faculty_name]'] option").pluck('value')
+    assert_equal ['', '工学部', CurriculaController::NEW_PROGRAM], faculty
+    assert_select "select[name='curriculum[faculty_name]'] option[value=?]", CurriculaController::NEW_PROGRAM,
+                  text: 'その他（新しく登録する）'
+    assert_select "select[name='curriculum[department_name]'] optgroup[label=?] option[value=?]", '工学部', '工学科 知能情報コース'
+    assert_select "select[name='curriculum[department_name]'] option[value=?]", CurriculaController::NEW_PROGRAM,
+                  text: 'その他（新しく登録する）'
+  end
+
+  test 'その他の自由入力欄は、その他を選ぶまでは隠れていて、隠れている間は入力を求めない' do
+    get requirements_path, env: ENV_LOCAL
+
+    assert_select '[data-new-faculty][hidden] input[name=?]:not([required])', 'curriculum[faculty_name_other]'
+    assert_select '[data-new-department][hidden] input[name=?]:not([required])', 'curriculum[department_name_other]'
+  end
+
+  test '選んだ組み合わせに便覧が無いときは、その学部・学科コース・年度をフォームに入れておく' do
+    get requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: this_year + 1), env: ENV_LOCAL
+
+    assert_select "select[name='curriculum[faculty_name]'] option[selected][value=?]", '工学部'
+    assert_select "select[name='curriculum[department_name]'] option[selected][value=?]", '工学科 知能情報コース'
+    assert_select "select[name='curriculum[admission_year]'] option[selected][value=?]", (this_year + 1).to_s
+    assert_select '[data-new-faculty][hidden]'
+    assert_select '[data-new-department][hidden]'
+  end
+
+  test '選んだ学部・コースが選択肢に無いときは、その他を選び、選んだ名前を自由入力欄に入れておく' do
+    get requirements_path(faculty: '農学部', department: '亜熱帯農林環境科学科', admission_year: this_year + 1), env: ENV_LOCAL
+
+    assert_select "select[name='curriculum[faculty_name]'] option[selected][value=?]", CurriculaController::NEW_PROGRAM
+    assert_select "select[name='curriculum[department_name]'] option[selected][value=?]", CurriculaController::NEW_PROGRAM
+    assert_select '[data-new-faculty]:not([hidden]) input[name=?][value=?][required]',
+                  'curriculum[faculty_name_other]', '農学部'
+    assert_select '[data-new-department]:not([hidden]) input[name=?][value=?][required]',
+                  'curriculum[department_name_other]', '亜熱帯農林環境科学科'
+  end
+
+  test '学部は選択肢にあって、学科コースだけ無いときは、学科コースだけ自由入力にする' do
+    get requirements_path(faculty: '工学部', department: '工学科 情報通信コース', admission_year: this_year + 1), env: ENV_LOCAL
+
+    assert_select "select[name='curriculum[faculty_name]'] option[selected][value=?]", '工学部'
+    assert_select "select[name='curriculum[department_name]'] option[selected][value=?]", CurriculaController::NEW_PROGRAM
+    assert_select '[data-new-faculty][hidden]'
+    assert_select '[data-new-department]:not([hidden]) input[name=?][value=?]', 'curriculum[department_name_other]',
+                  '工学科 情報通信コース'
+  end
+
+  test '選んだ年度が今年の10年前より古くても、検証が受ける範囲なら、その年度を選択肢に足す' do
+    get requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: 2003), env: ENV_LOCAL
+    assert_select "select[name='curriculum[admission_year]'] option[selected][value=?]", '2003'
+
+    # 検証が断る年度は足さない(選べるのに送ると断られる選択肢にしない)
+    get requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: 1990), env: ENV_LOCAL
+    assert_select "select[name='curriculum[admission_year]'] option[value=?]", '1990', count: 0
+    assert_select "select[name='curriculum[admission_year]'] option[selected][value=?]", this_year.to_s
+  end
+
+  test '選んだ値に変な文字が入っていても、フォームに入れるときにエスケープする' do
+    get requirements_path(faculty: '<script>alert(1)</script>', department: '"><img src=x>', admission_year: this_year),
+        env: ENV_LOCAL
+
+    assert_response :success
+    assert_select 'script', text: /alert\(1\)/, count: 0
+    assert_select 'img[src=x]', count: 0
   end
 
   test 'ページ数を数えられなかった下書きは、続きのリンクの横で要確認と分かる' do

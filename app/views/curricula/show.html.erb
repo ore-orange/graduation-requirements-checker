@@ -17,7 +17,8 @@
             <%= @curriculum.admission_year %>年度入学 <%= @curriculum.faculty_name %> <%= @curriculum.department_name %>
           </h3>
           <p class="mt-1 text-xs text-slate-500">
-            識別名 <%= @curriculum.slug %> / <%= @curriculum.source_filename %>
+            <%# 識別名(slug)は内部の値なので出さない。同じ課程かどうかは、上の学部名・学科コース名で分かる %>
+            <%= @curriculum.source_filename %>
           </p>
         </div>
         <%= button_to '下書きを削除', curriculum_path(@curriculum), method: :delete,

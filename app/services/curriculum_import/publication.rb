@@ -46,8 +46,8 @@ module CurriculumImport
       FileUtils.rm_rf(curriculum.images_dir)
       curriculum
     rescue ActiveRecord::RecordNotUnique
-      # 判定のあとに、別の人が同じ識別名・入学年度を公開した。索引が守るので、落とさず理由にする。
-      raise Refused, ["同じ識別名(#{curriculum.slug})・入学年度(#{curriculum.admission_year})の公開済みの便覧が、先に公開されました。"]
+      # 判定のあとに、別の人が同じ課程・入学年度を公開した。索引が守るので、落とさず理由にする。
+      raise Refused, ["同じ学部・学科コースの#{curriculum.admission_year}年度入学の公開済みの便覧が、先に公開されました。"]
     end
 
     def initialize(curriculum, replace: false)
@@ -143,7 +143,7 @@ module CurriculumImport
     def conflict_reason
       return if @replace || twin.nil?
 
-      "同じ識別名(#{curriculum.slug})・入学年度(#{curriculum.admission_year})の公開済みの便覧が既にあります" \
+      "同じ学部・学科コースの#{curriculum.admission_year}年度入学の公開済みの便覧が既にあります" \
         "(学生#{twin_student_count}人が使っています)。" \
         '差し替えて公開すると、その便覧は下書きに戻り、学生の判定は新しい便覧に切り替わります。差し替えるときは「差し替えて公開」を選んでください。'
     end

@@ -18,6 +18,14 @@ class Curriculum < ApplicationRecord
   # 入学年度は現実的な範囲に絞る(5年度のような下書きを作らせない)。アップロードの入力欄の min・max と同じ範囲。
   validates :admission_year, inclusion: { in: ->(_) { Curriculum.upload_year_range } }, on: :upload
 
+  # 学部名・コース名は人が選ぶ・打つ値なので、前後の空白や全角空白の揺れで「別の課程」にならないよう揃える。
+  # 識別名を引き継ぐ照合(slug_for_program)も同じ形で比べる(where にも効く)。
+  normalizes :faculty_name, :department_name, with: ->(name) { name.squish }
+
+  # 識別名(slug)は人に入力させない(DBの内部キーで、読む必要がない)。画面から上げるときは、学部名・学科コース名から決める。
+  # 新規の行だけ。公開済みや既存の下書きの識別名を、あとから書き換えない。
+  before_validation :assign_program_slug, on: :upload, if: :new_record?
+
   # 読むページの種別。取り込み直後はすべて skip で、どのページを読むかは人が決める。
   PAGE_KINDS = %w[skip courses requirements].freeze
   PAGE_KIND_LABELS = { 'courses' => '科目表', 'requirements' => '要件表', 'skip' => '読まない' }.freeze
@@ -92,11 +100,57 @@ class Curriculum < ApplicationRecord
     UPLOAD_MIN_YEAR..(Time.zone.today.year + 2)
   end
 
+  # 同じ学部名・学科コース名の便覧があれば、その識別名を使う(同じ課程の別の年度として並ぶ)。無ければ新しく作る。
+  # 古い行どうしで同じ課程の識別名が割れていても、いちばん古い行に揃える(選び方が毎回同じになるように)。
+  def self.slug_for_program(faculty_name, department_name)
+    where(faculty_name: faculty_name, department_name: department_name).order(:id).pick(:slug) || mint_program_slug
+  end
+
+  # 日本語を読みやすい英字に直す手立てはなく(gem は足さない)、人が読む必要もないので、機械的な値にする。
+  # 乱数は 36^8 通りで、他の課程と重なることはまず無いが、使われていないことも確かめてから返す。
+  # 同じ課程を2人が同時に初めて上げたときに識別名が割れるのは、乱数ではなく save_upload! のロックで防ぐ。
+  def self.mint_program_slug
+    loop do
+      slug = "program_#{SecureRandom.alphanumeric(8).downcase}"
+      return slug unless exists?(slug: slug)
+    end
+  end
+  private_class_method :mint_program_slug
+
+  # 取り込みフォームの入学年度のプルダウンに出す年度(新しい順)。再来年度までは検証が受ける上限で、来年度・再来年度入学の
+  # 便覧を先に作れる。下は、留年や再履修で在籍が延びても足りるよう10年前まで(標準修業年限の倍より長い)。
+  # それより古い年度の便覧を作る場面は、まず無い。検証は2000年度まで受けるので、必要なら including で足せる。
+  # including には、画面で選ばれていた年度を渡す(選んだ年度がフォームから消えて、別の年度で取り込まれないように)。
+  # ただし検証が受けない年度は足さない(選べるのに、送ると断られる選択肢を作らない)。
+  UPLOAD_YEARS_BACK = 10
+
+  def self.upload_year_choices(including: nil)
+    this_year = Time.zone.today.year
+    years = ((this_year - UPLOAD_YEARS_BACK)..upload_year_range.end).to_a
+    years << including if including && upload_year_range.cover?(including)
+    years.uniq.sort.reverse
+  end
+
   # 取り込み直後のページ一覧。text はアップロードのときに PDF から取り出したそのページの文字(取り出せなければ nil か空)。
   # PDFは残らないので、あとから取り直せない。
   def self.blank_pages(count, texts: [])
     Array.new(count) do |index|
       { 'page' => index + 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => texts[index] }
+    end
+  end
+
+  # 画面から上げた下書きを保存する。同じ課程(学部名・学科コース名)の保存は、トランザクションの終わりまで1つずつにする。
+  # 識別名を決める(既存を探す→無ければ作る)から保存までに別の人が同じ新しい課程を保存すると、同じ課程が別々の
+  # 識別名になり、来年度の便覧が別の課程として並んでしまう。公開の一意索引は下書きに効かないので、DBは止めてくれない。
+  # ロックの鍵は名前から取る。別の課程どうしは待たせない(鍵が偶然重なっても待つだけで、結果は変わらない)。
+  def save_upload!
+    self.class.transaction do
+      if faculty_name.present? && department_name.present?
+        key = "program:#{faculty_name}\u001F#{department_name}"
+        lock = self.class.sanitize_sql_array(['SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', key])
+        self.class.connection.execute(lock)
+      end
+      save!(context: :upload)
     end
   end
 
@@ -170,6 +224,12 @@ class Curriculum < ApplicationRecord
   end
 
   private
+
+  def assign_program_slug
+    return if faculty_name.blank? || department_name.blank?
+
+    self.slug = self.class.slug_for_program(faculty_name, department_name)
+  end
 
   def reset_page(document, page, kind)
     kept = CurriculumImport::DraftMerge.withdraw(document, page['contributed'], page['page'])

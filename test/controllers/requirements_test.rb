@@ -76,8 +76,8 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     get requirements_path, env: local_env
 
     assert_select 'select[name=admission_year] option[value="1999"]', count: 0
-    # 空の値の選択肢は、各欄の「選んでください」だけ
-    assert_select 'select option[value=""]', count: 3
+    # 空の値の選択肢は、選択の各欄の「選んでください」だけ(取り込みフォームの選択は、別に見る)
+    assert_select 'form[method=get] select option[value=""]', count: 3
   end
 
   test '選択は GET で送る。再読込やブックマークで壊れないよう、セッションには隠さない' do
