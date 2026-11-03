@@ -1,10 +1,11 @@
-<%# 選んだ組み合わせの下書き。公開するまで、学生の卒業判定には使われない %>
+<%# 選んだ組み合わせの下書き。公開するまで、学生の卒業判定には使われない。
+    作業中の下書きなのか、差し替えで下書きに戻った旧版なのかは、記録に無く見分けられない。どちらにも当てはまる事実だけを書く %>
 <section aria-labelledby="drafts-heading" data-drafts
          class="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-xs">
   <div class="border-b border-amber-100 px-5 py-4 sm:px-6">
-    <h3 id="drafts-heading" class="text-base font-bold text-slate-900">作業中の下書きがあります</h3>
+    <h3 id="drafts-heading" class="text-base font-bold text-slate-900">同じ年度の下書きが<%= drafts.size %>件あります</h3>
     <p class="mt-0.5 text-xs text-slate-600">
-      <%= local_assigns[:with_published] ? 'この卒業要件を直す作業が途中です。続きから確認してください。公開するまで、学生の卒業判定には使われません。' : '取り込み途中の便覧です。公開するまで、学生の卒業判定には使われません。' %>
+      <%= local_assigns[:with_published] ? '公開するまで、学生の卒業判定には使われません。公開済みを差し替えたあとの、置き換わった旧版が残っていることもあります。' : '取り込み途中の便覧です。公開するまで、学生の卒業判定には使われません。' %>
     </p>
   </div>
   <ul class="divide-y divide-amber-100 px-5 sm:px-6">

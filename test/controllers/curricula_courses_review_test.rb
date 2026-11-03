@@ -205,9 +205,9 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     published = Curriculum.published.first
 
     patch update_courses_curriculum_path(published), params: { number: '知能101', confirmed: true }, env: ENV_LOCAL
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(published)
     get edit_course_curriculum_path(published, key: 'x'), env: ENV_LOCAL
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(published)
   end
 
   test 'ローカル以外からは、科目の保存も編集欄も開けない' do

@@ -51,7 +51,7 @@ module CurriculaCourses
   def respond_published_conflict
     respond_to do |format|
       format.turbo_stream { head :conflict }
-      format.html { redirect_to requirements_path, alert: published_alert, status: :see_other }
+      format.html { redirect_to requirements_location, alert: published_alert, status: :see_other }
     end
   end
 

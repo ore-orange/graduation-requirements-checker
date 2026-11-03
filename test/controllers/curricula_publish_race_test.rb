@@ -45,7 +45,7 @@ class CurriculaPublishRaceTest < ActionDispatch::IntegrationTest
       patch curriculum_path(record), params: { pages: { '1' => 'courses' } }, env: ENV_LOCAL
     end
 
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(record)
     assert_equal PUBLISHED_ALERT, flash[:alert]
     assert_equal before, record.reload.pages
   end
@@ -56,7 +56,7 @@ class CurriculaPublishRaceTest < ActionDispatch::IntegrationTest
 
     simulate_race_after_load_draft { save(record, rules: [{ id: 'humanities', required_credits: '5' }]) }
 
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(record)
     assert_equal PUBLISHED_ALERT, flash[:alert]
     assert_equal before, record.reload.document
   end
@@ -68,7 +68,7 @@ class CurriculaPublishRaceTest < ActionDispatch::IntegrationTest
       assert_no_difference('Curriculum.count') { delete curriculum_path(record), env: ENV_LOCAL }
     end
 
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(record)
     assert_equal PUBLISHED_ALERT, flash[:alert]
     assert Curriculum.exists?(record.id)
   end
@@ -83,7 +83,7 @@ class CurriculaPublishRaceTest < ActionDispatch::IntegrationTest
       patch update_courses_curriculum_path(record), params: { number: number, confirmed: true }, env: ENV_LOCAL
     end
 
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(record)
     assert_equal PUBLISHED_ALERT, flash[:alert]
     assert_equal before, record.reload.document
   end
@@ -111,7 +111,7 @@ class CurriculaPublishRaceTest < ActionDispatch::IntegrationTest
       patch bulk_confirm_courses_curriculum_path(record), params: { category: 'humanities', rev: rev }, env: ENV_LOCAL
     end
 
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(record)
     assert_equal PUBLISHED_ALERT, flash[:alert]
     assert_equal before, record.reload.document
   end

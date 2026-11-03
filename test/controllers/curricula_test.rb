@@ -159,7 +159,7 @@ class CurriculaTest < ActionDispatch::IntegrationTest
 
     get page_image_curriculum_path(published, page: 1), env: ENV_LOCAL
 
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(published)
   end
 
   test 'ページ画像は外部からは開けない' do
@@ -325,6 +325,16 @@ class CurriculaTest < ActionDispatch::IntegrationTest
       delete curriculum_path(curriculum), env: ENV_LOCAL
     end
     assert_nil Curriculum.find_by(id: curriculum.id)
+    assert_redirected_to requirements_path_for(curriculum)
+  end
+
+  test '下書きを消したあとは、その下書きの組み合わせを選んだ確認画面に戻る。学部名が無い古い行は選択なしに戻る' do
+    curriculum = draft
+    delete curriculum_path(curriculum), env: ENV_LOCAL
+    assert_redirected_to requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: 2025)
+
+    legacy = Curriculum.create!(slug: 'legacy', admission_year: 2020, source_filename: 'l.pdf', pages: [])
+    delete curriculum_path(legacy), env: ENV_LOCAL
     assert_redirected_to requirements_path
   end
 
@@ -332,14 +342,14 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     published = Curriculum.published.first
 
     assert_no_difference('Curriculum.count') { delete curriculum_path(published), env: ENV_LOCAL }
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(published)
 
     get curriculum_path(published), env: ENV_LOCAL
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(published)
 
     before = published.reload.pages
     patch curriculum_path(published), params: { pages: { '1' => 'courses' } }, env: ENV_LOCAL
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(published)
     assert_equal before, published.reload.pages
   end
 

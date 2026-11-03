@@ -30,7 +30,7 @@ class CurriculaController < ApplicationController
   # 警告があれば、画面が見せた一覧の指紋(acknowledged)が要る。同じ識別名・入学年度の公開済みの差し替えは、replace を選んだときだけ。
   def publish
     @curriculum.publish!(acknowledged: params[:acknowledged], replace: params[:replace] == '1')
-    redirect_to requirements_path, notice: '便覧を公開しました。学生の卒業判定に使われます。', status: :see_other
+    redirect_to requirements_location, notice: '便覧を公開しました。学生の卒業判定に使われます。', status: :see_other
   rescue CurriculumImport::Publication::Refused => e
     redirect_to curriculum_path(@curriculum, anchor: 'publish'), status: :see_other,
                                                                  alert: "公開できませんでした(何も変えていません)。#{e.reasons.first}"
@@ -55,7 +55,7 @@ class CurriculaController < ApplicationController
         result = CurriculumImport::BulkConfirm.new(@curriculum, category: params[:category], rev: params[:rev]).call
       end
     end
-    return redirect_to requirements_path, alert: published_alert, status: :see_other if published
+    return redirect_to requirements_location, alert: published_alert, status: :see_other if published
 
     anchor = helpers.course_category_dom_id(params[:category])
     redirect_to curriculum_path(@curriculum, anchor: anchor), (result.ok? ? :notice : :alert) => result.message,
@@ -89,6 +89,7 @@ class CurriculaController < ApplicationController
     curriculum = Curriculum.new(upload_params.except(:file))
     curriculum.source_filename = File.basename(file.original_filename) if file.respond_to?(:original_filename)
     error = upload_error(curriculum, file)
+    # まだ便覧が無い(入力が不正で作れない)ので、選択は引き継がない。選択だけの最初の画面に戻して理由を出す。
     return redirect_to requirements_path, alert: error, status: :see_other if error
 
     curriculum.pages = []
@@ -111,7 +112,7 @@ class CurriculaController < ApplicationController
       notice = params[:page_count].present? ? assign_page_count : assign_page_kinds
       @curriculum.save! unless notice.is_a?(String)
     end
-    return redirect_to requirements_path, alert: published_alert, status: :see_other if notice == published_alert
+    return redirect_to requirements_location, alert: published_alert, status: :see_other if notice == published_alert
     return redirect_to @curriculum, alert: notice, status: :see_other if notice.is_a?(String)
 
     redirect_to @curriculum, notice: saved_notice, status: :see_other
@@ -128,7 +129,7 @@ class CurriculaController < ApplicationController
       published = @curriculum.published?
       result = CurriculumImport::RequirementsEdit.new(@curriculum, rules_params).call unless published
     end
-    return redirect_to requirements_path, alert: published_alert, status: :see_other if published
+    return redirect_to requirements_location, alert: published_alert, status: :see_other if published
     return redirect_to rules_review_path, notice: edit_success_message(result), status: :see_other if result.ok?
     # 画面を開いたあとに中身が変わっていたら、いまの中身で開き直す(送られた入力は、古い中身の位置に結びついている)。
     return redirect_to rules_review_path, alert: result.errors.first, status: :see_other if result.stale
@@ -145,10 +146,10 @@ class CurriculaController < ApplicationController
       published = @curriculum.published?
       destroyed = @curriculum.destroy unless published
     end
-    return redirect_to requirements_path, alert: published_alert, status: :see_other if published
-    return redirect_to requirements_path, alert: destroy_refusal, status: :see_other unless destroyed
+    return redirect_to requirements_location, alert: published_alert, status: :see_other if published
+    return redirect_to requirements_location, alert: destroy_refusal, status: :see_other unless destroyed
 
-    redirect_to requirements_path, notice: '下書きを削除しました。', status: :see_other
+    redirect_to requirements_location, notice: '下書きを削除しました。', status: :see_other
   end
 
   private
@@ -203,6 +204,15 @@ class CurriculaController < ApplicationController
     end
   end
 
+  # 操作した便覧の、卒業要件の確認画面。選択を引き継いで、操作の結果をそのまま見せる(選択なしの画面に戻すと、
+  # 自分の操作のあとに空の画面へ落ちる)。学部名・学科コース名を持たない古い行は選択できないので、選択なしの画面にする。
+  # 公開・削除のあとでも属性はメモリに残っているので、削除した行からも作れる。
+  def requirements_location(curriculum = @curriculum)
+    selection = { faculty: curriculum.faculty_name, department: curriculum.department_name,
+                  admission_year: curriculum.admission_year }
+    selection.values.all?(&:present?) ? requirements_path(selection) : requirements_path
+  end
+
   def destroy_refusal
     @curriculum.errors.full_messages.to_sentence.presence || '削除できませんでした。'
   end
@@ -216,7 +226,7 @@ class CurriculaController < ApplicationController
     @curriculum = Curriculum.find(params.expect(:id))
     return unless @curriculum.published?
 
-    redirect_to requirements_path, alert: published_alert, status: :see_other
+    redirect_to requirements_location, alert: published_alert, status: :see_other
   end
 
   def upload_error(curriculum, file)

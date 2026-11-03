@@ -326,8 +326,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     record = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024)
     record.update!(title: 'DBだけにある題名', document: record.document.merge('title' => 'DBだけにある題名'))
 
-    get requirements_path(faculty: record.faculty_name, department: record.department_name,
-                          admission_year: record.admission_year), env: local_env
+    get root_path, env: local_env
 
     assert_response :success
     assert_equal 'DBだけにある題名', controller.instance_variable_get(:@curriculum).fetch('title')

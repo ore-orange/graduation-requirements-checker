@@ -180,7 +180,7 @@ class CurriculaReadTest < ActionDispatch::IntegrationTest
       post read_page_curriculum_path(published, page: 1), headers: STREAM, env: ENV_LOCAL
     end
 
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(published)
   end
 
   test '読み取りが終わる前に読み込んだ手元の pages で種別を保存しても、読み終わったページは未読に戻らない' do

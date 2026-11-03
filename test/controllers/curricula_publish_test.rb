@@ -67,7 +67,7 @@ class CurriculaPublishTest < ActionDispatch::IntegrationTest
     record = ready_draft
     publish(record)
 
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(record)
     assert_predicate record.reload, :published?
     assert(record.document['courses'].none? { |course| course.key?('confirmed') })
   end
@@ -95,7 +95,7 @@ class CurriculaPublishTest < ActionDispatch::IntegrationTest
     record.publish!
     publish(record)
 
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path_for(record)
     assert_match '開けません', flash[:alert]
   end
 

@@ -141,15 +141,34 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select 'form[action=?]', duplicate_curriculum_path(@curriculum), count: 0
   end
 
-  test '公開済みと下書きが両方ある組み合わせでは、要件を出し、下書きへ続くリンクを編集ボタンの代わりに出す' do
-    # 編集ボタンを何度も押して、同じ年度の下書きを増やさせないため
+  test '公開済みと下書きが両方ある組み合わせでも、編集するボタンは出る。下書きは件数と続きのリンクを並べる' do
+    # 識別名が違う下書きでも、同じ3つの値なら並ぶ(選択は識別名を持たない)
+    # 差し替えると旧版が下書きに戻って残るので、下書きの有無でボタンを隠すと、1回直しただけで次の編集ができなくなる
     draft = create_draft(admission_year: 2024)
 
     show_selected
 
     assert_select '[data-total-credits]', text: /130/
+    assert_select 'form[action=?]', duplicate_curriculum_path(@curriculum), count: 1
+    assert_select '[data-drafts] h3', text: /同じ年度の下書きが1件あります/
     assert_select 'a[href=?]', curriculum_path(draft), text: /下書きの確認を続ける/
-    assert_select 'form[action=?]', duplicate_curriculum_path(@curriculum), count: 0
+    # 作業中か旧版かは見分けられないので、作業が途中だとは言わない
+    assert_select 'body', text: /作業が途中/, count: 0
+  end
+
+  test '差し替えたあとも、同じ選択に編集するボタンが残る(旧版が下書きに戻っても隠さない)' do
+    post duplicate_curriculum_path(@curriculum), env: local_env
+    copy = Curriculum.drafts.order(:id).last
+    copy.update!(document: copy.document.deep_dup) # 直さなくても公開できる複製(科目は確認済み)
+    post publish_curriculum_path(copy), params: { replace: '1' }, env: local_env
+    assert_redirected_to requirements_path(selection)
+
+    follow_redirect!
+
+    assert_response :success
+    assert_select '[data-total-credits]', text: /130/
+    assert_select 'form[action=?]', duplicate_curriculum_path(copy), count: 1
+    assert_select '[data-drafts] a[href=?]', curriculum_path(@curriculum)
   end
 
   test '下書きが複数あれば、すべて続きのリンクにする' do
@@ -189,9 +208,8 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   end
 
   test '年度が数字でない・範囲外・便覧のない値でも、落ちずに「ありません」になる' do
-    ['abc', '', ' ', '2024abc', '20.5', '-1', '0', '10000', '99999999999999999999999', '０'].each do |year|
-      next if year.blank? # 空は「選んでいない」(別のテスト)
-
+    # 空の年度は「選んでいない」で、別のテスト(指定が3つ揃っていないとき)が見ている
+    ['abc', '2024abc', '20.5', '-1', '0', '10000', '99999999999999999999999', '０'].each do |year|
       show_selected(admission_year: year)
 
       assert_response :success, "年度 #{year.inspect} で落ちた"
@@ -267,6 +285,12 @@ class RequirementsTest < ActionDispatch::IntegrationTest
 
       show_selected(admission_year: 2030)
       assert_response :success
+
+      # 下書きだけの組み合わせでも、公開済みが無いので呼ばない
+      create_draft(admission_year: 2031)
+      show_selected(admission_year: 2031)
+      assert_response :success
+      assert_select 'a[href^="/curricula/"]'
     end
   end
 

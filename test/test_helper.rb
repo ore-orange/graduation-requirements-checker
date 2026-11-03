@@ -38,3 +38,15 @@ module ActiveSupport
   end
 end
 
+module ActionDispatch
+  class IntegrationTest
+    # 便覧を操作したあとに戻る、卒業要件の確認画面。その便覧の学部・学科コース・入学年度を選んだ状態で開く。
+    # 学部名か学科コース名が無い古い行は選べないので、選択なしの画面になる。
+    def requirements_path_for(curriculum)
+      selection = { faculty: curriculum.faculty_name, department: curriculum.department_name,
+                    admission_year: curriculum.admission_year }
+      selection.values.all?(&:present?) ? requirements_path(selection) : requirements_path
+    end
+  end
+end
+
