@@ -409,21 +409,29 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_select 'label', text: /読まない/
   end
 
-  test '/requirements は、学生の便覧に加えて、公開済みと下書きを別々に一覧し、アップロードの入口を出す' do
+  test '/requirements は、選ぶまで何も出さず、下書きは選んだ組み合わせから辿る。アップロードの入口もある' do
     mine = draft
     other = Curriculum.create!(slug: 'other', admission_year: 2026, faculty_name: '工学部', department_name: 'X',
                                source_filename: 'o.pdf', pages: blank_pages(2))
-    DemoData.load!
 
     get requirements_path, env: ENV_LOCAL
 
     assert_response :success
-    assert_select 'section[data-group]', minimum: 1
-    assert_select 'section[data-published-curricula] li', minimum: 1
-    assert_select 'section[data-published-curricula] a[href=?]', curriculum_path(mine), count: 0
-    assert_select 'section[data-draft-curricula] li', count: 2
-    assert_select 'section[data-draft-curricula] a[href=?]', curriculum_path(mine)
-    assert_select 'section[data-draft-curricula] a[href=?]', curriculum_path(other)
+    assert_select 'section[data-group]', count: 0
+    assert_select '[data-published-curricula], [data-draft-curricula]', count: 0
+    # 下書きだけの年度・コースも、選択肢から選べる
+    assert_select 'select[name=admission_year] option[value="2026"]'
+    assert_select 'select[name=department] option[value=?]', 'X'
+
+    get requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: 2025), env: ENV_LOCAL
+    assert_select 'a[href=?]', curriculum_path(mine)
+    assert_select 'a[href=?]', curriculum_path(other), count: 0
+
+    get requirements_path(faculty: '工学部', department: 'X', admission_year: 2026), env: ENV_LOCAL
+    assert_select 'a[href=?]', curriculum_path(other)
+    assert_select 'a[href=?]', curriculum_path(mine), count: 0
+
+    get requirements_path(faculty: '工学部', department: 'X', admission_year: 2030), env: ENV_LOCAL
     assert_select 'form[action=?][enctype="multipart/form-data"]', curricula_path do
       assert_select 'input[name="curriculum[slug]"]'
       assert_select 'input[name="curriculum[admission_year]"]'
@@ -433,25 +441,16 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'ページ数を数えられなかった下書きは、一覧で要確認と分かる' do
+  test 'ページ数を数えられなかった下書きは、続きのリンクの横で要確認と分かる' do
     ok = draft
     failed = draft(pages: [])
     failed.update!(import_error: 'Ghostscript(gs)が見つかりません。')
-    DemoData.load!
 
-    get requirements_path, env: ENV_LOCAL
+    get requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: 2025), env: ENV_LOCAL
 
-    assert_select 'section[data-draft-curricula] li', count: 2
-    assert_select %(section[data-draft-curricula] li:has(a[href="#{curriculum_path(failed)}"])), text: /要確認/
-    assert_select %(section[data-draft-curricula] li:has(a[href="#{curriculum_path(ok)}"])), text: /要確認/, count: 0
-  end
-
-  test '下書きがないときは、下書きの一覧を出さない' do
-    DemoData.load!
-    get requirements_path, env: ENV_LOCAL
-
-    assert_select 'section[data-draft-curricula]', count: 0
-    assert_select 'section[data-published-curricula] li', minimum: 1
+    assert_select 'li', text: /下書き/, minimum: 2
+    assert_select %(li:has(a[href="#{curriculum_path(failed)}"])), text: /要確認/
+    assert_select %(li:has(a[href="#{curriculum_path(ok)}"])), text: /要確認/, count: 0
   end
 
   test '外部からは開けない' do

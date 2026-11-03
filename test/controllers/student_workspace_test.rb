@@ -326,7 +326,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     record = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024)
     record.update!(title: 'DBだけにある題名', document: record.document.merge('title' => 'DBだけにある題名'))
 
-    get requirements_path, env: local_env
+    get requirements_path(faculty: record.faculty_name, department: record.department_name,
+                          admission_year: record.admission_year), env: local_env
 
     assert_response :success
     assert_equal 'DBだけにある題名', controller.instance_variable_get(:@curriculum).fetch('title')
@@ -586,7 +587,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
                                document: @curriculum.merge('title' => '別コースの便覧'), published_at: Time.current)
     @student.update!(curriculum: other)
 
-    get requirements_path, env: local_env
+    # 卒業要件の確認は選んだ組み合わせで引くので、学生の便覧が決めるのは判定する画面のほう
+    get root_path, env: local_env
 
     assert_response :success
     assert_equal '別コースの便覧', controller.instance_variable_get(:@curriculum).fetch('title')

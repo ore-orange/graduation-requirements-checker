@@ -135,13 +135,12 @@ class CurriculaPublishTest < ActionDispatch::IntegrationTest
 
   # ---- 複製して直す ----
 
-  test '公開済みの一覧に「複製して直す」が出る' do
-    DemoData.load! # 卒業要件の画面は学生の便覧を読む
-    get requirements_path, env: ENV_LOCAL
+  test '公開済みの便覧を選ぶと、「この卒業要件を編集する」が出る' do
+    published = curricula(:intelligent_informatics)
+    get requirements_path(faculty: published.faculty_name, department: published.department_name,
+                          admission_year: published.admission_year), env: ENV_LOCAL
 
-    target = duplicate_curriculum_path(curricula(:intelligent_informatics))
-
-    assert_select '[data-published-curricula] form[action=?]', target
+    assert_select 'form[action=?]', duplicate_curriculum_path(published)
   end
 
   test '公開済みを複製すると、document をコピーした下書きができ、公開済みの行は変わらない' do

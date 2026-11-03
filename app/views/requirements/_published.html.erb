@@ -1,0 +1,113 @@
+<%# 公開済みの便覧の卒業要件。学生の判定に使われている文書を、そのまま見せる %>
+<%
+  display = @curriculum.fetch('display')
+  groups = display.fetch('groups')
+  rows_by_id = groups.flat_map { |group| group.fetch('rows') }.index_by { |row| row['id'] }
+%>
+
+<%# 公開済みの行は書き換えない。直すときは、複製した下書きを直して公開し、差し替える（既存の duplicate）。
+    同じ年度の下書きが既にあるときは、編集ボタンの代わりにその続きへ案内し、下書きが重なって増えるのを防ぐ。 %>
+<% if @drafts.any? %>
+  <%= render 'drafts', drafts: @drafts, with_published: true %>
+<% else %>
+  <section aria-labelledby="edit-heading" data-edit-curriculum
+           class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+    <div class="min-w-0">
+      <h3 id="edit-heading" class="text-base font-bold text-slate-900">卒業要件を直したいとき</h3>
+      <p class="mt-0.5 text-xs text-slate-500">
+        公開済みの卒業要件は、そのままは書き換えません。複製した下書きを直して公開すると、差し替わります。
+      </p>
+    </div>
+    <%= button_to 'この卒業要件を編集する', duplicate_curriculum_path(@published), method: :post, class: 'demo-button' %>
+  </section>
+<% end %>
+
+<%# この画面は便覧に書かれた内容を見せるだけで、要件はここでは変えられない %>
+<section aria-labelledby="total-heading"
+         class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-6 sm:p-6">
+  <div>
+    <h3 id="total-heading" class="text-xs font-semibold text-slate-500">卒業に必要な単位</h3>
+    <p class="mt-1 flex flex-wrap items-baseline gap-x-1.5" data-total-credits>
+      <span class="text-4xl font-extrabold tracking-tight text-slate-900 tabular-nums"><%= credit_number(display['total_credits']) %></span>
+      <span class="text-sm font-medium text-slate-500">単位</span>
+    </p>
+  </div>
+  <div class="min-w-0 space-y-1 sm:border-l sm:border-slate-100 sm:pl-6">
+    <p class="text-sm font-semibold text-slate-900"><%= @curriculum['title'] %></p>
+    <p class="text-xs text-slate-500">
+      学生便覧に載っている卒業要件を、そのまま表示しています。印刷された便覧と見比べて確認できます。この画面から要件は変更できません。
+    </p>
+  </div>
+</section>
+
+<%# 章ごとの必要単位と、その中の区分 %>
+<% groups.each do |group| %>
+  <section aria-labelledby="group-<%= group['id'] %>-heading" data-group="<%= group['id'] %>"
+           class="rounded-2xl border border-slate-200 bg-white shadow-xs">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-slate-100 px-5 py-4 sm:px-6">
+      <h3 id="group-<%= group['id'] %>-heading" class="text-base font-bold text-slate-900"><%= group['title'] %></h3>
+      <p class="text-sm font-semibold text-slate-900 tabular-nums" data-group-credits>
+        <%= credit_number(group['required_credits']) %> 単位
+      </p>
+    </div>
+    <ul class="divide-y divide-slate-100 px-5 sm:px-6">
+      <% group.fetch('rows').each do |row| %>
+        <li class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-3" data-row="<%= row['id'] %>">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-800"><%= row['name'] %></p>
+            <% if row['subtitle'].present? %>
+              <p class="mt-0.5 text-xs text-slate-500"><%= row['subtitle'] %></p>
+            <% end %>
+          </div>
+          <div class="shrink-0 text-right">
+            <%# 必要単位を持たない行は、その理由を表すラベルだけを出す %>
+            <% unless row['required_credits'].nil? %>
+              <p class="text-sm font-semibold text-slate-800 tabular-nums" data-row-credits><%= credit_number(row['required_credits']) %> 単位</p>
+            <% end %>
+            <% if row['required_label'].present? %>
+              <p class="text-xs text-slate-500"><%= row['required_label'] %></p>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+
+<%# 複数の行をまとめて数える小計 %>
+<% subtotals = Array(display['subtotals']) %>
+<% if subtotals.any? %>
+  <section aria-labelledby="subtotals-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs">
+    <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
+      <h3 id="subtotals-heading" class="text-base font-bold text-slate-900">複数の区分をまとめて数える要件</h3>
+    </div>
+    <ul class="divide-y divide-slate-100 px-5 sm:px-6">
+      <% subtotals.each do |subtotal| %>
+        <li class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-3" data-subtotal="<%= subtotal['id'] %>">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-800"><%= subtotal['name'] %></p>
+            <p class="mt-0.5 text-xs text-slate-500">
+              対象：<%= Array(subtotal['row_ids']).map { |id| rows_by_id.dig(id, 'name') || id }.join('・') %>
+            </p>
+          </div>
+          <p class="shrink-0 text-sm font-semibold text-slate-800 tabular-nums"><%= credit_number(subtotal['required_credits']) %> 単位</p>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+
+<%# 判定に使う規則。便覧に書かれた順に、すべて出す %>
+<section aria-labelledby="rules-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs">
+  <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
+    <h3 id="rules-heading" class="text-base font-bold text-slate-900">判定の規則</h3>
+    <p class="mt-0.5 text-xs text-slate-500">
+      卒業の判定はこの規則で行います。赤で表示された規則は、このアプリが解釈できないため、判定では要確認になります。
+    </p>
+  </div>
+  <ul class="divide-y divide-slate-100 px-5 sm:px-6">
+    <% @curriculum.fetch('rules').each do |rule| %>
+      <%= rule_entry(rule, @curriculum) %>
+    <% end %>
+  </ul>
+</section>

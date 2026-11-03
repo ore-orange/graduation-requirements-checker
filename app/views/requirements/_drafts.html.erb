@@ -1,0 +1,30 @@
+<%# 選んだ組み合わせの下書き。公開するまで、学生の卒業判定には使われない %>
+<section aria-labelledby="drafts-heading" data-drafts
+         class="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-xs">
+  <div class="border-b border-amber-100 px-5 py-4 sm:px-6">
+    <h3 id="drafts-heading" class="text-base font-bold text-slate-900">作業中の下書きがあります</h3>
+    <p class="mt-0.5 text-xs text-slate-600">
+      <%= local_assigns[:with_published] ? 'この卒業要件を直す作業が途中です。続きから確認してください。公開するまで、学生の卒業判定には使われません。' : '取り込み途中の便覧です。公開するまで、学生の卒業判定には使われません。' %>
+    </p>
+  </div>
+  <ul class="divide-y divide-amber-100 px-5 sm:px-6">
+    <% drafts.each do |curriculum| %>
+      <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-800">
+            <span class="mr-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">下書き</span>
+            <%# ページ数を数えられなかった下書きは、開かなくても分かるようにする %>
+            <% if curriculum.import_error.present? %>
+              <span class="mr-1.5 rounded bg-rose-100 px-1.5 py-0.5 text-xs font-semibold text-rose-800">要確認</span>
+            <% end %>
+            <%= curriculum.admission_year %>年度入学 <%= curriculum.department_name %>
+          </p>
+          <p class="mt-0.5 text-xs text-slate-500">
+            <%= curriculum.source_filename %><%= " / #{curriculum.pages.size}ページ" if curriculum.pages.any? %>
+          </p>
+        </div>
+        <%= link_to '下書きの確認を続ける', curriculum_path(curriculum), class: 'text-sm font-semibold text-indigo-700 underline underline-offset-4' %>
+      </li>
+    <% end %>
+  </ul>
+</section>

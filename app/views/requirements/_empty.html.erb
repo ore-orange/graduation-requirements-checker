@@ -1,0 +1,11 @@
+<%# 選んだ組み合わせに、公開済みも下書きも無いとき。無いことを言い切り、PDFから作り始める入口を出す %>
+<section aria-labelledby="empty-heading" data-no-curriculum
+         class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+  <h3 id="empty-heading" class="text-base font-bold text-slate-900">この年度の便覧はまだありません</h3>
+  <p class="mt-1 text-sm text-slate-600">
+    <%= @selection[:faculty] %> / <%= @selection[:department] %> / <%= @selection[:admission_year] %>年度入学 の便覧は登録されていません。
+    下の入口から、便覧のPDFを上げて作り始められます。
+  </p>
+</section>
+
+<%= render 'upload' %>

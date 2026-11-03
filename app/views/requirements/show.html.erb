@@ -1,10 +1,5 @@
 <% content_for :title, app_name %>
 <% content_for :full_bleed, true %>
-<%
-  display = @curriculum.fetch('display')
-  groups = display.fetch('groups')
-  rows_by_id = groups.flat_map { |group| group.fetch('rows') }.index_by { |row| row['id'] }
-%>
 
 <div class="min-h-screen bg-slate-100 pb-16 font-sans text-slate-800">
   <%= render 'shared/nav' %>
@@ -15,194 +10,28 @@
     <%# 画面名はヘッダーのタブで分かるので、見出しは読み上げ用だけ残す %>
     <h2 class="sr-only">卒業要件の確認</h2>
 
-    <%# この画面は便覧に書かれた内容を見せるだけで、要件はここでは変えられない %>
-    <section aria-labelledby="total-heading"
-             class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-6 sm:p-6">
-      <div>
-        <h3 id="total-heading" class="text-xs font-semibold text-slate-500">卒業に必要な単位</h3>
-        <p class="mt-1 flex flex-wrap items-baseline gap-x-1.5" data-total-credits>
-          <span class="text-4xl font-extrabold tracking-tight text-slate-900 tabular-nums"><%= credit_number(display['total_credits']) %></span>
-          <span class="text-sm font-medium text-slate-500">単位</span>
-        </p>
-      </div>
-      <div class="min-w-0 space-y-1 sm:border-l sm:border-slate-100 sm:pl-6">
-        <p class="text-sm font-semibold text-slate-900"><%= @curriculum['title'] %></p>
-        <p class="text-xs text-slate-500">
-          学生便覧に載っている卒業要件を、そのまま表示しています。印刷された便覧と見比べて確認できます。この画面から要件は変更できません。
-        </p>
-      </div>
-    </section>
+    <%# まず対象を選ぶ。何も選ばれていないときは、この選択だけを出す %>
+    <%= render 'selector' %>
 
-    <%# 章ごとの必要単位と、その中の区分 %>
-    <% groups.each do |group| %>
-      <section aria-labelledby="group-<%= group['id'] %>-heading" data-group="<%= group['id'] %>"
-               class="rounded-2xl border border-slate-200 bg-white shadow-xs">
-        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-slate-100 px-5 py-4 sm:px-6">
-          <h3 id="group-<%= group['id'] %>-heading" class="text-base font-bold text-slate-900"><%= group['title'] %></h3>
-          <p class="text-sm font-semibold text-slate-900 tabular-nums" data-group-credits>
-            <%= credit_number(group['required_credits']) %> 単位
-          </p>
-        </div>
-        <ul class="divide-y divide-slate-100 px-5 sm:px-6">
-          <% group.fetch('rows').each do |row| %>
-            <li class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-3" data-row="<%= row['id'] %>">
-              <div class="min-w-0">
-                <p class="text-sm font-semibold text-slate-800"><%= row['name'] %></p>
-                <% if row['subtitle'].present? %>
-                  <p class="mt-0.5 text-xs text-slate-500"><%= row['subtitle'] %></p>
-                <% end %>
-              </div>
-              <div class="shrink-0 text-right">
-                <%# 必要単位を持たない行は、その理由を表すラベルだけを出す %>
-                <% unless row['required_credits'].nil? %>
-                  <p class="text-sm font-semibold text-slate-800 tabular-nums" data-row-credits><%= credit_number(row['required_credits']) %> 単位</p>
-                <% end %>
-                <% if row['required_label'].present? %>
-                  <p class="text-xs text-slate-500"><%= row['required_label'] %></p>
-                <% end %>
-              </div>
-            </li>
-          <% end %>
-        </ul>
-      </section>
-    <% end %>
-
-    <%# 複数の行をまとめて数える小計 %>
-    <% subtotals = Array(display['subtotals']) %>
-    <% if subtotals.any? %>
-      <section aria-labelledby="subtotals-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs">
-        <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
-          <h3 id="subtotals-heading" class="text-base font-bold text-slate-900">複数の区分をまとめて数える要件</h3>
-        </div>
-        <ul class="divide-y divide-slate-100 px-5 sm:px-6">
-          <% subtotals.each do |subtotal| %>
-            <li class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-3" data-subtotal="<%= subtotal['id'] %>">
-              <div class="min-w-0">
-                <p class="text-sm font-semibold text-slate-800"><%= subtotal['name'] %></p>
-                <p class="mt-0.5 text-xs text-slate-500">
-                  対象：<%= Array(subtotal['row_ids']).map { |id| rows_by_id.dig(id, 'name') || id }.join('・') %>
-                </p>
-              </div>
-              <p class="shrink-0 text-sm font-semibold text-slate-800 tabular-nums"><%= credit_number(subtotal['required_credits']) %> 単位</p>
-            </li>
-          <% end %>
-        </ul>
-      </section>
-    <% end %>
-
-    <%# 判定に使う規則。便覧に書かれた順に、すべて出す %>
-    <section aria-labelledby="rules-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs">
-      <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
-        <h3 id="rules-heading" class="text-base font-bold text-slate-900">判定の規則</h3>
-        <p class="mt-0.5 text-xs text-slate-500">
-          卒業の判定はこの規則で行います。赤で表示された規則は、このアプリが解釈できないため、判定では要確認になります。
-        </p>
-      </div>
-      <ul class="divide-y divide-slate-100 px-5 sm:px-6">
-        <% @curriculum.fetch('rules').each do |rule| %>
-          <%= rule_entry(rule, @curriculum) %>
-        <% end %>
-      </ul>
-    </section>
-
-    <%# 便覧の一覧。公開済みは学生の判定に使われ、下書きは作業中の文書なので別の欄に分ける %>
-    <section aria-labelledby="published-curricula-heading" data-published-curricula
-             class="rounded-2xl border border-slate-200 bg-white shadow-xs">
-      <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
-        <h3 id="published-curricula-heading" class="text-base font-bold text-slate-900">公開済みの便覧</h3>
-        <p class="mt-0.5 text-xs text-slate-500">学生の卒業判定に使われている便覧です。</p>
-      </div>
-      <ul class="divide-y divide-slate-100 px-5 sm:px-6">
-        <% @published_curricula.each do |curriculum| %>
-          <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3">
-            <p class="text-sm font-semibold text-slate-800"><%= curriculum.title.presence || "#{curriculum.admission_year}年度入学 #{curriculum.slug}" %></p>
-            <p class="text-xs text-slate-500"><%= curriculum.slug %> / <%= curriculum.admission_year %>年度入学</p>
-            <%# 公開済みの行は書き換えない。直すときは、複製した下書きを直して公開し、差し替える。 %>
-            <%= button_to '複製して直す', duplicate_curriculum_path(curriculum), method: :post,
-                          class: 'text-sm font-semibold text-indigo-700 underline underline-offset-4' %>
-          </li>
-        <% end %>
-      </ul>
-    </section>
-
-    <% if @draft_curricula.any? %>
-      <section aria-labelledby="draft-curricula-heading" data-draft-curricula
-               class="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-xs">
-        <div class="border-b border-amber-100 px-5 py-4 sm:px-6">
-          <h3 id="draft-curricula-heading" class="text-base font-bold text-slate-900">作業中の下書き</h3>
-          <p class="mt-0.5 text-xs text-slate-600">取り込み途中の便覧です。公開するまで、学生の卒業判定には使われません。</p>
-        </div>
-        <ul class="divide-y divide-amber-100 px-5 sm:px-6">
-          <% @draft_curricula.each do |curriculum| %>
-            <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3">
-              <div class="min-w-0">
-                <p class="text-sm font-semibold text-slate-800">
-                  <span class="mr-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">下書き</span>
-                  <%# ページ数を数えられなかった下書きは、開かなくても分かるようにする %>
-                  <% if curriculum.import_error.present? %>
-                    <span class="mr-1.5 rounded bg-rose-100 px-1.5 py-0.5 text-xs font-semibold text-rose-800">要確認</span>
-                  <% end %>
-                  <%= curriculum.admission_year %>年度入学 <%= curriculum.department_name %>
-                </p>
-                <p class="mt-0.5 text-xs text-slate-500">
-                  <%= curriculum.slug %> / <%= curriculum.source_filename %> / <%= curriculum.pages.size %>ページ
-                </p>
-              </div>
-              <%= link_to '確認する', curriculum_path(curriculum), class: 'text-sm font-semibold text-indigo-700 underline underline-offset-4' %>
-            </li>
-          <% end %>
-        </ul>
-      </section>
-    <% end %>
-
-    <%# 新しい年度の便覧を取り込む。講義登録のPDF取り込みと同じ作り %>
-    <section aria-labelledby="upload-curriculum-heading" data-curriculum-import
-             class="rounded-2xl border border-slate-200 bg-white shadow-xs">
-      <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
-        <h3 id="upload-curriculum-heading" class="text-base font-bold text-slate-900">便覧のPDFから下書きを作る</h3>
-        <p class="mt-0.5 text-xs text-slate-500">
-          PDFを上げると下書きができます。どのページを読むかは、便覧ごとに人が決めます。
-        </p>
-      </div>
-      <%= form_with model: Curriculum.new, scope: :curriculum, url: curricula_path, multipart: true,
-                    class: 'space-y-5 p-5 sm:p-6', data: { controller: 'dropzone', turbo: false } do |form| %>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <label class="block">
-            <span class="text-sm font-semibold text-slate-700">入学年度</span>
-            <%= form.number_field :admission_year, required: true, min: Curriculum::UPLOAD_MIN_YEAR, max: Curriculum.upload_year_range.end, placeholder: '例: 2025',
-                                  class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
-          </label>
-          <label class="block">
-            <span class="text-sm font-semibold text-slate-700">識別名(slug)</span>
-            <%= form.text_field :slug, required: true, pattern: '[a-z][a-z0-9_]*', placeholder: '例: intelligent_informatics',
-                                class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
-            <span class="text-xs text-slate-500">半角英小文字で始め、英小文字・数字・_だけ</span>
-          </label>
-          <label class="block">
-            <span class="text-sm font-semibold text-slate-700">学部名</span>
-            <%= form.text_field :faculty_name, required: true, placeholder: '例: 工学部',
-                                class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
-          </label>
-          <label class="block">
-            <span class="text-sm font-semibold text-slate-700">学科・コース名</span>
-            <%= form.text_field :department_name, required: true, placeholder: '例: 工学科 知能情報コース',
-                                class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
-          </label>
-        </div>
-
-        <div data-dropzone-target="zone" data-action="dragover->dropzone#dragOver dragleave->dropzone#dragLeave drop->dropzone#drop"
-             class="rounded-xl border-2 border-dashed border-slate-300 p-6 text-center">
-          <p class="text-sm text-slate-600">ここにPDFをドラッグ&ドロップ、または</p>
-          <button type="button" data-action="dropzone#choose" class="mt-3 rounded-lg border border-slate-400 px-5 py-2 font-semibold text-slate-800 hover:bg-slate-50">PDFを選ぶ</button>
-          <p data-dropzone-target="name" class="mt-3 text-sm text-slate-700">ファイルが選ばれていません</p>
-          <%= form.file_field :file, accept: 'application/pdf', required: true, class: 'sr-only', tabindex: '-1',
-                              data: { dropzone_target: 'input', action: 'change->dropzone#changed' } %>
-        </div>
-
-        <div class="flex justify-end">
-          <%= form.submit '下書きを作る', class: 'demo-button' %>
-        </div>
+    <% if @published %>
+      <%= render 'published' %>
+    <% elsif selection_complete? %>
+      <%# 公開済みが無い。下書きがあればその続きへ、どちらも無ければ「ありません」と作り始める入口 %>
+      <% if @drafts.any? %>
+        <%= render 'drafts', drafts: @drafts %>
+      <% else %>
+        <%= render 'empty' %>
       <% end %>
-    </section>
+    <% else %>
+      <%# 選択肢にない年度・コースの便覧も、ここから作り始められる。普段は畳んでおく %>
+      <details class="rounded-2xl border border-slate-200 bg-white shadow-xs" data-new-curriculum>
+        <summary class="cursor-pointer px-5 py-4 text-sm font-semibold text-indigo-700 sm:px-6">
+          選択肢にない年度・コースの便覧を、PDFから新しく作る
+        </summary>
+        <div class="px-5 pb-5 sm:px-6 sm:pb-6">
+          <%= render 'upload' %>
+        </div>
+      </details>
+    <% end %>
   </main>
 </div>

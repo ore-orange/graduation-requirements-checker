@@ -1,0 +1,44 @@
+<%# 対象の選択。学部・学科コース・入学年度を選んで「表示する」を押す。
+    選択はクエリ（GET）で持つので、再読込やブックマークで壊れず、JavaScript が無くても動く。
+    学科コースは学部ごとにまとめて並べる（学部を選んでから学科コースを選ぶ順に読める）。
+    3つを別々に選ぶ作りなので、学部と合わない学科コースを選んだときは、「ありません」の画面になる。 %>
+<section aria-labelledby="selector-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs">
+  <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
+    <h3 id="selector-heading" class="text-base font-bold text-slate-900">対象を選ぶ</h3>
+    <p class="mt-0.5 text-xs text-slate-500">卒業要件を見たい学部・学科コース・入学年度を選んでください。</p>
+  </div>
+  <%= form_with url: requirements_path, method: :get, class: 'space-y-4 p-5 sm:p-6', data: { turbo: false } do %>
+    <div class="grid gap-4 sm:grid-cols-3">
+      <label class="block">
+        <span class="text-sm font-semibold text-slate-700">学部</span>
+        <%= select_tag :faculty, options_for_select(@faculty_options, @selection[:faculty]),
+                       include_blank: '選んでください',
+                       class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
+      </label>
+      <label class="block">
+        <span class="text-sm font-semibold text-slate-700">学科・コース</span>
+        <%= select_tag :department, grouped_options_for_select(@department_options.to_a, @selection[:department]),
+                       include_blank: '選んでください',
+                       class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
+      </label>
+      <label class="block">
+        <span class="text-sm font-semibold text-slate-700">入学年度</span>
+        <%# 値は文字列で持つ。選択中の値（クエリの文字列）と比べて selected にするため %>
+        <%= select_tag :admission_year,
+                       options_for_select(@year_options.map { |year| ["#{year}年度入学", year.to_s] }, @selection[:admission_year]),
+                       include_blank: '選んでください',
+                       class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
+      </label>
+    </div>
+
+    <%# 一部だけ指定されたまま開かれたとき（ブックマークの手書きなど）は、足りないことを伝える %>
+    <% if selection_given? && !selection_complete? %>
+      <p class="text-sm text-amber-800" data-selection-incomplete>学部・学科コース・入学年度の3つを選んでください。</p>
+    <% end %>
+
+    <div class="flex justify-end">
+      <%# name を持たせない。持たせると commit=表示する が URL に残る %>
+      <%= submit_tag '表示する', name: nil, class: 'demo-button' %>
+    </div>
+  <% end %>
+</section>
