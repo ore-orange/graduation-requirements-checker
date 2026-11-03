@@ -81,6 +81,32 @@
     @apply pt-0;
   }
 
+  /* 卒業要件の画面の科目表。行数が多い(484)ので、行ごとに class を書かず、表で1回だけ決める。
+     科目番号は桁が揃うよう等幅の数字にし、必修は太字で見分ける。スマホでも4列が収まるよう、科目名だけが折り返す。 */
+  .req-courses {
+    @apply text-sm;
+  }
+
+  .req-courses th {
+    @apply border-b border-slate-200 px-2 py-2 text-xs font-semibold whitespace-nowrap text-slate-500;
+  }
+
+  .req-courses td {
+    @apply border-b border-slate-100 px-2 py-2 align-top text-slate-700;
+  }
+
+  .req-courses td:first-child {
+    @apply whitespace-nowrap tabular-nums;
+  }
+
+  .req-courses td:nth-child(3) {
+    @apply tabular-nums;
+  }
+
+  .req-courses td[data-required] {
+    @apply whitespace-nowrap font-semibold text-slate-900;
+  }
+
   .cr-chip {
     @apply inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-semibold;
   }

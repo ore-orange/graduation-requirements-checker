@@ -4,11 +4,28 @@
 # 画面は便覧に書かれた内容を見せるだけなので、判定の途中経過（算入単位や不足）はここでは扱わない。
 module RequirementsHelper
   include RuleSentenceHelper
+  include RuleTrimmingHelper
 
   RULE_KINDS = { 'credit_sum' => '単位の合計', 'any_of' => '選択', 'one_of_paths' => '指定科目', 'grouped_max' => '同一グループ',
                  'all_required' => '必修すべて', 'cap' => '算入上限', 'exclude' => '算入しない' }.freeze
 
   KIND_BADGE_CLASS = 'mt-0.5 shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600'
+
+  # 科目表の1区分。key は便覧の区分キー、label はその和名（画面にはこちらを出す）。
+  CourseGroup = Struct.new(:key, :label, :courses)
+
+  # 科目表。便覧の区分の並びで、区分ごとにまとめる。科目の無い区分は出さない。
+  # 便覧に無い区分の科目も、落とさずに最後へ出す（科目表は全科目が見える場であるべきなので）。
+  def courses_by_category(curriculum)
+    by_key = Array(curriculum['courses']).group_by { |course| course['category'] }
+    known = Array(curriculum['categories']).filter_map do |category|
+      key = category['key']
+      next unless by_key.key?(key)
+
+      CourseGroup.new(key, category['label'].presence || key, by_key.delete(key))
+    end
+    known + by_key.map { |key, courses| CourseGroup.new(key, key.presence || '(区分なし)', courses) }
+  end
 
   # 規則1つぶんの <li>。解釈できない規則は、飛ばさずに赤く出す。
   def rule_entry(rule, curriculum)

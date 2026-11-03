@@ -331,7 +331,7 @@ class RequirementsTest < ActionDispatch::IntegrationTest
       assert_select 'h3', text: /1\. 共通教育/
       assert_select '[data-group-credits]', text: /30\s*単位/
       assert_select 'li[data-row]', count: 4
-      assert_select 'li[data-row="health"]', text: /健康運動系.*共通教育・教養領域.*2\s*単位/m
+      assert_select 'li[data-row="health"]', text: /健康運動系.*2\s*単位.*共通教育・教養領域/m
     end
   end
 
@@ -355,29 +355,84 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select '[data-total-credits]', text: /124\s*単位/
   end
 
-  test '便覧の規則がすべて、便覧の並びのまま出る' do
+  # 実物の2024年度が持つ27件の規則のうち、上のカードと同じことを言うだけの7件(1区分だけを、カードと同じ単位数で数える
+  # credit_sum)を除いた20件が、便覧の並びのまま出る。
+  SHOWN_2024 = %w[humanities social general_integrated general_without_natural general_subtotal japanese
+                  english_required foreign_language common_total calculus physics required_all required_total
+                  elective_inner elective_total fusion_provider total natural_cap excluded_category own_fusion].freeze
+  OMITTED_2024 = %w[health basic_total required_information required_comprehensive required_research required_math
+                    required_core].freeze
+
+  test '判定の規則は、上のカードから読み取れないものだけが、便覧の並びのまま出る' do
     show_selected
 
-    ids = @curriculum.document.fetch('rules').pluck('id')
-    assert_equal ids, css_select('li[data-rule-id]').pluck('data-rule-id')
+    all_ids = @curriculum.document.fetch('rules').pluck('id')
+    assert_equal all_ids - OMITTED_2024, css_select('#judgement-rules li[data-rule-id]').pluck('data-rule-id')
+    assert_equal SHOWN_2024.sort, (all_ids - OMITTED_2024).sort
     assert_select 'li[data-rule-id="natural_cap"]', text: /自然系.*2\s*単位/
     assert_select 'li[data-rule-id="own_fusion"]', text: /知能/
+  end
+
+  test '2025年度の規則は、アカデミックスキルと健康運動の2件だけを省く' do
+    show_selected(admission_year: 2025)
+
+    document = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2025).document
+    all_ids = document.fetch('rules').pluck('id')
+    assert_equal 19, all_ids.size
+    shown = css_select('#judgement-rules li[data-rule-id]').pluck('data-rule-id')
+    assert_equal %w[rule_academic_skills rule_health_sports], all_ids - shown
+    assert_equal 17, shown.size
+    # 区分の下限、系列の選択、外国語の経路、算入しない規則は残る
+    assert_select '#judgement-rules li[data-rule-id=?]', 'rule_humanities_min'
+    assert_select '#judgement-rules li[data-rule-id=?]', 'rule_calculus_path'
+    assert_select '#judgement-rules li[data-rule-id=?]', 'rule_foreign_lang'
+    assert_select '#judgement-rules li[data-rule-type=exclude]', count: 4
+  end
+
+  test '上のカードと同じことを言うだけの規則は、規則の節に出さない' do
+    show_selected
+
+    # 「健康運動系の合計 2単位以上」は上の行に出ているので、規則の節には出さない
+    assert_select '#judgement-rules', text: /健康運動系の合計/, count: 0
+    assert_select '#judgement-rules li[data-rule-id=health]', count: 0
+    # 系列の選択・算入上限・算入しない規則は、カードからは読み取れないので残す
+    assert_select '#judgement-rules', text: /微分積分学/
+    assert_select '#judgement-rules', text: /自然系は卒業算入の上限/
+    assert_select '#judgement-rules', text: /外国語の選択経路/
+    assert_select '#judgement-rules', text: /数学基礎（選択）・知能情報アドバンスト・知能情報関連の合計/
+  end
+
+  test '省いた件数を、規則の節で伝える(黙って消さない)' do
+    show_selected
+
+    assert_select '#judgement-rules [data-omitted-rules]', text: /7件/
+  end
+
+  test '省くかどうかは便覧の中身で決まる。健康運動の行を消せば、健康運動の規則が出る' do
+    change_handbook do |document|
+      document['display']['groups'].each { |group| group['rows'].reject! { |row| row['id'] == 'health' } }
+    end
+
+    show_selected
+
+    assert_select '#judgement-rules li[data-rule-id=health]', count: 1
+    assert_select '#judgement-rules [data-omitted-rules]', text: /6件/
   end
 
   test '規則には出典のページを添える' do
     show_selected
 
-    assert_select 'li[data-rule-id="health"]', text: /便覧10ページ/
+    assert_select 'li[data-rule-id="humanities"]', text: /便覧10ページ/
   end
 
   test '区分の名前は便覧の和名で出す' do
     change_handbook do |document|
-      document['categories'].find { |category| category['key'] == 'health' }['label'] = '別名の健康'
+      document['categories'].find { |category| category['key'] == 'humanities' }['label'] = '別名の人文'
     end
 
     show_selected
 
-    assert_select 'li[data-rule-id="health"]', text: /別名の健康の合計/
+    assert_select 'li[data-rule-id="humanities"]', text: /別名の人文の合計/
   end
 
   test '判定の途中経過は出さない' do
@@ -461,6 +516,106 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     show_selected
 
     assert_select 'li[data-rule-id="calculus"]', text: /系列が混在したとき：/
+  end
+
+  # ---- 科目表 ----
+
+  test '科目表が区分ごとに出る' do
+    show_selected
+
+    assert_select 'details summary', text: /人文系/
+    # 実物の2024年度に「人101」は無い。人文系の先頭は「人01」（brief の例は実物と合っていなかった）
+    assert_select '[data-course-number]', text: '人01', count: 1
+    assert_select 'details[data-course-category=humanities] [data-course-number]', text: '人01', count: 1
+  end
+
+  test '科目表の区分は、便覧の和名で出し、生のキーは出さない' do
+    show_selected
+
+    assert_select '#course-table details[data-course-category=required_core] summary', text: /知能情報コア（必修）/
+    assert_select '#course-table summary', text: /required_core|elective_math/, count: 0
+  end
+
+  test '科目表は区分ごとに畳んである。畳んでも行は DOM に残り、ブラウザの検索で届く' do
+    show_selected
+
+    document_courses = @curriculum.document.fetch('courses')
+    assert_equal 484, document_courses.size
+    assert_select '#course-table details[open]', count: 0
+    assert_select '#course-table tr[data-course]', count: 484
+    # 遅延読み込みにしない。行は初めから HTML に入っている
+    assert_select '#course-table turbo-frame, #course-table [src], #course-table [loading]', count: 0
+    # 区分の科目数は、便覧の科目を数えたものと一致する
+    @curriculum.document.fetch('categories').each do |category|
+      count = document_courses.count { |course| course['category'] == category['key'] }
+      selector = "#course-table details[data-course-category=#{category['key']}]"
+      if count.zero?
+        assert_select selector, count: 0
+      else
+        assert_select "#{selector} tr[data-course]", count: count
+      end
+    end
+  end
+
+  test '科目の行に、科目番号・科目名・単位数・必修かどうかが出る' do
+    show_selected
+
+    row = css_select('#course-table tr[data-course]').find { |tr| tr.at_css('[data-course-number]')&.text == '知能101' }
+    assert_not_nil row
+    assert_equal(%w[知能101 プログラミング演習Ⅰ 1 必修], row.css('td').map { |cell| cell.text.squish })
+    # 必修でない科目は「必修」と出さない
+    optional = @curriculum.document.fetch('courses').find { |course| course['required'] != true }
+    optional_row = css_select('#course-table tr[data-course]').find do |tr|
+      tr.at_css('[data-course-number]')&.text == optional['number']
+    end
+    assert_not_nil optional_row
+    assert_no_match(/必修/, optional_row.text)
+    assert_equal 4, optional_row.css('td').size
+  end
+
+  test '科目表の節は、この画面から編集できる部品を持たない' do
+    show_selected
+
+    assert_select '#course-table form, #course-table input, #course-table button, #course-table a', count: 0
+  end
+
+  test '2025年度の科目表は99件' do
+    show_selected(admission_year: 2025)
+
+    assert_select '#course-table tr[data-course]', count: 99
+    assert_select '#course-table details summary', text: /工学共通（必修）/
+  end
+
+  test '科目表の区分の見出しと科目数は、便覧を書き換えればその通りに変わる' do
+    change_handbook do |document|
+      document['categories'].find { |category| category['key'] == 'humanities' }['label'] = '別名の人文'
+    end
+
+    show_selected
+
+    assert_select '#course-table details[data-course-category=humanities] summary', text: /別名の人文/
+    assert_select '#course-table summary', text: /人文系/, count: 0
+  end
+
+  # ---- カードの見た目をダッシュボードに揃える ----
+
+  test '章の行は、ダッシュボードの区分カードと同じ殻・余白・数字の大きさで組む' do
+    show_selected
+
+    # ダッシュボード(dashboard/show)のカードと同じ class。見た目が別のアプリに見えないように
+    assert_select 'li[data-row="health"].rounded-2xl.border.border-slate-200.bg-white.shadow-xs'
+    assert_select 'li[data-row="health"] > div.grid.p-5.sm\\:p-6'
+    assert_select 'li[data-row="health"] h4.text-xs.font-semibold.text-slate-500', text: /健康運動系/
+    assert_select 'li[data-row="health"] [data-row-credits] span.text-3xl.font-extrabold.tabular-nums', text: '2'
+    assert_select 'li[data-row="health"] [data-row-credits] span.text-sm.font-medium.text-slate-500', text: /単位/
+  end
+
+  test 'ダッシュボードにある、学生の進み具合に結びついた部品は出さない' do
+    show_selected
+
+    assert_select 'main .demo-status', count: 0
+    assert_select 'main [role=progressbar], main [data-status], main [data-actual-status]', count: 0
+    assert_select 'main turbo-frame', count: 0
   end
 end
 

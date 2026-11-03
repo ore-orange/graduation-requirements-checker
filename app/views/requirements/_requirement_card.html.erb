@@ -1,0 +1,29 @@
+<%# 卒業要件の1件を、卒業ダッシュボードの区分カードと同じ作りで出す（左に名前と単位数、右に補足）。
+    ダッシュボードのカードは <details> で、バッジ・バー・開閉の丸ボタンが付くが、ここは読み取り専用なので殻と中身の組みだけを揃える。
+    locals: id_attr（data 属性 { row: id } など）, name, credits（必要単位。無ければ label を大きく出す）, label, note %>
+<li class="rounded-2xl border border-slate-200 bg-white shadow-xs" <%= tag.attributes(data: id_attr) %>>
+  <div class="grid gap-4 p-5 sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-5 sm:p-6">
+    <div>
+      <h4 class="text-xs font-semibold text-slate-500"><%= name %></h4>
+      <%# 必要単位を持たない行は、その理由を表すラベルを数字の場所に出す %>
+      <% if credits.nil? %>
+        <p class="mt-1 text-xl font-bold tracking-tight text-slate-900"><%= label %></p>
+      <% else %>
+        <p class="mt-1 flex flex-wrap items-baseline gap-x-1.5" data-row-credits>
+          <span class="text-3xl font-extrabold tracking-tight text-slate-900 tabular-nums"><%= credit_number(credits) %></span>
+          <span class="text-sm font-medium text-slate-500">単位</span>
+        </p>
+      <% end %>
+    </div>
+    <% if note.present? || (credits && label.present?) %>
+      <div class="min-w-0 space-y-2 sm:border-l sm:border-slate-100 sm:pl-6">
+        <% if credits && label.present? %>
+          <p><span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"><%= label %></span></p>
+        <% end %>
+        <% if note.present? %>
+          <p class="text-sm text-slate-600"><%= note %></p>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</li>

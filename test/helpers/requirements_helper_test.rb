@@ -280,5 +280,134 @@ class RequirementsHelperTest < ActionView::TestCase
       assert_not html.has_css?('[data-rule-status="unknown"]'), rule['id']
     end
   end
+
+  # ---- 上のカードと同じことしか言わない規則を間引く ----
+
+  # 規則の id は便覧ごとに違う。間引きは id ではなく、規則と表示行の区分・単位から決める。
+  def trimming_handbook(rules:, rows:)
+    { 'categories' => [{ 'key' => 'a', 'label' => '甲群' }, { 'key' => 'b', 'label' => '乙群' },
+                       { 'key' => 'c', 'label' => '丙群' }],
+      'display' => { 'groups' => [{ 'id' => 'g', 'rows' => rows }] },
+      'rules' => rules }
+  end
+
+  def sum_rule(id, categories, credits)
+    { 'id' => id, 'type' => 'credit_sum', 'categories' => categories, 'required_credits' => credits }
+  end
+
+  def card_row(id, categories, credits) = { 'id' => id, 'categories' => categories, 'required_credits' => credits }
+  def shown_ids(handbook) = visible_rules(handbook).pluck('id')
+
+  test '1区分だけを数える credit_sum は、その区分だけのカードが同じ単位数で出ていれば省く' do
+    handbook = trimming_handbook(rules: [sum_rule('x1', ['a'], 2)], rows: [card_row('r1', ['a'], 2)])
+
+    assert_empty visible_rules(handbook)
+  end
+
+  test '別の id の便覧でも、同じ形なら省く(id の一覧は持たない)' do
+    handbook = trimming_handbook(rules: [sum_rule('zzz', ['b'], 6)], rows: [card_row('whatever', ['b'], 6)])
+
+    assert_empty visible_rules(handbook)
+  end
+
+  test 'カードに出ていない区分の credit_sum は残す' do
+    handbook = trimming_handbook(rules: [sum_rule('x1', ['a'], 2)], rows: [card_row('r1', ['b'], 2)])
+
+    assert_equal ['x1'], shown_ids(handbook)
+  end
+
+  test '複数の区分をまとめたカードの中の1区分の下限は、カードからは読めないので残す' do
+    handbook = trimming_handbook(rules: [sum_rule('min_a', ['a'], 2)], rows: [card_row('r1', %w[a b], 12)])
+
+    assert_equal ['min_a'], shown_ids(handbook)
+  end
+
+  test 'カードの単位数と違う1区分の credit_sum は残す(カードは別の数字を言っている)' do
+    handbook = trimming_handbook(rules: [sum_rule('x1', ['a'], 4)], rows: [card_row('r1', ['a'], 2)])
+
+    assert_equal ['x1'], shown_ids(handbook)
+  end
+
+  test '複数の区分を数える credit_sum と、credit_sum 以外の型は、カードがあっても残す' do
+    rules = [sum_rule('multi', %w[a b], 8),
+             { 'id' => 'cap', 'type' => 'cap', 'category' => 'a', 'max_credits' => 2 },
+             { 'id' => 'ex', 'type' => 'exclude', 'category' => 'a' },
+             { 'id' => 'paths', 'type' => 'one_of_paths', 'paths' => [] },
+             { 'id' => 'any', 'type' => 'any_of', 'options' => [] }]
+    handbook = trimming_handbook(rules: rules, rows: [card_row('r1', ['a'], 2), card_row('r2', %w[a b], 8)])
+
+    assert_equal %w[multi cap ex paths any], shown_ids(handbook)
+  end
+
+  test '読めない規則(未知の型・ハッシュでない)は、間引かずに残す' do
+    rules = [{ 'id' => 'gpa', 'type' => 'gpa', 'categories' => ['a'] }, 'oops', nil]
+    handbook = trimming_handbook(rules: rules, rows: [card_row('r1', ['a'], 2)])
+
+    assert_equal rules, visible_rules(handbook)
+  end
+
+  test '表示行が無い便覧では、何も間引かない' do
+    handbook = { 'rules' => [sum_rule('x1', ['a'], 2)] }
+
+    assert_equal ['x1'], shown_ids(handbook)
+    assert_equal ['x1'], shown_ids(handbook.merge('display' => {}))
+  end
+
+  test '実物2024: 省く7件は、カードと同じ単位数の1区分の規則だけ' do
+    omitted = @real.fetch('rules').pluck('id') - shown_ids(@real)
+
+    assert_equal %w[health basic_total required_information required_comprehensive required_research required_math
+                    required_core], omitted
+    assert_equal 20, shown_ids(@real).size
+  end
+
+  test '実物2024: 人文系・社会系の下限は、まとめたカードの中にあるので残る' do
+    assert_includes shown_ids(@real), 'humanities'
+    assert_includes shown_ids(@real), 'social'
+  end
+
+  test '実物2024: 系列・選択経路・上限・算入しない・複数区分の合計は1つも消えない' do
+    kept = %w[japanese english_required calculus physics foreign_language required_all fusion_provider natural_cap
+              excluded_category own_fusion general_integrated general_without_natural general_subtotal common_total
+              required_total elective_inner elective_total total]
+
+    assert_empty kept - shown_ids(@real)
+  end
+
+  test '実物2025: 省くのはアカデミックスキルと健康運動の2件だけ' do
+    real2025 = JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2025.json').read)
+    omitted = real2025.fetch('rules').pluck('id') - shown_ids(real2025)
+
+    assert_equal %w[rule_academic_skills rule_health_sports], omitted
+    assert_equal 17, shown_ids(real2025).size
+    # 学問分野別教養の中の3つの下限は、カードに出ているのは12単位のまとまりだけなので残す
+    assert_empty %w[rule_humanities_min rule_natural_science_min rule_ryudai_local_min] - shown_ids(real2025)
+  end
+
+  # ---- 科目表 ----
+
+  test '科目は便覧の区分の並びで、和名の区分ごとにまとめる' do
+    handbook = @handbook.merge('courses' => [{ 'key' => 'k1', 'category' => 'b' }, { 'key' => 'k2', 'category' => 'a' },
+                                             { 'key' => 'k3', 'category' => 'b' }])
+
+    groups = courses_by_category(handbook)
+
+    assert_equal([['a', '甲群', %w[k2]], ['b', '乙群', %w[k1 k3]]],
+                 groups.map { |group| [group.key, group.label, group.courses.pluck('key')] })
+  end
+
+  test '科目の無い区分は出さない。便覧に無い区分の科目は、落とさずキーのまま最後に出す' do
+    handbook = @handbook.merge('courses' => [{ 'key' => 'k1', 'category' => 'a' },
+                                             { 'key' => 'k2', 'category' => 'zzz' }, { 'key' => 'k3' }])
+
+    groups = courses_by_category(handbook)
+
+    assert_equal %w[甲群 zzz (区分なし)], groups.map(&:label)
+    assert_equal(3, groups.sum { |group| group.courses.size })
+  end
+
+  test '実物の科目は484件、1件も落とさず区分に入る' do
+    assert_equal(484, courses_by_category(@real).sum { |group| group.courses.size })
+  end
 end
 

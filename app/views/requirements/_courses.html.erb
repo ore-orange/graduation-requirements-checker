@@ -1,0 +1,57 @@
+<%# 公開済みの便覧の科目表。読み取り専用で、区分ごとに <details> で畳む（2024年度は484科目あるので、開いたままにしない）。
+    畳んでも行は HTML に入っている。遅延読み込み（turbo-frame など）にしないのは、ブラウザの「ページ内検索」が
+    閉じた区分の中の科目番号・科目名にも届くようにするため（確認画面の科目表と同じ判断）。
+    区分の見出しは、便覧の categories の和名で出す（キーのままにしない）。
+    カードの殻・数字の大きさ・開閉の丸ボタンは、卒業ダッシュボードの区分カードと同じ。 %>
+<section id="course-table" aria-labelledby="course-table-heading" class="space-y-4">
+  <div class="space-y-1">
+    <h3 id="course-table-heading" class="text-base font-bold text-slate-900">科目表</h3>
+    <p class="text-xs text-slate-500">
+      この便覧に載っている科目です。区分を開くと、科目番号・科目名・単位数・必修かどうかを確認できます。
+      閉じている区分の中の科目も、ブラウザのページ内検索で探せます。
+    </p>
+  </div>
+
+  <% courses_by_category(curriculum).each do |group| %>
+    <% required_count = group.courses.count { |course| course['required'] == true } %>
+    <details class="group/card rounded-2xl border border-slate-200 bg-white shadow-xs transition hover:border-indigo-300 hover:shadow-md open:border-indigo-400 open:shadow-md open:ring-1 open:ring-indigo-300"
+             data-course-category="<%= group.key %>">
+      <summary class="grid cursor-pointer list-none gap-4 p-5 sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-5 sm:p-6">
+        <div>
+          <h4 class="text-xs font-semibold text-slate-500"><%= group.label %></h4>
+          <p class="mt-1 flex flex-wrap items-baseline gap-x-1.5">
+            <span class="text-3xl font-extrabold tracking-tight text-slate-900 tabular-nums"><%= group.courses.size %></span>
+            <span class="text-sm font-medium text-slate-500">科目</span>
+          </p>
+        </div>
+        <div class="flex min-w-0 items-center justify-between gap-3 sm:border-l sm:border-slate-100 sm:pl-6">
+          <p class="text-xs text-slate-500 tabular-nums">
+            <%# 必修が無い区分（共通教育の選択科目など）は、何も言わない。「ありません」を何十回も並べない %>
+            <%= "うち必修 #{required_count} 科目" if required_count.positive? %>
+          </p>
+          <%# 開閉できることは、この丸ボタンと矢印の向きで示す（ダッシュボードと同じ） %>
+          <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition group-hover/card:bg-indigo-100 group-hover/card:text-indigo-600 group-open/card:bg-indigo-100 group-open/card:text-indigo-600">
+            <svg class="size-4 transition-transform group-open/card:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M5.5 7.5 10 12l4.5-4.5H5.5Z" />
+            </svg>
+          </span>
+        </div>
+      </summary>
+
+      <div class="px-5 pb-5 sm:px-6 sm:pb-6">
+        <%# 余白・文字の大きさ・必修の見た目は、表の req-courses が1回だけ決める（行ごとに class を書かない） %>
+        <table class="req-courses w-full text-left">
+          <caption class="sr-only"><%= group.label %>の科目</caption>
+          <thead>
+            <tr><th scope="col">科目番号</th><th scope="col">科目名</th><th scope="col" class="text-right">単位数</th><th scope="col">必修</th></tr>
+          </thead>
+          <tbody>
+            <% group.courses.each do |course| %>
+              <tr data-course><td data-course-number><%= course['number'] %></td><td><%= course['name'] %></td><td class="text-right"><%= course['credits'].is_a?(Numeric) ? credit_number(course['credits']) : '' %></td><% if course['required'] == true %><td data-required>必修</td><% else %><td>—</td><% end %></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  <% end %>
+</section>
