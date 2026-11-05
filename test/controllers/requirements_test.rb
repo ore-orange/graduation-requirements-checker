@@ -514,8 +514,10 @@ class RequirementsTest < ActionDispatch::IntegrationTest
 
     # 一覧より前に置くと、欄を開いたときに読んでいた一覧が下へ押し出される
     children = css_select('#judgement-rules > *')
-    list = children.index { |node| node.css('[data-visible-rules]').any? || node.matches?('[data-visible-rules]') }
-    panel = children.index { |node| node.matches?('details[data-omitted-rules]') }
+    # 見ているのは前後関係だけ。どちらも入れ子にされてよい（間に div が1枚増えても落とさない）
+    contains = ->(node, selector) { node.matches?(selector) || node.css(selector).any? }
+    list = children.index { |node| contains.call(node, '[data-visible-rules]') }
+    panel = children.index { |node| contains.call(node, 'details[data-omitted-rules]') }
     assert list, '規則の一覧が節の直下に無い'
     assert panel, '省いた規則の欄が節の直下に無い'
     assert panel > list, "省いた規則の欄は一覧より後ろに置くこと（一覧=#{list}, 欄=#{panel}）"

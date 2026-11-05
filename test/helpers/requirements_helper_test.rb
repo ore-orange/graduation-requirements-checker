@@ -302,6 +302,9 @@ class RequirementsHelperTest < ActionView::TestCase
     handbook = trimming_handbook(rules: [sum_rule('x1', ['a'], 2)], rows: [card_row('r1', ['a'], 2)])
 
     assert_empty visible_rules(handbook)
+    # 実物の便覧はどちらもこの経路を通らないので、補集合が崩れてもここでしか気づけない。
+    # 省いた規則は必ず欄に出す(どちらにも出ない規則があると、卒業要件が画面から消える)
+    assert_equal ['x1'], omitted_rules(handbook).pluck('id')
   end
 
   test '別の id の便覧でも、同じ形なら省く(id の一覧は持たない)' do
