@@ -216,15 +216,39 @@ class CurriculumTest < ActiveSupport::TestCase
     assert_equal 'intelligent_informatics', upload_draft(slug: 'forged').slug
   end
 
-  test '識別名を決めるあいだ、同じ課程の取り込みは1つずつにする(同じ新課程の識別名が割れないように)' do
+  # 保存の間に発行されたSQLを集める。
+  def sql_during(&)
     statements = []
     subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') { |*, payload| statements << payload[:sql] }
-    upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科')
+    yield
+    statements
+  ensure
     ActiveSupport::Notifications.unsubscribe(subscriber)
+  end
+
+  test '識別名を決めるあいだ、同じ課程の取り込みは1つずつにする(同じ新課程の識別名が割れないように)' do
+    statements = sql_during { upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科') }
 
     lock = statements.index { |sql| sql.include?('pg_advisory_xact_lock') }
     insert = statements.index { |sql| sql.start_with?('INSERT INTO "curricula"') }
     assert lock && insert && lock < insert, 'ロックを取ってから保存していない'
+  end
+
+  # 鍵が定数だと、別の課程の取り込みまで1つずつになる。鍵は学部名・学科コース名から取る。
+  test 'ロックの鍵は学部名・学科コース名ごとに違い、同じ課程なら同じ(別の課程の取り込みを待たせない)' do
+    lock_sql = ->(faculty, department) do
+      sql_during { upload_draft(faculty: faculty, department: department) }.grep(/pg_advisory_xact_lock/)
+    end
+
+    first = lock_sql.call('農学部', '亜熱帯農林環境科学科')
+    other_department = lock_sql.call('農学部', '亜熱帯地域農学科')
+    other_faculty = lock_sql.call('理学部', '亜熱帯農林環境科学科')
+    # 区切りがあるので、名前のつなぎ目をずらしても同じ鍵にならない
+    shifted = lock_sql.call('農学部亜熱帯', '農林環境科学科')
+
+    assert_equal 1, first.size
+    assert_equal 4, [first, other_department, other_faculty, shifted].uniq.size
+    assert_equal first, lock_sql.call('農学部', '亜熱帯農林環境科学科')
   end
 
   test '画像の置き場は環境ごとに分かれ、テストでは並列のワーカーごとに差し替わる' do

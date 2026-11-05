@@ -7,13 +7,11 @@
 class CurriculaController < ApplicationController
   include LocalAccessOnly
   include CurriculaCourses
+  include CurriculumUploadParams
 
   MAX_PDF_BYTES = 10.megabytes
   # 識別名(slug)は入力させない(Curriculum が学部名・学科コース名から決める)ので、ここに欄の名前は無い。
   FIELD_LABELS = { admission_year: '入学年度', faculty_name: '学部名', department_name: '学科・コース名' }.freeze
-  # 学部名・学科コース名のプルダウンで「その他（新しく登録する）」を選んだ印。名前としては保存しない。
-  # 空文字にしないのは、「何も選んでいない」と区別するため。選ぶと、横の自由入力欄(*_name_other)の値が名前になる。
-  NEW_PROGRAM = '__other__'
 
   helper_method :requirements_review, :publication
 
@@ -197,25 +195,6 @@ class CurriculaController < ApplicationController
 
     "要件表の修正を保存しました(#{result.edited}件)。直した項目は人が確認した値として残り、読み直しでは上書きしません。#{shown}"
   end
-
-  def upload_params
-    @upload_params ||= begin
-      raw = params[:curriculum]
-      # ?curriculum=x のように、ハッシュでない値が来ても落とさず、空の入力として扱う
-      raw = ActionController::Parameters.new unless raw.is_a?(ActionController::Parameters)
-      # slug は受けない。画面に欄が無く、課程を取り違える入力口になるので、送られても読まない。
-      raw.permit(:admission_year, :faculty_name, :department_name, :faculty_name_other, :department_name_other, :file)
-    end
-  end
-
-  # 下書きの属性。学部名・学科コース名は、プルダウンの選択か、「その他」を選んだときの自由入力のどちらか。
-  # 「その他」を選んだ自由入力も、選択と同じ検証(必須・正規化)を通る。
-  def curriculum_attributes
-    { admission_year: upload_params[:admission_year],
-      faculty_name: chosen_name(:faculty_name), department_name: chosen_name(:department_name) }
-  end
-
-  def chosen_name(field) = upload_params[field] == NEW_PROGRAM ? upload_params[:"#{field}_other"] : upload_params[field]
 
   # 操作した便覧の、卒業要件の確認画面。選択を引き継いで、操作の結果をそのまま見せる(選択なしの画面に戻すと、
   # 自分の操作のあとに空の画面へ落ちる)。学部名・学科コース名を持たない古い行は選択できないので、選択なしの画面にする。

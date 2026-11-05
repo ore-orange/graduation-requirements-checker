@@ -49,7 +49,7 @@
         <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
           <p class="font-bold">同じ学部・学科コース・入学年度の公開済みの便覧があります。</p>
           <p class="mt-1 text-xs">
-            公開すると、いまの公開済みの便覧(<%= twin.title.presence || "#{twin.admission_year}年度入学 #{twin.department_name}" %>)は下書きに戻り、
+            公開すると、いまの公開済みの便覧(<%= twin.title.presence || ["#{twin.admission_year}年度入学", twin.department_name].compact_blank.join(' ') %>)は下書きに戻り、
             それを使っている学生<%= publication.twin_student_count %>人の判定が、この便覧に切り替わります。
           </p>
           <label class="mt-3 flex items-start gap-2 text-sm font-semibold">

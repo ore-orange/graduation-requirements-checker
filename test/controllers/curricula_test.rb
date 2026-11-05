@@ -311,6 +311,18 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_equal ['工学部', '工学科 知能情報コース'], [created.faculty_name, created.department_name]
   end
 
+  test 'その他の自由入力に、選んだ印と同じ文字列を打っても、名前として保存しない' do
+    [CurriculaController::NEW_PROGRAM, " #{CurriculaController::NEW_PROGRAM} "].each do |typed|
+      assert_no_difference('Curriculum.count') do
+        post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM,
+                                                   faculty_name_other: typed,
+                                                   department_name: CurriculaController::NEW_PROGRAM,
+                                                   department_name_other: typed), env: ENV_LOCAL
+      end
+      assert_redirected_to requirements_path
+    end
+  end
+
   test '選んだ印そのもの(その他)を学部名として保存しない' do
     assert_no_difference('Curriculum.count') do
       post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM), env: ENV_LOCAL
