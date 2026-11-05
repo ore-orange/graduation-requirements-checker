@@ -30,6 +30,12 @@ module RequirementsHelper
                        admission_year: year_choices.include?(year) ? year : Time.zone.today.year)
   end
 
+  # 下書きの行に出す更新日時。画面を使うのは日本の学部事務なので、日本時間で出す(アプリの既定は UTC で、日付がずれる)。
+  # この画面の他の年の書き方(「2024年度入学」)に合わせた、年月日の日本語表記。アプリにはほかに日付の書式が無いので、ここで決める。
+  def draft_updated_at_tag(time)
+    tag.time(time.in_time_zone('Tokyo').strftime('%Y年%-m月%-d日 %H:%M'), datetime: time.utc.iso8601)
+  end
+
   # 科目表の1区分。key は便覧の区分キー、label はその和名（画面にはこちらを出す）。
   CourseGroup = Struct.new(:key, :label, :courses)
 

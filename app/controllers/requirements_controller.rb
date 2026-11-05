@@ -57,7 +57,9 @@ class RequirementsController < ApplicationController
     candidates = Curriculum.where(faculty_name: @selection[:faculty], department_name: @selection[:department],
                                   admission_year: year)
     # 下書きは、公開済みの有無によらず探す。編集ボタンを何度も押して、同じ年度の下書きを増やさないための案内に使う。
-    @drafts = candidates.drafts.for_listing.order(:id).to_a
+    # 行の見た目は同じになりやすい(年度・コース名・ファイル名)ので、更新の新しい順に並べ、行ごとに更新日時を出す(古い版を選ばせない)。
+    # 同じ時刻なら、あとから作った方を先にする。
+    @drafts = candidates.drafts.for_listing.order(updated_at: :desc, id: :desc).to_a
     @published = candidates.published.order(published_at: :desc, id: :desc).first
     return unless @published
 

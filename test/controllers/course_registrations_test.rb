@@ -103,6 +103,9 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_select 'td', text: '工学基礎演習'
     assert_select 'button', text: '講義を追加'
     assert_select 'dialog form input[type=file][accept="application/pdf"]'
+    # dropzone コントローラーは、PDFでないものを落とされたときに出す断りの欄を必ず探す(無いと、ファイルを選ぶだけで落ちる)
+    assert_select 'dialog form[data-controller~=dropzone] [data-dropzone-target=error][role=alert][hidden]',
+                  text: /PDFファイルを選んでください/
     assert_select 'dialog', text: /必ず、読み取った内容をPDFと見比べてください/
     assert_select 'dialog', text: /知能情報コースの授業時間配当表にのみ対応/
   end

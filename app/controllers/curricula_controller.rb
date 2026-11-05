@@ -90,8 +90,9 @@ class CurriculaController < ApplicationController
     curriculum = Curriculum.new(curriculum_attributes)
     curriculum.source_filename = File.basename(file.original_filename) if file.respond_to?(:original_filename)
     error = upload_error(curriculum, file)
-    # まだ便覧が無い(入力が不正で作れない)ので、選択は引き継がない。選択だけの最初の画面に戻して理由を出す。
-    return redirect_to requirements_path, alert: error, status: :see_other if error
+    # 保存はしていないが、送られた入学年度・学部・学科コースは curriculum が持っている。操作した人が選んだ組み合わせの画面に戻して
+    # 理由を出す(選択なしの画面に戻すと、選び直しになり、取り込みの入口も畳まれた「新しく作る」側に隠れる)。名前や年度が空なら素のパス。
+    return redirect_to requirements_location(curriculum), alert: error, status: :see_other if error
 
     curriculum.pages = []
     curriculum.save_upload!
@@ -198,7 +199,7 @@ class CurriculaController < ApplicationController
 
   # 操作した便覧の、卒業要件の確認画面。選択を引き継いで、操作の結果をそのまま見せる(選択なしの画面に戻すと、
   # 自分の操作のあとに空の画面へ落ちる)。学部名・学科コース名を持たない古い行は選択できないので、選択なしの画面にする。
-  # 公開・削除のあとでも属性はメモリに残っているので、削除した行からも作れる。
+  # 公開・削除のあとでも属性はメモリに残っているので、削除した行からも作れる。保存前の行(取り込みの入力が不正だったとき)も同じ。
   def requirements_location(curriculum = @curriculum)
     selection = { faculty: curriculum.faculty_name, department: curriculum.department_name,
                   admission_year: curriculum.admission_year }

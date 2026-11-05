@@ -5,7 +5,7 @@
   <div class="border-b border-amber-100 px-5 py-4 sm:px-6">
     <h3 id="drafts-heading" class="text-base font-bold text-slate-900">同じ年度の下書きが<%= drafts.size %>件あります</h3>
     <p class="mt-0.5 text-xs text-slate-600">
-      <%= local_assigns[:with_published] ? '公開するまで、学生の卒業判定には使われません。公開済みを差し替えたあとの、置き換わった旧版が残っていることもあります。' : '取り込み途中の便覧です。公開するまで、学生の卒業判定には使われません。' %>
+      <%= local_assigns[:with_published] ? '公開するまで、学生の卒業判定には使われません。公開済みを差し替えたあとの、置き換わった旧版が残っていることもあります。更新の新しい順に並べています。' : '取り込み途中の便覧です。公開するまで、学生の卒業判定には使われません。更新の新しい順に並べています。' %>
     </p>
   </div>
   <ul class="divide-y divide-amber-100 px-5 sm:px-6">
@@ -22,6 +22,9 @@
           </p>
           <p class="mt-0.5 text-xs text-slate-500">
             <%= curriculum.source_filename %><%= " / #{curriculum.pages.size}ページ" if curriculum.pages.any? %>
+          </p>
+          <p class="mt-0.5 text-xs text-slate-500">
+            最終更新 <%= draft_updated_at_tag(curriculum.updated_at) %>
           </p>
         </div>
         <%= link_to '下書きの確認を続ける', curriculum_path(curriculum), class: 'text-sm font-semibold text-indigo-700 underline underline-offset-4' %>

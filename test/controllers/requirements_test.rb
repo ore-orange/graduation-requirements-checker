@@ -33,6 +33,13 @@ class RequirementsTest < ActionDispatch::IntegrationTest
 
   def show_selected(**overrides) = get(requirements_path(selection(**overrides)), env: local_env)
 
+  # 下書きの欄の各行(上から)の { 続きのリンク, 更新日時の表示, datetime 属性 }
+  def draft_rows
+    css_select('[data-drafts] li').map do |row|
+      { href: row.at_css('a')['href'], shown: row.at_css('time').text.strip, datetime: row.at_css('time')['datetime'] }
+    end
+  end
+
   def create_draft(admission_year: 2030, department: DEPARTMENT, faculty: FACULTY, **attributes)
     Curriculum.create!(slug: 'draft_course', admission_year: admission_year, faculty_name: faculty,
                        department_name: department, source_filename: 'draft.pdf', pages: Curriculum.blank_pages(2),
@@ -181,6 +188,65 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select 'a[href=?]', curriculum_path(second)
   end
 
+  # 同じ年度の下書きが何件あっても、行の見た目だけでは見分けられない(年度・コース名・ファイル名が同じ)。
+  # 公開を差し替える画面で古い版を選ぶと、直した分が戻るので、新しい順に並べ、各行に自分の更新日時を出す。
+  # 作った順(id)・更新の古い順とは別の並びにして、どちらの並べ方でも落ちるようにする。
+  test '同じ年度の下書きは、更新の新しい順に並び、各行がそれぞれの更新日時を日本時間で出す' do
+    # 日本時間の日付と UTC の日付がずれる時刻も入れる(UTC のまま出すと、日付も違ってしまう)
+    middle = create_draft(admission_year: 2030, updated_at: Time.utc(2026, 11, 4, 16, 5))
+    oldest = create_draft(admission_year: 2030, updated_at: Time.utc(2026, 10, 1, 0, 0))
+    newest = create_draft(admission_year: 2030, updated_at: Time.utc(2026, 11, 5, 5, 32))
+
+    show_selected(admission_year: 2030)
+
+    rows = draft_rows
+    assert_equal [newest, middle, oldest].map { |draft| curriculum_path(draft) }, rows.pluck(:href)
+    assert_equal ['2026年11月5日 14:32', '2026年11月5日 01:05', '2026年10月1日 09:00'], rows.pluck(:shown)
+    assert_equal [newest, middle, oldest].map { |draft| draft.updated_at.utc.iso8601 }, rows.pluck(:datetime)
+  end
+
+  test '更新日時が同じ下書きは、あとから作ったものを先に並べる' do
+    stamp = Time.utc(2026, 11, 5, 5, 32)
+    first = create_draft(admission_year: 2030, updated_at: stamp)
+    second = create_draft(admission_year: 2030, updated_at: stamp)
+
+    show_selected(admission_year: 2030)
+
+    assert_equal [second, first].map { |draft| curriculum_path(draft) },
+                 css_select('[data-drafts] li a').pluck('href')
+  end
+
+  test '2回続けて直して差し替えたあと、先頭の下書きは新しい方の旧版で、最初の版は最後になる' do
+    # 差し替えるたびに、置き換わった公開済みが下書きに戻る。戻した時刻が、その行の更新日時になる
+    original = @curriculum
+    first_fix = nil
+    travel_to Time.utc(2026, 11, 1, 3, 0) do
+      post duplicate_curriculum_path(original), env: local_env
+      first_fix = Curriculum.drafts.order(:id).last
+      post publish_curriculum_path(first_fix), params: { replace: '1' }, env: local_env
+    end
+    travel_to Time.utc(2026, 11, 20, 3, 0) do
+      post duplicate_curriculum_path(first_fix), env: local_env
+      second_fix = Curriculum.drafts.order(:id).last
+      post publish_curriculum_path(second_fix), params: { replace: '1' }, env: local_env
+    end
+    assert_equal [original.id, first_fix.id], Curriculum.drafts.order(:id).ids
+
+    show_selected
+
+    rows = draft_rows
+    assert_equal [first_fix, original].map { |draft| curriculum_path(draft) }, rows.pluck(:href)
+    assert_equal ['2026年11月20日 12:00', '2026年11月1日 12:00'], rows.pluck(:shown)
+  end
+
+  test '下書きの行は、旧版か作業中かを言い当てる印や文言を持たない' do
+    create_draft(admission_year: 2024)
+
+    show_selected
+
+    assert_select '[data-drafts]', text: /旧版です|作業中です|古い版|新しい版|最新/, count: 0
+  end
+
   test '便覧の無い年度を選ぶと、無いと伝え、PDFから作る導線が出る' do
     show_selected(admission_year: 2030)
 
@@ -189,6 +255,14 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select 'form[action=?][enctype="multipart/form-data"]', curricula_path
     assert_select '[data-total-credits]', count: 0
     assert_select 'form[action*=duplicate]', count: 0
+  end
+
+  test '取り込みのフォームは、PDFでないものを落とされたときに出す断りを、隠した状態で持っている' do
+    show_selected(admission_year: 2030)
+
+    # ドロップはファイル選択の accept を通らない。dropzone コントローラーは、この欄が無いと動かない
+    assert_select 'form[action=?][data-controller~=dropzone] [data-dropzone-target=error][role=alert][hidden]',
+                  curricula_path, text: /PDFファイルを選んでください/, count: 1
   end
 
   test '何も選んでいないときも、選択肢にない年度の便覧を作り始める入口がある' do

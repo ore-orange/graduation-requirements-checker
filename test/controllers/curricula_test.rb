@@ -199,11 +199,14 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_redirected_to requirements_path
     assert_predicate flash[:alert], :present?
 
+    chosen = requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: 2025)
+    # 値が欠けていれば載せる選択が揃わないので素のパス。PDFだけが欠けているときは、選択が揃っているので載せる(別のテストで見る)
     { admission_year: '', faculty_name: '', department_name: '', file: nil }.each do |field, value|
       assert_no_difference('Curriculum.count', "#{field} が欠けていても作ってしまった") do
         post curricula_path, params: upload_params(field => value), env: ENV_LOCAL
       end
-      assert_redirected_to requirements_path
+      expected = field == :file ? chosen : requirements_path
+      assert_redirected_to expected, "#{field} が欠けたときの戻り先が違う"
     end
   end
 
@@ -237,7 +240,7 @@ class CurriculaTest < ActionDispatch::IntegrationTest
       assert_no_difference('Curriculum.count', "#{year} を受けてしまった") do
         post curricula_path, params: upload_params(admission_year: year), env: ENV_LOCAL
       end
-      assert_redirected_to requirements_path
+      assert_redirected_to requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: year)
     end
     [2000, upper].each do |year|
       assert_difference('Curriculum.count', 1, "#{year} を受けなかった") do
@@ -336,8 +339,58 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_no_difference('Curriculum.count') do
       post curricula_path, params: upload_params(file: text_upload('plain text')), env: ENV_LOCAL
     end
-    assert_redirected_to requirements_path
+    assert_redirected_to requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: 2025)
     assert_match(/PDF/, flash[:alert])
+  end
+
+  # ---- 作れなかったときは、操作した人の選択を引き継いで戻す(選び直しも、畳まれた入口の探し直しもさせない) ----
+
+  test '作れなかったときは、選んだ入学年度・学部・学科コースを載せた確認画面に戻す' do
+    chosen = requirements_path(faculty: '工学部', department: '工学科 知能情報コース', admission_year: 2027)
+    refused = { 'PDFでない' => text_upload('plain text'),
+                'PDFが無い' => nil,
+                '大きすぎる' => text_upload("%PDF-1.4\n#{'a' * (CurriculaController::MAX_PDF_BYTES + 1)}") }
+
+    refused.each do |reason, file|
+      assert_no_difference('Curriculum.count', "#{reason}のに作ってしまった") do
+        post curricula_path, params: upload_params(admission_year: 2027, file: file), env: ENV_LOCAL
+      end
+      assert_redirected_to chosen, "#{reason}とき、選択を載せずに戻した"
+      assert_predicate flash[:alert], :present?
+    end
+  end
+
+  test '作れなかったあとの画面は、選んだ組み合わせが3つのプルダウンで選ばれ、理由が出ている' do
+    post curricula_path, params: upload_params(admission_year: 2025, file: text_upload('plain text')), env: ENV_LOCAL
+    follow_redirect!
+
+    assert_select '[role=alert]', text: /PDFファイルを選んでください/
+    assert_select 'select#faculty option[selected][value=?]', '工学部'
+    assert_select 'select#department option[selected][value=?]', '工学科 知能情報コース'
+    assert_select 'select#admission_year option[selected][value=?]', '2025'
+  end
+
+  test '便覧がまだ無い組み合わせで作れなかったときは、取り込みのフォームが畳まれずに、選んだ値のまま出ている' do
+    post curricula_path, params: upload_params(admission_year: 2027, file: text_upload('plain text')), env: ENV_LOCAL
+    follow_redirect!
+
+    assert_select '[role=alert]', text: /PDFファイルを選んでください/
+    assert_select 'details[data-new-curriculum]', count: 0
+    assert_select '[data-no-curriculum]', text: /2027年度入学/
+    assert_select 'form[action=?] select#curriculum_admission_year option[selected][value=?]', curricula_path, '2027'
+    assert_select 'form[action=?] select#curriculum_faculty_name option[selected][value=?]', curricula_path, '工学部'
+  end
+
+  test '「その他」で打った新しい学部名・学科コース名も、作れなかったときに引き継ぐ' do
+    post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM,
+                                               faculty_name_other: '農学部',
+                                               department_name: CurriculaController::NEW_PROGRAM,
+                                               department_name_other: '亜熱帯農林環境科学科', file: nil), env: ENV_LOCAL
+
+    assert_redirected_to requirements_path(faculty: '農学部', department: '亜熱帯農林環境科学科', admission_year: 2025)
+    follow_redirect!
+    assert_select 'input#curriculum_faculty_name_other[value=?]', '農学部'
+    assert_select 'input#curriculum_department_name_other[value=?]', '亜熱帯農林環境科学科'
   end
 
   test '大きすぎるPDFは作らない' do

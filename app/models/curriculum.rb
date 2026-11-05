@@ -44,7 +44,7 @@ class Curriculum < ApplicationRecord
   # 一覧に要る列だけ。document は大きいので読まない。
   scope :for_listing, -> {
     select(:id, :slug, :admission_year, :faculty_name, :department_name, :title,
-           :source_filename, :pages, :import_error, :published_at)
+           :source_filename, :pages, :import_error, :published_at, :updated_at)
   }
 
   class << self
