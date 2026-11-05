@@ -90,6 +90,15 @@
     </p>
   </div>
 
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-xs">
+    <ul data-visible-rules class="divide-y divide-slate-100 px-5 sm:px-6">
+      <% visible_rules(@curriculum).each do |rule| %>
+        <%= rule_entry(rule, @curriculum) %>
+      <% end %>
+    </ul>
+  </div>
+
+  <%# 省いた規則は一覧の下に置く。上に置くと、開いたときに読んでいた一覧が押し下げられる %>
   <% if omitted.any? %>
     <details data-omitted-rules
              class="group/card rounded-2xl border border-slate-200 bg-white shadow-xs transition hover:border-indigo-300 hover:shadow-md open:border-indigo-400 open:shadow-md open:ring-1 open:ring-indigo-300">
@@ -117,14 +126,6 @@
       </ul>
     </details>
   <% end %>
-
-  <div class="rounded-2xl border border-slate-200 bg-white shadow-xs">
-    <ul data-visible-rules class="divide-y divide-slate-100 px-5 sm:px-6">
-      <% visible_rules(@curriculum).each do |rule| %>
-        <%= rule_entry(rule, @curriculum) %>
-      <% end %>
-    </ul>
-  </div>
 </section>
 
 <%# 科目表。公開後の便覧の科目は、ほかのどの画面からも見られないので、ここで読み取り専用に出す %>

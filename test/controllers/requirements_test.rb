@@ -509,6 +509,18 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_empty panel.css('[data-controller]')
   end
 
+  test '省いた規則の欄は、規則の一覧より後ろに置く' do
+    show_selected
+
+    # 一覧より前に置くと、欄を開いたときに読んでいた一覧が下へ押し出される
+    children = css_select('#judgement-rules > *')
+    list = children.index { |node| node.css('[data-visible-rules]').any? || node.matches?('[data-visible-rules]') }
+    panel = children.index { |node| node.matches?('details[data-omitted-rules]') }
+    assert list, '規則の一覧が節の直下に無い'
+    assert panel, '省いた規則の欄が節の直下に無い'
+    assert panel > list, "省いた規則の欄は一覧より後ろに置くこと（一覧=#{list}, 欄=#{panel}）"
+  end
+
   test '省いた11件は、備考と出典のページとともに、欄の中から読める' do
     show_selected
 
