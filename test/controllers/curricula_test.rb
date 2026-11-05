@@ -312,11 +312,13 @@ class CurriculaTest < ActionDispatch::IntegrationTest
   end
 
   test 'その他の自由入力に、選んだ印と同じ文字列を打っても、名前として保存しない' do
-    [CurriculaController::NEW_PROGRAM, " #{CurriculaController::NEW_PROGRAM} "].each do |typed|
+    # 全角スペースで囲んだ場合も弾く。日本語の画面では半角より打たれやすく、
+    # squish を strip に変えると素通りして元の不具合に戻る
+    sentinel = CurriculaController::NEW_PROGRAM
+    [sentinel, " #{sentinel} ", "　#{sentinel}　"].each do |typed|
       assert_no_difference('Curriculum.count') do
-        post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM,
-                                                   faculty_name_other: typed,
-                                                   department_name: CurriculaController::NEW_PROGRAM,
+        post curricula_path, params: upload_params(faculty_name: sentinel, faculty_name_other: typed,
+                                                   department_name: sentinel,
                                                    department_name_other: typed), env: ENV_LOCAL
       end
       assert_redirected_to requirements_path
