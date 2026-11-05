@@ -76,23 +76,50 @@
   </section>
 <% end %>
 
-<%# 判定に使う規則。上のカードがすでに言っていること（章・行・小計が名指しして同じ単位数を出している合計など）は省き、
+<%# 判定に使う規則。上のカードがすでに言っていること（章・行・小計が名指しして同じ単位数を出している合計など）は一覧から省き、
     カードからは読み取れない規則（系列の選択・選択経路・算入上限・算入しない・複数の区分の合計）を、便覧の順に出す。
-    省いた件数は画面で伝える。何が消えたか分からなくなるのを避けるため。 %>
-<% omitted = omitted_rule_count(@curriculum) %>
+    省いた規則も、備考と出典ページはカードに無く、印刷された便覧と見比べる手立てになるので、消さずに畳んで出す
+    （科目表と同じ <details>。初めは閉じる。畳んでも HTML には入っているので、ページ内検索にも届く）。 %>
+<% omitted = omitted_rules(@curriculum) %>
 <section id="judgement-rules" aria-labelledby="rules-heading" class="space-y-4">
   <div class="space-y-1">
     <h3 id="rules-heading" class="text-base font-bold text-slate-900">判定の規則</h3>
     <p class="text-xs text-slate-500">
-      卒業の判定はこの規則で行います。上のカードの必要単位と同じことだけを言う規則は省いています。
+      卒業の判定はこの規則で行います。上のカードの必要単位と同じことだけを言う規則は、一覧から省いて、下の欄にまとめています。
       赤で表示された規則は、このアプリが解釈できないため、判定では要確認になります。
     </p>
-    <% if omitted.positive? %>
-      <p class="text-xs text-slate-500" data-omitted-rules>上のカードと同じ内容のため省いた規則：<%= omitted %>件</p>
-    <% end %>
   </div>
+
+  <% if omitted.any? %>
+    <details data-omitted-rules
+             class="group/card rounded-2xl border border-slate-200 bg-white shadow-xs transition hover:border-indigo-300 hover:shadow-md open:border-indigo-400 open:shadow-md open:ring-1 open:ring-indigo-300">
+      <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-5 sm:px-6">
+        <div class="min-w-0 space-y-1">
+          <h4 class="text-xs font-semibold text-slate-500">
+            上のカードと同じ内容のため省いた規則：<span class="text-sm font-extrabold text-slate-900 tabular-nums"><%= omitted.size %>件</span>
+          </h4>
+          <p class="text-xs text-slate-500">
+            消えたわけではなく、内容は上のカードに出ています。開くと、備考と出典ページを確認できます。
+          </p>
+        </div>
+        <%# 開閉できることは、この丸ボタンと矢印の向きで示す（科目表・ダッシュボードと同じ） %>
+        <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition group-hover/card:bg-indigo-100 group-hover/card:text-indigo-600 group-open/card:bg-indigo-100 group-open/card:text-indigo-600">
+          <svg class="size-4 transition-transform group-open/card:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M5.5 7.5 10 12l4.5-4.5H5.5Z" />
+          </svg>
+        </span>
+      </summary>
+
+      <ul class="mx-5 divide-y divide-slate-100 border-t border-slate-100 pb-1 sm:mx-6">
+        <% omitted.each do |rule| %>
+          <%= rule_entry(rule, @curriculum, omitted: true) %>
+        <% end %>
+      </ul>
+    </details>
+  <% end %>
+
   <div class="rounded-2xl border border-slate-200 bg-white shadow-xs">
-    <ul class="divide-y divide-slate-100 px-5 sm:px-6">
+    <ul data-visible-rules class="divide-y divide-slate-100 px-5 sm:px-6">
       <% visible_rules(@curriculum).each do |rule| %>
         <%= rule_entry(rule, @curriculum) %>
       <% end %>

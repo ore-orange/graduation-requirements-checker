@@ -469,8 +469,10 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   test '上のカードと同じことを言うだけの規則は、規則の節に出さない' do
     show_selected
 
-    # 「健康運動系の合計 2単位以上」は上の行に出ているので、規則の節には出さない
-    assert_select '#judgement-rules', text: /健康運動系の合計/, count: 0
+    # 「健康運動系の合計 2単位以上」は上の行に出ているので、規則の一覧には出さない（省いた規則の欄には出る）。
+    # 一覧そのものが無くても count: 0 は通ってしまうので、一覧があって中身が入っていることを先に確かめる
+    assert_select '#judgement-rules [data-visible-rules] li[data-rule-id=total]', count: 1
+    assert_select '#judgement-rules [data-visible-rules]', text: /健康運動系の合計/, count: 0
     assert_select '#judgement-rules li[data-rule-id=health]', count: 0
     # 系列の選択・算入上限・算入しない規則は、カードからは読み取れないので残す
     assert_select '#judgement-rules', text: /微分積分学/
@@ -479,6 +481,7 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     # 章の見出しと同じことを言う合計は出さない。必修すべては、見出しが言えない「すべて修得」を言うので残る
     assert_select '#judgement-rules li[data-rule-id=common_total]', count: 0
     assert_select '#judgement-rules li[data-rule-id=elective_total]', count: 0
+    assert_select '#judgement-rules [data-visible-rules]', text: /共通教育の合計/, count: 0
     assert_select '#judgement-rules li[data-rule-id=required_all]', text: /すべて修得/
     assert_select '#judgement-rules li[data-rule-id=total]', text: /備考/
   end
@@ -487,6 +490,85 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     show_selected
 
     assert_select '#judgement-rules [data-omitted-rules]', text: /11件/
+  end
+
+  # 省いた規則の欄。備考と出典は、省いた規則にしか無く、上のカードには出ていないので、ここから読めなくてはならない。
+  def omitted_rules_panel = css_select('#judgement-rules details[data-omitted-rules]').first
+
+  test '省いた規則は、クリックで開く欄に入っていて、初めは閉じている' do
+    show_selected
+
+    assert_select '#judgement-rules details[data-omitted-rules]', count: 1
+    panel = omitted_rules_panel
+    assert_not panel.has_attribute?('open'), '省いた規則の欄は、初めは閉じていること'
+    summary = panel.at_css('summary')
+    assert_match(/11件/, summary.text)
+    # 捨てた規則ではなく、内容は上のカードに出ていることを、開く前の見出しで言う
+    assert_match(/上のカードと同じ内容/, summary.text)
+    # JavaScript なしで開閉する（<details> だけ）
+    assert_empty panel.css('[data-controller]')
+  end
+
+  test '省いた11件は、備考と出典のページとともに、欄の中から読める' do
+    show_selected
+
+    panel = omitted_rules_panel
+    document = @curriculum.document
+    rules = document.fetch('rules').select { |rule| OMITTED_2024.include?(rule['id']) }
+    assert_equal OMITTED_2024, panel.css('li[data-omitted-rule-id]').pluck('data-omitted-rule-id')
+
+    rules.each do |rule|
+      entry = panel.at_css("li[data-omitted-rule-id='#{rule['id']}']")
+      lines = entry.css('p').map { |line| line.text.squish }
+      # どの規則か分かる: 名前と、単位数
+      assert_includes entry.text, rule['label']
+      assert_includes entry.text, "#{rule['required_credits']}単位"
+      assert_includes lines, "出典：#{rule['source_page']}"
+      if rule['detail'].present?
+        assert_includes lines, "備考：#{rule['detail']}"
+      else
+        assert_not_includes lines.join, '備考'
+      end
+    end
+  end
+
+  test '上のカードに出ていない備考2つが、実際に画面のどこかに出ている' do
+    show_selected
+
+    panel = omitted_rules_panel
+    assert_includes panel.text.squish, '健康運動系は含めず、自然系は最大2単位。'
+    assert_includes panel.text.squish, '専門選択37単位の内数。工学融合・自由科目はこの22単位に含めません。'
+    # 一覧の側には出ていない（欄の中でだけ読める）
+    assert_not_includes css_select('#judgement-rules [data-visible-rules]').text, '専門選択37単位の内数'
+  end
+
+  test '省いた規則の欄は、一覧に出る規則を重ねて出さない' do
+    show_selected
+
+    shown = css_select('#judgement-rules [data-visible-rules] li[data-rule-id]').pluck('data-rule-id')
+    in_panel = omitted_rules_panel.css('li[data-omitted-rule-id]').pluck('data-omitted-rule-id')
+    assert_empty shown & in_panel
+    assert_equal @curriculum.document.fetch('rules').pluck('id').sort, (shown + in_panel).sort
+  end
+
+  test '2025年度も、省いた8件が欄の中に出る' do
+    show_selected(admission_year: 2025)
+
+    panel = omitted_rules_panel
+    assert_equal %w[rule_academic_skills rule_health_sports rule_liberal_arts rule_ge_total rule_pe_required
+                    rule_pe_elective rule_pe_elective_course rule_pe_total],
+                 panel.css('li[data-omitted-rule-id]').pluck('data-omitted-rule-id')
+    assert_match(/8件/, panel.at_css('summary').text)
+    assert_not panel.has_attribute?('open')
+  end
+
+  test '省く規則が無い便覧では、省いた規則の欄を出さない' do
+    change_handbook { |document| document['rules'].reject! { |rule| rule['type'] == 'credit_sum' } }
+
+    show_selected
+
+    assert_select '#judgement-rules details[data-omitted-rules]', count: 0
+    assert_select '#judgement-rules [data-omitted-rules]', count: 0
   end
 
   test '省くかどうかは便覧の中身で決まる。健康運動の行を消せば、健康運動の規則が出る' do

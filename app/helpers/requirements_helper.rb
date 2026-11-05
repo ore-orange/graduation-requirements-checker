@@ -53,10 +53,11 @@ module RequirementsHelper
   end
 
   # 規則1つぶんの <li>。解釈できない規則は、飛ばさずに赤く出す。
-  def rule_entry(rule, curriculum)
+  # 省いた規則の欄に出すときは omitted: true。規則の一覧の <li>（data-rule-id）と取り違えないよう、id の属性名を分ける。
+  def rule_entry(rule, curriculum, omitted: false)
     definition = rule.is_a?(Hash) ? rule : {}
     node = rule_node(definition, curriculum, TOP_LEVEL_RULES)
-    data = { rule_id: definition['id'], rule_type: definition['type'],
+    data = { (omitted ? :omitted_rule_id : :rule_id) => definition['id'], rule_type: definition['type'],
              rule_status: ('unknown' if node.contains_unknown?) }
     tag.li(class: 'py-4', data: data) do
       safe_join([rule_headline(rule, definition, node), rule_children(node),

@@ -24,8 +24,12 @@ module RuleTrimmingHelper
     Array(curriculum['rules']).reject { |rule| repeats_card?(rule, shown) }
   end
 
-  # 規則の節で省いた件数。省いたことを画面で伝えるのに使う。
-  def omitted_rule_count(curriculum) = Array(curriculum['rules']).size - visible_rules(curriculum).size
+  # 省いた規則。画面では「省いた規則」の欄に畳んで出す。備考と出典のページは、上のカードに無いので、
+  # 省くと便覧と見比べる手立てが無くなる。visible_rules と合わせると、便覧の規則がちょうど全部になる。
+  def omitted_rules(curriculum)
+    shown = card_statements(curriculum)
+    Array(curriculum['rules']).select { |rule| repeats_card?(rule, shown) }
+  end
 
   private
 

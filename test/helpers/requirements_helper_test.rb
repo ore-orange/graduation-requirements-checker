@@ -409,6 +409,22 @@ class RequirementsHelperTest < ActionView::TestCase
     assert_equal 16, shown_ids(@real).size
   end
 
+  test '実物2024: 省いた規則の一覧は、一覧に出る規則と合わせると便覧の規則すべてになる(1つも失わない)' do
+    omitted = omitted_rules(@real)
+
+    assert_equal 11, omitted.size
+    assert_equal @real.fetch('rules').pluck('id').sort, (omitted + visible_rules(@real)).pluck('id').sort
+    assert_empty omitted & visible_rules(@real)
+  end
+
+  test '省いた規則の一覧は、規則でないもの(解釈できない行)を含めない' do
+    handbook = referenced_handbook(rules: ['なにか', sum_rule('x', ['a'], 2)],
+                                   groups: [{ 'id' => 'g', 'check_id' => 'x', 'required_credits' => 2, 'rows' => [] }])
+
+    assert_equal ['x'], omitted_rules(handbook).pluck('id')
+    assert_equal ['なにか'], visible_rules(handbook)
+  end
+
   test '実物2024: 人文系・社会系の下限は、14単位の行が名指すが単位数が違うので残る' do
     assert_includes shown_ids(@real), 'humanities'
     assert_includes shown_ids(@real), 'social'
