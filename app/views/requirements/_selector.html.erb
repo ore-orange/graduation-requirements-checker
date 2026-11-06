@@ -12,27 +12,27 @@
       <label class="block">
         <span class="text-sm font-semibold text-slate-700">学部</span>
         <%= select_tag :faculty, options_for_select(@faculty_options, @selection[:faculty]),
-                       include_blank: '選んでください',
+                       include_blank: '---------',
                        class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
       </label>
       <label class="block">
         <span class="text-sm font-semibold text-slate-700">学科</span>
         <%= select_tag :department, grouped_options_for_select(@department_options.to_a, @selection[:department]),
-                       include_blank: '選んでください',
+                       include_blank: '---------',
                        class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
       </label>
       <label class="block">
         <span class="text-sm font-semibold text-slate-700">コース</span>
         <%= select_tag :course, grouped_options_for_select(@course_options.to_a, @selection[:course]),
-                       include_blank: '選んでください',
+                       include_blank: '---------',
                        class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
       </label>
       <label class="block">
         <span class="text-sm font-semibold text-slate-700">入学年度</span>
         <%# 値は文字列で持つ。選択中の値（クエリの文字列）と比べて selected にするため %>
         <%= select_tag :admission_year,
-                       options_for_select(@year_options.map { |year| ["#{year}年度入学", year.to_s] }, @selection[:admission_year]),
-                       include_blank: '選んでください',
+                       options_for_select(@year_options.map { |year| ["#{year}年", year.to_s] }, @selection[:admission_year]),
+                       include_blank: '---------',
                        class: 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
       </label>
     </div>

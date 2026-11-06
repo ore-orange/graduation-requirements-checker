@@ -122,7 +122,7 @@ git commit -m "feat: 取り込みフォームと対象選択をFaculty/Departmen
 
 **レイアウト:** `_upload.html.erb` の `grid-cols-2`(空の `div` で埋めていた不揎な並び)を、`_selector.html.erb` と同じ `grid gap-4 sm:grid-cols-4`(学部・学科・コース・年度の4列、空の `div` を使わない)に変える。「その他」の自由入力欄(新しい学部名・新しい学科名・新しいコース名)は、既存どおりその下に3列(`sm:grid-cols-3`)で並べる。
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 ```ruby
 # test/models/curriculum_test.rb
@@ -134,26 +134,26 @@ test 'アップロードできる年度は2016年度から来年度まで' do
 end
 ```
 
-- [ ] **Step 2: 失敗を確認**
+- [x] **Step 2: 失敗を確認**
 
 Run: `docker compose exec web bin/rails test test/models/curriculum_test.rb`
 Expected: FAIL（現状は2000年度〜今年+2年度）
 
-- [ ] **Step 3: 作る**
+- [x] **Step 3: 作る**
 
 上の仕様のとおりに `curriculum.rb` の定数・メソッドと、3つのビューを直す。`program_fields_controller.js` の `filterDepartments` と同じ考え方で、学科→コースの絞り込みを足す(`courseTarget`・`newCourseTarget` を増やし、`filterCourses(newDepartment)` を `filterDepartments` と並べて書く。コースが1件も無い学科を選んだときは、コースの `<label>` 全体を隠し、`required` も外す)。
 
-- [ ] **Step 4: 通ることを確認**
+- [x] **Step 4: 通ることを確認**
 
 Run: `docker compose exec web bin/ci`
 Expected: PASS
 
-- [ ] **Step 5: 実際に画面で通す**
+- [x] **Step 5: 実際に画面で通す**
 
 Run: 開発環境で `/requirements` を開き、学部に「工学部」、学科に「工学科」を選ぶとコースに「知能情報コース」が出ること、理学部など他学部を選ぶとコースの欄が消えること、年度が2016年から来年まで一覧でき「2024年」のように出ること、未選択の欄が「---------」であることを確かめる。
 Expected: 上のとおりに動く。
 
-- [ ] **Step 6: コミット**
+- [x] **Step 6: コミット**
 
 ```bash
 git add -A

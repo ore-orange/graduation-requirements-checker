@@ -216,6 +216,13 @@ class CurriculumTest < ActiveSupport::TestCase
     assert_equal 'intelligent_informatics', upload_draft(slug: 'forged').slug
   end
 
+  test 'アップロードできる年度は2016年度から来年度まで' do
+    range = Curriculum.upload_year_range
+
+    assert_equal 2016, range.begin
+    assert_equal Time.zone.today.year + 1, range.end
+  end
+
   # 保存の間に発行されたSQLを集める。
   def sql_during(&)
     statements = []

@@ -93,11 +93,12 @@ class Curriculum < ApplicationRecord
   end
   private_class_method :admission_year_of, :parse_document
 
-  UPLOAD_MIN_YEAR = 2000
+  # 学生便覧が載っている最古の年度。これより古い便覧を作る場面は無い。
+  UPLOAD_MIN_YEAR = 2016
 
-  # 画面から上げる下書きの入学年度の範囲。上限は、来年度・再来年度入学の便覧を先に作れるよう今年+2。
+  # 画面から上げる下書きの入学年度の範囲。上限は、来年度入学の便覧を先に作れるよう今年+1。
   def self.upload_year_range
-    UPLOAD_MIN_YEAR..(Time.zone.today.year + 2)
+    UPLOAD_MIN_YEAR..(Time.zone.today.year + 1)
   end
 
   # 同じ学部名・学科コース名の便覧があれば、その識別名を使う(同じ課程の別の年度として並ぶ)。無ければ新しく作る。
@@ -117,16 +118,11 @@ class Curriculum < ApplicationRecord
   end
   private_class_method :mint_program_slug
 
-  # 取り込みフォームの入学年度のプルダウンに出す年度(新しい順)。再来年度までは検証が受ける上限で、来年度・再来年度入学の
-  # 便覧を先に作れる。下は、留年や再履修で在籍が延びても足りるよう10年前まで(標準修業年限の倍より長い)。
-  # それより古い年度の便覧を作る場面は、まず無い。検証は2000年度まで受けるので、必要なら including で足せる。
+  # 取り込みフォームの入学年度のプルダウンに出す年度(新しい順)。検証が受ける範囲(upload_year_range)をそのまま使う。
   # including には、画面で選ばれていた年度を渡す(選んだ年度がフォームから消えて、別の年度で取り込まれないように)。
   # ただし検証が受けない年度は足さない(選べるのに、送ると断られる選択肢を作らない)。
-  UPLOAD_YEARS_BACK = 10
-
   def self.upload_year_choices(including: nil)
-    this_year = Time.zone.today.year
-    years = ((this_year - UPLOAD_YEARS_BACK)..upload_year_range.end).to_a
+    years = upload_year_range.to_a
     years << including if including && upload_year_range.cover?(including)
     years.uniq.sort.reverse
   end

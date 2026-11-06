@@ -88,7 +88,7 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     get requirements_path, env: local_env
 
     assert_select 'select[name=admission_year] option[value="1999"]', count: 0
-    # 空の値の選択肢は、選択の各欄の「選んでください」だけ(学部・学科・コース・年度の4つ。取り込みフォームの選択は、別に見る)
+    # 空の値の選択肢は、選択の各欄の「---------」だけ(学部・学科・コース・年度の4つ。取り込みフォームの選択は、別に見る)
     assert_select 'form[method=get] select option[value=""]', count: 4
   end
 

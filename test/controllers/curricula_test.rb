@@ -234,15 +234,15 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_not_equal found.id, draft.id
   end
 
-  test '入学年度は2000年から今年+2までの下書きだけ作る' do
-    upper = Time.zone.today.year + 2
-    [1999, 5, upper + 1].each do |year|
+  test '入学年度は2016年から来年までの下書きだけ作る' do
+    upper = Time.zone.today.year + 1
+    [2015, 5, upper + 1].each do |year|
       assert_no_difference('Curriculum.count', "#{year} を受けてしまった") do
         post curricula_path, params: upload_params(admission_year: year), env: ENV_LOCAL
       end
       assert_redirected_to requirements_path(faculty: '工学部', department: '工学科', course: '知能情報コース', admission_year: year)
     end
-    [2000, upper].each do |year|
+    [2016, upper].each do |year|
       assert_difference('Curriculum.count', 1, "#{year} を受けなかった") do
         post curricula_path, params: upload_params(admission_year: year), env: ENV_LOCAL
       end
@@ -617,14 +617,14 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_select 'body', text: /識別名|slug/, count: 0
   end
 
-  test '入学年度は、今年の10年前から再来年までのプルダウン(新しい順)で、今年が選ばれている' do
+  test '入学年度は、2016年度から来年度までのプルダウン(新しい順)で、今年が選ばれている' do
     get requirements_path, env: ENV_LOCAL
 
     options = css_select("select[name='curriculum[admission_year]'] option")
-    assert_equal ((this_year - 10)..(this_year + 2)).to_a.reverse.map(&:to_s), options.pluck('value')
+    assert_equal (2016..(this_year + 1)).to_a.reverse.map(&:to_s), options.pluck('value').compact_blank
     assert_equal [this_year.to_s], options.select { |option| option['selected'] }.pluck('value')
     # 検証が受ける範囲の中だけ(選べるのに、送ったら断られる年度を出さない)
-    assert(options.all? { |option| Curriculum.upload_year_range.cover?(option['value'].to_i) })
+    assert(options.pluck('value').compact_blank.all? { |value| Curriculum.upload_year_range.cover?(value.to_i) })
   end
 
   test '学部名・学科名・コース名は、Faculty/Department/Programから作ったプルダウンで、最後に「その他」がある' do
@@ -687,9 +687,9 @@ class CurriculaTest < ActionDispatch::IntegrationTest
                   '情報通信コース'
   end
 
-  test '選んだ年度が今年の10年前より古くても、検証が受ける範囲なら、その年度を選択肢に足す' do
-    get requirements_path(faculty: '工学部', department: '工学科', course: '知能情報コース', admission_year: 2003), env: ENV_LOCAL
-    assert_select "select[name='curriculum[admission_year]'] option[selected][value=?]", '2003'
+  test '選んだ年度が範囲の下限(2016年度)なら選択肢に出る。範囲外なら足さない' do
+    get requirements_path(faculty: '工学部', department: '工学科', course: '知能情報コース', admission_year: 2016), env: ENV_LOCAL
+    assert_select "select[name='curriculum[admission_year]'] option[selected][value=?]", '2016'
 
     # 検証が断る年度は足さない(選べるのに送ると断られる選択肢にしない)
     get requirements_path(faculty: '工学部', department: '工学科', course: '知能情報コース', admission_year: 1990), env: ENV_LOCAL
