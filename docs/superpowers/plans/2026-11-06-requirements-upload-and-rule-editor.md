@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 便覧PDFの取り込みフォームを「対象を選ぶ」カードと同じ見た目のプルダウンにし、学部・学科・コースを既存DB（Faculty/Department/Program）から選ばせる。入学年度の範囲を2016年度〜来年度に揃え、表示を「2024年」のような年だけにする。共通教育は科目番号のパターンで判定できるようにして、取り込みの科目表には載せない。要件表の規則編集は、JSON欄を使わず画面の入力だけで作れるようにする（one_of_paths・any_of・all_of を含む）。
+**Goal:** 便覧PDFの取り込みフォームを「対象を選ぶ」カードと同じ見た目のプルダウンにし、学部・学科・コースを既存DB（Faculty/Department/Program）から選ばせる。入学年度の範囲を2016年度〜来年度に揃え、表示を「2024年」のような年だけにする。共通教育は科目番号のパターンで判定できるようにして、取り込みの科目表には載せない。要件表の確認画面を、`main` にある「卒業要件ルールビルダー」(完全に静的なモックアップ)と同じ見た目の、章・行・規則を入れ子にしたツリーに作り直し、JSON欄を使わず画面の入力だけで編集できるようにする（one_of_paths・any_of・all_of を含む）。見た目だけを真似るのではなく、本物の `Curriculum#document`(display・rules)を下敷きに動かす。
 
-**Architecture:** 学部・学科・コースの選択肢は `Faculty`/`Department`/`Program`（既存のAR）から作る。`Curriculum#department_name` は今までどおり「学科・コース名」を1つの文字列で持つ（スキーマは変えない）。画面には学科とコースを別のプルダウンで出し、コントローラが選ばれた学科名とコース名を1つの文字列に結んでから `department_name` に渡す（人が手で「工学科 知能情報コース」と打っていたのと同じ値になる。コースの無い学科は学科名だけになる、今までと同じ）。共通教育の判定は、`GraduationAssessment::Catalogue` に「科目表に無い科目でも、区分の `number_patterns` に科目番号が一致すれば、その区分として数える」という推定経路を1つ足す（既存の科目表と役割の仕組みには触れない）。規則エディタは、`one_of_paths.paths`・`any_of.options`・`all_of.conditions` を、既存の `rule_fields` と同じ「欄ごとに直せる」考え方の上に、繰り返し行（パス・条件）を増減できるUIで置き換える。繰りり返し行の増減は、新しい汎用の Stimulus コントローラ（配列パラメータの `[]` 記法をそのまま使い、添字の付け替えをしない）で行う。
+**Architecture:** 学部・学科・コースの選択肢は `Faculty`/`Department`/`Program`（既存のAR）から作る。`Curriculum#department_name` は今までどおり「学科・コース名」を1つの文字列で持つ（スキーマは変えない）。画面には学科とコースを別のプルダウンで出し、コントローラが選ばれた学科名とコース名を1つの文字列に結んでから `department_name` に渡す（人が手で「工学科 知能情報コース」と打っていたのと同じ値になる。コースの無い学科は学科名だけになる、今までと同じ）。共通教育の判定は、`GraduationAssessment::Catalogue` に「科目表に無い科目でも、区分の `number_patterns` に科目番号が一致すれば、その区分として数える」という推定経路を1つ足す（既存の科目表と役割の仕組みには触れない）。要件表の確認画面は、章(display.groups)・行(display.rows)を、`<details>` で畳んだ編集欄ではなく常時編集できる入れ子のツリーにし、行が指す規則(check_id/check_ids)のうち one_of_paths・any_of・all_of を、行の下に入れ子のボックスとして出す(それ以外の規則はバッジ無しで単位数だけ)。経路・条件の編集は、既存の `rule_fields` と同じ「欄ごとに直せる」考え方の上に、繰り返し行（経路・条件）を増減できるUIで置き換える。繰り返し行の増減は、新しい汎用の Stimulus コントローラ（配列パラメータの `[]` 記法をそのまま使い、添字の付け替えをしない）で行う。フォーム・保存の仕組み(1つの `requirements_form`、`RequirementsEdit`、`revision` による競合検出)は変えない。
 
 **Tech Stack:** Rails 8.1 / Hotwire(Stimulus) / Tailwind（既存どおり。gemを足さない）
 
@@ -314,24 +314,96 @@ git commit -m "feat: 繰り返し行を増減する汎用のStimulusコントロ
 
 ---
 
-### Task 6: one_of_pathsの経路をJSONなしで編集できるようにする
+### Task 6: 章・行を、対応する規則を入れ子にしたツリー表示にし、インライン編集にする
 
 **Files:**
-- Modify: `app/services/curriculum_import/requirements_edit.rb`（`RULE_FIELD_KINDS` に `paths: :paths`・`RULE_EXTRA_FIELDS`は変えない）、`app/services/curriculum_import/requirements_edit/coercion.rb`（`coerce`・`same?`・`baseline` に `:paths` を足す）、`app/helpers/requirements_review_helper.rb`（`rule_field_control`・新しい `role_checks`）、`app/views/curricula/_requirements_rules.html.erb`（`paths` の行を repeater で出す）
-- Test: `test/services/curriculum_import/requirements_edit/rule_editing_test.rb`(既存。無い名前のメソッドなら近い既存ファイルに足す)、`test/helpers/requirements_review_helper_test.rb`
+- Modify: `app/views/curricula/_requirements_table.html.erb`（章・行を常時編集可能なツリーに作り直す。`<details>` での開閉をやめる）、`app/views/curricula/_requirements_row.html.erb`（同上。行の下に、対応する規則を入れ子で出す）、`app/helpers/requirements_review_helper.rb`（行・章から対応する規則を引く `rules_for`、規則の種類を「AND/OR/単独」で表すラベルを返す `rule_logic_label` を足す）
+- Test: `test/helpers/requirements_review_helper_test.rb`、`test/controllers/curricula_requirements_review_test.rb`
 
 **Interfaces:**
-- Consumes: Task 5 の `repeater` コントローラ
-- Produces: `Coercion#coerce(value, :paths, name)` が `rules[N][paths][]`(各経路が1つの `<select multiple>` またはチェックの集合)を `Array<Array<String>>` にする。画面からの送信形は `rules[N][paths][0][roles][]=a&rules[N][paths][0][roles][]=b&rules[N][paths][1][roles][]=c`(経路ごとに添字、経路内の役割は `[]`)。
+- Consumes: 既存の `review.groups`・`review.rows_of(group)`・`review.rule_ids`・`RequirementsReviewHelper::FIELD_NAMES` 等（変えない）
+- Produces: `RequirementsReviewHelper#rules_for(ids, review)`(`Array<rule Hash>`。`ids` は `check_id`/`check_ids` の値。見つからない id は結果に含めない)。`RequirementsReviewHelper#rule_logic_label(rule)`(`'AND'`・`'OR'`・`nil`。`one_of_paths`・`any_of` は `'OR'`、`all_of` は `'AND'`、それ以外(credit_sum等)は `nil`)。
 
-**パラメータの形:** `entry[:paths]` は `{ "0" => { "roles" => ["a","b"] }, "1" => { "roles" => ["c"] } }` の形(Railsが `paths[0][roles][]=...` をこう組む)。`coerce` の `:paths` 分岐は、これを `値.values.map { |path| Array(path['roles']).reject(&:blank?) }` にし、空の経路(`roles` が空)は捨てる(Validation::Input の `paths?` が空配列や空の経路を拒むのと揃える。空にした経路は「無かった」ことにする)。全部の経路を消したときは `paths: []` を送る(Bookkeeping の「送らなければ消さない」原則どおり、`paths` キー自体が params に無ければ触らない)。
-
-**画面:** `rule_field_control` が `kind == :paths` のとき、`data-controller="repeater"` の中に、既存の経路ごとに1行(`role_checks("#{name}[#{index}][roles]", path, review)`)を出し、`<template>` にも空の1行を置く(足すボタンを押すと空の経路が増える)。`role_checks` は `category_checks` と同じ形(チェックの集合＋空送信用の hidden)だが、選択肢は `review.known_roles`(新しいメソッド。`Array(curriculum['courses']).flat_map { |c| c['roles'] }.uniq.sort` に `role_names` を添えたラベル)から作る。
+**見た目の方針(main の `app/views/requirements/show.html.erb` の「卒業要件ルールビルダー」モックに寄せる。ただし見た目だけを真似るのではなく、本物の `display.groups`/`display.rows`/`rules` を下敷きにする)：**
+- 章(group)は角丸の枠(`rounded-xl border border-slate-200 bg-slate-50/60 p-4`)。タイトルと必要単位は、モックと同じく常時編集できる `<input>`(今までの「この章を直す」という `<details>` の開閉をやめる。直す対象が最初から見えている状態にする)。
+- 行(row)は章の枠の中に入れ子(`ml-4 pl-4 border-l-2`)。名前と必要単位も常時編集できる `<input>`。
+- 行が `check_ids` で指す規則を `rules_for` で引き、`rule_logic_label` が `'OR'`/`'AND'` を返す規則(one_of_paths・any_of・all_of)だけ、行の下にモックの「入れ子(OR条件グループ)」と同じ見た目(琥珀色の枠)で、バッジ(OR/AND)と規則の `rule_summary` の文面を出す(経路・条件そのものの編集は Task 7)。`credit_sum`・`all_required`・`grouped_max`・`cap`・`exclude` など、バッジを持たない規則は行の右側に単位数だけ出す(モックの1〜3番目の章と同じ、バッジ無しの行)。
+- 「この章/行を消す」・区分のチェック・副題・`required_label` など、今の `<details>` の中にあった残りの欄は、常時編集のすぐ下に小さく(`text-xs`)並べる(無くさない。隠すのをやめるだけ)。
+- 保存ボタン・`revision`・フォーム自体(`requirements_form`)は変えない(1つの保存ボタンで章・行・規則をまとめて送る、という今の作りをそのまま使う)。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
 ```ruby
-# requirements_edit のテスト(既存ファイルに追記)
+# test/helpers/requirements_review_helper_test.rb
+test 'rules_for は check_ids の id から規則を引く。見つからないidは含めない' do
+  review = build_review(rules: [{ 'id' => 'a', 'type' => 'credit_sum' }])
+
+  assert_equal [{ 'id' => 'a', 'type' => 'credit_sum' }], rules_for(%w[a missing], review)
+end
+
+test 'rule_logic_label は one_of_paths・any_ofをOR、all_ofをAND、それ以外はnilにする' do
+  assert_equal 'OR', rule_logic_label({ 'type' => 'one_of_paths' })
+  assert_equal 'OR', rule_logic_label({ 'type' => 'any_of' })
+  assert_equal 'AND', rule_logic_label({ 'type' => 'all_of' })
+  assert_nil rule_logic_label({ 'type' => 'credit_sum' })
+end
+```
+
+```ruby
+# test/controllers/curricula_requirements_review_test.rb (既存ファイルに追記)
+test '章・行の名前と必要単位は、開かなくても直せる(常時表示の入力欄)' do
+  get curriculum_path(draft_with_requirements), env: ENV_LOCAL
+
+  assert_select '#requirements_table details', count: 0
+  assert_select '#requirements_table input[type=text]', minimum: 1
+end
+```
+
+- [ ] **Step 2: 失敗を確認**
+
+Run: `docker compose exec web bin/rails test test/helpers/requirements_review_helper_test.rb test/controllers/curricula_requirements_review_test.rb`
+Expected: FAIL
+
+- [ ] **Step 3: 作る**
+
+上の Interfaces・見た目の方針のとおりに実装する。`_requirements_row.html.erb`・`_requirements_table.html.erb` の既存の欄(name・required_credits・check_ids 等)の**パラメータ名は1つも変えない**(`RequirementsEdit`・`DisplayEditing` は触らない。見た目だけを作り直す)。
+
+- [ ] **Step 4: 通ることを確認**
+
+Run: `docker compose exec web bin/ci`
+Expected: PASS
+
+- [ ] **Step 5: 実際に画面で通す**
+
+Run: 開発環境で下書きの要件表を開き、章・行のタイトルや必要単位を(開かずに)直して保存できること、one_of_pathsが当たる行の下にOR/ANDのバッジ付きで規則の文面が出ることを確かめる。
+Expected: 上のとおりに動く。
+
+- [ ] **Step 6: コミット**
+
+```bash
+git add -A
+git commit -m "feat: 章・行を規則を入れ子にしたツリー表示にし、インライン編集にする"
+```
+
+---
+
+### Task 7: one_of_paths・any_of・all_ofの経路・条件を、入れ子のボックスの中でJSONなしに編集できるようにする
+
+**Files:**
+- Modify: `app/services/curriculum_import/requirements_edit.rb`（`RULE_FIELD_KINDS` に `paths: :paths`・`list: :conditions` を足す）、`app/services/curriculum_import/requirements_edit/coercion.rb`（`coerce`・`same?`・`baseline` に `:paths`・`:conditions` を足す。`:conditions` は型ごとに `credit_sum`/`grouped_max`/(any_ofのときのみ)`all_of` を1条件ずつ組み立て直す。`all_of` の中にさらに `all_of`/`any_of` が来たら、その条件ごと捨てて `error` を積む）、`app/helpers/requirements_review_helper.rb`（`role_checks`。選択肢は `review.known_roles`）
+- Create: `app/views/curricula/_requirements_rule_paths.html.erb`（one_of_pathsの経路の repeater）、`app/views/curricula/_requirements_rule_condition.html.erb`（any_of/all_ofの1条件ぶんの型選択＋欄。`all_of` を選んだときは自分自身をもう1段だけ再帰的に呼ぶ）
+- Modify: `app/views/curricula/_requirements_row.html.erb`（Task 6 で出した入れ子のボックスの中に、`_requirements_rule_paths`/`_requirements_rule_condition` の repeater を差し込む）
+- Test: `test/services/curriculum_import/requirements_edit/rule_editing_test.rb`
+
+**Interfaces:**
+- Consumes: Task 5 の `repeater` コントローラ
+- Produces: `Coercion#coerce(value, :paths, name)` が `rules[N][paths][M][roles][]` の形(経路ごとに添字M、経路内の役割は `[]`)を `Array<Array<String>>` にする。空の経路(roles が空)は捨てる。`Coercion#coerce(value, :conditions, name)` が `rules[N][options または conditions][M][type]` ほかの形を `Array<Hash>` にする(1条件が `{'type'=>..,...}`。id・labelは持たない)。
+
+**パラメータの形・経路の扱い・条件オブジェクトの組み方:** 元のTask 6・7(現在は Task 7 に統合)の設計をそのまま使う。`role_checks` は `category_checks` と同じ形(チェックの集合＋空送信用の hidden)だが、選択肢は `review.known_roles`(新しいメソッド。`Array(curriculum['courses']).flat_map { |c| c['roles'] }.uniq.sort` に `review.role_names` を添えたラベル)から作る。
+
+- [ ] **Step 1: 失敗するテストを書く**
+
+```ruby
 test '経路をチェックの入力から直す(JSONを使わない)' do
   result = edit(rules: { '0' => { id: 'english_required',
                                   paths: { '0' => { roles: %w[university_english] },
@@ -342,62 +414,6 @@ test '経路をチェックの入力から直す(JSONを使わない)' do
   assert_equal [['university_english'], ['english_reading_intermediate']], rule['paths']
 end
 
-test '空の経路は保存しない' do
-  result = edit(rules: { '0' => { id: 'english_required',
-                                  paths: { '0' => { roles: %w[university_english] }, '1' => { roles: [''] } } } })
-
-  rule = document_after['rules'].find { |r| r['id'] == 'english_required' }
-  assert_equal [['university_english']], rule['paths']
-end
-```
-
-- [ ] **Step 2: 失敗を確認**
-
-Run: `docker compose exec web bin/rails test test/services/curriculum_import/requirements_edit/rule_editing_test.rb`
-Expected: FAIL
-
-- [ ] **Step 3: 作る**
-
-上の Interfaces のとおりに実装する。`rule_summary`(`path_lines`)はすでに `paths` を読んで表示しているので変えない。
-
-- [ ] **Step 4: 通ることを確認**
-
-Run: `docker compose exec web bin/ci`
-Expected: PASS
-
-- [ ] **Step 5: 実際に画面で通す**
-
-Run: 開発環境で下書きの要件表を開き、`one_of_paths` の規則(例: `english_required`)の「この規則を直す・消す」を開き、経路を1つ足して保存し、再読込しても残ることを確かめる。JSON欄が無いことも確かめる。
-Expected: 上のとおりに動く。
-
-- [ ] **Step 6: コミット**
-
-```bash
-git add -A
-git commit -m "feat: one_of_pathsの経路をJSONなしで編集できるようにする"
-```
-
----
-
-### Task 7: any_of・all_ofの入れ子条件をJSONなしで編集できるようにする
-
-**Files:**
-- Modify: `app/services/curriculum_import/requirements_edit.rb`（`RULE_FIELD_KINDS` に `list: :conditions` を足す。`RULE_FIELD_KINDS` のキーは `Validation::Input::FIELD_KINDS` 側の種類(`:keys`/`:paths`/`:list`/`:number`/`:count`/`:text`)で、`:list` を使う欄は `any_of.options`・`all_of.conditions` の2つだけなので、field名での特別扱いは要らない。ここで足す `:conditions` は `Coercion` 側の新しい種類の名前で、既存の `Coercion#coerce` の `:list`(単純なid配列)とは別物として並べる）、`app/services/curriculum_import/requirements_edit/coercion.rb`（`:conditions` を足す。再帰的に `credit_sum`/`grouped_max`/(any_ofのときのみ)`all_of` を1条件ずつ組む）
-- Create: `app/views/curricula/_requirements_rule_condition.html.erb`（1条件分の型選択＋欄。`all_of` を選んだときは自分自身を repeater で再帰的に呼ぶ）
-- Modify: `app/views/curricula/_requirements_rules.html.erb`（`options`/`conditions` の行を `_requirements_rule_condition` の repeater で出す）
-- Test: `test/services/curriculum_import/requirements_edit/rule_editing_test.rb`、`test/helpers/requirements_review_helper_test.rb`
-
-**Interfaces:**
-- Consumes: Task 5 の `repeater`、Task 6 の `:paths` 実装と同じ Coercion の形(`entries.values` パターン)
-- Produces: `rules[N][options][M][type]`・`rules[N][options][M][categories][]`・`rules[N][options][M][required_credits]`(credit_sumのとき)、`rules[N][options][M][category]`・`[group_by]`・`[required_credits]`(grouped_maxのとき)、`rules[N][options][M][type]=all_of` を選んだときは `rules[N][options][M][conditions][K][...]`(1階層だけ、`ALL_OF_CONDITIONS`の2つの型のみ)。
-
-**条件オブジェクトの組み方:** `coerce` の `:conditions` 分岐は、送られた `{ "0" => {type: 'credit_sum', categories: [...], required_credits: '10'}, "1" => {...} }` を、`type` ごとに `Validation::Input::FIELD_KINDS.fetch(type)` の欄だけを `number`/`set` と同じ `coerce` ロジックで組み立て直し、`{ 'type' => type, 'categories' => [...], 'required_credits' => 10 }` のような1条件のHashにする(id・labelは持たない。条件は親の規則の一部で、単独では確認済みの印も付かない)。`type` が `all_of`(any_ofの中でだけ許す)なら、`conditions` を同じ要領で再帰的に組む(1階層だけ。`all_of` の中にさらに `all_of`/`any_of` が来たら、その条件ごと捨てて `error` を積む。`ALL_OF_CONDITIONS`/`ANY_OF_OPTIONS` に無い `type` も同様に拒む)。空の `type` の条件行(足すボタンを押しただけで中身を選んでいない)は捨てる。
-
-**画面:** `_requirements_rule_condition` は、`<select>` で型を選ぶ欄(`options_for_select` の選択肢は、呼ばれた文脈が `any_of` なら `ANY_OF_OPTIONS`、`all_of` なら `ALL_OF_CONDITIONS`。local変数で渡す)と、選んだ型に応じて `rule_field_input` を型ごとの欄数だけ出す(JSで動的に出し分けず、`credit_sum`なら`categories`・`required_credits`、`grouped_max`なら`category`・`group_by`・`required_credits`の欄を**両方とも常に表示**し、使わない欄は空のまま送ってもらう形にする。`type` に応じて実際に使う欄だけを `coerce` 側が読むので、余分な欄があっても害は無い。画面を単純にするための割り切りで、JSで出し分ける案は取らない)。`all_of` を選んだときだけ、その中に `conditions` の repeater をもう1段ネストする(`_requirements_rule_condition` 自身を `local: { allowed: GraduationAssessment::Rules::ALL_OF_CONDITIONS }` で呼び直す。再帰は1回だけなので、パーシャルの再帰呼び出しで十分)。
-
-- [ ] **Step 1: 失敗するテストを書く**
-
-```ruby
 test 'any_ofの選択肢をJSONを使わず直す' do
   result = edit(rules: { '0' => { id: 'some_any_of',
                                   options: { '0' => { type: 'credit_sum', categories: %w[a], required_credits: '4' },
@@ -434,29 +450,29 @@ Expected: PASS
 
 - [ ] **Step 5: 実際に画面で通す**
 
-Run: 開発環境で `any_of`/`all_of` を含む規則(2024年度のデータに実例が無ければ、テスト用の下書きを1つ作って確認する)を開き、JSON欄を使わずに条件を1つ足して保存できることを確かめる。
+Run: 開発環境で下書きの要件表を開き、one_of_pathsの規則(例: english_required)の経路を1つ足して保存し、再読込しても残ることを確かめる。JSON欄が無いことも確かめる。
 Expected: 上のとおりに動く。
 
 - [ ] **Step 6: コミット**
 
 ```bash
 git add -A
-git commit -m "feat: any_of・all_ofの入れ子条件をJSONなしで編集できるようにする"
+git commit -m "feat: one_of_paths・any_of・all_ofの経路・条件を入れ子のボックスでJSONなしに編集できるようにする"
 ```
 
 ---
 
-### Task 8: 新規規則の追加をJSON欄から型選択＋欄のフォームにする
+### Task 8: 新しい章・行・規則の追加をツリーのUIに統合し、JSON欄を廃止する
 
 **Files:**
-- Modify: `app/services/curriculum_import/requirements_edit/rule_editing.rb`（`add_new_rule`・`new_rule_problem` を書き直す）、`app/views/curricula/_requirements_rules.html.erb`（「規則を足す」の中身を差し替える）
+- Modify: `app/views/curricula/_requirements_additions.html.erb`（「章を足す」「行を足す」を、ツリーの最後に出す「＋ ルート区分を追加」「＋ 子区分」ボタン相当の、常時見える1行の追加フォームにする。中身(欄)は変えない）、`app/services/curriculum_import/requirements_edit/rule_editing.rb`（`add_new_rule`・`new_rule_problem` を書き直す）、`app/views/curricula/_requirements_rules.html.erb`（「規則を足す(AIが読み落とした要件)」をJSON欄から型選択＋欄のフォームにする。Task 6 でツリーに統合された行の下にはもう出ない規則の一覧はここに残す(入れ子に属さない独立した規則を足す場所として)）
 - Test: `test/services/curriculum_import/requirements_edit/rule_editing_test.rb`
 
 **Interfaces:**
-- Consumes: Task 6・8 の `:paths`/`:conditions` coercion、既存の `RequirementsEdit.rule_fields`
-- Produces: `@params[:new_rule]`(Hash。`new_rule_json` 文字列は廃止)。`add_new_rule` は `new_rule[:type]` で型を決め、その型の `rule_fields` と同じ欄(`id`・`label`・型ごとの欄)を `assign` と同じ `coerce` を通して組む。
+- Consumes: Task 5 の `repeater`、Task 7 の `:paths`/`:conditions` coercion、既存の `RequirementsEdit.rule_fields`
+- Produces: `@params[:new_rule]`(Hash。`new_rule_json` 文字列は廃止)。`add_new_rule` は `new_rule[:type]` で型を決め、その型の `rule_fields` と同じ欄(`id`・`label`・型ごとの欄。`paths`/`options`/`conditions` を含む)を `assign` と同じ `coerce` を通して組む。
 
-**画面:** 「規則を足す」の中身を、`new_rule[type]` の `<select>`(選択肢は `CurriculumImport::Annotations::RULE_TYPES`)と、`id`・`label`、型ごとの欄(Task 6・8 で作った `paths`/`options`/`conditions` のUIも含めて、既存の規則の編集と同じ部品を再利用する。`rule_fields` がダミーの `{'id' => rule_id, 'type' => type}` から欄の種類を返すので、既存の規則を直す行と同じ `each` ループで欄を出せる)に変える。JSON欄とサンプルの `<pre>` は消す。
+**画面:** 「規則を足す」の中身を、`new_rule[type]` の `<select>`(選択肢は `CurriculumImport::Annotations::RULE_TYPES`)と、`id`・`label`、型ごとの欄(Task 7 で作った `_requirements_rule_paths`/`_requirements_rule_condition` も含めて、既存の規則の編集と同じ部品を再利用する)に変える。JSON欄とサンプルの `<pre>` は消す。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -496,5 +512,5 @@ Expected: 上のとおりに動く。
 
 ```bash
 git add -A
-git commit -m "feat: 新しい規則の追加をJSON欄から型選択と欄のフォームにする"
+git commit -m "feat: 新しい規則の追加をJSON欄から型選択と欄のフォームにし、ツリーのUIに統合する"
 ```
