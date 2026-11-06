@@ -12,6 +12,10 @@ Rails.application.routes.draw do
   # ルートは進捗ダッシュボード
   root 'dashboard#show'
 
+  # ログイン。デモは固定の学生としてログインするだけの入口。
+  resource :session, only: %i[new create destroy]
+  resource :demo_session, only: :create
+
   # 大項目を開いたときだけ小項目を取りに来る（進捗ダッシュボードのドロップダウン）
   get 'dashboard/groups/:id', to: 'dashboard_groups#show', as: :dashboard_group
 

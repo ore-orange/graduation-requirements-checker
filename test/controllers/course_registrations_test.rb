@@ -10,6 +10,8 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
   setup do
     @previous_proxy = ENV.delete('LOCAL_DEMO_PROXY')
     host! 'localhost'
+    # 講義登録はローカル限定のままだが、画面を開くにはログインが要る。
+    sign_in_as(User.create!(email: 'course-registrar@example.test', password: 'a-test-password'))
   end
 
   teardown do

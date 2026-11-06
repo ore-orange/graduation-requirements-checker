@@ -49,7 +49,7 @@ class PlanCoursesController < ApplicationController
     return unless catalogue_course && catalogue_course['selectable'] == true
 
     Course.find_by(curriculum_key: key) ||
-      raise(DemoAccount::Unavailable, 'Catalogue courses have not been seeded')
+      raise(SetupIncomplete, 'カリキュラムの科目が登録されていません。')
   end
 
   # 自由入力の科目は以前に追加された予定だけが残っている。その最後の予定を消したら科目も消す

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# 学生1人分の履修データと卒業要件を読み込み、各画面に渡す。
-# 認証が入るまでは固定のデモ学生をローカル環境でのみ扱う。
+# ログイン中のユーザー1人分の履修データと卒業要件を読み込み、各画面に渡す。
+# ログインの要求は ApplicationController の Authentication が受け持つ。
 module StudentWorkspace
   extend ActiveSupport::Concern
 
@@ -12,23 +12,19 @@ module StudentWorkspace
   TERM_PARAM = /\A(?<grade>[1-4])-(?<semester>前期|後期)\z/
 
   included do
-    before_action :require_local_demo
     before_action :load_workspace
 
-    rescue_from DemoAccount::Unavailable, with: :show_setup
+    rescue_from SetupIncomplete, with: :show_setup
   end
 
   private
 
-  def require_local_demo
-    head :not_found unless local_demo_access?
-  end
-
   # 全画面で必要になる最小限。履修履歴は使う画面だけが enrollments で読む。
   def load_workspace
-    @student = DemoAccount.student
-    @curriculum = CurriculumRepository.find(department: DemoAccount::DEPARTMENT,
-                                            admission_year: @student.admission_year)
+    @student = Current.user.student
+    raise SetupIncomplete, '学籍情報が登録されていません。' if @student.nil?
+
+    @curriculum = @student.curriculum
     @courses_by_key = @curriculum.fetch('courses').index_by { |course| course.fetch('key') }
   end
 
@@ -88,7 +84,8 @@ module StudentWorkspace
   # 予定を追加できるのは今の学期とそれ以降。
   def term_open?(term) = TERMS.index(term) >= TERMS.index(current_term)
 
-  def show_setup
+  def show_setup(error)
+    @setup_message = error.message
     render 'shared/setup', status: :service_unavailable
   end
 end
