@@ -18,14 +18,14 @@ class PlansController < ApplicationController
   def load_term
     @current_term = current_term
     @term = parse_term(params[:term]) || @current_term
-    index = TERMS.index(@term)
     @terms = TERMS
-    @prev_term = TERMS[index - 1] if index.positive?
-    @next_term = TERMS[index + 1]
     @term_year = term_year(@term)
     @term_open = term_open?(@term)
-    @term_enrollments = @enrollments.select { |enrollment| term_of(enrollment) == @term }
-    @term_plans = @plans.select { |plan| term_of(plan) == @term }
+    # 学期のボタンに各学期の単位を出すため、全学期ぶんを学期ごとに分けておく
+    @enrollments_by_term = @enrollments.group_by { |enrollment| term_of(enrollment) }
+    @plans_by_term = @plans.group_by { |plan| term_of(plan) }
+    @term_enrollments = @enrollments_by_term.fetch(@term, [])
+    @term_plans = @plans_by_term.fetch(@term, [])
     @unplaced_enrollments = @enrollments.reject { |enrollment| SEMESTERS.include?(enrollment.semester) }
   end
 

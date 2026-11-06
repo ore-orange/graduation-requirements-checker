@@ -13,53 +13,45 @@
       mapped_categories = StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
       unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course.curriculum_key, @courses_by_key)) }
       unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-      term_earned = @term_enrollments.select { |e| e.enrollment_status == 'completed' }.sum(BigDecimal('0')) { |e| e.credits_earned || BigDecimal('0') }
-      term_current = @term_enrollments.select { |e| StudentWorkspace::CURRENT_STATUSES.include?(e.enrollment_status) }.sum(BigDecimal('0')) { |e| e.course.credits || BigDecimal('0') }
-      term_planned = @term_plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_key) }
+      credits_of_term = @terms.index_with { |term| term_credits(@enrollments_by_term.fetch(term, []), @plans_by_term.fetch(term, []), @courses_by_key) }
+      term_credit = credits_of_term.fetch(@term)
       is_current_term = @term == @current_term
-      nav_class = 'w-9 h-9 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-lg text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
     %>
 
+    <!-- 学期の切り替え（せまい画面ではボタンの列だけ横にスクロール） -->
+    <nav class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-3" aria-label="学期の切り替え">
+      <ol class="flex gap-1.5 overflow-x-auto">
+        <% @terms.each do |term| %>
+          <% selected = term == @term %>
+          <li class="flex-1 min-w-max">
+            <%= link_to plan_path(term: term_param(term)),
+                        class: "h-14 px-3.5 flex flex-col items-center justify-center gap-0.5 rounded-xl border text-sm whitespace-nowrap transition #{selected ? 'bg-indigo-600 border-indigo-600 text-white font-semibold' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-700'}",
+                        aria: { current: (selected ? 'page' : nil) },
+                        data: { term_button: term_param(term), term_current: (term == @current_term ? true : nil) } do %>
+              <span><%= term_label(term) %></span>
+              <span class="text-[11px] font-normal <%= selected ? 'text-indigo-100' : 'text-slate-400' %>">
+                <%= credit_number(credits_of_term.fetch(term)[:total]) %>単位<%= '・現在' if term == @current_term %>
+              </span>
+            <% end %>
+          </li>
+        <% end %>
+      </ol>
+    </nav>
+
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden" data-term="<%= term_param(@term) %>">
-      <!-- 学期の切り替え -->
-      <div class="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
-        <% if @prev_term %>
-          <%= link_to '‹', plan_path(term: term_param(@prev_term)), class: nav_class,
-                      aria: { label: "前の学期（#{term_label(@prev_term)}）" }, data: { term_nav: 'prev' } %>
-        <% else %>
-          <span class="w-9 shrink-0"></span>
-        <% end %>
-
-        <div class="text-center">
-          <h2 class="text-base font-bold text-slate-900">
-            <%= term_label(@term) %>（<%= @term_year %>年度）
-            <% if is_current_term %>
-              <span class="ml-1 align-middle text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">現在</span>
-            <% end %>
-          </h2>
-          <p class="text-xs text-slate-500 mt-0.5">
-            修得 <%= credit_number(term_earned) %>単位
-            <% if term_current.positive? %> ・ 履修中 <%= credit_number(term_current) %>単位<% end %>
-            <% if term_planned.positive? %> ・ 予定 <%= credit_number(term_planned) %>単位<% end %>
-          </p>
-          <ol class="mt-2 flex items-center justify-center gap-1.5" aria-label="学期の一覧">
-            <% @terms.each do |term| %>
-              <li>
-                <%= link_to plan_path(term: term_param(term)),
-                            class: "block w-2.5 h-2.5 rounded-full #{term == @term ? 'bg-indigo-600' : (term == @current_term ? 'bg-indigo-200 hover:bg-indigo-300' : 'bg-slate-200 hover:bg-slate-300')}",
-                            title: term_label(term), aria: { label: term_label(term), current: (term == @term ? 'page' : nil) } do %>
-                <% end %>
-              </li>
-            <% end %>
-          </ol>
-        </div>
-
-        <% if @next_term %>
-          <%= link_to '›', plan_path(term: term_param(@next_term)), class: nav_class,
-                      aria: { label: "次の学期（#{term_label(@next_term)}）" }, data: { term_nav: 'next' } %>
-        <% else %>
-          <span class="w-9 shrink-0"></span>
-        <% end %>
+      <!-- 表示中の学期と、その学期の単位の内訳 -->
+      <div class="px-4 sm:px-6 py-4 border-b border-slate-100">
+        <h2 class="text-base font-bold text-slate-900">
+          <%= term_label(@term) %>（<%= @term_year %>年度）
+          <% if is_current_term %>
+            <span class="ml-1 align-middle text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">現在</span>
+          <% end %>
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5" data-term-credits>
+          修得 <%= credit_number(term_credit[:earned]) %>単位
+          <% if term_credit[:current].positive? %> ・ 履修中 <%= credit_number(term_credit[:current]) %>単位<% end %>
+          <% if term_credit[:planned].positive? %> ・ 予定 <%= credit_number(term_credit[:planned]) %>単位<% end %>
+        </p>
       </div>
 
       <!-- 区分バッジの凡例 -->

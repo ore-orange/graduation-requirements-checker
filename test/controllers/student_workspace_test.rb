@@ -288,7 +288,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "form[action='#{session_path}'] button", text: 'ログアウト', count: 1
   end
 
-  test '履修計画表は指定した学期の履修履歴だけを表示し、前後の学期へ移動できる' do
+  test '履修計画表は指定した学期の履修履歴だけを表示する' do
     shown = @student.student_courses.where(academic_year: 2025, semester: '後期').to_a
     hidden = @student.student_courses.where.not(academic_year: 2025).or(
       @student.student_courses.where.not(semester: '後期')
@@ -300,8 +300,6 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-term="2-後期"]', count: 1
     shown.each { |enrollment| assert_select "[data-enrollment='#{enrollment.id}']", count: 1 }
     hidden.each { |enrollment| assert_select "[data-enrollment='#{enrollment.id}']", count: 0 }
-    assert_select '[data-term-nav="prev"][href=?]', plan_path(term: '2-前期')
-    assert_select '[data-term-nav="next"][href=?]', plan_path(term: '3-前期')
   end
 
   test '履修計画表は今の学期から始まり、読めない学期の指定も今の学期として扱う' do
@@ -312,14 +310,29 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-term="3-後期"]', count: 1
   end
 
-  test '最初と最後の学期では、その先へ進むボタンを出さない' do
-    get plan_path(term: '1-前期')
-    assert_select '[data-term-nav="prev"]', count: 0
-    assert_select '[data-term-nav="next"]', count: 1
+  test '学期のボタンを8個並べ、表示中の学期と今の学期に印を付ける' do
+    get plan_path(term: '2-後期')
+
+    assert_select '[data-term-button]', count: 8
+    %w[1-前期 1-後期 2-前期 2-後期 3-前期 3-後期 4-前期 4-後期].each do |term|
+      assert_select '[data-term-button=?][href=?]', term, plan_path(term: term), count: 1
+    end
+    assert_select '[data-term-button][aria-current="page"]', count: 1
+    assert_select '[data-term-button="2-後期"][aria-current="page"]', count: 1
+    assert_select '[data-term-current]', count: 1
+    assert_select "[data-term-button='#{CURRENT_TERM}'][data-term-current]", text: /現在/, count: 1
+  end
+
+  test '学期のボタンに、その学期の修得・履修中・予定の単位の合計を出す' do
+    course = @courses.find do |c|
+      c['selectable'] == true && @occupied_keys.exclude?(c['key']) && c['credits'].to_d == 2
+    end
+    @student.planned_courses.create!(course: course_record(course), academic_year: 2027, semester: '後期')
 
     get plan_path(term: '4-後期')
-    assert_select '[data-term-nav="prev"]', count: 1
-    assert_select '[data-term-nav="next"]', count: 0
+    assert_select '[data-term-button="4-後期"]', text: /2単位/, count: 1
+    assert_select '[data-term-button="4-前期"]', text: /0単位/, count: 1
+    assert_select '[data-term-credits]', text: /予定 2単位/, count: 1
   end
 
   test '学期が登録されていない履修履歴は、どの学期を見ても別枠に表示する' do
