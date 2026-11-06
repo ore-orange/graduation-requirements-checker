@@ -50,6 +50,21 @@ class GraduationAssessmentTest < ActiveSupport::TestCase
                          .map { |course| entry(course['key']) }
   end
 
+  test '科目表に無い科目も、番号のパターンに一致すれば区分として数える' do
+    curriculum = document.deep_merge(
+      'categories' => [{ 'key' => 'health', 'label' => '健康', 'number_patterns' => ['健'], 'counts_toward_total' => true }],
+      'rules' => [{ 'id' => 'health', 'type' => 'credit_sum', 'label' => '健康', 'categories' => ['health'],
+                    'required_credits' => 2, 'source_page' => 'テスト専用', 'detail' => '' }]
+    )
+    result = GraduationAssessment.new(curriculum: curriculum).call(
+      completed: [{ key: '健01', credits: 2, approved: nil, name: '健康科学' }]
+    )
+
+    check = result.actual.checks.find { |c| c.id == 'health' }
+    assert_equal :satisfied, check.status
+    assert_equal 2, check.counted_credits
+  end
+
   test 'a complete 130 credit selection satisfies all handbook checks' do
     snapshot = assess.actual
 

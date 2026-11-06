@@ -59,6 +59,19 @@ class GraduationAssessment
       @by_number[number]
     end
 
+    # 科目番号から number_patterns で一致する区分キーを探す。
+    # まず百の位（例: "外1"）で当たる区分を探し、次に接頭辞（例: "外"）で探す。
+    # 安全側の設計: いずれにも一致しなければ nil を返し、呼び出し元は今までどおり「要確認」のまま扱う。
+    def pattern_category_for(number)
+      hundreds = CourseNumber.hundreds(number)
+      prefix = CourseNumber.prefix(number)
+      return nil unless hundreds || prefix
+
+      by_hundreds = build_pattern_index[:by_hundreds]
+      by_prefix = build_pattern_index[:by_prefix]
+      by_hundreds[hundreds] || by_prefix[prefix]
+    end
+
     def roles(course)
       course.fetch('roles', [])
     end
@@ -233,13 +246,18 @@ class GraduationAssessment
     end
 
     # key の無い区分は category_keys に nil を混ぜ、重複した key は和名の対応表を後勝ちで潰す。
+    # number_patterns に同じパターン文字列が複数の区分にあれば、どの区分かを決められないまま
+    # 判定が通ってしまうので、読み込み時に弾く。
     def validate_categories
       raise ArgumentError, 'categories の要素に key がありません' if category_keys.any?(&:blank?)
 
       duplicates = category_keys.tally.select { |_, count| count > 1 }.keys
-      return if duplicates.empty?
+      raise ArgumentError, "categories の key が重複しています: #{duplicates.sort_by(&:to_s).join('、')}" if duplicates.any?
 
-      raise ArgumentError, "categories の key が重複しています: #{duplicates.sort_by(&:to_s).join('、')}"
+      pattern_dupes = all_number_patterns.tally.select { |_, count| count > 1 }.keys
+      return if pattern_dupes.empty?
+
+      raise ArgumentError, "number_patterns が重複しています（どの区分か決められません）: #{pattern_dupes.sort_by(&:to_s).join('、')}"
     end
 
     # 便覧に無い区分を指す規則は、何も数えないまま不足とも充足とも言ってしまう。
@@ -255,6 +273,30 @@ class GraduationAssessment
 
       Array(definition['category']) + Array(definition['categories']) + Array(definition['required_categories']) +
         NESTED_RULES.flat_map { |field| Array(definition[field]).flat_map { |child| referenced_categories(child) } }
+    end
+
+    # number_patterns のパターン→区分キーの引き引き表。百の位と接頭辞を分けて持つ。
+    # 重複チェックは validate_categories が担うので、ここでは先勝ちで問題ない。
+    def build_pattern_index
+      @pattern_index ||= begin
+        by_hundreds = {}
+        by_prefix = {}
+        categories.each do |category|
+          Array(category['number_patterns']).each do |pattern|
+            # 百の位(例: "外1")か接頭辞(例: "外")かは、末尾1文字が数字かどうかで区別する。
+            if pattern.match?(/\d\z/)
+              by_hundreds[pattern] ||= category['key']
+            else
+              by_prefix[pattern] ||= category['key']
+            end
+          end
+        end
+        { by_hundreds: by_hundreds, by_prefix: by_prefix }
+      end
+    end
+
+    def all_number_patterns
+      categories.flat_map { |category| Array(category['number_patterns']) }
     end
   end
 end

@@ -21,8 +21,15 @@ class GraduationAssessment
 
     def normalize(entries, course)
       unless course
-        entries.each { |entry| unknown(entry) }
-        return
+        # 科目表に無い科目でも、番号パターンが一致すれば区分として数える。
+        # 安全側の設計: パターンに一致しなければ今までどおり「要確認」のままになる。
+        inferred = pattern_course(entries)
+        if inferred
+          course = inferred
+        else
+          entries.each { |entry| unknown(entry) }
+          return
+        end
       end
 
       values = entries.map { |entry| Ledger.decimal(entry[:credits]) }.uniq
@@ -81,6 +88,20 @@ class GraduationAssessment
 
     def unknown(entry)
       @ledger.external(entry, nil, '科目の正規キーを科目表と照合できないため、分類・同一性の確認が必要', review: true)
+    end
+
+    # 科目表に無い科目の番号から、number_patterns を使って区分を推定する。
+    # 成功すれば「科目表には未掃載」の合成科目を返す。失敗すれば nil。
+    # 成功した科目は required / roles / requires_approval を持たない
+    # (共通教育の個々の必修科目はこれとは別に科目表に残す)。
+    def pattern_course(entries)
+      number = entries.first[:key]
+      category = @catalogue.pattern_category_for(number)
+      return nil unless category
+
+      { 'key' => number, 'number' => number, 'name' => entries.first[:name].to_s,
+        'category' => category, 'source' => '科目番号のパターンから推定',
+        'source_page' => '科目番号のパターンから推定（科目表には未掲載）' }
     end
 
     def normalize_unresolved(entry)
