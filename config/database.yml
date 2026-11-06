@@ -26,6 +26,5 @@ production:
     url: <%= ENV['DATABASE_URL']&.inspect %>
     database: app_production
     username: app
-    password: <%= ENV['APP_DATABASE_PASSWORD']&.inspect %>
     sslmode: <%= ENV.fetch('DATABASE_SSLMODE', 'require').inspect %>
     sslrootcert: <%= ENV['DATABASE_SSLROOTCERT']&.inspect %>
