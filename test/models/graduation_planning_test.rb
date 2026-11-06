@@ -10,9 +10,9 @@ class GraduationPlanningTest < ActiveSupport::TestCase
   setup do
     faculty = Faculty.create!(name: '計画テスト学部')
     department = faculty.departments.create!(name: '計画テスト学科')
-    @student = Student.create!(user: User.create!(email: 'plan@example.test'), department: department,
+    @student = Student.create!(user: create_user('plan@example.test'), department: department,
                                admission_year: 2024)
-    @other_student = Student.create!(user: User.create!(email: 'other-plan@example.test'), department: department,
+    @other_student = Student.create!(user: create_user('other-plan@example.test'), department: department,
                                      admission_year: 2024)
     @course = Course.create!(curriculum_key: 'test_course', course_number: 'TEST-1', name: '人工テスト科目', credits: 3)
   end
@@ -140,6 +140,12 @@ class GraduationPlanningTest < ActiveSupport::TestCase
     plan.destroy!
     assert_equal enrollment, @student.student_courses.find(enrollment.id)
     assert_equal other_plan, @other_student.planned_courses.find(other_plan.id)
+  end
+
+  private
+
+  def create_user(email)
+    User.create!(email: email, password: 'a-test-password')
   end
 end
 

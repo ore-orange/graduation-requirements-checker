@@ -8,25 +8,15 @@ class DashboardTest < ActionDispatch::IntegrationTest
   GROUPS = %w[common basic required elective].freeze
 
   setup do
-    @previous_proxy = ENV.delete('LOCAL_DEMO_PROXY')
     host! 'localhost'
     DemoData.load!
     @student = DemoAccount.student
     @student.planned_courses.delete_all
+    sign_in_as(@student.user)
   end
-
-  teardown do
-    if @previous_proxy.nil?
-      ENV.delete('LOCAL_DEMO_PROXY')
-    else
-      ENV['LOCAL_DEMO_PROXY'] = @previous_proxy
-    end
-  end
-
-  def local_env = { 'REMOTE_ADDR' => '127.0.0.1' }
 
   test '区分ごとに独立したカードが並ぶ' do
-    get root_path, env: local_env
+    get root_path
 
     assert_response :success
     assert_select 'details[data-check]', count: GROUPS.size
@@ -36,14 +26,14 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test 'カードの見出しに通し番号は出さない' do
-    get root_path, env: local_env
+    get root_path
 
     assert_select 'details[data-check="common_total"] h4', text: /\A共通教育\z/
     assert_select 'h4', text: /\A1\. /, count: 0
   end
 
   test '画面名の見出しは読み上げ用だけで、本文には出さない' do
-    get root_path, env: local_env
+    get root_path
 
     # ヘッダーのタブで現在地が分かるので、大きな見出しは置かない
     assert_select 'h2.sr-only', text: '卒業ダッシュボード', count: 1
@@ -51,7 +41,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test 'ヘッダーのタブが5画面ぶんある' do
-    get root_path, env: local_env
+    get root_path
 
     [[root_path, '卒業ダッシュボード'], [requirements_path, '卒業要件の確認'],
      [plan_path, '履修計画表'], [course_registrations_path, '講義登録'],
@@ -63,7 +53,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '充足した区分は充足のバッジだけを出す' do
-    get root_path, env: local_env
+    get root_path
 
     assert_select 'details[data-check="basic_total"]' do
       assert_select '.status-satisfied', text: '充足', count: 1
@@ -73,7 +63,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '不足している区分で履修中があれば両方のバッジを出す' do
-    get root_path, env: local_env
+    get root_path
 
     # 専門選択科目は修得22単位・履修中2単位で、必要37単位に届いていない
     assert_select 'details[data-check="elective_total"]' do
@@ -83,7 +73,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '履修中がない区分には履修中のバッジを出さない' do
-    get root_path, env: local_env
+    get root_path
 
     # 共通教育は24単位どまりで、履修中の科目はひとつもない
     assert_select 'details[data-check="common_total"]' do
@@ -93,7 +83,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test 'バーは量だけを表し、判定では色を変えない' do
-    get root_path, env: local_env
+    get root_path
 
     # 充足していても足りなくても、修得済みは同じ緑
     assert_select 'details[data-check="basic_total"] .bg-emerald-500', count: 1
@@ -104,7 +94,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '閉じているあいだは内訳を送らない' do
-    get root_path, env: local_env
+    get root_path
 
     GROUPS.each do |id|
       assert_select "turbo-frame#dashboard-group-#{id}[src][loading=?]", 'lazy', count: 1
@@ -114,7 +104,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '内訳は開いたときに返る' do
-    get dashboard_group_path('common'), env: local_env
+    get dashboard_group_path('common')
 
     assert_response :success
     assert_select 'turbo-frame#dashboard-group-common' do
@@ -124,7 +114,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '必要単位を持たない行はバーも判定も出さない' do
-    get dashboard_group_path('elective'), env: local_env
+    get dashboard_group_path('elective')
 
     # 数学基礎(選択)・知能情報関連・専門科目(自由)は上位の枠に寄与するだけの行
     %w[elective_math related free].each do |id|
@@ -138,7 +128,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '内訳は狭い画面でも横に溢れない' do
-    get dashboard_group_path('common'), env: local_env
+    get dashboard_group_path('common')
 
     # 固定幅の表をやめ、積んで見せる。横スクロールの退避先も持たない。
     assert_select 'table', count: 0
@@ -147,7 +137,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '内訳に区分名の繰り返しや設計用語を出さない' do
-    get dashboard_group_path('common'), env: local_env
+    get dashboard_group_path('common')
 
     # 開いた時点でどの区分かは分かるので、見出しを繰り返さない
     assert_select 'h5', count: 0
@@ -156,7 +146,7 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '未修得の必修は内訳の先頭にまとめて出す' do
-    get dashboard_group_path('required'), env: local_env
+    get dashboard_group_path('required')
 
     assert_response :success
     assert_match(/未修得・未計画の必修/, response.body)
@@ -164,28 +154,30 @@ class DashboardTest < ActionDispatch::IntegrationTest
   end
 
   test '未修得の必修がなければその行は出さない' do
-    get dashboard_group_path('common'), env: local_env
+    get dashboard_group_path('common')
 
     assert_no_match(/未修得・未計画の必修/, response.body)
   end
 
   test '内訳は画面まるごとではなくフレームだけを返す' do
-    get dashboard_group_path('basic'), env: local_env
+    get dashboard_group_path('basic')
 
     assert_select 'nav', count: 0
     assert_select 'details', count: 0
   end
 
   test '存在しない区分は404' do
-    get dashboard_group_path('nope'), env: local_env
+    get dashboard_group_path('nope')
 
     assert_response :not_found
   end
 
-  test '本番やリモートからは開けない' do
-    get root_path, env: { 'REMOTE_ADDR' => '203.0.113.10' }
+  test 'ログインしていなければログイン画面に送る' do
+    sign_out
 
-    assert_response :not_found
+    get root_path
+
+    assert_redirected_to new_session_path
   end
 end
 
