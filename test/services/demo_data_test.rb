@@ -40,7 +40,7 @@ class DemoDataTest < ActiveSupport::TestCase
     history = student.student_courses.create!(course: course, academic_year: 2023, semester: 'manual-test',
                                               grade: 'manual-result', enrollment_status: 'unknown',
                                               credits_earned: '1.5', approval_confirmed: false)
-    unrelated_user = User.create!(email: 'unrelated@example.test')
+    unrelated_user = User.create!(email: 'unrelated@example.test', password: 'a-test-password')
     unrelated_course = Course.create!(course_number: course.course_number, name: course.name, credits: 9)
     unrelated_student = Student.create!(user: unrelated_user, department: student.department, admission_year: 2025)
     unrelated_plan = unrelated_student.planned_courses.create!(course: unrelated_course)
@@ -77,7 +77,7 @@ class DemoDataTest < ActiveSupport::TestCase
   test 'conflicting existing cohort is not overwritten and loading is atomic' do
     faculty = Faculty.create!(name: '既存学部')
     department = faculty.departments.create!(name: '既存学科')
-    user = User.create!(email: DemoAccount::EMAIL)
+    user = User.create!(email: DemoAccount::EMAIL, password: 'a-test-password')
     student = user.create_student!(department: department, admission_year: 2025)
     before = record_counts
 

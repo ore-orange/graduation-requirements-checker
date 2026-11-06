@@ -1,0 +1,42 @@
+<% content_for :title, "ログイン | #{app_name}" %>
+<% content_for :full_bleed, true %>
+
+<%# ログイン前はまだどの画面にも行けないので、ヘッダーのタブは出さない %>
+<%= render 'shared/toast' %>
+<div class="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-12 font-sans text-slate-800">
+  <div class="w-full max-w-sm space-y-5">
+    <div class="flex flex-col items-center gap-2.5 text-center">
+      <span class="flex size-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600" aria-hidden="true">
+        <svg class="size-6" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2 1 6l9 4 7-3.111V12h2V6l-9-4Zm-5 8.889V14c0 1.105 2.239 2 5 2s5-.895 5-2v-3.111l-5 2.222-5-2.222Z"/></svg>
+      </span>
+      <div>
+        <h1 class="text-xl font-bold text-slate-900"><%= app_name %></h1>
+        <p class="mt-0.5 text-xs text-slate-500">卒業までの道のりを、ひと目で。</p>
+      </div>
+    </div>
+
+    <div class="demo-panel">
+      <%= form_with url: session_path, class: 'space-y-4' do |form| %>
+        <div>
+          <%= form.label :email, 'メールアドレス', class: 'demo-label' %>
+          <%= form.email_field :email, required: true, autofocus: true, autocomplete: 'username',
+                               class: 'demo-input' %>
+        </div>
+        <div>
+          <%= form.label :password, 'パスワード', class: 'demo-label' %>
+          <%= form.password_field :password, required: true, autocomplete: 'current-password',
+                                  class: 'demo-input' %>
+        </div>
+        <%= form.submit 'ログイン', class: 'demo-button w-full' %>
+      <% end %>
+
+      <% if local_demo_access? %>
+        <div class="my-5 flex items-center gap-3 text-xs text-slate-400">
+          <span class="h-px flex-1 bg-slate-200"></span>または<span class="h-px flex-1 bg-slate-200"></span>
+        </div>
+        <%# 認証が入る前から公開しているデモ。固定の架空データを誰でも見られる。 %>
+        <%= button_to 'デモアカウントで見る', demo_session_path, class: 'demo-button-secondary w-full' %>
+      <% end %>
+    </div>
+  </div>
+</div>
