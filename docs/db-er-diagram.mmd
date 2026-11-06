@@ -1,0 +1,81 @@
+erDiagram
+  users ||--o| students : "1人1学生"
+  faculties ||--o{ departments : ""
+  departments ||--o{ programs : ""
+  departments ||--o{ students : "現在の所属"
+  departments ||--o{ course_offerings : "開講学科"
+  departments ||--o{ timetable_uploads : ""
+  students ||--o{ student_courses : "履修実績"
+  students ||--o{ planned_courses : "将来計画"
+  students ||--o{ student_program_assignments : "配属履歴"
+  programs ||--o{ student_program_assignments : ""
+  courses ||--o{ student_courses : ""
+  courses ||--o{ planned_courses : ""
+  courses ||--o{ course_offerings : ""
+  courses ||--o{ timetable_upload_rows : ""
+  timetable_uploads ||--o{ timetable_upload_rows : ""
+
+  users { bigint id PK
+    string email UK }
+  faculties { bigint id PK
+    string name UK }
+  departments { bigint id PK
+    bigint faculty_id FK
+    string name }
+  programs { bigint id PK
+    bigint department_id FK
+    string name }
+  students { bigint id PK
+    bigint user_id FK
+    bigint department_id FK
+    int admission_year }
+  student_program_assignments { bigint id PK
+    bigint student_id FK
+    bigint program_id FK
+    string status
+    datetime assigned_at
+    datetime ended_at }
+  courses { bigint id PK
+    string course_number
+    string name
+    int credits
+    string curriculum_key UK }
+  student_courses { bigint id PK
+    bigint student_id FK
+    bigint course_id FK
+    int academic_year
+    string semester
+    string grade
+    decimal credits_earned
+    string enrollment_status
+    boolean approval_confirmed }
+  planned_courses { bigint id PK
+    bigint student_id FK
+    bigint course_id FK }
+  course_offerings { bigint id PK
+    bigint course_id FK
+    bigint department_id FK
+    int year
+    string semester
+    string lecture_code
+    string requirement_type
+    int_array grade_years
+    string weekday
+    int_array periods
+    string term_type }
+  timetable_uploads { bigint id PK
+    bigint department_id FK
+    int year
+    string semester
+    string source_filename }
+  timetable_upload_rows { bigint id PK
+    bigint timetable_upload_id FK
+    bigint course_id FK
+    int position
+    string lecture_code
+    string course_number
+    string name
+    string credits
+    boolean confirmed
+    boolean register_as_new
+    boolean added_by_hand }
