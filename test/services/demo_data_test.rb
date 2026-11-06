@@ -37,6 +37,14 @@ class DemoDataTest < ActiveSupport::TestCase
     assert_equal [2024, 2025], DemoAccount.students.map(&:admission_year).sort
   end
 
+  test 'デモ学生は実在の工学部・工学科に属し、架空の学部・学科は作らない' do
+    students = DemoData.load!
+    departments = students.map(&:department)
+
+    assert(departments.all? { |department| department.name == '工学科' && department.faculty.name == '工学部' })
+    assert_not Faculty.exists?(name: 'デモ用工学部（架空データ）')
+  end
+
   test '2025年度の学生は2025年度の便覧で判定される' do
     assert_equal 2025, DemoAccount.students.last.curriculum.admission_year
   end

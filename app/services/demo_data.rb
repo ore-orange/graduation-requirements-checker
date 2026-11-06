@@ -63,9 +63,11 @@ class DemoData
       student
     end
 
+    # デモ学生は便覧どおり工学部工学科(知能情報コース)の学生として作る。架空の学部・学科は作らない
+    # (学部・学科のプルダウンは Faculty/Department のマスタからも作るので、架空の名前を足すと選択肢に出てしまう)。
     def create_student(user, definition)
-      faculty = Faculty.find_or_create_by!(name: 'デモ用工学部（架空データ）')
-      department = faculty.departments.find_or_create_by!(name: '知能情報工学（デモ）')
+      faculty = Faculty.find_or_create_by!(name: '工学部')
+      department = faculty.departments.find_or_create_by!(name: '工学科')
       user.create_student!(department: department, admission_year: definition.admission_year)
     end
 
