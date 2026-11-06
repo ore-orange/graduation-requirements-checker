@@ -1,0 +1,19 @@
+<%# 区分の単位バッジ。単位は全学期の累計。status が nil なら色を付けない（区分ごとの必要単位がない場合） %>
+<%
+  row_id = local_assigns[:row_id]
+  color = case status
+          when :satisfied then 'bg-emerald-50 text-emerald-700'
+          when :needs_review then 'bg-amber-50 text-amber-800'
+          when nil then 'bg-slate-100 text-slate-600'
+          else 'bg-sky-50 text-sky-700'
+          end
+%>
+<div class="mt-1.5 inline-flex flex-wrap items-center gap-x-1 px-2 py-0.5 rounded-full text-[11px] font-semibold <%= color %>">
+  <span>修得 <%= credit_number(credits[:earned]) %></span>
+  <% if credits[:planned].positive? %>
+    <span>・ 予定 <%= credit_number(credits[:planned]) %></span>
+  <% end %>
+  <% if req %>
+    <span>／ 必要 <span<% if row_id %> data-sync-row-req="<%= row_id %>"<% end %>><%= req %></span></span>
+  <% end %>
+</div>
