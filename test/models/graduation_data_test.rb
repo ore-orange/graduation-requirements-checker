@@ -26,8 +26,15 @@ class GraduationDataTest < ActiveSupport::TestCase
   test 'email is normalized and unique regardless of case' do
     user = User.create!(email: ' OTHER@EXAMPLE.TEST ', password: 'a-test-password')
     assert_equal 'other@example.test', user.email
-    assert_not User.new(email: 'STUDENT@EXAMPLE.TEST').valid?
-    assert_not User.new(email: 'invalid').valid?
+    # パスワード未指定でも invalid になるため、一意性と書式が理由だと分かる形で確かめる
+    duplicate = User.new(email: 'STUDENT@EXAMPLE.TEST', password: 'a-test-password')
+    assert_not duplicate.valid?
+    assert duplicate.errors.of_kind?(:email, :taken)
+
+    malformed = User.new(email: 'invalid', password: 'a-test-password')
+    assert_not malformed.valid?
+    assert malformed.errors.of_kind?(:email, :invalid)
+
     assert_not User.new.valid?
 
     assert_raises(ActiveRecord::RecordNotUnique) do
