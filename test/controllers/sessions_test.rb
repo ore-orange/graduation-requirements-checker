@@ -71,5 +71,15 @@ class SessionsTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to plan_url
   end
+
+  test '画面ではない操作を弾いたときは、ログイン後に最初の画面へ送る' do
+    # POST のURLを控えてしまうと、ログイン後に GET されて404になる
+    post plan_courses_path, params: { course_key: 'anything' }
+    assert_redirected_to new_session_path
+
+    post session_path, params: { email: @user.email, password: PASSWORD }
+
+    assert_redirected_to root_url
+  end
 end
 

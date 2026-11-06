@@ -35,9 +35,11 @@ module Authentication
     Session.find_by(id: cookies.signed[:session_id]) if cookies.signed[:session_id]
   end
 
-  # ログインが終わったら元のページへ戻せるよう、行き先を控えてから送り出す
+  # ログインが終わったら元のページへ戻せるよう、行き先を控えてから送り出す。
+  # 控えるのは画面のURLだけにする。POST や DELETE のURLはログイン後に GET されるため、
+  # GET を持たないルートだと戻った先が404になる。HEAD も GET と同じルートに流れる。
   def request_authentication
-    session[:return_to_after_authenticating] = request.url
+    session[:return_to_after_authenticating] = request.url if request.get? || request.head?
     redirect_to new_session_path
   end
 
