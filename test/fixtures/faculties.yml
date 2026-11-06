@@ -1,0 +1,4 @@
+# 実在する学部・学科・コースの最小セット(db/seeds/academic_organizations.rb・db/seeds/programs.rb と同じ値)。
+# 卒業要件の対象選択・取り込みフォームのテストが、本番と同じ組み合わせを使えるようにする。
+engineering:
+  name: 工学部

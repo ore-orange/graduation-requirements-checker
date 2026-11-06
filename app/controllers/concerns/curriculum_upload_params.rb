@@ -17,15 +17,18 @@ module CurriculumUploadParams
       # ?curriculum=x のように、ハッシュでない値が来ても落とさず、空の入力として扱う
       raw = ActionController::Parameters.new unless raw.is_a?(ActionController::Parameters)
       # slug は受けない。画面に欄が無く、課程を取り違える入力口になるので、送られても読まない。
-      raw.permit(:admission_year, :faculty_name, :department_name, :faculty_name_other, :department_name_other, :file)
+      raw.permit(:admission_year, :faculty_name, :department_name, :faculty_name_other, :department_name_other,
+                 :course_name, :course_name_other, :file)
     end
   end
 
-  # 下書きの属性。学部名・学科コース名は、プルダウンの選択か、「その他」を選んだときの自由入力のどちらか。
+  # 下書きの属性。学部名は、プルダウンの選択か、「その他」を選んだときの自由入力のどちらか。
+  # 学科・コース名も同じ(選択か自由入力)だが、Curriculum#department_name は1つの文字列で持つので、
+  # 画面では別のプルダウンでも、ここで結んで渡す(コースの無い学科は、学科名だけになる)。
   # 「その他」を選んだ自由入力も、選択と同じ検証(必須・正規化)を通る。
   def curriculum_attributes
-    { admission_year: upload_params[:admission_year],
-      faculty_name: chosen_name(:faculty_name), department_name: chosen_name(:department_name) }
+    { admission_year: upload_params[:admission_year], faculty_name: chosen_name(:faculty_name),
+      department_name: [chosen_name(:department_name), chosen_name(:course_name)].compact_blank.join(' ') }
   end
 
   def chosen_name(field)

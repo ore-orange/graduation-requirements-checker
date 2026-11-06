@@ -1,8 +1,8 @@
 <%# 便覧のPDFから下書きを作る。便覧の無い組み合わせを選んだときと、選択肢にない年度・コースを作り始めるときに出す。
     識別名(slug)は人に入力させない。学部名・学科コース名から Curriculum が決める(同じ課程なら既存のものを引き継ぐ)。
-    学部名・学科コース名は、既存の便覧にある組み合わせのプルダウン。初めての学部・コースは「その他」で打って登録できる。
+    学部・学科・コースはFaculty/Department/Programから作ったプルダウン。初めての学部・学科・コースは「その他」で打って登録できる。
     画面で選んでいた組み合わせがあれば、フォームに入れておく。 %>
-<% defaults = upload_form_defaults(@selection, @faculty_options, @department_options) %>
+<% defaults = upload_form_defaults(@selection, @faculty_options, @department_options, @course_options) %>
 <% new_program = CurriculaController::NEW_PROGRAM %>
 <% new_program_label = 'その他（新しく登録する）' %>
 <% field_class = 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
@@ -16,16 +16,9 @@
   </div>
   <%= form_with model: Curriculum.new, scope: :curriculum, url: curricula_path, multipart: true,
                 class: 'space-y-5 p-5 sm:p-6', data: { controller: 'dropzone', turbo: false } do |form| %>
-    <%# その他を選んだときだけ、自由入力欄を出す。学部が新しければ学科コースも新しいので、学科コースの選択は「その他」に固定する %>
-    <div class="grid gap-4 sm:grid-cols-2" data-controller="program-fields" data-program-fields-other-value="<%= new_program %>">
-      <label class="block">
-        <span class="text-sm font-semibold text-slate-700">入学年度</span>
-        <%# 必ずどれかが選ばれているので、空の選択肢は置かず、required も付けない(required だと Rails は空の選択肢を足す) %>
-        <%= form.select :admission_year, defaults.year_choices.map { |year| ["#{year}年度入学", year] },
-                        { selected: defaults.admission_year, include_blank: false }, { class: field_class } %>
-      </label>
-      <div class="hidden sm:block" aria-hidden="true"></div>
-
+    <%# その他を選んだときだけ、自由入力欄を出す。学部が新しければ学科も新しいので、学科の選択は「その他」に固定する
+        (コースも同様。学科が新しいか、学科は既存でもそのコース名が無ければ「その他」になる)。 %>
+    <div class="grid gap-4 sm:grid-cols-4" data-controller="program-fields" data-program-fields-other-value="<%= new_program %>">
       <label class="block">
         <span class="text-sm font-semibold text-slate-700">学部名</span>
         <%= form.select :faculty_name, options_for_select(@faculty_options + [[new_program_label, new_program]], defaults.faculty),
@@ -34,7 +27,7 @@
                           data: { program_fields_target: 'faculty', action: 'change->program-fields#sync' } } %>
       </label>
       <label class="block">
-        <span class="text-sm font-semibold text-slate-700">学科・コース名</span>
+        <span class="text-sm font-semibold text-slate-700">学科名</span>
         <%= form.select :department_name,
                         grouped_options_for_select(@department_options.to_a, defaults.department) +
                           options_for_select([[new_program_label, new_program]], defaults.department),
@@ -42,16 +35,38 @@
                         { required: true, class: field_class,
                           data: { program_fields_target: 'department', action: 'change->program-fields#sync' } } %>
       </label>
+      <label class="block">
+        <span class="text-sm font-semibold text-slate-700">コース名</span>
+        <%= form.select :course_name,
+                        grouped_options_for_select(@course_options.to_a, defaults.course) +
+                          options_for_select([[new_program_label, new_program]], defaults.course),
+                        { include_blank: '選んでください' },
+                        { class: field_class,
+                          data: { program_fields_target: 'course', action: 'change->program-fields#sync' } } %>
+      </label>
+      <label class="block">
+        <span class="text-sm font-semibold text-slate-700">入学年度</span>
+        <%# 必ずどれかが選ばれているので、空の選択肢は置かず、required も付けない(required だと Rails は空の選択肢を足す) %>
+        <%= form.select :admission_year, defaults.year_choices.map { |year| ["#{year}年度入学", year] },
+                        { selected: defaults.admission_year, include_blank: false }, { class: field_class } %>
+      </label>
+    </div>
 
+    <div class="grid gap-4 sm:grid-cols-3">
       <label class="block" data-new-faculty data-program-fields-target="newFaculty" <%= 'hidden' unless defaults.faculty == new_program %>>
         <span class="text-sm font-semibold text-slate-700">新しい学部名</span>
         <%= text_field_tag 'curriculum[faculty_name_other]', defaults.faculty_other, id: 'curriculum_faculty_name_other',
                            required: defaults.faculty == new_program, placeholder: '例: 工学部', class: field_class %>
       </label>
       <label class="block" data-new-department data-program-fields-target="newDepartment" <%= 'hidden' unless defaults.department == new_program %>>
-        <span class="text-sm font-semibold text-slate-700">新しい学科・コース名</span>
+        <span class="text-sm font-semibold text-slate-700">新しい学科名</span>
         <%= text_field_tag 'curriculum[department_name_other]', defaults.department_other, id: 'curriculum_department_name_other',
-                           required: defaults.department == new_program, placeholder: '例: 工学科 知能情報コース', class: field_class %>
+                           required: defaults.department == new_program, placeholder: '例: 工学科', class: field_class %>
+      </label>
+      <label class="block" data-new-course data-program-fields-target="newCourse" <%= 'hidden' unless defaults.course == new_program %>>
+        <span class="text-sm font-semibold text-slate-700">新しいコース名</span>
+        <%= text_field_tag 'curriculum[course_name_other]', defaults.course_other, id: 'curriculum_course_name_other',
+                           required: defaults.course == new_program, placeholder: '例: 知能情報コース', class: field_class %>
       </label>
     </div>
 

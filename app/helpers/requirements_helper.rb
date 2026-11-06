@@ -5,30 +5,12 @@
 module RequirementsHelper
   include RuleSentenceHelper
   include RuleTrimmingHelper
+  include UploadFormHelper
 
   RULE_KINDS = { 'credit_sum' => '単位の合計', 'any_of' => '選択', 'one_of_paths' => '指定科目', 'grouped_max' => '同一グループ',
                  'all_required' => '必修すべて', 'cap' => '算入上限', 'exclude' => '算入しない' }.freeze
 
   KIND_BADGE_CLASS = 'mt-0.5 shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600'
-
-  # 取り込みフォームの初期値。画面で選ばれていた学部・学科コース・入学年度が、まだ便覧の無い組み合わせのとき、
-  # それをフォームに入れておく(同じことを選び直さずに、そのままPDFを上げられる)。
-  # 選択肢(既存の便覧にある学部名・学科コース名)に無い名前は、「その他」を選び、自由入力欄に入れる。
-  # 学部が新しければ、その下に既存の学科コースは無いので、学科コースも「その他」になる。
-  UploadDefaults = Struct.new(:faculty, :faculty_other, :department, :department_other, :admission_year, :year_choices,
-                              keyword_init: true)
-
-  def upload_form_defaults(selection, faculty_options, department_options)
-    faculty, faculty_other = chosen_or_new(selection[:faculty], faculty_options)
-    # 学部が決まっていない選択の学科コースは、どの学部のものか分からないので入れない。
-    known_departments = faculty == CurriculaController::NEW_PROGRAM ? [] : department_options.fetch(faculty, [])
-    department, department_other = faculty ? chosen_or_new(selection[:department], known_departments) : [nil, nil]
-    year = Integer(selection[:admission_year].to_s, 10, exception: false)
-    year_choices = Curriculum.upload_year_choices(including: year)
-    UploadDefaults.new(faculty: faculty, faculty_other: faculty_other,
-                       department: department, department_other: department_other, year_choices: year_choices,
-                       admission_year: year_choices.include?(year) ? year : Time.zone.today.year)
-  end
 
   # 下書きの行に出す更新日時。画面を使うのは日本の学部事務なので、日本時間で出す(アプリの既定は UTC で、日付がずれる)。
   # この画面の他の年の書き方(「2024年度入学」)に合わせた、年月日の日本語表記。アプリにはほかに日付の書式が無いので、ここで決める。
@@ -132,13 +114,6 @@ module RequirementsHelper
     tag.div(class: 'mt-1.5 space-y-0.5 text-xs text-slate-500') do
       safe_join(notes.map { |name, text| tag.p("#{name}：#{text}") })
     end
-  end
-
-  # 値が選択肢にあれば [値, nil]、無ければ「その他」にして打った値として返す。空なら選んでいない。
-  def chosen_or_new(value, options)
-    return [nil, nil] if value.blank?
-
-    options.include?(value) ? [value, nil] : [CurriculaController::NEW_PROGRAM, value]
   end
 end
 

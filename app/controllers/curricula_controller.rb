@@ -200,10 +200,13 @@ class CurriculaController < ApplicationController
   # 操作した便覧の、卒業要件の確認画面。選択を引き継いで、操作の結果をそのまま見せる(選択なしの画面に戻すと、
   # 自分の操作のあとに空の画面へ落ちる)。学部名・学科コース名を持たない古い行は選択できないので、選択なしの画面にする。
   # 公開・削除のあとでも属性はメモリに残っているので、削除した行からも作れる。保存前の行(取り込みの入力が不正だったとき)も同じ。
+  # department_name は学科名とコース名を結んだ1つの文字列なので、Programから引いて選択の2つの欄に分ける。
   def requirements_location(curriculum = @curriculum)
-    selection = { faculty: curriculum.faculty_name, department: curriculum.department_name,
-                  admission_year: curriculum.admission_year }
-    selection.values.all?(&:present?) ? requirements_path(selection) : requirements_path
+    department, course = Program.department_and_course_for(curriculum.department_name)
+    selection = { faculty: curriculum.faculty_name, department: department, course: course,
+                  admission_year: curriculum.admission_year }.compact
+    required = [curriculum.faculty_name, department, curriculum.admission_year]
+    required.all?(&:present?) ? requirements_path(selection) : requirements_path
   end
 
   def destroy_refusal
@@ -222,7 +225,11 @@ class CurriculaController < ApplicationController
     redirect_to requirements_location, alert: published_alert, status: :see_other
   end
 
+  # department_name にコースを結ばず送れてしまう経路(JSが効かない・迂回された送信)への備え。学科名だけの
+  # department_name は、コースのある学科(例: 工学科)では別の課程を指してしまうので、画面の required だけに頼らない。
   def upload_error(curriculum, file)
+    return 'コースを選んでください。' if course_missing?
+
     unless curriculum.valid?(:upload)
       labels = curriculum.errors.attribute_names.filter_map { |name| FIELD_LABELS[name] }
       return "#{labels.join('・')}を正しく入力してください。"
@@ -231,6 +238,15 @@ class CurriculaController < ApplicationController
     return "PDFは#{MAX_PDF_BYTES / 1.megabyte}MB以下にしてください。" if file.size > MAX_PDF_BYTES
 
     'PDFファイルを選んでください。' unless File.binread(file.path, 5) == '%PDF-'
+  end
+
+  # 選んだ学科にコースがあるのに、コースを選んでいない(または「その他」を選んだのに打っていない)か。
+  # 「その他」で新しい学部・学科を登録するときは、既存のコースに縛られないので見ない。
+  def course_missing?
+    department = chosen_name(:department_name)
+    return false if department.blank?
+
+    Department.find_by(name: department)&.programs&.exists? && chosen_name(:course_name).blank?
   end
 
   # 画像とテキストはPDFがあるいましか取り出せない。取り出せなくても下書きは残し、何が取れなかったかを import_error に書く。

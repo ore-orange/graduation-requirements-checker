@@ -40,12 +40,15 @@ end
 
 module ActionDispatch
   class IntegrationTest
-    # 便覧を操作したあとに戻る、卒業要件の確認画面。その便覧の学部・学科コース・入学年度を選んだ状態で開く。
+    # 便覧を操作したあとに戻る、卒業要件の確認画面。その便覧の学部・学科・コース・入学年度を選んだ状態で開く。
     # 学部名か学科コース名が無い古い行は選べないので、選択なしの画面になる。
+    # department_name は結合済みの1文字列なので、Programから学科名・コース名に分けて渡す(CurriculaController#requirements_location と同じ)。
     def requirements_path_for(curriculum)
-      selection = { faculty: curriculum.faculty_name, department: curriculum.department_name,
-                    admission_year: curriculum.admission_year }
-      selection.values.all?(&:present?) ? requirements_path(selection) : requirements_path
+      department, course = Program.department_and_course_for(curriculum.department_name)
+      selection = { faculty: curriculum.faculty_name, department: department, course: course,
+                    admission_year: curriculum.admission_year }.compact
+      required = [curriculum.faculty_name, department, curriculum.admission_year]
+      required.all?(&:present?) ? requirements_path(selection) : requirements_path
     end
   end
 end

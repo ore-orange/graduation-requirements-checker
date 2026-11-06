@@ -6,16 +6,16 @@ require Rails.root.join('db/seeds/academic_organizations')
 
 class AcademicOrganizationTest < ActiveSupport::TestCase
   test '同じ名前の学部は作れない' do
-    Faculty.create!(name: '工学部')
-    assert_raises(ActiveRecord::RecordInvalid) { Faculty.create!(name: '工学部') }
+    Faculty.create!(name: 'テスト学部A')
+    assert_raises(ActiveRecord::RecordInvalid) { Faculty.create!(name: 'テスト学部A') }
   end
 
   test '同じ学部に同じ名前の学科は作れないが、別の学部なら作れる' do
-    kogaku = Faculty.create!(name: '工学部')
-    rigaku = Faculty.create!(name: '理学部')
-    kogaku.departments.create!(name: '工学科')
-    assert_raises(ActiveRecord::RecordInvalid) { kogaku.departments.create!(name: '工学科') }
-    assert rigaku.departments.create!(name: '工学科').persisted?
+    first = Faculty.create!(name: 'テスト学部B')
+    second = Faculty.create!(name: 'テスト学部C')
+    first.departments.create!(name: 'テスト学科')
+    assert_raises(ActiveRecord::RecordInvalid) { first.departments.create!(name: 'テスト学科') }
+    assert second.departments.create!(name: 'テスト学科').persisted?
   end
 
   test 'マスタは2回流しても増えない' do

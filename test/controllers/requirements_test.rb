@@ -7,7 +7,11 @@ require 'minitest/mock'
 # 規則の一文そのものは RequirementsHelperTest で見ている。
 class RequirementsTest < ActionDispatch::IntegrationTest
   FACULTY = '工学部'
-  DEPARTMENT = '工学科 知能情報コース'
+  # 学科名だけ。Curriculum#department_name は今までどおり学科とコースを結んだ1つの文字列("工学科 知能情報コース")を持つが、
+  # 画面の選択(department/courseの2つのクエリ)とプルダウンの選択肢はFaculty/Department/Programから作る。
+  DEPARTMENT_ONLY = '工学科'
+  COURSE = '知能情報コース'
+  DEPARTMENT = "#{DEPARTMENT_ONLY} #{COURSE}".freeze
 
   setup do
     @previous_proxy = ENV.delete('LOCAL_DEMO_PROXY')
@@ -27,8 +31,9 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   def local_env = { 'REMOTE_ADDR' => '127.0.0.1' }
 
   # 選んだ組み合わせ。何も上書きしなければ、2024年度入学の公開済みの便覧になる。
-  def selection(faculty: FACULTY, department: DEPARTMENT, admission_year: 2024)
-    { faculty: faculty, department: department, admission_year: admission_year }
+  # department はコントローラが course と結んで Curriculum#department_name(DEPARTMENT)に当てる。
+  def selection(faculty: FACULTY, department: DEPARTMENT_ONLY, course: COURSE, admission_year: 2024)
+    { faculty: faculty, department: department, course: course, admission_year: admission_year }
   end
 
   def show_selected(**overrides) = get(requirements_path(selection(**overrides)), env: local_env)
@@ -69,22 +74,39 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select 'body', text: /公開済みの便覧|作業中の下書き/, count: 0
   end
 
-  test '選択肢は、便覧に実在する学部・学科コース・入学年度から作る(年度は新しい順)' do
+  test '学部・学科・コースの選択肢はマスタから、入学年度は便覧の実データから作る(年度は新しい順)' do
     get requirements_path, env: local_env
 
     assert_select 'select[name=faculty] option[value=?]', FACULTY
-    assert_select 'select[name=department] optgroup[label=?] option[value=?]', FACULTY, DEPARTMENT
+    assert_select 'select[name=department] optgroup[label=?] option[value=?]', FACULTY, DEPARTMENT_ONLY
     assert_equal %w[2025 2024], css_select('select[name=admission_year] option').pluck('value').compact_blank.first(2)
   end
 
-  test '学部名か学科コース名を持たない便覧は、選択肢にしない(空の選択肢を作らない)' do
+  test '学部名か学科コース名を持たない便覧は、年度の選択肢にしない(空の選択肢を作らない)' do
     Curriculum.create!(slug: 'no_names', admission_year: 1999, source_filename: 'n.pdf', pages: [])
 
     get requirements_path, env: local_env
 
     assert_select 'select[name=admission_year] option[value="1999"]', count: 0
-    # 空の値の選択肢は、選択の各欄の「選んでください」だけ(取り込みフォームの選択は、別に見る)
-    assert_select 'form[method=get] select option[value=""]', count: 3
+    # 空の値の選択肢は、選択の各欄の「選んでください」だけ(学部・学科・コース・年度の4つ。取り込みフォームの選択は、別に見る)
+    assert_select 'form[method=get] select option[value=""]', count: 4
+  end
+
+  test '学部・学科・コースの選択肢は、便覧の有無を問わずFaculty/Department/Programテーブルから作る' do
+    Faculty.create!(name: '理学部')
+
+    get requirements_path, env: local_env
+
+    assert_select 'select[name=faculty] option[value=?]', '理学部'
+    assert_select 'select[name=course] optgroup[label=?] option[value=?]', DEPARTMENT_ONLY, COURSE
+  end
+
+  test 'コースの無い学科は、コースの選択肢を空のままにする' do
+    other_department = Faculty.find_by!(name: FACULTY).departments.create!(name: '経営工学科')
+
+    get requirements_path, env: local_env
+
+    assert_select 'select[name=course] optgroup[label=?]', other_department.name, count: 0
   end
 
   test '選択は GET で送る。再読込やブックマークで壊れないよう、セッションには隠さない' do
@@ -314,7 +336,7 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select '[data-total-credits]', count: 0
     assert_select 'form[action=?]', duplicate_curriculum_path(other), count: 0
 
-    show_selected(faculty: '理学部', department: '数理科学科')
+    show_selected(faculty: '理学部', department: '数理科学科', course: nil)
 
     assert_select 'p', text: /別コースの便覧/
   end
@@ -630,7 +652,7 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select 'main form[action=?]', duplicate_curriculum_path(@curriculum), count: 1
     assert_select 'main form[action=?]', curricula_path, count: 0
     assert_select 'main textarea', count: 0
-    assert_select 'main select', count: 3
+    assert_select 'main select', count: 4
     assert_select 'main script', count: 0
     assert_select 'body', text: /ルールビルダー|要件を保存|ルート区分を追加|リセット/, count: 0
   end
