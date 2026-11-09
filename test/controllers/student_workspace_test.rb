@@ -59,6 +59,27 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  # 共通教育の科目は便覧の科目表に全部載っているわけではない(便覧は番号の付け方だけを決めている年度もある)。
+  # 科目表に当たらない科目でも、科目番号が区分の number_patterns に一致すれば、要確認ではなくその区分の
+  # 単位として数える。画面(StudentWorkspace)から判定まで、番号が通ることを見る。
+  test 'a completed course missing from the handbook table counts when its number matches a category pattern' do
+    get root_path, env: local_env
+    before = counted_credits
+
+    # 健01・健03 しか載っていない科目表に無い番号。接頭辞「健」は health 区分の number_patterns に一致する。
+    course = Course.create!(course_number: '健99', name: '科目表に無い健康運動の科目', credits: 2)
+    @student.student_courses.create!(course: course, academic_year: 2024, semester: '前期',
+                                     enrollment_status: 'completed', credits_earned: 2)
+
+    get root_path, env: local_env
+
+    assert_equal before + 2, counted_credits
+  end
+
+  def counted_credits
+    css_select('[data-counted-credits]').first['data-counted-credits'].to_f
+  end
+
   test 'a non-local host is refused unless PUBLIC_DEMO is set' do
     host! 'grc.example.com'
     get root_path, env: { 'REMOTE_ADDR' => '203.0.113.10' }

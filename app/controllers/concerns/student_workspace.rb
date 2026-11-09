@@ -72,7 +72,9 @@ module StudentWorkspace
     credits = course ? course.fetch('credits') : plan.course.credits
     # 指導教員の承認が要る科目か自体は便覧(course)が決める。得たかどうかは学生側の事実なので、答えていなければ
     # nil のまま渡す（黙って false にすると「承認なし」と答えたことになり、黙って true にすると未回答でも通る）。
-    { key: plan.course.course_number, credits: credits, approved: plan.approval_confirmed, name: plan.course.name }
+    # number は key と別に持つ(catalogue_entries が key を振り替えても、番号パターンの推定に使えるように)。
+    { key: plan.course.course_number, number: plan.course.course_number, credits: credits,
+      approved: plan.approval_confirmed, name: plan.course.name }
   end
 
   # 科目番号が便覧の科目に当たれば、その科目の key で判定に渡す。同じ番号の Course が複数あっても、履修・予定は

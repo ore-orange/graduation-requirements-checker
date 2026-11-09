@@ -50,19 +50,41 @@ class GraduationAssessmentTest < ActiveSupport::TestCase
                          .map { |course| entry(course['key']) }
   end
 
+  # 科目表に当たらなかった履修の key は、StudentWorkspace#catalogue_entries が "unmatched:1" に振り替える
+  # (番号が偶然ほかの科目の key と一致して取り違えないように)。番号はそれとは別の欄で渡るので、
+  # パターンの判定はその番号を見る。ここでは画面と同じ形の履修を渡す。
   test '科目表に無い科目も、番号のパターンに一致すれば区分として数える' do
     curriculum = document.deep_merge(
-      'categories' => [{ 'key' => 'health', 'label' => '健康', 'number_patterns' => ['健'], 'counts_toward_total' => true }],
+      'categories' => [{ 'key' => 'health', 'label' => '健康', 'number_patterns' => ['健'],
+                         'counts_toward_total' => true }],
       'rules' => [{ 'id' => 'health', 'type' => 'credit_sum', 'label' => '健康', 'categories' => ['health'],
                     'required_credits' => 2, 'source_page' => 'テスト専用', 'detail' => '' }]
     )
     result = GraduationAssessment.new(curriculum: curriculum).call(
-      completed: [{ key: '健01', credits: 2, approved: nil, name: '健康科学' }]
+      completed: [{ key: 'unmatched:1', number: '健01', credits: 2, approved: nil, name: '健康科学' }]
     )
 
     check = result.actual.checks.find { |c| c.id == 'health' }
     assert_equal :satisfied, check.status
     assert_equal 2, check.counted_credits
+  end
+
+  # 番号を持たない履修(科目番号の無い Course)は、パターンの推定の手がかりが無い。
+  # 安全側に倒して、今までどおり「要確認」のままにする。
+  test '番号を渡されない科目は、パターンの推定をせず要確認のままになる' do
+    curriculum = document.deep_merge(
+      'categories' => [{ 'key' => 'health', 'label' => '健康', 'number_patterns' => ['健'],
+                         'counts_toward_total' => true }],
+      'rules' => [{ 'id' => 'health', 'type' => 'credit_sum', 'label' => '健康', 'categories' => ['health'],
+                    'required_credits' => 2, 'source_page' => 'テスト専用', 'detail' => '' }]
+    )
+    result = GraduationAssessment.new(curriculum: curriculum).call(
+      completed: [{ key: 'unmatched:1', credits: 2, approved: nil, name: '健康科学' }]
+    )
+
+    check = result.actual.checks.find { |c| c.id == 'health' }
+    assert_equal :needs_review, check.status
+    assert_equal 0, check.counted_credits
   end
 
   test 'a complete 130 credit selection satisfies all handbook checks' do

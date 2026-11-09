@@ -19,7 +19,9 @@ module CurriculumImport
     TOP_LEVEL_KEYS = %w[format_version department admission_year title faculty_name department_name sources categories
                         rules display courses roles].freeze
     SOURCE_KEYS = %w[id title url local_path pages note].freeze
-    CATEGORY_KEYS = %w[key label counts_toward_total].freeze
+    # number_patterns は、科目表に載っていない科目を科目番号で区分に振り分けるための欄(共通教育の科目表を
+    # 便覧が持たない年度がある)。公開で落とすと、取り込んだ便覧では判定がパターンを使えないまま学生に出る。
+    CATEGORY_KEYS = %w[key label counts_toward_total number_patterns].freeze
     COURSE_KEYS = %w[key number name credits category required language roles source source_page review_reason
                      requires_approval selectable].freeze
     RULE_DRAFT_KEYS = %w[confirmed].freeze

@@ -13,13 +13,16 @@ class StudentCourse < ApplicationRecord
   # 判定に渡す履修の記録。key は Course の科目番号であって、便覧の科目の key ではない。
   # GraduationAssessment へ渡す前に StudentWorkspace#catalogue_entries を通すこと。直接渡すと、どの科目も
   # 便覧の科目表に当たらず、すべて要確認になる。
+  # number は key とは別に持つ。catalogue_entries が科目表に当たらない科目の key を振り替えてしまうので、
+  # 区分を番号パターンから推定するには、振り替わらない番号の欄が要る。
   def assessment_entry
     credits = case enrollment_status
               when 'completed' then credits_earned
               when 'registered', 'in_progress' then course.credits
               end
 
-    { key: course.course_number, credits: credits, approved: approval_confirmed, name: course.name }
+    { key: course.course_number, number: course.course_number, credits: credits,
+      approved: approval_confirmed, name: course.name }
   end
 end
 

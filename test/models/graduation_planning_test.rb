@@ -55,6 +55,15 @@ class GraduationPlanningTest < ActiveSupport::TestCase
     end
   end
 
+  # 科目表に当たらない科目は key が振り替わるので、科目番号は key とは別の欄で判定へ渡す
+  # (区分を番号パターンから推定するのに、番号そのものが要る)。
+  test 'assessment entries carry the course number separately from the key' do
+    enrollment = @student.student_courses.create!(course: @course, academic_year: 2024,
+                                                  enrollment_status: 'completed', credits_earned: 3)
+
+    assert_equal 'TEST-1', enrollment.assessment_entry.fetch(:number)
+  end
+
   test 'assessment entries preserve earned units and explicit approval rather than deriving them' do
     completed = @student.student_courses.create!(course: @course, academic_year: 2024,
                                                  enrollment_status: 'completed', credits_earned: '1.5',

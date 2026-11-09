@@ -19,19 +19,16 @@ class GraduationAssessment
 
     private
 
+    # 同じ科目の記録をまとめて1件として台帳に載せる。科目表に当たらなかった科目は、番号パターンで区分を
+    # 推定できればその区分として数え、できなければ今までどおり要確認にする(安全側)。
     def normalize(entries, course)
-      unless course
-        # 科目表に無い科目でも、番号パターンが一致すれば区分として数える。
-        # 安全側の設計: パターンに一致しなければ今までどおり「要確認」のままになる。
-        inferred = pattern_course(entries)
-        if inferred
-          course = inferred
-        else
-          entries.each { |entry| unknown(entry) }
-          return
-        end
-      end
+      course ||= pattern_course(entries)
+      return entries.each { |entry| unknown(entry) } unless course
 
+      record(entries, course)
+    end
+
+    def record(entries, course)
       values = entries.map { |entry| Ledger.decimal(entry[:credits]) }.uniq
       approvals = entries.pluck(:approved).uniq
       item = @ledger.add(course, values.one? ? values.first : nil)
@@ -91,11 +88,17 @@ class GraduationAssessment
     end
 
     # 科目表に無い科目の番号から、number_patterns を使って区分を推定する。
-    # 成功すれば「科目表には未掃載」の合成科目を返す。失敗すれば nil。
+    # 成功すれば「科目表には未掲載」の合成科目を返す。失敗すれば nil。
     # 成功した科目は required / roles / requires_approval を持たない
     # (共通教育の個々の必修科目はこれとは別に科目表に残す)。
+    #
+    # 見るのは key ではなく number。科目表に当たらなかった履修の key は StudentWorkspace#catalogue_entries が
+    # "unmatched:1" に振り替えるので、key には科目番号が残っていない。番号を持たない履修(科目番号の無い Course)は
+    # 推定しない。安全側の設計: 推定できなければ今までどおり「要確認」のままになる。
     def pattern_course(entries)
-      number = entries.first[:key]
+      number = entries.first[:number]
+      return nil if number.blank?
+
       category = @catalogue.pattern_category_for(number)
       return nil unless category
 

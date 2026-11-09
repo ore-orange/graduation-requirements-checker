@@ -365,10 +365,11 @@ class GraduationAssessment
 
     test 'pattern_category_for は百の位を優先し、無ければ接頭辞で当てる' do
       catalogue = Catalogue.new(document_with(categories: [
-        { 'key' => 'english', 'label' => '英語', 'number_patterns' => ['外1'] },
-        { 'key' => 'foreign_language', 'label' => '外国語', 'number_patterns' => %w[外2 外3] },
-        { 'key' => 'health', 'label' => '健康', 'number_patterns' => ['健'] }
-      ]))
+                                                { 'key' => 'english', 'label' => '英語', 'number_patterns' => ['外1'] },
+                                                { 'key' => 'foreign_language', 'label' => '外国語',
+                                                  'number_patterns' => %w[外2 外3] },
+                                                { 'key' => 'health', 'label' => '健康', 'number_patterns' => ['健'] }
+                                              ]))
 
       assert_equal 'english', catalogue.pattern_category_for('外101')
       assert_equal 'foreign_language', catalogue.pattern_category_for('外201')
@@ -379,9 +380,9 @@ class GraduationAssessment
     test '同じパターンを2つの区分が持つ便覧は読み込めない' do
       assert_raises(ArgumentError) do
         Catalogue.new(document_with(categories: [
-          { 'key' => 'a', 'label' => 'A', 'number_patterns' => ['外1'] },
-          { 'key' => 'b', 'label' => 'B', 'number_patterns' => ['外1'] }
-        ]))
+                                      { 'key' => 'a', 'label' => 'A', 'number_patterns' => ['外1'] },
+                                      { 'key' => 'b', 'label' => 'B', 'number_patterns' => ['外1'] }
+                                    ]))
       end
     end
 
@@ -413,7 +414,7 @@ class GraduationAssessment
     # categories だけを差し替えた最小限の format2 文書。number_patterns のテスト用。
     def document_with(categories:)
       rule = { 'type' => 'credit_sum', 'id' => 'total', 'label' => '合計',
-               'categories' => categories.map { |c| c['key'] }, 'required_credits' => 2 }
+               'categories' => categories.pluck('key'), 'required_credits' => 2 }
       { 'format_version' => 2, 'courses' => [], 'categories' => categories,
         'rules' => [rule], 'display' => { 'total_credits' => 2, 'groups' => [], 'subtotals' => [] } }
     end

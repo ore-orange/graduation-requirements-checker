@@ -39,36 +39,57 @@
     {
       "key": "health",
       "label": "健康運動系",
+      "number_patterns": [
+        "健"
+      ],
       "counts_toward_total": true
     },
     {
       "key": "humanities",
       "label": "人文系",
+      "number_patterns": [
+        "人"
+      ],
       "counts_toward_total": true
     },
     {
       "key": "social",
       "label": "社会系",
+      "number_patterns": [
+        "社"
+      ],
       "counts_toward_total": true
     },
     {
       "key": "natural",
       "label": "自然系",
+      "number_patterns": [
+        "自"
+      ],
       "counts_toward_total": true
     },
     {
       "key": "integrated",
       "label": "総合科目",
+      "number_patterns": [
+        "総"
+      ],
       "counts_toward_total": true
     },
     {
       "key": "career",
       "label": "キャリア関係",
+      "number_patterns": [
+        "C"
+      ],
       "counts_toward_total": true
     },
     {
       "key": "regional",
       "label": "琉大特色・地域創生",
+      "number_patterns": [
+        "琉"
+      ],
       "counts_toward_total": true
     },
     {
@@ -79,11 +100,22 @@
     {
       "key": "english",
       "label": "英語",
+      "number_patterns": [
+        "外1"
+      ],
       "counts_toward_total": true
     },
     {
       "key": "foreign_language",
       "label": "英語以外の外国語",
+      "number_patterns": [
+        "外2",
+        "外3",
+        "外4",
+        "外5",
+        "外6",
+        "外7"
+      ],
       "counts_toward_total": true
     },
     {

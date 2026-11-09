@@ -174,6 +174,18 @@ class CurriculumPublishTest < ActiveSupport::TestCase
     assert(draft.document['courses'].none? { |course| course.keys.intersect?(DRAFT_COURSE_KEYS) })
   end
 
+  # 区分の number_patterns は、科目表に載っていない科目(共通教育)を科目番号で数えるための欄。
+  # 公開で落ちると、取り込んだ便覧では判定がパターンを使えないまま学生に出る。
+  test '区分の number_patterns は公開しても落ちない' do
+    document = requirements_document
+    document['categories'][0]['number_patterns'] = ['人']
+    draft = ready_draft(document: document)
+
+    draft.publish!
+
+    assert_equal ['人'], draft.reload.document['categories'][0]['number_patterns']
+  end
+
   test '公開した文書は、実物の2024年度の便覧と同じ欄だけを持つ(下書きの印を全部付けても、元の文書に戻る)' do
     marked = real_document
     marked['courses'].each_with_index do |course, index|

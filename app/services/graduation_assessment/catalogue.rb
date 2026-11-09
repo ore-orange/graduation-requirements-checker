@@ -67,8 +67,7 @@ class GraduationAssessment
       prefix = CourseNumber.prefix(number)
       return nil unless hundreds || prefix
 
-      by_hundreds = build_pattern_index[:by_hundreds]
-      by_prefix = build_pattern_index[:by_prefix]
+      by_hundreds, by_prefix = pattern_index.values_at(:by_hundreds, :by_prefix)
       by_hundreds[hundreds] || by_prefix[prefix]
     end
 
@@ -238,27 +237,33 @@ class GraduationAssessment
     # 科目番号の重複は、course_for が黙って片方を返し、学生の履修が違う科目に解決される。
     # 番号の無い科目（分類表にしか載っていない科目）は course_for で引けないだけなので弾かない。
     def validate_course_numbers
-      numbers = courses.filter_map { |course| course['number'].presence }
-      duplicates = numbers.tally.select { |_, count| count > 1 }.keys
+      duplicates = duplicates_in(courses.filter_map { |course| course['number'].presence })
       return if duplicates.empty?
 
-      raise ArgumentError, "courses の number が重複しています: #{duplicates.sort_by(&:to_s).join('、')}"
+      raise ArgumentError, "courses の number が重複しています: #{listed(duplicates)}"
     end
 
     # key の無い区分は category_keys に nil を混ぜ、重複した key は和名の対応表を後勝ちで潰す。
-    # number_patterns に同じパターン文字列が複数の区分にあれば、どの区分かを決められないまま
-    # 判定が通ってしまうので、読み込み時に弾く。
     def validate_categories
       raise ArgumentError, 'categories の要素に key がありません' if category_keys.any?(&:blank?)
 
-      duplicates = category_keys.tally.select { |_, count| count > 1 }.keys
-      raise ArgumentError, "categories の key が重複しています: #{duplicates.sort_by(&:to_s).join('、')}" if duplicates.any?
+      duplicates = duplicates_in(category_keys)
+      raise ArgumentError, "categories の key が重複しています: #{listed(duplicates)}" if duplicates.any?
 
-      pattern_dupes = all_number_patterns.tally.select { |_, count| count > 1 }.keys
-      return if pattern_dupes.empty?
-
-      raise ArgumentError, "number_patterns が重複しています（どの区分か決められません）: #{pattern_dupes.sort_by(&:to_s).join('、')}"
+      validate_number_patterns
     end
+
+    # 同じパターン文字列が複数の区分にあれば、どの区分かを決められないまま判定が通ってしまうので、
+    # 読み込み時に弾く。
+    def validate_number_patterns
+      duplicates = duplicates_in(categories.flat_map { |category| Array(category['number_patterns']) })
+      return if duplicates.empty?
+
+      raise ArgumentError, "number_patterns が重複しています（どの区分か決められません）: #{listed(duplicates)}"
+    end
+
+    def duplicates_in(values) = values.tally.select { |_, count| count > 1 }.keys
+    def listed(values) = values.sort_by(&:to_s).join('、')
 
     # 便覧に無い区分を指す規則は、何も数えないまま不足とも充足とも言ってしまう。
     def validate_rule_categories(definitions)
@@ -275,9 +280,9 @@ class GraduationAssessment
         NESTED_RULES.flat_map { |field| Array(definition[field]).flat_map { |child| referenced_categories(child) } }
     end
 
-    # number_patterns のパターン→区分キーの引き引き表。百の位と接頭辞を分けて持つ。
+    # number_patterns のパターン→区分キーの引き当て表。百の位と接頭辞を分けて持つ。
     # 重複チェックは validate_categories が担うので、ここでは先勝ちで問題ない。
-    def build_pattern_index
+    def pattern_index
       @pattern_index ||= begin
         by_hundreds = {}
         by_prefix = {}
@@ -293,10 +298,6 @@ class GraduationAssessment
         end
         { by_hundreds: by_hundreds, by_prefix: by_prefix }
       end
-    end
-
-    def all_number_patterns
-      categories.flat_map { |category| Array(category['number_patterns']) }
     end
   end
 end
