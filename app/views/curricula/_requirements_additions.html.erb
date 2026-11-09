@@ -1,8 +1,8 @@
 <%# AI が読み落とした章・行を、人が足す。足したものは「人が確認した」印が付き、読み直しで消えない。 %>
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
 <div id="requirements_additions" class="space-y-3">
-  <details class="rounded-lg border border-dashed border-slate-300 px-3 py-2" <%= 'open' if review.open?('new_group', 'new') %>>
-    <summary class="cursor-pointer text-xs font-semibold text-slate-700">章を足す(表に出ていない章がある)</summary>
+  <div id="new_group" class="rounded-lg border border-dashed border-slate-300 px-3 py-2">
+    <p class="text-xs font-semibold text-slate-700">＋ 章を足す(表に出ていない章がある)</p>
     <%= render 'requirements_problems', review: review, kind: 'new_group', id: 'new' %>
     <div class="mt-2 flex flex-wrap items-end gap-3">
       <label class="block"><span class="text-xs font-semibold text-slate-700">章の名前</span>
@@ -14,10 +14,10 @@
       <label class="block"><span class="text-xs font-semibold text-slate-700">id(空なら自動)</span>
         <%= rv_text 'new_group[id]', nil, id: nil, class: "mt-1 block w-40 #{field_class}" %></label>
     </div>
-  </details>
+  </div>
 
-  <details class="rounded-lg border border-dashed border-slate-300 px-3 py-2" <%= 'open' if review.open?('new_row', 'new') %>>
-    <summary class="cursor-pointer text-xs font-semibold text-slate-700">行を足す(章の中に出ていない区分がある)</summary>
+  <div id="new_row" class="rounded-lg border border-dashed border-slate-300 px-3 py-2">
+    <p class="text-xs font-semibold text-slate-700">＋ 行を足す(章の中に出ていない区分がある)</p>
     <%= render 'requirements_problems', review: review, kind: 'new_row', id: 'new' %>
     <div class="mt-2 flex flex-wrap items-end gap-3">
       <label class="block"><span class="text-xs font-semibold text-slate-700">足す章</span>
@@ -45,5 +45,5 @@
       <span class="text-xs font-semibold text-slate-700">数える区分</span>
       <%= category_checks 'new_row[categories]', [], review %>
     </div>
-  </details>
+  </div>
 </div>

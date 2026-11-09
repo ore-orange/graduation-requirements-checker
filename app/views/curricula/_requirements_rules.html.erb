@@ -47,13 +47,6 @@
                 <% end %>
               </div>
             <% end %>
-            <div class="mt-3">
-              <label class="block">
-                <span class="text-xs font-semibold text-slate-700">規則全体(JSON)。経路・入れ子の選択肢などは、ここで直します。ここを変えたときは、上の欄の値より、こちらを採ります。</span>
-                <%= rv_area "#{key}[json]", rule_json(rule), id: nil, rows: 8, spellcheck: false,
-                                  class: "mt-1 block w-full font-mono text-xs #{field_class}" %>
-              </label>
-            </div>
             <label class="mt-2 flex items-center gap-1.5 text-xs text-rose-800">
               <%= rv_check "#{key}[_destroy]", '1', false, id: nil %>
               この規則を消す(読み直しても戻りません。この規則を指す行は「規則が見つかりません」になります)
@@ -64,14 +57,43 @@
     </ul>
   <% end %>
 
-  <details class="mt-3 rounded-lg border border-dashed border-slate-300 px-3 py-2" <%= 'open' if review.open?('new_rule', 'new') %>>
-    <summary class="cursor-pointer text-xs font-semibold text-slate-700">規則を足す(AI が読み落とした要件)</summary>
+  <%# 規則を足す。種類を選び、その種類が持つ欄に書く(JSON は使わない)。 %>
+  <%# 種類ごとの欄は、選んだ種類のものだけを使う。種類を変えたら、一度保存してから中身を書き足す。 %>
+  <div id="new_rule" data-controller="type-fields" class="mt-3 rounded-lg border border-dashed border-slate-300 px-3 py-2">
+    <p class="text-xs font-semibold text-slate-700">規則を足す(AI が読み落とした要件)</p>
     <%= render 'requirements_problems', review: review, kind: 'new_rule', id: 'new' %>
-    <p class="mt-2 text-xs text-slate-600">
-      規則1つ分を JSON で書きます。type は次のどれかです: <%= CurriculumImport::Annotations::RULE_TYPES.join('・') %>。
-      id は他の規則と重ならない文字列にしてください。例:
-    </p>
-    <pre class="mt-1 overflow-x-auto rounded bg-slate-100 p-2 text-xs">{"id": "elective_total", "type": "credit_sum", "label": "専門選択の合計", "categories": ["elective_math"], "required_credits": 37, "source_page": "PDF11ページ"}</pre>
-    <%= rv_area 'new_rule_json', nil, id: nil, rows: 5, spellcheck: false, class: "mt-2 block w-full font-mono text-xs #{field_class}" %>
-  </details>
+    <div class="mt-2 flex flex-wrap items-end gap-3">
+      <label class="block"><span class="text-xs font-semibold text-slate-700">種類</span>
+        <%= rv_select 'new_rule[type]', CurriculumImport::Annotations::RULE_TYPES.map { |type| [rule_type_name(type), type] },
+                      nil, include_blank: '選んでください', id: nil,
+                      data: { type_fields_target: 'select', action: 'change->type-fields#sync' },
+                      class: "mt-1 block #{field_class}" %></label>
+      <label class="block"><span class="text-xs font-semibold text-slate-700">id(他の規則と重ならない文字列)</span>
+        <%= rv_text 'new_rule[id]', nil, id: nil, class: "mt-1 block w-48 #{field_class}" %></label>
+      <label class="block"><span class="text-xs font-semibold text-slate-700">名前</span>
+        <%= rv_text 'new_rule[label]', nil, id: nil, class: "mt-1 block w-56 #{field_class}" %></label>
+    </div>
+
+    <%# 種類ごとの欄を全部出しておき、選ばれていない種類の欄は type_fields が隠して送らないようにする %>
+    <% CurriculumImport::Annotations::RULE_TYPES.each do |type| %>
+      <% skeleton = { 'type' => type } %>
+      <% fields = CurriculumImport::RequirementsEdit.rule_fields(skeleton)
+                    .except('label', 'detail', *CurriculumImport::RequirementsEdit::NESTED_RULE_FIELDS.keys)
+                    .reject { |_, kind| kind == :paths } %>
+      <div data-type-fields-target="block" data-type="<%= type %>" class="mt-2">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <% fields.each do |field, kind| %>
+            <div class="<%= 'sm:col-span-2' if %i[set text].include?(kind) %>">
+              <%= rule_field_input "new_rule[#{field}]", field, kind, {}, review %>
+            </div>
+          <% end %>
+        </div>
+        <% if rule_logic_label(skeleton) %>
+          <p class="text-xs text-slate-600">
+            経路・条件は、足したあとに、この規則の枠の中で書きます(先に種類と id を入れて保存してください)。
+          </p>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
 </div>

@@ -380,48 +380,37 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_equal 4, rule(draft, 'humanities')['required_credits']
   end
 
-  test '規則全体を JSON で直せる。JSON を変えていなければ欄の値を採る' do
+  # JSON の欄は無くした。経路も入れ子の条件も、それぞれの欄で直す。
+  test '経路は、JSON ではなく欄から直す' do
     draft = draft()
-    json = rule(draft, 'path_rule').except('confirmed').merge('paths' => [%w[role_a], %w[role_b], %w[role_c]]).to_json
-    save draft, rules: [{ id: 'path_rule', json: json, label: '欄の値は採られない' }]
+    save draft, rules: [{ id: 'path_rule', paths: { 'a' => { roles: %w[role_a] }, 'b' => { roles: %w[role_b] },
+                                                    'c' => { roles: %w[role_a role_b] } } }]
 
     assert_equal 3, rule(draft, 'path_rule')['paths'].size
-    assert_equal '規則path_rule', rule(draft, 'path_rule')['label']
     assert rule(draft, 'path_rule')['confirmed']
-
-    same = JSON.pretty_generate(rule(draft, 'humanities').except('confirmed'))
-    save draft, rules: [{ id: 'humanities', json: same, required_credits: '7' }]
-    assert_equal 7, rule(draft, 'humanities')['required_credits']
   end
 
-  test 'JSON が壊れている・id を変えている・オブジェクトでないときは保存しない' do
-    draft = draft()
-    save draft, rules: [{ id: 'humanities', json: '{ こわれた' }]
-    assert_match(/JSON を読めません/, response.body)
+  test '規則の画面に JSON の欄は無い' do
+    show(draft)
 
-    save draft, rules: [{ id: 'humanities', json: '{"id":"other","type":"credit_sum"}' }]
-    assert_match(/id は変えられません/, response.body)
-
-    save draft, rules: [{ id: 'humanities', json: '[1]' }]
-    assert_match(/規則1つ分のオブジェクト/, response.body)
-    assert_equal 4, rule(draft, 'humanities')['required_credits']
+    assert_select 'textarea[name*=?]', '[json]', count: 0
   end
 
   test '規則を足せる。足した規則には印が付き、id の重複と型の誤りは断る' do
     draft = draft()
-    save draft,
-         new_rule_json: { id: 'extra', type: 'credit_sum', label: '追加', categories: ['english'],
-                          required_credits: 2 }.to_json
+    save draft, new_rule: { type: 'credit_sum', id: 'extra', label: '追加', categories: ['english'],
+                            required_credits: '2' }
 
     assert rule(draft, 'extra')['confirmed']
+    assert_equal 2, rule(draft, 'extra')['required_credits']
     assert_equal 8, draft.document['rules'].size
 
-    save draft, new_rule_json: { id: 'extra', type: 'credit_sum' }.to_json
+    save draft, new_rule: { type: 'credit_sum', id: 'extra' }
     assert_match(/すでにあります/, response.body)
-    save draft, new_rule_json: { id: 'another', type: 'magic' }.to_json
-    assert_match(/type は次のどれかにしてください/, response.body)
-    save draft, new_rule_json: { type: 'credit_sum' }.to_json
-    assert_match(/id\(文字列\)が要ります/, response.body)
+    save draft, new_rule: { type: 'magic', id: 'another' }
+    assert_match(/種類は次のどれかにしてください/, response.body)
+    save draft, new_rule: { type: 'credit_sum', id: '' }
+    assert_match(/id を入れてください/, response.body)
     assert_equal 8, draft.reload.document['rules'].size
   end
 

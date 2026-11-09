@@ -128,9 +128,9 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     assert_select '#rule-core details[open]', count: 0
   end
 
-  test '保存できなかったとき、チェックの箱・JSON の欄・注釈の選択も、送ったとおりに残る' do
+  test '保存できなかったとき、チェックの箱・注釈の選択も、送ったとおりに残る' do
     draft = draft()
-    changes = { 'rules[0][json]' => '{ こわれた' }
+    changes = { 'rules[0][required_credits]' => '4単位' }
     pairs = change(browser_pairs(draft), changes).reject do |name, value|
       name == 'rules[0][categories][]' && value == 'humanities'
     end
@@ -138,7 +138,7 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     submit_pairs(draft, pairs)
 
     assert_response :unprocessable_content
-    assert_select 'textarea[name=?]', 'rules[0][json]', text: /こわれた/
+    assert_select 'input[name=?][value=?]', 'rules[0][required_credits]', '4単位'
     assert_select 'input[type=checkbox][name=?][value=english][checked]', 'rules[0][categories][]'
     assert_select 'input[type=checkbox][name=?][value=humanities][checked]', 'rules[0][categories][]', count: 0
   end
@@ -237,8 +237,10 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
   test '章を足すフォームと行を足すフォームが、画面に出る' do
     show(draft)
 
-    assert_select '#requirements_additions summary', text: /章を足す/
-    assert_select '#requirements_additions summary', text: /行を足す/
+    # 畳まずに、最初から見えている(開かないと気づかない入口にしない)
+    assert_select '#requirements_additions details', count: 0
+    assert_select '#requirements_additions input[name=?]', 'new_group[title]'
+    assert_select '#requirements_additions input[name=?]', 'new_row[name]'
     assert_select 'select[name=?] option', 'new_row[group_id]', count: 4
   end
 

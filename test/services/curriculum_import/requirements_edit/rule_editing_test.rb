@@ -109,5 +109,70 @@ class RuleEditingTest < ActiveSupport::TestCase
 
     assert_not result.ok?
   end
+
+  # ---- 規則を足す(JSON ではなく、型と欄から) ----
+
+  test '新しい規則をJSONを使わず型と欄から足す' do
+    result = edit(new_rule: { type: 'credit_sum', id: 'added_one', label: '追加分',
+                              categories: %w[humanities], required_credits: '2' })
+
+    assert result.ok?, result.errors.join('/')
+    rule = rule_after('added_one')
+    assert_equal 'credit_sum', rule['type']
+    assert_equal %w[humanities], rule['categories']
+    assert_equal 2, rule['required_credits']
+    assert_equal '追加分', rule['label']
+    assert_equal true, rule[CurriculumImport::DraftMerge::CONFIRMED]
+  end
+
+  test '足す規則の経路も、欄から組む' do
+    edit(new_rule: { type: 'one_of_paths', id: 'added_paths', label: '足した経路',
+                     paths: { 'a' => { roles: %w[role_a] }, 'b' => { roles: %w[role_b] } } })
+
+    assert_equal [%w[role_a], %w[role_b]], rule_after('added_paths')['paths']
+  end
+
+  test '足す規則の選択肢も、欄から組む' do
+    edit(new_rule: { type: 'any_of', id: 'added_any', label: '足した選択',
+                     options: { 'a' => { type: 'credit_sum', categories: %w[english], required_credits: '2' } } })
+
+    assert_equal [{ 'type' => 'credit_sum', 'categories' => %w[english], 'required_credits' => 2 }],
+                 rule_after('added_any')['options']
+  end
+
+  test '足す規則に id が無ければ断る' do
+    result = edit(new_rule: { type: 'credit_sum', id: '', categories: %w[humanities], required_credits: '2' })
+
+    assert_not result.ok?
+    assert_match(/id/, result.errors.join)
+  end
+
+  test '足す規則の id が既にあれば断る' do
+    result = edit(new_rule: { type: 'credit_sum', id: 'humanities', categories: %w[humanities],
+                              required_credits: '2' })
+
+    assert_not result.ok?
+  end
+
+  test '足す規則の型が空なら、何も足さない(画面は空の組を毎回送る)' do
+    before = document_after['rules'].size
+    result = edit(new_rule: { type: '', id: '', label: '' })
+
+    assert result.ok?
+    assert_equal before, document_after['rules'].size
+  end
+
+  test '足す規則の型が知らないものなら断る' do
+    result = edit(new_rule: { type: 'nonsense', id: 'added_bad' })
+
+    assert_not result.ok?
+  end
+
+  test '規則の JSON の欄は無くなった(欄から直す)' do
+    result = edit(rules: { '0' => { id: 'humanities', json: '{"id":"humanities","type":"credit_sum"}' } })
+
+    assert result.ok?, result.errors.join('/')
+    assert_equal %w[humanities], rule_after('humanities')['categories'], 'json は読まない'
+  end
 end
 

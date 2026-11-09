@@ -111,11 +111,6 @@ module RequirementsReviewHelper
     rv_select(name, options, selected, include_blank: true, id: nil, class: FIELD_CLASS)
   end
 
-  # JSON の欄に出す規則。confirmed は人が直した印で、直す対象ではないので出さない。
-  def rule_json(rule)
-    JSON.pretty_generate(rule.except(CurriculumImport::DraftMerge::CONFIRMED))
-  end
-
   def human_confirmed?(item) = item[CurriculumImport::DraftMerge::CONFIRMED] == true
 
   def annotation_type_options
