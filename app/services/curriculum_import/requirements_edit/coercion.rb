@@ -22,6 +22,7 @@ module CurriculumImport
         when :count then count(value, name)
         when :flag then flag(value, name)
         when :list, :set then list(value, name)
+        else nested_coerce(value, kind, name)
         end
       end
 
@@ -79,6 +80,9 @@ module CurriculumImport
       # 書式の違い(前後の空白・改行の形・無い欄と空の欄)だけの差かどうか。
       def same?(kind, field, value, current)
         return value.sort == Array(current).sort if kind == :set
+        # 1つの経路の中の役割は、そろって要るというだけで並びに意味が無い。画面はチェックの並び(役割の名前順)で
+        # 送り返すので、並びだけの違いを「直した」とすると、触っていない規則に確認済みの印が付いてしまう。
+        return value.map(&:sort) == Array(current).map { |path| Array(path).sort } if kind == :paths
 
         value == baseline(kind, field, current)
       end
@@ -87,7 +91,7 @@ module CurriculumImport
       def baseline(kind, field, current)
         case kind
         when :text, :optional_text then current.is_a?(String) ? normalize(current) : current
-        when :list then Array(current)
+        when :list, :paths, :options, :conditions then Array(current)
         when :flag then current.nil? ? FLAG_DEFAULTS.fetch(field, false) : current
         else current
         end

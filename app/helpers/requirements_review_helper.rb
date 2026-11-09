@@ -6,8 +6,6 @@ module RequirementsReviewHelper
                       'grouped_max' => '同じ提供元・言語から', 'any_of' => 'どれか1つを満たす', 'all_of' => 'すべてを満たす',
                       'cap' => '算入の上限', 'exclude' => '算入しない' }.freeze
   FIELD_NAMES = CurriculumImport::RequirementsEdit::FIELD_LABELS
-  SUMMARY_FIELDS = %w[categories required_categories category required_credits expected_course_count group_by credits
-                      number_prefix reason review_note].freeze
   FIELD_CLASS = 'rounded border border-slate-300 bg-white px-2 py-1.5 text-sm'
 
   # 単位の数。整数なら小数点を付けない。無ければダッシュ。
@@ -33,54 +31,6 @@ module RequirementsReviewHelper
   def rules_for(ids, review)
     Array.wrap(ids).filter_map { |id| review.rules.find { |rule| rule['id'] == id } }
   end
-
-  # 規則の中身を、画面が一覧できる文の並びにする。判定の数字を決める値は、すべてここに出す
-  # (上限・接頭辞・経路・入れ子の選択肢の必要単位)。読み違えると、数えてはいけない単位が数えられる値が、
-  # 開かないと見えない JSON の中にあってはいけない。入れ子は、親の下に字下げして出す。
-  def rule_summary(rule, review, depth = 0)
-    indent = '　' * depth
-    lines = [fields_line(rule, review)].compact.map { |line| "#{indent}#{line}" }
-    lines.concat(path_lines(rule, review).map { |line| "#{indent}#{line}" })
-    nested_rules(rule).each do |name, index, child|
-      lines << "#{indent}#{name}#{index}: #{rule_type_name(child['type'])}"
-      lines.concat(rule_summary(child, review, depth + 1))
-    end
-    lines
-  end
-
-  def fields_line(rule, review)
-    parts = SUMMARY_FIELDS.filter_map do |field|
-      "#{FIELD_NAMES.fetch(field)}: #{summary_value(rule[field], field, review)}" if rule.key?(field)
-    end
-    parts << '科目番号の接頭辞: なし(区分の全体)' if rule['type'] == 'exclude' && !rule.key?('number_prefix')
-    parts.join(' / ').presence
-  end
-
-  # 経路は、役割のキーに、その役割を持つ科目の名前を添える。科目が1つも無い役割は、そう言う。
-  def path_lines(rule, review)
-    return [] unless rule['paths'].is_a?(Array)
-
-    rule['paths'].each_with_index.map do |path, index|
-      roles = Array(path).map { |role| "#{role}(#{review.role_names(role).first(3).join('・').presence || '科目なし'})" }
-      "経路#{index + 1}: #{roles.join(' ＋ ').presence || '(空)'}"
-    end
-  end
-
-  def nested_rules(rule)
-    { 'options' => '選択肢', 'conditions' => '条件' }.flat_map do |field, name|
-      Array(rule[field]).grep(Hash).each_with_index.map { |child, index| [name, index + 1, child] }
-    end
-  end
-
-  def summary_value(value, field, review)
-    return review_credits(value) if value.is_a?(Numeric)
-    return '(空)' if value.nil?
-
-    names = Array(value).map { |key| category_field?(field) ? review.category_label(key) : key.to_s }
-    names.join('・').presence || '(空)'
-  end
-
-  def category_field?(field) = %w[categories required_categories category].include?(field)
 
   # 入力欄。保存できなかった送信の入力があれば、それを残して出す(RequirementsReview#field_value)。
   # 数は文字の欄にする。数の欄(type=number)は、数でない文字をブラウザが捨てるので、打ち間違いが消えて、問題の文だけが残ってしまう。
@@ -112,6 +62,33 @@ module RequirementsReviewHelper
       end
     end
     hidden_field_tag("#{name}[]", '', id: nil) + tag.div(safe_join(boxes), class: 'flex flex-wrap gap-x-3 gap-y-1')
+  end
+
+  # 経路に置く役割を選ぶチェックの並び。区分のチェック(category_checks)と同じ形で、選択肢は便覧が知っている役割。
+  # 役割のキーには、その役割を持つ科目の名前を添える(キーだけでは、どの科目を指すのか画面から分からない)。
+  def role_checks(name, selected, review)
+    boxes = review.known_roles.map do |role|
+      names = review.role_names(role).first(2).join('・')
+      tag.label(class: 'inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-800') do
+        rv_check("#{name}[]", role, Array(selected).include?(role), id: nil) +
+          "#{role}#{"(#{names})" if names.present?}"
+      end
+    end
+    hidden_field_tag("#{name}[]", '', id: nil) + tag.div(safe_join(boxes), class: 'flex flex-wrap gap-x-3 gap-y-1')
+  end
+
+  # 規則のフォームの欄の名前の前半(rules[添字])。規則の一覧でも、ツリーの中の枠でも、同じ名前で送る。
+  def rule_param_key(rule, review)
+    "rules[#{review.rules.index(rule)}]"
+  end
+
+  # ツリー(章・行)の中に枠として出る規則の id。規則の一覧は、この規則の経路・条件の欄を出さない
+  # (同じ名前のパラメータを2か所から送ると、どちらが保存されるか決まらない)。
+  def tree_rule_ids(review)
+    ids = review.groups.flat_map do |group|
+      Array.wrap(group['check_id']) + review.rows_of(group).flat_map { |row| Array.wrap(row['check_ids']) }
+    end
+    rules_for(ids.uniq, review).select { |rule| rule_logic_label(rule) }.pluck('id')
   end
 
   # 規則の1つの欄の入力。欄の種類は RequirementsEdit.rule_fields と同じ表から決まる。

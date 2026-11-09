@@ -106,7 +106,9 @@ module RequirementsScreenHelpers
   def browser_pairs(draft)
     get curriculum_path(draft), env: ENV_LOCAL
     form = response.parsed_body.at_css('#requirements_form')
-    form.css('input, textarea, select').filter_map { |field| browser_value(field) }
+    # <template> の中の欄は、ブラウザは送らない(行を足したときに複製される雛形)。ここでも同じく除く。
+    form.css('input, textarea, select').reject { |field| field.ancestors('template').any? }
+        .filter_map { |field| browser_value(field) }
   end
 
   def browser_value(field)

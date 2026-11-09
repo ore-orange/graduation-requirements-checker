@@ -1,0 +1,29 @@
+<%# one_of_paths の経路。1つの経路は「そろって要る役割」の集まりで、経路どうしは「どれか1つ」。 %>
+<%# 行を足す・消すのは repeater。__INDEX__ は足すときに一意な値へ置き換わる(添字は振り直さない)。 %>
+<% paths = Array(rule['paths']) %>
+<div data-controller="repeater" data-rule-paths="<%= rule['id'] %>">
+  <div data-repeater-target="list" class="space-y-2">
+    <% paths.each_with_index do |path, index| %>
+      <div data-repeater-target="row" class="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-bold text-slate-700">経路<%= index + 1 %>(すべて修得して1つの経路)</span>
+          <button type="button" data-action="click->repeater#remove" class="text-xs text-slate-400 hover:text-rose-600">この経路を消す</button>
+        </div>
+        <%= role_checks "#{key}[paths][#{index}][roles]", Array(path), review %>
+      </div>
+    <% end %>
+  </div>
+
+  <template data-repeater-target="template">
+    <div data-repeater-target="row" class="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-xs font-bold text-slate-700">足した経路(すべて修得して1つの経路)</span>
+        <button type="button" data-action="click->repeater#remove" class="text-xs text-slate-400 hover:text-rose-600">この経路を消す</button>
+      </div>
+      <%= role_checks "#{key}[paths][__INDEX__][roles]", [], review %>
+    </div>
+  </template>
+
+  <button type="button" data-action="click->repeater#add"
+          class="mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800">＋ 経路を足す</button>
+</div>

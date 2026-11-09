@@ -14,9 +14,27 @@
     <span class="text-xs text-amber-800"><%= rule_type_name(rule['type']) %></span>
   </div>
 
-  <div class="mt-2 ml-3 space-y-1 border-l-2 border-amber-300 pl-3">
-    <% rule_summary(rule, review).each do |line| %>
-      <p class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700"><%= line %></p>
+  <div class="mt-2 ml-3 space-y-2 border-l-2 border-amber-300 pl-3">
+    <% key = rule_param_key(rule, review) %>
+    <% if rule['type'] == 'one_of_paths' %>
+      <%= render 'requirements_rule_paths', review: review, rule: rule, key: key %>
+    <% else %>
+      <% field = rule['type'] == 'any_of' ? 'options' : 'conditions' %>
+      <% allowed = rule['type'] == 'any_of' ? GraduationAssessment::Rules::ANY_OF_OPTIONS : GraduationAssessment::Rules::ALL_OF_CONDITIONS %>
+      <div data-controller="repeater" data-rule-conditions="<%= rule['id'] %>">
+        <div data-repeater-target="list" class="space-y-2">
+          <% Array(rule[field]).grep(Hash).each_with_index do |condition, index| %>
+            <%= render 'requirements_rule_condition', review: review, condition: condition, allowed: allowed,
+                       key: "#{key}[#{field}][#{index}]" %>
+          <% end %>
+        </div>
+        <template data-repeater-target="template">
+          <%= render 'requirements_rule_condition', review: review, condition: { 'type' => allowed.first },
+                     allowed: allowed, key: "#{key}[#{field}][__INDEX__]" %>
+        </template>
+        <button type="button" data-action="click->repeater#add"
+                class="mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800">＋ <%= field == 'options' ? '選択肢' : '条件' %>を足す</button>
+      </div>
     <% end %>
     <% if rule['detail'].present? %><p class="text-xs text-amber-900"><%= rule['detail'] %></p><% end %>
   </div>

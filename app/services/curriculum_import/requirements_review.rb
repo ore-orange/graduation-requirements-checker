@@ -91,6 +91,13 @@ module CurriculumImport
     # 役割(経路が名指しするキー)を持つ科目の名前。規則が名指しする役割に科目が無いと、その規則は必ず要確認になる。
     def role_names(role) = courses.select { |course| Array(course['roles']).include?(role) }.pluck('name')
 
+    # 経路の欄に出す役割の選択肢。科目が持つ役割に加えて、いま規則の経路が名指ししている役割も入れる
+    # (科目が1つも無い役割を選択肢から外すと、画面から送り返すだけでその経路が消えてしまう)。
+    def known_roles
+      (courses.flat_map { |course| Array(course['roles']) } +
+       rules.flat_map { |rule| Array(rule['paths']).flatten }).grep(String).uniq.sort
+    end
+
     def rows_of(group) = Array(group['rows']).grep(Hash)
 
     def removed_items

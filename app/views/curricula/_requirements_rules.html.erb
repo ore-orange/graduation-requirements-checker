@@ -27,12 +27,26 @@
             <summary class="cursor-pointer text-xs font-semibold text-slate-700">この規則を直す・消す</summary>
             <div class="mt-2 grid gap-3 sm:grid-cols-2">
               <%= hidden_field_tag "#{key}[id]", rule['id'], id: nil %>
+              <%# 経路・入れ子の条件は、繰り返しの行で直す。欄の名前が重ならないよう、ここには出さない %>
               <% CurriculumImport::RequirementsEdit.rule_fields(rule).each do |field, kind| %>
+                <% next if CurriculumImport::RequirementsEdit::NESTED_RULE_FIELDS.key?(field) || kind == :paths %>
                 <div class="<%= 'sm:col-span-2' if %i[set text].include?(kind) %>">
                   <%= rule_field_input "#{key}[#{field}]", field, kind, rule, review %>
                 </div>
               <% end %>
             </div>
+            <% if rule_logic_label(rule) %>
+              <div class="mt-3">
+                <% if tree_rule_ids(review).include?(rule['id']) %>
+                  <p class="text-xs text-slate-600">
+                    経路・条件は、上の「区分ごとの必要単位」の中、この規則を確認する行の下で直します。
+                  </p>
+                <% else %>
+                  <%# どの章・行からも指されていない規則。ツリーに出ないので、経路・条件はここで直す %>
+                  <%= render 'requirements_rule_box', review: review, rule: rule %>
+                <% end %>
+              </div>
+            <% end %>
             <div class="mt-3">
               <label class="block">
                 <span class="text-xs font-semibold text-slate-700">規則全体(JSON)。経路・入れ子の選択肢などは、ここで直します。ここを変えたときは、上の欄の値より、こちらを採ります。</span>

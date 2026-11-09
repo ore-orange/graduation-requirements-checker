@@ -19,6 +19,7 @@ module CurriculumImport
   class RequirementsEdit
     include Bookkeeping
     include Coercion
+    include NestedCoercion
     include RuleEditing
     include DisplayEditing
     include Additions
@@ -42,12 +43,20 @@ module CurriculumImport
                         'check_ids' => :list }.freeze
     CATEGORY_FIELDS = { 'label' => :text, 'counts_toward_total' => :flag }.freeze
     RULE_COMMON_FIELDS = { 'label' => :text, 'detail' => :text }.freeze
-    # 規則の型ごとの欄(Validation::Input::FIELD_KINDS)のうち、フォームの1つの欄で直せるもの。それ以外は JSON で直す。
-    RULE_FIELD_KINDS = { number: :number, count: :count, keys: :set, text: :text }.freeze
+    # 規則の型ごとの欄(Validation::Input::FIELD_KINDS)のうち、フォームの欄で直せるもの。それ以外は JSON で直す。
+    # 経路(paths)と入れ子の条件は、1つの欄ではなく繰り返しの行で直す。
+    RULE_FIELD_KINDS = { number: :number, count: :count, keys: :set, text: :text, paths: :paths }.freeze
+    # 入れ子の欄は、欄の名前で読み方を分ける。any_of の選択肢(options)には all_of を置けるが、
+    # all_of の条件(conditions)には置けない。Validation::Input::FIELD_KINDS ではどちらも :list なので、
+    # そこからは区別できない。
+    NESTED_RULE_FIELDS = { 'options' => :options, 'conditions' => :conditions }.freeze
     # FIELD_KINDS に無いが、判定の数字を決める欄。cap の上限(credits)を読み違えると、算入してはいけない単位が数えられる。
     # exclude の接頭辞(number_prefix)は、読み違えると何にも当たらず、何も除外しない。欄が無い(区分全体)と空は同じ意味なので、
     # 空にしたときは欄ごと消す(欄があって空だと、読み込みが拒む)。
-    RULE_EXTRA_FIELDS = { 'cap' => { 'credits' => :number }, 'exclude' => { 'number_prefix' => :optional_text } }.freeze
+    # grouped_max の group_label は、学生に出す「同一の○○から」の○○。欄が無ければ group_by から作るので、
+    # 必須にはしない(FIELD_KINDS に入れると、書いていない便覧が「欄が足りない」と言われる)。
+    RULE_EXTRA_FIELDS = { 'cap' => { 'credits' => :number }, 'exclude' => { 'number_prefix' => :optional_text },
+                          'grouped_max' => { 'group_label' => :optional_text } }.freeze
     # エラーの文で欄を呼ぶ名前(画面の欄の名前と同じ)。
     FIELD_LABELS = { 'label' => '名前', 'name' => '名前', 'detail' => '注記', 'title' => '章の名前', 'subtitle' => '副題',
                      'required_credits' => '必要単位', 'required_label' => '必要単位が空のときの表示',
@@ -56,7 +65,7 @@ module CurriculumImport
                      'reason' => '算入しない理由', 'review_note' => '要確認の理由', 'check_id' => '確認する規則', 'check_ids' => '確認する規則',
                      'row_ids' => '数える行', 'credits_from_check' => '単位を確認する規則から取るか',
                      'counts_toward_total' => '卒業の総単位に数えるか', 'credits' => '算入の上限(単位)',
-                     'number_prefix' => '科目番号の接頭辞' }.freeze
+                     'number_prefix' => '科目番号の接頭辞', 'group_label' => 'グループの呼び名' }.freeze
     KIND_NAMES = { 'rule' => '規則', 'group' => '章', 'row' => '行', 'subtotal' => '小計', 'category' => '区分' }.freeze
     CONTRIBUTED_FIELD = { 'rule' => 'rules', 'group' => 'groups', 'subtotal' => 'subtotals' }.freeze
     ORIGIN_FIELD = { 'rule' => 'rules', 'group' => 'groups', 'subtotal' => 'subtotals', 'row' => 'rows' }.freeze
@@ -80,9 +89,19 @@ module CurriculumImport
       adjustment = GraduationAssessment::Rules::ADJUSTMENTS.key?(type)
       fields = adjustment ? { 'detail' => :text } : RULE_COMMON_FIELDS.dup
       (Validation::Input::FIELD_KINDS[type] || {}).each do |field, kind|
-        fields[field] = RULE_FIELD_KINDS.fetch(kind) if RULE_FIELD_KINDS.key?(kind)
+        nested = NESTED_RULE_FIELDS[field]
+        fields[field] = nested || RULE_FIELD_KINDS[kind] if nested || RULE_FIELD_KINDS.key?(kind)
       end
       fields.merge(RULE_EXTRA_FIELDS.fetch(type, {}))
+    end
+
+    # 入れ子の条件(any_of の選択肢・all_of の条件)が持てる欄の { 欄 => 種類 }。
+    # 入れ子のさらに中(all_of の conditions)は、画面が繰り返しの行として別に出すので、ここには入れない。
+    def self.condition_fields(type)
+      known = (Validation::Input::FIELD_KINDS[type] || {}).filter_map do |field, kind|
+        [field, RULE_FIELD_KINDS[kind]] if RULE_FIELD_KINDS.key?(kind)
+      end.to_h
+      known.merge(RULE_EXTRA_FIELDS.fetch(type, {}))
     end
 
     def initialize(curriculum, params)

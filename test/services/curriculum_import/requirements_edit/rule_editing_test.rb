@@ -1,0 +1,113 @@
+# frozen_string_literal: true
+
+require 'test_helper'
+require_relative '../../../support/requirements_draft_fixtures'
+
+# 規則の中でも、1つの欄では直せなかったもの(経路・選択肢・条件)を、画面の欄から直す。
+# ここが JSON でしか直せないと、判定の数字を決める値が、人が開かない畳まれた文字列の中に残る。
+class RuleEditingTest < ActiveSupport::TestCase
+  include RequirementsDraftFixtures
+
+  setup do
+    @curriculum = Curriculum.create!(slug: 'rule_editing', admission_year: 2025, faculty_name: '工学部',
+                                     department_name: '工学科 知能情報コース', source_filename: 'handbook.pdf',
+                                     pages: [], document: editable_document)
+  end
+
+  # fixture の規則に、経路(one_of_paths)と選択肢(any_of)を持つものを足した文書。
+  def editable_document
+    document = requirements_document
+    document['rules'] = document['rules'] + [
+      fixture_rule('english_required', 'one_of_paths', paths: [%w[role_a]]),
+      fixture_rule('some_any_of', 'any_of',
+                   options: [{ 'type' => 'credit_sum', 'categories' => %w[humanities], 'required_credits' => 2 }])
+    ]
+    document
+  end
+
+  def edit(**params)
+    revision = CurriculumImport::RequirementsEdit.revision(@curriculum.document)
+    CurriculumImport::RequirementsEdit.new(@curriculum, { revision: revision }.merge(params)).call
+  end
+
+  def document_after = @curriculum.reload.document
+
+  def rule_after(id) = document_after['rules'].find { |rule| rule['id'] == id }
+
+  test '経路をチェックの入力から直す(JSONを使わない)' do
+    result = edit(rules: { '0' => { id: 'english_required',
+                                    paths: { 'a' => { roles: %w[university_english] },
+                                             'b' => { roles: %w[english_reading_intermediate] } } } })
+
+    assert result.ok?, result.errors.join('/')
+    assert_equal [['university_english'], ['english_reading_intermediate']], rule_after('english_required')['paths']
+  end
+
+  test '1つの経路に役割を2つ以上置ける(両方そろって1つの経路)' do
+    edit(rules: { '0' => { id: 'english_required', paths: { 'a' => { roles: %w[role_a role_b] } } } })
+
+    assert_equal [%w[role_a role_b]], rule_after('english_required')['paths']
+  end
+
+  test '役割を1つも選ばなかった経路は捨てる(空の経路は、何も求めない経路になってしまう)' do
+    edit(rules: { '0' => { id: 'english_required',
+                           paths: { 'a' => { roles: %w[role_a] }, 'b' => { roles: [''] } } } })
+
+    assert_equal [%w[role_a]], rule_after('english_required')['paths']
+  end
+
+  test '経路を直した規則には、読み直しから守る印が付く' do
+    edit(rules: { '0' => { id: 'english_required', paths: { 'a' => { roles: %w[role_b] } } } })
+
+    assert_equal true, rule_after('english_required')[CurriculumImport::DraftMerge::CONFIRMED]
+  end
+
+  test '同じ経路を送り返しても、直したことにはならない' do
+    result = edit(rules: { '0' => { id: 'english_required', paths: { 'a' => { roles: %w[role_a] } } } })
+
+    assert result.ok?
+    assert_nil rule_after('english_required')[CurriculumImport::DraftMerge::CONFIRMED]
+  end
+
+  test 'any_ofの選択肢をJSONを使わず直す' do
+    edit(rules: { '0' => { id: 'some_any_of',
+                           options: { 'a' => { type: 'credit_sum', categories: %w[humanities],
+                                               required_credits: '4' },
+                                      'b' => { type: 'grouped_max', category: 'fusion',
+                                               group_by: 'number_prefix', required_credits: '4' } } } })
+
+    assert_equal [{ 'type' => 'credit_sum', 'categories' => %w[humanities], 'required_credits' => 4 },
+                  { 'type' => 'grouped_max', 'category' => 'fusion', 'group_by' => 'number_prefix',
+                    'required_credits' => 4 }],
+                 rule_after('some_any_of')['options']
+  end
+
+  test 'any_ofの選択肢には all_of を置ける(その中の条件も欄から直す)' do
+    edit(rules: { '0' => { id: 'some_any_of',
+                           options: { 'a' => { type: 'all_of',
+                                               conditions: { 'x' => { type: 'credit_sum', categories: %w[english],
+                                                                      required_credits: '8' } } } } } })
+
+    assert_equal [{ 'type' => 'all_of',
+                    'conditions' => [{ 'type' => 'credit_sum', 'categories' => %w[english],
+                                       'required_credits' => 8 }] }],
+                 rule_after('some_any_of')['options']
+  end
+
+  test 'all_ofの中にall_ofは置けない(その条件は捨てて指摘する)' do
+    result = edit(rules: { '0' => { id: 'some_any_of',
+                                    options: { 'a' => { type: 'all_of',
+                                                        conditions: { 'x' => { type: 'all_of' } } } } } })
+
+    assert_not result.ok?
+    assert_match(/all_of/, result.errors.join)
+    assert_equal requirements_document['rules'].size + 2, document_after['rules'].size, '何も保存しない'
+  end
+
+  test '知らない型の条件は受けない' do
+    result = edit(rules: { '0' => { id: 'some_any_of', options: { 'a' => { type: 'one_of_paths' } } } })
+
+    assert_not result.ok?
+  end
+end
+
