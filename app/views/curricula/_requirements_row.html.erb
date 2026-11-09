@@ -1,62 +1,64 @@
-<%# 表の1行(読む行と、その直す欄)。row_key は、フォームの欄の名前の前半。 %>
+<%# 章の中の1行。名前と必要単位は常時編集できる欄にし、残りの欄はそのすぐ下に小さく並べる。 %>
+<%# 行が指す規則のうち、入れ子を持つもの(AND/OR)は、この行の下に枠で出す。row_key は欄の名前の前半。 %>
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
-<tr id="row-<%= row['id'] %>" class="align-top">
-  <td class="px-2 py-2 pl-5">
-    <p class="font-semibold text-slate-900">
-      <%= row['name'] %>
-      <% if human_confirmed?(row) %><span class="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">人が確認した</span><% end %>
-    </p>
-    <% if row['subtitle'].present? %><p class="text-xs text-slate-600"><%= row['subtitle'] %></p><% end %>
-  </td>
-  <td class="px-2 py-2 tabular-nums">
-    <% if row['required_credits'].is_a?(Numeric) %>
-      <%= review_credits(row['required_credits']) %>
-    <% else %>
-      <span class="text-xs text-slate-700"><%= row['required_label'].presence || '—' %></span>
-    <% end %>
-  </td>
-  <td class="px-2 py-2 text-xs text-slate-800">
-    <%= Array.wrap(row['categories']).map { |key| review.category_label(key) }.join('・').presence || '(区分なし)' %>
-    <% if row['credits_from_check'] == true %><span class="block text-slate-500">単位は確認する規則から取る</span><% end %>
-  </td>
-  <td class="px-2 py-2 text-xs">
+<div id="row-<%= row['id'] %>" class="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="h-2 w-2 shrink-0 rounded-full bg-indigo-400"></span>
+      <%= hidden_field_tag "#{row_key}[id]", row['id'], id: nil %>
+      <label class="block">
+        <span class="sr-only">行の名前</span>
+        <%= rv_text "#{row_key}[name]", row['name'], id: nil, class: "w-64 font-semibold text-slate-900 #{field_class}" %>
+      </label>
+      <% if human_confirmed?(row) %><span class="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">人が確認した</span><% end %>
+    </div>
+    <label class="flex items-center gap-2">
+      <span class="text-xs font-medium text-slate-500">必要単位(内数なら空)</span>
+      <%= rv_number "#{row_key}[required_credits]", row['required_credits'], id: nil,
+                    class: "w-20 text-right font-semibold #{field_class}" %>
+    </label>
+  </div>
+
+  <div class="mt-2 flex flex-wrap items-end gap-3 text-xs">
+    <label class="block"><span class="font-semibold text-slate-700">副題</span>
+      <%= rv_text "#{row_key}[subtitle]", row['subtitle'], id: nil, class: "mt-1 block w-56 #{field_class}" %></label>
+    <label class="block"><span class="font-semibold text-slate-700">必要単位が空のときの表示</span>
+      <%= rv_text "#{row_key}[required_label]", row['required_label'], id: nil, class: "mt-1 block w-44 #{field_class}" %></label>
+    <label class="block"><span class="font-semibold text-slate-700">確認する規則(id をカンマで区切る)</span>
+      <%= rv_text "#{row_key}[check_ids]", Array.wrap(row['check_ids']).join(', '), id: nil, class: "mt-1 block w-56 #{field_class}" %></label>
+    <label class="block"><span class="font-semibold text-slate-700">並び(小さい順)</span>
+      <%= rv_number "#{row_key}[position]", row_index + 1, id: nil, class: "mt-1 block w-20 #{field_class}" %></label>
+    <label class="flex items-center gap-1.5 text-slate-800">
+      <%= hidden_field_tag "#{row_key}[credits_from_check]", '0', id: nil %>
+      <%= rv_check "#{row_key}[credits_from_check]", '1', row['credits_from_check'] == true, id: nil %>
+      単位は確認する規則から取る
+    </label>
+    <label class="flex items-center gap-1.5 text-rose-800">
+      <%= rv_check "#{row_key}[_destroy]", '1', false, id: nil %>
+      この行を消す(読み直しても戻りません)
+    </label>
+  </div>
+
+  <div class="mt-2 text-xs">
+    <span class="font-semibold text-slate-700">数える区分</span>
+    <%= category_checks "#{row_key}[categories]", row['categories'], review %>
+  </div>
+
+  <div class="mt-2 text-xs">
+    <span class="font-semibold text-slate-700">確認する規則:</span>
     <%= render 'requirements_rule_links', review: review, ids: Array.wrap(row['check_ids']) %>
-  </td>
-</tr>
-<tr>
-  <td colspan="4" class="px-2 pb-2 pl-5">
-    <%= render 'requirements_finding_notes', findings: review.findings_for(:display, row['id']) %>
-    <%= render 'requirements_problems', review: review, kind: 'row', id: row['id'] %>
-    <details class="mt-1" <%= 'open' if review.open?('row', row['id']) %>>
-      <summary class="cursor-pointer text-xs font-semibold text-slate-700">この行を直す・並べ替える・消す</summary>
-      <div class="mt-2 flex flex-wrap items-end gap-3">
-        <%= hidden_field_tag "#{row_key}[id]", row['id'], id: nil %>
-        <label class="block"><span class="text-xs font-semibold text-slate-700">名前</span>
-          <%= rv_text "#{row_key}[name]", row['name'], id: nil, class: "mt-1 block w-56 #{field_class}" %></label>
-        <label class="block"><span class="text-xs font-semibold text-slate-700">副題</span>
-          <%= rv_text "#{row_key}[subtitle]", row['subtitle'], id: nil, class: "mt-1 block w-64 #{field_class}" %></label>
-        <label class="block"><span class="text-xs font-semibold text-slate-700">必要単位(内数なら空)</span>
-          <%= rv_number "#{row_key}[required_credits]", row['required_credits'], id: nil, class: "mt-1 block w-24 #{field_class}" %></label>
-        <label class="block"><span class="text-xs font-semibold text-slate-700">必要単位が空のときの表示</span>
-          <%= rv_text "#{row_key}[required_label]", row['required_label'], id: nil, class: "mt-1 block w-48 #{field_class}" %></label>
-        <label class="block"><span class="text-xs font-semibold text-slate-700">確認する規則(id をカンマで区切る)</span>
-          <%= rv_text "#{row_key}[check_ids]", Array.wrap(row['check_ids']).join(', '), id: nil, class: "mt-1 block w-64 #{field_class}" %></label>
-        <label class="block"><span class="text-xs font-semibold text-slate-700">並び(小さい順)</span>
-          <%= rv_number "#{row_key}[position]", row_index + 1, id: nil, class: "mt-1 block w-20 #{field_class}" %></label>
-        <label class="flex items-center gap-1.5 text-xs text-slate-800">
-          <%= hidden_field_tag "#{row_key}[credits_from_check]", '0', id: nil %>
-          <%= rv_check "#{row_key}[credits_from_check]", '1', row['credits_from_check'] == true, id: nil %>
-          単位を確認する規則から取る
-        </label>
-        <label class="flex items-center gap-1.5 text-xs text-rose-800">
-          <%= rv_check "#{row_key}[_destroy]", '1', false, id: nil %>
-          この行を消す(読み直しても戻りません)
-        </label>
-      </div>
-      <div class="mt-2">
-        <span class="text-xs font-semibold text-slate-700">数える区分</span>
-        <%= category_checks "#{row_key}[categories]", row['categories'], review %>
-      </div>
-    </details>
-  </td>
-</tr>
+  </div>
+
+  <%= render 'requirements_finding_notes', findings: review.findings_for(:display, row['id']) %>
+  <%= render 'requirements_problems', review: review, kind: 'row', id: row['id'] %>
+
+  <%# 入れ子を持つ規則(AND/OR)だけ、行の下に枠で出す。残りは上のリンクだけ。 %>
+  <% nested = rules_for(row['check_ids'], review).select { |rule| rule_logic_label(rule) } %>
+  <% if nested.any? %>
+    <div class="mt-2 ml-3 space-y-2 border-l-2 border-amber-300 pl-3">
+      <% nested.each do |rule| %>
+        <%= render 'requirements_rule_box', review: review, rule: rule %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

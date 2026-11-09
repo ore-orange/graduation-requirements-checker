@@ -123,7 +123,8 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     # 変えた項目と問題のある項目は、開いたまま見せる
     assert_select '#rule-humanities details[open]'
     assert_select '#rule-english details[open]'
-    assert_select '#group-common details[open]'
+    # 章・行は畳まないので、開き直す必要が無い(打った値は上のとおり、そのまま出ている)
+    assert_select '#group-common details', count: 0
     assert_select '#rule-core details[open]', count: 0
   end
 

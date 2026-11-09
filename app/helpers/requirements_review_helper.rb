@@ -17,8 +17,21 @@ module RequirementsReviewHelper
     value.to_d.then { |number| number.frac.zero? ? number.to_i.to_s : number.to_s('F') }
   end
 
+  # 入れ子を持つ規則の論理。画面はこれをバッジにして、行の下の枠に出す。
+  # 経路(one_of_paths)と選択肢(any_of)は「どれか1つ」、all_of は「すべて」。
+  # それ以外(credit_sum など)は入れ子を持たないので、バッジも枠も作らない。
+  RULE_LOGIC_LABELS = { 'one_of_paths' => 'OR', 'any_of' => 'OR', 'all_of' => 'AND' }.freeze
+
   def rule_type_name(type)
     RULE_TYPE_NAMES.fetch(type, type.presence || '(型なし)')
+  end
+
+  def rule_logic_label(rule) = RULE_LOGIC_LABELS[rule['type']]
+
+  # 章・行が check_id/check_ids で指す規則そのもの。並びは指した順。見つからない id は含めない
+  # (「規則が見つかりません」は、今までどおり requirements_rule_links が言う)。
+  def rules_for(ids, review)
+    Array.wrap(ids).filter_map { |id| review.rules.find { |rule| rule['id'] == id } }
   end
 
   # 規則の中身を、画面が一覧できる文の並びにする。判定の数字を決める値は、すべてここに出す

@@ -25,10 +25,39 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     show(draft)
 
     assert_response :success
-    assert_select 'tr', text: /1\. 共通教育 合計.*6/
-    assert_select 'tr', text: /行humanities.*4/
-    assert_select 'tr', text: /卒業に必要な総単位.*14/
-    assert_select '#requirements_table th', text: /2\. 必修 合計/
+    # 章・行はツリーの入れ子。数字は値ではなく入力欄に入っている(開かなくても直せる)。
+    assert_select '#group-common input[name=?][value=?]', 'display[groups][0][title]', '1. 共通教育'
+    assert_select '#group-common input[name=?][value=?]', 'display[groups][0][required_credits]', '6'
+    assert_select '#row-humanities input[name=?][value=?]', 'display[groups][0][rows][0][name]', '行humanities'
+    assert_select '#row-humanities input[name=?][value=?]', 'display[groups][0][rows][0][required_credits]', '4'
+    assert_select '#requirements_table input[name=?][value=?]', 'display[total_credits]', '14'
+    assert_select '#group-required input[name=?][value=?]', 'display[groups][1][title]', '2. 必修'
+  end
+
+  test '章・行の名前と必要単位は、開かなくても直せる(常時表示の入力欄)' do
+    show(draft)
+
+    assert_select '#requirements_table details', count: 0
+    assert_select '#requirements_table input[type=text]', minimum: 1
+  end
+
+  # 行を確かめる規則のうち、入れ子を持つもの(one_of_paths・any_of・all_of)は、行の下に
+  # AND/OR のバッジ付きで中身を出す。畳まれた JSON の中にあると、読み違えが見つからない。
+  test '入れ子を持つ規則は、行の下にAND/ORのバッジと中身が出る' do
+    document = requirements_document
+    document['display']['groups'][0]['rows'][0]['check_ids'] = %w[humanities path_rule]
+
+    show(draft(document: document))
+
+    assert_select '#row-humanities [data-rule-logic=?]', 'OR'
+    assert_select '#row-humanities [data-rule-box=?]', 'path_rule', text: /経路1/
+  end
+
+  # バッジを持たない規則(credit_sum など)は、入れ子の枠を作らない。
+  test 'バッジを持たない規則は、入れ子の枠を作らない' do
+    show(draft)
+
+    assert_select '#row-humanities [data-rule-box=?]', 'humanities', count: 0
   end
 
   test '行には、数える区分の名前と、確認する規則が出る' do
@@ -68,8 +97,8 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select 'body', text: /規則が見つかりません/
     assert_select '#requirements_findings [data-blocking=true]', text: /vanished/
     assert_select '#requirements_findings', text: /公開を止める問題が1件/
-    # 該当の行の下にも、同じ理由が出る
-    assert_select '#row-humanities + tr', text: /規則が見つかりません: vanished/
+    # 該当の行の中にも、同じ理由が出る
+    assert_select '#row-humanities', text: /規則が見つかりません: vanished/
     assert_select '#row-humanities a[href]', text: 'humanities'
     assert_select '#row-humanities .text-rose-700', text: /vanished.*規則が見つかりません/
   end
@@ -500,8 +529,8 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     show(draft(document: document))
 
     assert_response :success
-    assert_select 'tr', text: /1\. 共通教育 合計.*30/
-    assert_select 'tr', text: /卒業に必要な総単位.*130/
+    assert_select '#group-common input[value=?]', '1. 共通教育'
+    assert_select '#requirements_table input[name=?][value=?]', 'display[total_credits]', '130'
     assert_select '#requirements_rules li', count: document['rules'].size
     assert_select '#requirements_findings [data-blocking=true]', count: 0
     assert_select '#category-excluded', text: /総単位に数えない/

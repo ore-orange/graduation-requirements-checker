@@ -1,0 +1,23 @@
+<%# 入れ子を持つ規則(one_of_paths・any_of・all_of)を、章・行の下に出す枠。 %>
+<%# AND/OR のバッジと、規則の中身(経路・選択肢・条件)を、開かなくても読めるところに置く。 %>
+<%# 値を直すのは、今までどおり規則の一覧(#rule-<id>)。ここは「この行が何で決まるか」を見せる。 %>
+<% logic = rule_logic_label(rule) %>
+<div data-rule-box="<%= rule['id'] %>" class="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <div class="flex flex-wrap items-center gap-2">
+      <span data-rule-logic="<%= logic %>" class="rounded-md bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
+        <%= logic == 'AND' ? 'AND (すべて満たす)' : 'OR (いずれか満たす)' %>
+      </span>
+      <span class="text-sm font-bold text-slate-800"><%= rule['label'].presence || rule_type_name(rule['type']) %></span>
+      <a href="#rule-<%= rule['id'] %>" class="text-xs text-slate-500 underline underline-offset-2">(<%= rule['id'] %>)</a>
+    </div>
+    <span class="text-xs text-amber-800"><%= rule_type_name(rule['type']) %></span>
+  </div>
+
+  <div class="mt-2 ml-3 space-y-1 border-l-2 border-amber-300 pl-3">
+    <% rule_summary(rule, review).each do |line| %>
+      <p class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700"><%= line %></p>
+    <% end %>
+    <% if rule['detail'].present? %><p class="text-xs text-amber-900"><%= rule['detail'] %></p><% end %>
+  </div>
+</div>
