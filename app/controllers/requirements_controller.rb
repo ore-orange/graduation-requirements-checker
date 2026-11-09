@@ -37,7 +37,16 @@ class RequirementsController < ApplicationController
     required.all?(&:present?) && (course_required? ? @selection[:course].present? : true)
   end
 
-  def course_required? = @course_options.fetch(@selection[:department], []).any?
+  # ただし、学科名だけで登録されている便覧(マスタにコースを足す前に作ったものなど)があるときは求めない。
+  # 求めてしまうと、どのコースを選んでも結んだ名前が一致せず、その便覧に二度とたどり着けなくなる。
+  def course_required?
+    @course_options.fetch(@selection[:department], []).any? && !department_only_curriculum?
+  end
+
+  def department_only_curriculum?
+    @selection[:department].present? &&
+      Curriculum.exists?(faculty_name: @selection[:faculty], department_name: @selection[:department])
+  end
 
   # 1つでも指定されているか。揃っていないときに、足りないことを伝えるために見る。
   def selection_given? = @selection.values.any?(&:present?)

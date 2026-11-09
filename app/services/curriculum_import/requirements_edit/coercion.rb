@@ -83,8 +83,23 @@ module CurriculumImport
         # 1つの経路の中の役割は、そろって要るというだけで並びに意味が無い。画面はチェックの並び(役割の名前順)で
         # 送り返すので、並びだけの違いを「直した」とすると、触っていない規則に確認済みの印が付いてしまう。
         return value.map(&:sort) == Array(current).map { |path| Array(path).sort } if kind == :paths
+        return sorted_conditions(value) == sorted_conditions(current) if %i[options conditions].include?(kind)
 
         value == baseline(kind, field, current)
+      end
+
+      # 入れ子の条件の中の「数える区分」も、並びに意味が無い(画面は便覧の区分の並びで送り返すので、
+      # 規則に書かれた並びと違うことがある)。中身を見比べるときだけ並べ替える。保存する値の並びは変えない。
+      def sorted_conditions(conditions)
+        Array(conditions).map do |condition|
+          next condition unless condition.is_a?(Hash)
+
+          condition.to_h do |field, value|
+            next [field, sorted_conditions(value)] if field == 'conditions'
+
+            [field, value.is_a?(Array) ? value.sort : value]
+          end
+        end
       end
 
       # 画面が送り返してくる形に直した、いまの値。

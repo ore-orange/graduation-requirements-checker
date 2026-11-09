@@ -64,7 +64,7 @@
           <span class="font-semibold text-slate-700">確認する規則:</span>
           <%= render 'requirements_rule_links', review: review, ids: Array.wrap(group['check_id']) %>
         </div>
-        <% nested = rules_for(group['check_id'], review).select { |rule| rule_logic_label(rule) } %>
+        <% nested = nested_rule_boxes(group['check_id'], review) %>
         <% if nested.any? %>
           <div class="mt-2 space-y-2">
             <% nested.each do |rule| %>

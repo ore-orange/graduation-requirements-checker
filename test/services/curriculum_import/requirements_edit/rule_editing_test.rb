@@ -174,5 +174,58 @@ class RuleEditingTest < ActiveSupport::TestCase
     assert result.ok?, result.errors.join('/')
     assert_equal %w[humanities], rule_after('humanities')['categories'], 'json は読まない'
   end
+
+  # ---- 入れ子の条件の、順番と空の扱い ----
+
+  # 区分のチェックは、便覧の区分の並びで送り返される。規則に書かれた並びと違っても、同じ区分なら直したことにしない
+  # (そうしないと、触っていない規則に確認済みの印が付き、読み直しで AI の読みを受け取れなくなる)。
+  test '入れ子の条件の区分は、並びが違うだけなら直したことにしない' do
+    @curriculum.update!(document: @curriculum.document.deep_dup.tap do |doc|
+      doc['rules'].find { |r| r['id'] == 'some_any_of' }['options'] =
+        [{ 'type' => 'credit_sum', 'categories' => %w[english humanities], 'required_credits' => 2 }]
+    end)
+
+    result = edit(rules: { '0' => { id: 'some_any_of',
+                                    options: { 'a' => { type: 'credit_sum', categories: %w[humanities english],
+                                                        required_credits: '2' } } } })
+
+    assert result.ok?, result.errors.join('/')
+    assert_nil rule_after('some_any_of')[CurriculumImport::DraftMerge::CONFIRMED]
+    assert_equal %w[english humanities], rule_after('some_any_of')['options'][0]['categories'], '並びも変えない'
+  end
+
+  # all_of は、中の条件がまだ無くても1つの選択肢として残す(空だから捨てると、画面から all_of を作れない)。
+  # 条件が無いことは、突き合わせ(RuleShape)が指摘する。
+  test '中身がまだ無い all_of の選択肢も、捨てずに残す' do
+    edit(rules: { '0' => { id: 'some_any_of',
+                           options: { 'a' => { type: 'credit_sum', categories: %w[english],
+                                               required_credits: '2' },
+                                      'b' => { type: 'all_of' } } } })
+
+    assert_equal %w[credit_sum all_of], rule_after('some_any_of')['options'].pluck('type')
+  end
+
+  # ---- 規則を足すフォームの欄は、種類ごとに分ける ----
+
+  # 画面は種類ごとの欄を全部出す(JavaScript が動かないときも書けるように)。同じ名前で出すと、
+  # 選んだ種類の値を、別の種類の空欄が後から上書きしてしまう。
+  test '足す規則の欄は種類ごとに分かれていて、別の種類の空欄に消されない' do
+    result = edit(new_rule: { type: 'credit_sum', id: 'added_scoped', label: '追加',
+                              fields: { 'credit_sum' => { categories: %w[humanities], required_credits: '2' },
+                                        'grouped_max' => { category: '', group_by: '', required_credits: '' },
+                                        'all_required' => { required_credits: '', expected_course_count: '' } } })
+
+    assert result.ok?, result.errors.join('/')
+    assert_equal 2, rule_after('added_scoped')['required_credits']
+    assert_equal %w[humanities], rule_after('added_scoped')['categories']
+  end
+
+  # ---- 要確認の文面も欄から直す ----
+
+  test 'one_of_paths の要確認の文面を欄から直せる' do
+    edit(rules: { '0' => { id: 'english_required', review_note: '系列が重複しているので確認が要る' } })
+
+    assert_equal '系列が重複しているので確認が要る', rule_after('english_required')['review_note']
+  end
 end
 

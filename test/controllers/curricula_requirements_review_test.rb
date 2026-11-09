@@ -68,6 +68,25 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#row-humanities a[href=?]', '#rule-humanities'
   end
 
+  # number_patterns は、科目表に無い科目をどの区分に数えるかを決める値。判定の数字を決める値は、
+  # 画面に出して人が直せるようにする(出ていない値は、読み違えても誰も気づけない)。
+  test '区分の科目番号パターンが画面に出て、欄から直せる' do
+    document = requirements_document
+    document['categories'][0]['number_patterns'] = ['人']
+    draft = draft(document: document)
+
+    show(draft)
+
+    assert_select '#category-humanities', text: /人/
+    assert_select '#category-humanities input[name=?][value=?]', 'categories[0][number_patterns]', '人'
+
+    save draft, categories: [{ key: 'humanities', number_patterns: '人, 社' }]
+
+    category = draft.reload.document['categories'].find { |entry| entry['key'] == 'humanities' }
+    assert_equal %w[人 社], category['number_patterns']
+    assert category['confirmed']
+  end
+
   test '区分と規則の一覧が出て、総単位に数えない区分は赤で出る' do
     show(draft)
 
@@ -87,6 +106,34 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#requirements_review', text: /まだ要件表を読み取っていません/
     assert_select '#requirements_findings', count: 0
     assert_select '#requirements_form', count: 0
+  end
+
+  # 同じ規則を2つの行が指していても、欄は1組だけ出す(2組出すと、同じ名前のパラメータが2回送られ、
+  # 触っていない規則が「直した」ことになってしまう)。
+  test '同じ入れ子の規則を2つの行が指しても、欄は1組しか出さない' do
+    document = requirements_document
+    document['display']['groups'][0]['rows'][0]['check_ids'] = %w[path_rule]
+    document['display']['groups'][0]['rows'][1]['check_ids'] = %w[path_rule]
+    draft = draft(document: document)
+
+    show(draft)
+
+    assert_select '[data-rule-box=?]', 'path_rule', count: 1
+    assert_select '[data-rule-paths=?]', 'path_rule', count: 1
+    # 経路1つにつき、空送信用の hidden と役割のチェックが1組だけ(2組出ると同じ名前で2回送られる)
+    assert_select 'input[name=?][type=hidden]', 'rules[2][paths][0][roles][]', count: 1
+  end
+
+  test '2つの行が同じ入れ子の規則を指す画面を、触らずに送り返しても何も変わらない' do
+    document = requirements_document
+    document['display']['groups'][0]['rows'][0]['check_ids'] = %w[path_rule]
+    document['display']['groups'][0]['rows'][1]['check_ids'] = %w[path_rule]
+    draft = draft(document: document)
+
+    submit_pairs(draft, browser_pairs(draft))
+
+    assert_match(/変えた箇所はありませんでした/, flash[:notice])
+    assert_equal document, draft.reload.document
   end
 
   test '突き合わせの結果が画面に出る' do

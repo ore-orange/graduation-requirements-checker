@@ -37,13 +37,13 @@
             </div>
             <% if rule_logic_label(rule) %>
               <div class="mt-3">
-                <% if tree_rule_ids(review).include?(rule['id']) %>
+                <% if nested_rule_boxes([rule['id']], review).any? %>
+                  <%# どの章・行からも指されていない規則。ツリーに出ないので、経路・条件はここで直す %>
+                  <%= render 'requirements_rule_box', review: review, rule: rule %>
+                <% else %>
                   <p class="text-xs text-slate-600">
                     経路・条件は、上の「区分ごとの必要単位」の中、この規則を確認する行の下で直します。
                   </p>
-                <% else %>
-                  <%# どの章・行からも指されていない規則。ツリーに出ないので、経路・条件はここで直す %>
-                  <%= render 'requirements_rule_box', review: review, rule: rule %>
                 <% end %>
               </div>
             <% end %>
@@ -84,7 +84,7 @@
         <div class="grid gap-3 sm:grid-cols-2">
           <% fields.each do |field, kind| %>
             <div class="<%= 'sm:col-span-2' if %i[set text].include?(kind) %>">
-              <%= rule_field_input "new_rule[#{field}]", field, kind, {}, review %>
+              <%= rule_field_input "new_rule[fields][#{type}][#{field}]", field, kind, {}, review %>
             </div>
           <% end %>
         </div>

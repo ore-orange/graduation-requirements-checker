@@ -82,13 +82,11 @@ module RequirementsReviewHelper
     "rules[#{review.rules.index(rule)}]"
   end
 
-  # ツリー(章・行)の中に枠として出る規則の id。規則の一覧は、この規則の経路・条件の欄を出さない
-  # (同じ名前のパラメータを2か所から送ると、どちらが保存されるか決まらない)。
-  def tree_rule_ids(review)
-    ids = review.groups.flat_map do |group|
-      Array.wrap(group['check_id']) + review.rows_of(group).flat_map { |row| Array.wrap(row['check_ids']) }
-    end
-    rules_for(ids.uniq, review).select { |rule| rule_logic_label(rule) }.pluck('id')
+  # 入れ子を持つ規則のうち、この場所が枠を出すもの。同じ規則を2か所に出すと、同じ名前のパラメータが
+  # 2回送られ、触っていない規則が「直した」ことになってしまう。だから、1ページにつき最初の1か所だけが出す。
+  # 章・行(ツリー)が先に出て、どこからも指されていない規則だけが、あとの規則の一覧で出る。
+  def nested_rule_boxes(ids, review)
+    rules_for(ids, review).select { |rule| rule_logic_label(rule) && review.claim_rule_box?(rule['id']) }
   end
 
   # 規則の1つの欄の入力。欄の種類は RequirementsEdit.rule_fields と同じ表から決まる。

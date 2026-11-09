@@ -101,6 +101,19 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select 'select[name=course] optgroup[label=?] option[value=?]', DEPARTMENT_ONLY, COURSE
   end
 
+  # 学科名だけで登録されている便覧(マスタにコースを足す前に作ったものなど)も、引けなければならない。
+  # コースの選択肢があるからといってコースを必ず求めると、その便覧には二度とたどり着けなくなる。
+  test '学科名だけで登録された便覧は、コースを選ばなくても引ける' do
+    Curriculum.create!(slug: 'dept_only', admission_year: 2024, faculty_name: FACULTY,
+                       department_name: DEPARTMENT_ONLY, source_filename: 'h.pdf',
+                       document: @curriculum.document, published_at: Time.current)
+
+    show_selected(course: nil)
+
+    assert_response :success
+    assert_select '[data-total-credits]', text: /130/
+  end
+
   test 'コースの無い学科は、コースの選択肢を空のままにする' do
     other_department = Faculty.find_by!(name: FACULTY).departments.create!(name: '経営工学科')
 

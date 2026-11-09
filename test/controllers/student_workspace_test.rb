@@ -76,6 +76,24 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal before + 2, counted_credits
   end
 
+  # 同じ科目の記録が2つあるとき(落ちた回と通った回)、単位数が食い違えば要確認にする。科目表に当たらない
+  # 科目でも同じでなければならない。1件ずつ別の記録として判定へ渡すと、この見張りが働かないまま、
+  # 片方の単位だけが黙って数えられてしまう。
+  test 'two records of the same unlisted course are judged together, not counted as one clean pass' do
+    get root_path, env: local_env
+    before = counted_credits
+
+    course = Course.create!(course_number: '健99', name: '科目表に無い健康運動の科目', credits: 2)
+    @student.student_courses.create!(course: course, academic_year: 2024, semester: '前期',
+                                     enrollment_status: 'completed', credits_earned: 0)
+    @student.student_courses.create!(course: course, academic_year: 2025, semester: '前期',
+                                     enrollment_status: 'completed', credits_earned: 2)
+
+    get root_path, env: local_env
+
+    assert_equal before, counted_credits, '食い違う2つの記録は、要確認にして数えない'
+  end
+
   def counted_credits
     css_select('[data-counted-credits]').first['data-counted-credits'].to_f
   end

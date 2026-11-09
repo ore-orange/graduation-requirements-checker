@@ -100,6 +100,13 @@ module CurriculumImport
 
     def rows_of(group) = Array(group['rows']).grep(Hash)
 
+    # 入れ子を持つ規則の欄は、1ページにつき1か所だけが出す(同じ名前のパラメータを2回送らないため)。
+    # 先に呼んだ場所だけが true を受け取る。画面1枚ぶんの覚え書きなので、この presenter が持つ。
+    def claim_rule_box?(id)
+      @claimed_rule_boxes ||= Set.new
+      @claimed_rule_boxes.add?(id).present?
+    end
+
     def removed_items
       Array(curriculum.document.is_a?(Hash) ? curriculum.document[DraftMerge::REMOVED] : nil).grep(Hash)
     end

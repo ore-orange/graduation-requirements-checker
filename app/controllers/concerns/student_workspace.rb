@@ -79,15 +79,21 @@ module StudentWorkspace
 
   # 科目番号が便覧の科目に当たれば、その科目の key で判定に渡す。同じ番号の Course が複数あっても、履修・予定は
   # それぞれ1行を指し、その番号は便覧の同じ1科目に当たる。同じ科目の複数記録は EntryNormalizer が1つにまとめ、
-  # 単位数や承認が食い違うときだけ要確認にする。当たらない科目は、科目表と照合できない科目として
-  # 要確認になる。番号の綴りがたまたま別の科目の key に一致しても取り違えず、当たらない科目どうしが同じ key で
-  # 束ねられて通知が落ちないよう、1件ずつ別の key を振る。
+  # 単位数や承認が食い違うときだけ要確認にする。
+  #
+  # 当たらない科目には "unmatched:" で始まる key を振る(番号の綴りがたまたま別の科目の key に一致しても
+  # 取り違えないため)。番号があればその番号で束ねる。束ねないと、同じ科目の2つの記録(落ちた回と通った回)が
+  # 別々の記録として扱われ、単位数の食い違いを見る上の仕組みが働かないまま、片方の単位だけが数えられてしまう。
+  # 番号の無い科目は束ねようがないので、1件ずつ別の key にする(別々の科目が1つにまとまって通知が落ちないように)。
   def catalogue_entries(groups)
     unmatched = 0
     groups.transform_values do |entries|
       entries.map do |entry|
         course = @courses_by_number[entry[:key]]
-        entry.merge(key: course ? course.fetch('key') : "unmatched:#{unmatched += 1}")
+        next entry.merge(key: course.fetch('key')) if course
+
+        number = entry[:number].presence
+        entry.merge(key: "unmatched:#{number || (unmatched += 1)}")
       end
     end
   end

@@ -53,7 +53,7 @@
   <%= render 'requirements_problems', review: review, kind: 'row', id: row['id'] %>
 
   <%# 入れ子を持つ規則(AND/OR)だけ、行の下に枠で出す。残りは上のリンクだけ。 %>
-  <% nested = rules_for(row['check_ids'], review).select { |rule| rule_logic_label(rule) } %>
+  <% nested = nested_rule_boxes(row['check_ids'], review) %>
   <% if nested.any? %>
     <div class="mt-2 ml-3 space-y-2 border-l-2 border-amber-300 pl-3">
       <% nested.each do |rule| %>

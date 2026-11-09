@@ -39,7 +39,13 @@ module CurriculumImport
 
         # 種類のほかに何も入っていない条件は捨てる(足したまま書かなかった行。
         # 「区分なしで0単位」の条件は、何も数えないまま満たされたことになってしまう)。
-        built.reject { |condition| condition.except('type').values.all? { |value| value.nil? || value == [] } }
+        # all_of だけは残す。中の条件は、画面に出てから1つずつ足すので、足した直後は必ず空になる。
+        # 条件の無い all_of は、突き合わせ(RuleShape)が指摘する。
+        built.reject { |condition| condition['type'] != 'all_of' && empty_condition?(condition) }
+      end
+
+      def empty_condition?(condition)
+        condition.except('type').values.all? { |value| value.nil? || value == [] }
       end
 
       def condition(row, kind, name)

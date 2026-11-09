@@ -53,11 +53,16 @@ module CurriculumImport
 
       # 型ごとの欄は、既存の規則を直すときと同じ表(rule_fields)から決める。
       # 画面もこの表で欄を出すので、出した欄と組み立てる欄が必ず一致する。
+      #
+      # 画面は型ごとの欄を全部出す(JavaScript が動かなくても書けるように)ので、同じ名前の欄が何組も届く。
+      # 選んだ型の組(new_rule[fields][型])だけを見て、他の型の空欄に上書きされないようにする。
+      # 型に関わらず1つしかない欄(名前など)は、組の外から見る。
       def build_new_rule(type, entry)
         skeleton = { 'type' => type }
-        fields = self.class.rule_fields(skeleton)
-        built = fields.filter_map do |field, kind|
-          value = coerce(entry[field], kind, "足す規則の#{FIELD_LABELS.fetch(field, field)}")
+        scoped = entry[:fields].is_a?(Hash) ? (entry[:fields][type] || {}) : {}
+        built = self.class.rule_fields(skeleton).filter_map do |field, kind|
+          given = scoped.key?(field) ? scoped[field] : entry[field]
+          value = coerce(given, kind, "足す規則の#{FIELD_LABELS.fetch(field, field)}")
           [field, value] unless value == :invalid || value.nil?
         end
         skeleton.merge(built.to_h, 'id' => entry[:id].to_s.strip)
