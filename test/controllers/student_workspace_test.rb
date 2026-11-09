@@ -310,10 +310,11 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-term="3-後期"]', count: 1
   end
 
-  test '学期のボタンを8個並べ、表示中の学期と今の学期に印を付ける' do
+  test '一覧と8学期のボタンを並べ、表示中の学期と今の学期に印を付ける' do
     get plan_path(term: '2-後期')
 
-    assert_select '[data-term-button]', count: 8
+    assert_select '[data-term-button]', count: 9
+    assert_select '[data-term-button="all"][href=?]', plan_path(view: 'all'), count: 1
     %w[1-前期 1-後期 2-前期 2-後期 3-前期 3-後期 4-前期 4-後期].each do |term|
       assert_select '[data-term-button=?][href=?]', term, plan_path(term: term), count: 1
     end
@@ -333,6 +334,99 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-term-button="4-後期"]', text: /2単位/, count: 1
     assert_select '[data-term-button="4-前期"]', text: /0単位/, count: 1
     assert_select '[data-term-credits]', text: /予定 2単位/, count: 1
+  end
+
+  test '一覧では全学期の科目を学期ごとの列に並べる' do
+    plan = @student.planned_courses.create!(course: course_record(@candidate), academic_year: 2027, semester: '後期')
+    placed = @student.student_courses.where(semester: %w[前期 後期]).to_a
+
+    get plan_path(view: 'all')
+
+    assert_select '[data-overview]', count: 1
+    assert_select '[data-term]', count: 0
+    assert_select '[data-term-button="all"][aria-current="page"]', count: 1
+    assert_select '[data-term-button][aria-current="page"]', count: 1
+    placed.each { |enrollment| assert_select "[data-overview] [data-enrollment='#{enrollment.id}']", count: 1 }
+    assert_select "[data-overview-cell$=':4-後期'] [data-plan='#{plan.id}']", count: 1
+    assert_select '#catalogue', count: 0
+  end
+
+  test '一覧の追加ボタンは今の学期以降のマスにだけ出す' do
+    get plan_path(view: 'all')
+
+    assert_select '[data-overview-add-button]'
+    assert_select '[data-overview-add-button$=":3-前期"]', count: 0
+    assert_select '[data-overview-add-button$=":3-後期"]'
+    assert_select '[data-overview-add-button$=":4-後期"]'
+    assert_select 'dialog[data-overview-add-target="dialog"]'
+  end
+
+  test '一覧の削除ボタンは予定のカードにだけ出す' do
+    plan = @student.planned_courses.create!(course: course_record(@candidate), **PLAN_TERM)
+
+    get plan_path(view: 'all')
+
+    assert_select "[data-overview] [data-plan='#{plan.id}'] form[action=?]", plan_course_path(plan), count: 1
+    assert_select '[data-overview] [data-enrollment] form', count: 0
+  end
+
+  test '一覧から追加・削除すると一覧に戻る' do
+    assert_difference '@student.planned_courses.count', 1 do
+      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期', view: 'all' }
+    end
+    assert_redirected_to plan_path(view: 'all')
+    plan = @student.planned_courses.find_by!(course: course_record(@candidate))
+    assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
+
+    assert_difference '@student.planned_courses.count', -1 do
+      delete plan_course_path(plan), params: { view: 'all' }
+    end
+    assert_redirected_to plan_path(view: 'all')
+  end
+
+  test '追加の結果は、一覧では固定のメッセージで、学期の画面では今までの形で出す' do
+    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期', view: 'all' }
+    follow_redirect!
+    assert_select '[role="status"][data-controller="toast"]', text: /追加しました/, count: 1
+
+    delete plan_course_path(@student.planned_courses.find_by!(course: course_record(@candidate))),
+           params: { term: '4-前期' }
+    follow_redirect!
+    assert_select '[role="status"]', text: /削除しました/, count: 1
+    assert_select '[data-controller="toast"]', count: 0
+  end
+
+  test '一覧で失敗したときは、閉じるまで残る固定のメッセージで出す' do
+    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-前期', view: 'all' }
+    follow_redirect!
+
+    assert_select '[role="alert"][data-controller="toast"]', count: 1
+    assert_select '[role="alert"][data-toast-auto-dismiss-value]', count: 0
+  end
+
+  test '単位が不明な予定のカードは、学期の画面でも一覧でも未確認と出す' do
+    course = @courses.find { |c| c['key'] == 'informatics_special_lecture_5' }
+    plan = @student.planned_courses.create!(course: course_record(course), **PLAN_TERM)
+
+    get plan_path(term: CURRENT_TERM)
+    assert_select "[data-plan='#{plan.id}']", text: /未確認/, count: 1
+
+    get plan_path(view: 'all')
+    assert_select "[data-overview] [data-plan='#{plan.id}']", text: /未確認/, count: 1
+  end
+
+  test '一覧からでも過去の学期には追加できない' do
+    assert_no_difference '@student.planned_courses.count' do
+      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-前期', view: 'all' }
+    end
+    assert_redirected_to plan_path(view: 'all')
+  end
+
+  test '一覧の列の見出しから、その学期の画面へ移れる' do
+    get plan_path(view: 'all')
+
+    assert_select '[data-overview-term]', count: 8
+    assert_select '[data-overview-term="2-前期"][href=?]', plan_path(term: '2-前期'), count: 1
   end
 
   test '学期が登録されていない履修履歴は、どの学期を見ても別枠に表示する' do

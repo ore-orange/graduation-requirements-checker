@@ -25,6 +25,12 @@ module PlansHelper
     records.sum(BigDecimal('0')) { |record| yield(record) || BigDecimal('0') }
   end
 
+  # 予定カードに出す単位。便覧にも科目にも単位がなければ「未確認」と出す。
+  def plan_credit_label(plan, courses_by_key)
+    catalogue = courses_by_key[plan.course.curriculum_key]
+    credit_label(catalogue ? catalogue['credits'] : plan.course.credits)
+  end
+
   def planner_subtotal_for(row_id) = PLANNER_SUBTOTALS.find { |subtotal| subtotal[:row_ids].include?(row_id) }
 
   # 区分の行で、便覧から選べる科目と、そのうちまだ修得・履修中・追加済みでない科目

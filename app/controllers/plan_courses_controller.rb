@@ -34,9 +34,10 @@ class PlanCoursesController < ApplicationController
 
   private
 
-  # 追加・削除のあとは、見ていた学期の計画表に戻る。
+  # 追加・削除のあとは、見ていた画面（全学期の一覧、または学期の計画表）に戻る。
   def back_to_plan(**flash)
-    redirect_to plan_path(term: (helpers.term_param(@term) if @term)), status: :see_other, **flash
+    location = params[:view] == 'all' ? plan_path(view: 'all') : plan_path(term: (helpers.term_param(@term) if @term))
+    redirect_to location, status: :see_other, **flash
   end
 
   def selectable_course

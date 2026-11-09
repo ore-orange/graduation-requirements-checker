@@ -1,0 +1,137 @@
+<%# 全学期の一覧（/plan?view=all）。行＝卒業要件の区分、列＝8学期。今の学期以降のマスから科目を追加でき、列の見出しから学期の画面へ移れる %>
+<%
+  term_records = ->(term) { @enrollments_by_term.fetch(term, []) + @plans_by_term.fetch(term, []) }
+  category_of = ->(record) { course_category(record.course.curriculum_key, @courses_by_key) }
+  cell_records = ->(term, categories) { filter_by_categories(term_records.call(term), categories, @courses_by_key) }
+  unmapped_records = ->(term) { term_records.call(term).reject { |record| mapped_categories.include?(category_of.call(record)) } }
+  selectable_by_row = StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |group| group[:rows] }.to_h do |row|
+    [row[:id], row_catalogue_courses(row, @curriculum.fetch('courses'), @unavailable_keys).last]
+  end
+  current_column = 'bg-indigo-50/50'
+%>
+<div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden" data-overview data-controller="overview-add">
+  <div class="px-4 sm:px-6 py-4 border-b border-slate-100">
+    <h2 class="text-base font-bold text-slate-900">全学期の一覧</h2>
+    <p class="text-xs text-slate-500 mt-0.5" data-term-credits>
+      修得 <%= credit_number(overall_credit[:earned]) %>単位
+      <% if overall_credit[:current].positive? %> ・ 履修中 <%= credit_number(overall_credit[:current]) %>単位<% end %>
+      <% if overall_credit[:planned].positive? %> ・ 予定 <%= credit_number(overall_credit[:planned]) %>単位<% end %>
+    </p>
+    <p class="text-[11px] text-slate-400 mt-1">列の見出しを押すと、その学期の画面に移ります。</p>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full border-collapse text-left table-fixed min-w-[1080px]">
+      <colgroup>
+        <col class="w-48">
+        <% @terms.each do %><col><% end %>
+      </colgroup>
+      <thead>
+        <tr class="bg-slate-50/90 border-b border-slate-200 text-xs font-bold text-slate-600">
+          <th class="py-3 px-3 border-r border-slate-200">卒業要件区分</th>
+          <% @terms.each do |term| %>
+            <th class="py-2 px-1.5 border-r border-slate-100 last:border-r-0 <%= current_column if term == @current_term %>">
+              <%= link_to plan_path(term: term_param(term)), class: 'block rounded-md px-1 py-1 text-indigo-700 hover:bg-indigo-50 hover:underline',
+                                                          data: { overview_term: term_param(term) } do %>
+                <%= term_label(term) %> ›
+                <span class="block text-[10px] font-normal text-slate-500">
+                  <%= credit_number(credits_of_term.fetch(term)[:total]) %>単位<%= '・現在' if term == @current_term %>
+                </span>
+              <% end %>
+            </th>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200 text-[11px]">
+        <% StudentWorkspaceHelper::PLANNER_GROUPS.each do |group| %>
+          <tr class="bg-slate-100/80 border-y border-slate-200" data-planner-group="<%= group[:id] %>">
+            <td colspan="<%= @terms.size + 1 %>" class="py-2 px-3 font-bold text-slate-800 text-xs uppercase tracking-wider">
+              <%= group[:title] %>
+              <span class="ml-2 font-semibold normal-case tracking-normal text-[11px] text-slate-600">領域要件: <%= group[:req] %>単位以上</span>
+            </td>
+          </tr>
+          <% group[:rows].each do |row| %>
+            <%
+              subtotal = planner_subtotal_for(row[:id])
+              selectable_in_row = selectable_by_row.fetch(row[:id])
+            %>
+            <% if subtotal && subtotal[:row_ids].first == row[:id] %>
+              <tr class="align-top bg-indigo-50/30" data-planner-subtotal="<%= subtotal[:id] %>">
+                <th class="p-3 border-r border-slate-200"><%= render 'plans/subtotal_heading', group: group, subtotal: subtotal %></th>
+                <td colspan="<%= @terms.size %>" class="p-3 text-[11px] text-slate-500 leading-relaxed">
+                  下の<%= subtotal[:row_ids].size %>区分の単位を合計して判定します。区分ごとの必要単位はありません。
+                </td>
+              </tr>
+            <% end %>
+            <tr class="align-top" data-planner-row="<%= row[:id] %>">
+              <th class="p-3 border-r border-slate-200 bg-slate-50/30 <%= 'pl-6' if subtotal %>">
+                <%= render 'plans/row_heading', row: row, subtotal: subtotal %>
+              </th>
+              <% @terms.each do |term| %>
+                <td class="p-1.5 border-r border-slate-100 last:border-r-0 <%= current_column if term == @current_term %>"
+                    data-overview-cell="<%= "#{row[:id]}:#{term_param(term)}" %>">
+                  <div class="space-y-1">
+                    <% cell_records.call(term, row[:categories]).each do |record| %>
+                      <%= render 'plans/overview_card', record: record %>
+                    <% end %>
+                    <% if selectable_in_row.any? && @open_terms.include?(term) %>
+                      <button type="button"
+                              data-action="overview-add#open"
+                              data-overview-add-row-param="<%= row[:id] %>"
+                              data-overview-add-term-param="<%= term_param(term) %>"
+                              data-overview-add-term-label-param="<%= term_label(term) %>"
+                              data-overview-add-button="<%= "#{row[:id]}:#{term_param(term)}" %>"
+                              aria-label="<%= row[:name] %>の科目を<%= term_label(term) %>に追加"
+                              class="w-full min-h-7 rounded-md border border-dashed border-slate-300 text-[11px] font-medium text-slate-500 hover:border-indigo-300 hover:bg-indigo-50/40 hover:text-indigo-600 transition cursor-pointer">
+                        ＋ 追加
+                      </button>
+                    <% end %>
+                  </div>
+                </td>
+              <% end %>
+            </tr>
+          <% end %>
+        <% end %>
+
+        <% if @terms.any? { |term| unmapped_records.call(term).any? } %>
+          <tr class="bg-slate-100/80 border-y border-slate-200">
+            <td colspan="<%= @terms.size + 1 %>" class="py-2 px-3 font-bold text-slate-700 text-xs">その他・卒業算入対象外</td>
+          </tr>
+          <tr class="align-top" data-planner-row="unmapped">
+            <th class="p-3 border-r border-slate-200 bg-slate-50/30">
+              <div class="font-bold text-slate-700 text-sm">算入対象外・未分類</div>
+              <p class="mt-1 text-[11px] text-slate-400 font-normal">情報科学演習など卒業単位に含めない科目</p>
+            </th>
+            <% @terms.each do |term| %>
+              <td class="p-1.5 border-r border-slate-100 last:border-r-0 <%= current_column if term == @current_term %>">
+                <div class="space-y-1">
+                  <% unmapped_records.call(term).each do |record| %>
+                    <%= render 'plans/overview_card', record: record %>
+                  <% end %>
+                </div>
+              </td>
+            <% end %>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 科目を追加する小窓。区分ごとに1つ置き、押したマスの学期を開くときに差し込む -->
+  <% StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |group| group[:rows] }.each do |row| %>
+    <% selectable_in_row = selectable_by_row.fetch(row[:id]) %>
+    <% next if selectable_in_row.empty? %>
+    <dialog data-overview-add-target="dialog" data-row="<%= row[:id] %>" data-action="click->overview-add#closeOnBackdrop"
+            aria-label="<%= row[:name] %>の科目を追加"
+            class="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-2xl bg-white p-0 text-slate-800 shadow-xl backdrop:bg-slate-900/40">
+      <%# 余白は内側に置く。枠に余白があると、余白のクリックが背景のクリックと区別できない %>
+      <div class="p-4">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-2 mb-3">
+          <p class="text-sm font-bold text-slate-900"><%= row[:name] %>の科目を<span data-term-name></span>に追加</p>
+          <button type="button" data-action="overview-add#close" class="text-slate-400 hover:text-slate-600 text-sm cursor-pointer" aria-label="追加を閉じる">✕</button>
+        </div>
+        <%= render 'plans/add_course_form', row: row, selectable_in_row: selectable_in_row, term: term_param(@current_term), overview: true %>
+      </div>
+    </dialog>
+  <% end %>
+</div>

@@ -15,7 +15,7 @@
       <% end %>
     </span>
     <span class="font-sans font-bold <%= is_custom ? 'bg-amber-100 text-amber-900' : 'bg-sky-100 text-sky-800' %> px-1.5 py-0.5 rounded shrink-0">
-      <%= credit_label(plan_credits(plan, @courses_by_key)) %>
+      <%= plan_credit_label(plan, @courses_by_key) %>
     </span>
   </div>
   <div class="mt-0.5 flex items-start justify-between gap-1.5">

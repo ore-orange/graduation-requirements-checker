@@ -17,10 +17,13 @@ class PlansController < ApplicationController
   # 表示する学期（1年前期〜4年後期）と、その学期の履修履歴・予定を決める。
   def load_term
     @current_term = current_term
-    @term = parse_term(params[:term]) || @current_term
+    # view=all のときは全学期の一覧を出す。科目の追加先などに使う @term は今の学期にしておく
+    @overview = params[:view] == 'all'
+    @term = (parse_term(params[:term]) unless @overview) || @current_term
     @terms = TERMS
     @term_year = term_year(@term)
     @term_open = term_open?(@term)
+    @open_terms = TERMS.select { |term| term_open?(term) }
     # 学期のボタンに各学期の単位を出すため、全学期ぶんを学期ごとに分けておく
     @enrollments_by_term = @enrollments.group_by { |enrollment| term_of(enrollment) }
     @plans_by_term = @plans.group_by { |plan| term_of(plan) }

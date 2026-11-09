@@ -1,11 +1,14 @@
 <% content_for :title, app_name %>
 <% content_for :full_bleed, true %>
+<%# 一覧は縦に長いので、追加・削除で同じ画面に戻るときはスクロール位置を保つ %>
+<% turbo_refreshes_with(method: :replace, scroll: :preserve) if @overview %>
 
 <div class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
   <%= render 'shared/nav' %>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-    <%= render 'shared/flash' %>
+    <%# 一覧はスクロール位置を保つので、結果は画面に固定して見えるようにする %>
+    <%= render(@overview ? 'shared/toast' : 'shared/flash') %>
 
     <h2 class="sr-only">履修計画表</h2>
 
@@ -16,16 +19,30 @@
       credits_of_term = @terms.index_with { |term| term_credits(@enrollments_by_term.fetch(term, []), @plans_by_term.fetch(term, []), @courses_by_key) }
       term_credit = credits_of_term.fetch(@term)
       is_current_term = @term == @current_term
+      overall_credit = term_credits(@enrollments, @plans, @courses_by_key)
+      button_class = 'h-14 px-3.5 flex flex-col items-center justify-center gap-0.5 rounded-xl border text-sm whitespace-nowrap transition'
+      selected_class = 'bg-indigo-600 border-indigo-600 text-white font-semibold'
+      unselected_class = 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-700'
     %>
 
     <!-- 学期の切り替え（せまい画面ではボタンの列だけ横にスクロール） -->
     <nav class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-3" aria-label="学期の切り替え">
       <ol class="flex gap-1.5 overflow-x-auto">
+        <!-- 全学期の一覧。2行目は全学期の単位の合計 -->
+        <li class="flex-1 min-w-max">
+          <%= link_to plan_path(view: 'all'),
+                      class: "#{button_class} #{@overview ? selected_class : unselected_class}",
+                      aria: { current: (@overview ? 'page' : nil) }, data: { term_button: 'all' } do %>
+            <span>一覧</span>
+            <span class="text-[11px] font-normal <%= @overview ? 'text-indigo-100' : 'text-slate-400' %>">合計 <%= credit_number(overall_credit[:total]) %>単位</span>
+          <% end %>
+        </li>
+        <li class="w-px shrink-0 my-2 bg-slate-200" aria-hidden="true"></li>
         <% @terms.each do |term| %>
-          <% selected = term == @term %>
+          <% selected = !@overview && term == @term %>
           <li class="flex-1 min-w-max">
             <%= link_to plan_path(term: term_param(term)),
-                        class: "h-14 px-3.5 flex flex-col items-center justify-center gap-0.5 rounded-xl border text-sm whitespace-nowrap transition #{selected ? 'bg-indigo-600 border-indigo-600 text-white font-semibold' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-700'}",
+                        class: "#{button_class} #{selected ? selected_class : unselected_class}",
                         aria: { current: (selected ? 'page' : nil) },
                         data: { term_button: term_param(term), term_current: (term == @current_term ? true : nil) } do %>
               <span><%= term_label(term) %></span>
@@ -38,6 +55,9 @@
       </ol>
     </nav>
 
+    <% if @overview %>
+      <%= render 'plans/overview', credits_of_term: credits_of_term, overall_credit: overall_credit, mapped_categories: mapped_categories %>
+    <% else %>
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden" data-term="<%= term_param(@term) %>">
       <!-- 表示中の学期と、その学期の単位の内訳 -->
       <div class="px-4 sm:px-6 py-4 border-b border-slate-100">
@@ -93,25 +113,13 @@
                 <%
                   cell_enrollments = @term_enrollments.select { |e| row[:categories].include?(course_category(e.course.curriculum_key, @courses_by_key)) }
                   cell_plans = @term_plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-                  row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-                  row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_key)
-                  row_has_custom = row_plans.any? { |p| custom_course?(p.course.curriculum_key) }
-                  row_status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_has_custom)
                   subtotal = planner_subtotal_for(row[:id])
                 %>
                 <% if subtotal && subtotal[:row_ids].first == row[:id] %>
-                  <%
-                    subtotal_categories = group[:rows].select { |r| subtotal[:row_ids].include?(r[:id]) }.flat_map { |r| r[:categories] }
-                    subtotal_plans = @plans.select { |p| subtotal_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-                    subtotal_status = row_check_status(@assessment, subtotal[:check_ids],
-                                                       has_custom_plan: subtotal_plans.any? { |p| custom_course?(p.course.curriculum_key) })
-                  %>
                   <!-- 合計で数える区分のまとまり（必要単位はここにだけ出す） -->
                   <tr class="align-top bg-indigo-50/30" data-planner-subtotal="<%= subtotal[:id] %>">
                     <th class="p-3.5 border-r border-slate-200">
-                      <div class="font-bold text-slate-800 text-sm leading-snug"><%= subtotal[:name] %></div>
-                      <%= render 'plans/credit_badge', credits: category_credits(@enrollments, @plans, subtotal_categories, @courses_by_key),
-                                                       req: subtotal[:req], status: subtotal_status %>
+                      <%= render 'plans/subtotal_heading', group: group, subtotal: subtotal %>
                     </th>
                     <td class="p-3.5 text-[11px] text-slate-500 leading-relaxed">
                       下の<%= subtotal[:row_ids].size %>区分の単位を合計して判定します。区分ごとの必要単位はありません。
@@ -121,13 +129,7 @@
                 <tr class="align-top hover:bg-slate-50/40" data-planner-row="<%= row[:id] %>">
                   <!-- 区分名セル（単位は全学期の累計） -->
                   <th class="p-3.5 border-r border-slate-200 bg-slate-50/30 <%= 'pl-8' if subtotal %>">
-                    <div class="font-bold text-slate-800 text-sm leading-snug" data-sync-row-title="<%= row[:id] %>"><%= row[:name] %></div>
-                    <% if subtotal %>
-                      <%= render 'plans/credit_badge', credits: row_credits, req: nil, status: nil %>
-                    <% else %>
-                      <%= render 'plans/credit_badge', credits: row_credits, req: row[:req], status: row_status, row_id: row[:id] %>
-                    <% end %>
-                    <p class="mt-1.5 text-[11px] text-slate-400 font-normal leading-relaxed"><%= row[:subtitle] %></p>
+                    <%= render 'plans/row_heading', row: row, subtotal: subtotal %>
                   </th>
 
                   <!-- この学期の科目。追加できる行は、カードの並びの最後に追加の枠を置く -->
@@ -188,6 +190,7 @@
         </table>
       </div>
     </div>
+    <% end %>
 
     <% if @unplaced_enrollments.any? %>
       <!-- 学期が登録されていない履修履歴（どの学期にも表示できないため、ここにまとめる） -->
@@ -202,7 +205,8 @@
       </section>
     <% end %>
 
-    <!-- 全科目横断検索カタログ (#catalogue) -->
+    <!-- 全科目横断検索カタログ (#catalogue)。一覧では科目を追加しないので出さない -->
+    <% unless @overview %>
     <section id="catalogue" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6" aria-labelledby="catalogue-heading">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -280,6 +284,7 @@
         </ul>
       <% end %>
     </section>
+    <% end %>
   </main>
 </div>
 
