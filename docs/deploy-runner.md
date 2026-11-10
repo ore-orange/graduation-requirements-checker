@@ -113,6 +113,7 @@ diff deploy/compose.prod.yml /opt/grc/compose.prod.yml                     # 差
 - `/opt/grc/certs` の権限は変えない(Postgres の SSL 鍵)。
 - 現在デプロイ済みのSHAは `/var/lib/grc/deployed_sha` に記録される。
 - デプロイが失敗したときは `journalctl -u 'actions.runner.*' -n 50` で runner 側のログを見る。
+- `grc-deploy` は `db:migrate` の前に `/usr/local/bin/grc-backup` を呼ぶ。先に `grc-backup` を入れておかないとデプロイが失敗する。バックアップの仕組みは [db-backup.md](db-backup.md) を参照。
 
 ## 今後の検討事項
 
