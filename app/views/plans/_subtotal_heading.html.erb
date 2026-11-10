@@ -1,0 +1,10 @@
+<%# 合計で数える区分のまとまりの見出し（必要単位はここにだけ出す）。学期の画面と一覧で使う %>
+<%
+  subtotal_categories = group[:rows].select { |r| subtotal[:row_ids].include?(r[:id]) }.flat_map { |r| r[:categories] }
+  subtotal_plans = @plans.select { |p| subtotal_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+  subtotal_status = row_check_status(@assessment, subtotal[:check_ids],
+                                     has_custom_plan: subtotal_plans.any? { |p| custom_course?(p.course.curriculum_key) })
+%>
+<div class="font-bold text-slate-800 text-sm leading-snug"><%= subtotal[:name] %></div>
+<%= render 'plans/credit_badge', credits: category_credits(@enrollments, @plans, subtotal_categories, @courses_by_key),
+                                 req: subtotal[:req], status: subtotal_status %>

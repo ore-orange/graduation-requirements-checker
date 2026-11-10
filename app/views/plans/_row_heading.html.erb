@@ -1,0 +1,13 @@
+<%# 区分の行の見出し（区分名と、全学期の累計単位）。学期の画面と一覧で使う %>
+<%
+  row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+  row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_key)
+  row_status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_plans.any? { |p| custom_course?(p.course.curriculum_key) })
+%>
+<div class="font-bold text-slate-800 text-sm leading-snug" data-sync-row-title="<%= row[:id] %>"><%= row[:name] %></div>
+<% if subtotal %>
+  <%= render 'plans/credit_badge', credits: row_credits, req: nil, status: nil %>
+<% else %>
+  <%= render 'plans/credit_badge', credits: row_credits, req: row[:req], status: row_status, row_id: row[:id] %>
+<% end %>
+<p class="mt-1.5 text-[11px] text-slate-400 font-normal leading-relaxed"><%= row[:subtitle] %></p>
