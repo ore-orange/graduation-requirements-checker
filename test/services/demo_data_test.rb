@@ -42,7 +42,7 @@ class DemoDataTest < ActiveSupport::TestCase
                                               credits_earned: '1.5', approval_confirmed: false)
     unrelated_user = User.create!(email: 'unrelated@example.test', password: 'a-test-password')
     unrelated_course = Course.create!(course_number: course.course_number, name: course.name, credits: 9)
-    unrelated_student = Student.create!(user: unrelated_user, department: student.department, admission_year: 2025)
+    unrelated_student = Student.create!(user: unrelated_user, program: student.program, admission_year: 2024)
     unrelated_plan = unrelated_student.planned_courses.create!(course: unrelated_course,
                                                                academic_year: 2026, semester: '後期')
     before_counts = record_counts
@@ -78,14 +78,16 @@ class DemoDataTest < ActiveSupport::TestCase
   test 'conflicting existing cohort is not overwritten and loading is atomic' do
     faculty = Faculty.create!(name: '既存学部')
     department = faculty.departments.create!(name: '既存学科')
+    program = department.programs.create!(name: '既存コース')
     user = User.create!(email: DemoAccount::EMAIL, password: 'a-test-password')
-    student = user.create_student!(department: department, admission_year: 2025)
+    student = user.create_student!(program: program, admission_year: 2025)
     before = record_counts
 
     assert_raises(DemoAccount::Unavailable) { DemoData.load! }
 
     assert_equal before, record_counts
     assert_equal 2025, student.reload.admission_year
+    assert_equal program, student.program
     assert_equal department, student.department
     assert_raises(DemoAccount::Unavailable) { DemoAccount.student }
   end
@@ -93,7 +95,7 @@ class DemoDataTest < ActiveSupport::TestCase
   private
 
   def curriculum
-    CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
+    CurriculumRepository.find(curriculum: 'intelligent_informatics', admission_year: 2024)
   end
 
   def demo_enrollments

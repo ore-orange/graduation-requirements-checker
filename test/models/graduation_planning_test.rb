@@ -10,9 +10,10 @@ class GraduationPlanningTest < ActiveSupport::TestCase
   setup do
     faculty = Faculty.create!(name: '計画テスト学部')
     department = faculty.departments.create!(name: '計画テスト学科')
-    @student = Student.create!(user: create_user('plan@example.test'), department: department,
+    program = department.programs.create!(name: '計画テストコース')
+    @student = Student.create!(user: create_user('plan@example.test'), program: program,
                                admission_year: 2024)
-    @other_student = Student.create!(user: create_user('other-plan@example.test'), department: department,
+    @other_student = Student.create!(user: create_user('other-plan@example.test'), program: program,
                                      admission_year: 2024)
     @course = Course.create!(curriculum_key: 'test_course', course_number: 'TEST-1', name: '人工テスト科目', credits: 3)
   end
