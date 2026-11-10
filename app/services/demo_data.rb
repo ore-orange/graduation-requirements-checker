@@ -6,7 +6,7 @@ class DemoData
   def self.load!
     raise DemoAccount::Unavailable, 'デモデータは開発・テスト環境でのみ投入できます。' unless DemoAccount.enabled?
 
-    curriculum = CurriculumRepository.find(department: DemoAccount::DEPARTMENT,
+    curriculum = CurriculumRepository.find(curriculum: DemoAccount::DEPARTMENT,
                                            admission_year: DemoAccount::ADMISSION_YEAR)
     enrollments = JSON.parse(Rails.root.join('db/demo_enrollments.json').read).fetch('enrollments')
 
@@ -31,8 +31,8 @@ class DemoData
     end
 
     def find_or_create_student
-      # 学生が既にいても学科は毎回ならす。カリキュラムの指し先が欠けていると画面が出せない。
-      department = demo_department
+      # 学生が既にいてもコースは毎回ならす。カリキュラムの指し先が欠けていると画面が出せない。
+      program = demo_program
 
       # デモはログイン画面のボタンから入る。パスワードでは入らせないので、誰も知らない値にしておく。
       user = User.find_or_create_by!(email: DemoAccount::EMAIL) do |new_user|
@@ -44,13 +44,16 @@ class DemoData
         raise DemoAccount::Unavailable, 'デモ用メールアドレスの既存データは2024年度入学ではないため、上書きできません。'
       end
 
-      user.create_student!(department: department, admission_year: DemoAccount::ADMISSION_YEAR)
+      user.create_student!(program: program, admission_year: DemoAccount::ADMISSION_YEAR)
     end
 
-    def demo_department
+    # コース名は学科名と同じにしている。学科からコースへ移すマイグレーションが
+    # 学科名をそのまま引き写すため、名前を変えると同じ学科にコースが2つできる。
+    def demo_program
       faculty = Faculty.find_or_create_by!(name: 'デモ用工学部（架空データ）')
-      faculty.departments.find_or_create_by!(name: '知能情報工学（デモ）')
-             .tap { |department| department.update!(curriculum_slug: DemoAccount::DEPARTMENT) }
+      department = faculty.departments.find_or_create_by!(name: '知能情報工学（デモ）')
+      department.programs.find_or_initialize_by(name: '知能情報工学（デモ）')
+                .tap { |program| program.update!(curriculum_slug: DemoAccount::DEPARTMENT) }
     end
 
     def import_enrollments(student, courses, entries)
