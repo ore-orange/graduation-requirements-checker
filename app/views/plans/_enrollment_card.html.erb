@@ -1,0 +1,24 @@
+<%
+  cat_course = @courses_by_key[enrollment.course.curriculum_key]
+  course_num = cat_course&.dig('number') || enrollment.course.course_number
+  is_current = StudentWorkspace::CURRENT_STATUSES.include?(enrollment.enrollment_status)
+  is_other = %w[failed unknown].include?(enrollment.enrollment_status)
+  card_credits = enrollment.enrollment_status == 'completed' ? enrollment.credits_earned : enrollment.course.credits
+%>
+<div data-enrollment="<%= enrollment.id %>"
+     class="p-2 rounded-lg border <%= is_current ? 'border-sky-200 bg-sky-50/60' : (is_other ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200 bg-white') %> shadow-2xs">
+  <div class="flex items-center justify-between gap-1 text-[10px] font-mono <%= is_current ? 'text-sky-700' : (is_other ? 'text-amber-800' : 'text-slate-400') %>">
+    <span>
+      <%= course_num.presence || '番号未設定' %>
+      <% if is_current %>
+        <span class="font-sans font-semibold">(履修中)</span>
+      <% elsif is_other %>
+        <span class="font-sans font-semibold">(<%= enrollment_status_label(enrollment.enrollment_status) %>)</span>
+      <% end %>
+    </span>
+    <span class="font-sans font-bold <%= is_current ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 text-slate-700' %> px-1.5 py-0.5 rounded shrink-0">
+      <%= credit_label(card_credits) %>
+    </span>
+  </div>
+  <div class="font-semibold text-slate-800 mt-0.5 leading-snug"><%= enrollment.course.name %></div>
+</div>
