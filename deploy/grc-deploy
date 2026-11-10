@@ -19,6 +19,7 @@ compose=(docker compose -f /opt/grc/compose.prod.yml --project-directory /opt/gr
 
 "${compose[@]}" pull
 "${compose[@]}" run --rm web ./bin/rails db:migrate
+"${compose[@]}" run --rm web ./bin/rails master:load
 "${compose[@]}" up -d --remove-orphans
 
 for i in $(seq 1 30); do

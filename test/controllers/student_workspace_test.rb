@@ -15,7 +15,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     @student = DemoAccount.student
     @student.planned_courses.delete_all
     sign_in_as(@student.user)
-    @curriculum = CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
+    @curriculum = CurriculumRepository.find(curriculum: 'intelligent_informatics', admission_year: 2024)
     @courses = @curriculum.fetch('courses')
     @occupied_keys = @student.student_courses.where(enrollment_status: %w[completed registered in_progress])
                              .joins(:course).pluck('courses.curriculum_key')
@@ -160,7 +160,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   test 'ignores account selectors and cannot delete another students plan' do
     other = Student.create!(user: User.create!(email: 'other-demo-ui@example.test', password: 'a-test-password'),
-                            department: @student.department, admission_year: 2024)
+                            program: @student.program, admission_year: 2024)
     foreign_plan = other.planned_courses.create!(course: course_record(@candidate), **PLAN_TERM)
 
     assert_no_difference 'PlannedCourse.count' do
@@ -288,7 +288,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test 'カリキュラムを登録していない学科では初期設定の案内を出す' do
-    @student.department.update!(curriculum_slug: nil)
+    @student.program.update!(curriculum_slug: nil)
 
     get root_path
 

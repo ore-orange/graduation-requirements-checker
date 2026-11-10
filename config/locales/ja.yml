@@ -1,0 +1,24 @@
+ja:
+  errors:
+    # 日本語では属性名と本文の間に空白を入れない
+    format: "%{attribute}%{message}"
+  activerecord:
+    models:
+      student: 学生
+      student_program_assignment: コース所属
+    attributes:
+      student:
+        admission_year: 入学年度
+      student_program_assignment:
+        assigned_at: 所属開始日
+        ended_at: 所属終了日
+    errors:
+      models:
+        student:
+          attributes:
+            admission_year:
+              no_curriculum: のカリキュラムが登録されていません
+        student_program_assignment:
+          attributes:
+            ended_at:
+              before_assigned_at: は所属開始日以降にしてください
