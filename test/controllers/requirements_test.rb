@@ -82,6 +82,43 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_equal %w[2025 2024], css_select('select[name=admission_year] option').pluck('value').compact_blank.first(2)
   end
 
+  # 設計書 項目1。学部→学科→コースのプルダウンは、親の選択に連動させる。
+  # 作りは取り込みフォーム(program-fields)と同じで、選択肢は全部 <optgroup> で描いておき、
+  # Stimulus が親に合わないものを hidden/disabled にする。画面の側が約束するのは、この仕掛けの配線だけ。
+  test '対象選択のプルダウンは、親の選択に連動する仕掛けを持つ' do
+    get requirements_path, env: local_env
+
+    assert_select '[data-controller=program-selector]' do
+      assert_select 'select[name=faculty][data-program-selector-target=faculty][data-action=?]',
+                    'change->program-selector#sync'
+      assert_select 'select[name=department][data-program-selector-target=department][data-action=?]',
+                    'change->program-selector#sync'
+      assert_select 'select[name=course][data-program-selector-target=course]'
+    end
+  end
+
+  # 連動は見え方だけ。JavaScript が動かないときに選べる選択肢を減らしてはいけない
+  # (_selector.html.erb 冒頭が約束している「JSが無くても動く」を壊さない)。
+  test '連動しても、JavaScript が無いときは全学部の学科・全学科のコースから選べる' do
+    Faculty.create!(name: '理学部').departments.create!(name: '数理科学科').programs.create!(name: '数学コース')
+
+    get requirements_path, env: local_env
+
+    assert_select 'select[name=department] optgroup[label=?] option[value=?]', FACULTY, DEPARTMENT_ONLY
+    assert_select 'select[name=department] optgroup[label=?] option[value=?]', '理学部', '数理科学科'
+    assert_select 'select[name=course] optgroup[label=?] option[value=?]', DEPARTMENT_ONLY, COURSE
+    assert_select 'select[name=course] optgroup[label=?] option[value=?]', '数理科学科', '数学コース'
+  end
+
+  # 学部・学科・コースの入ったURLを直接開いたときも、選択は残る(連動が選択を消さない)。
+  test '学部・学科・コースの入ったURLを直接開いても、選択は残る' do
+    show_selected
+
+    assert_select 'select[name=faculty] option[selected][value=?]', FACULTY
+    assert_select 'select[name=department] option[selected][value=?]', DEPARTMENT_ONLY
+    assert_select 'select[name=course] option[selected][value=?]', COURSE
+  end
+
   test '学部名か学科コース名を持たない便覧は、年度の選択肢にしない(空の選択肢を作らない)' do
     Curriculum.create!(slug: 'no_names', admission_year: 1999, source_filename: 'n.pdf', pages: [])
 
