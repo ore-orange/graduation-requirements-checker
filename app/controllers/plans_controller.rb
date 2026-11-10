@@ -9,7 +9,9 @@ class PlansController < ApplicationController
     load_plans
     @assessment = assess
     load_term
-    load_catalogue
+    load_unavailable_keys
+    # 便覧カタログは学期の画面にだけ出すので、一覧では検索しない
+    load_catalogue unless @overview
   end
 
   private
@@ -32,9 +34,14 @@ class PlansController < ApplicationController
     @unplaced_enrollments = @enrollments.reject { |enrollment| SEMESTERS.include?(enrollment.semester) }
   end
 
-  def load_catalogue
+  # もう追加できない科目（修得済み・履修中・予定に追加済み）。学期の画面でも一覧でも使う。
+  def load_unavailable_keys
     @unavailable_keys = (@completed + @current).map { |enrollment| enrollment.course.curriculum_key } +
                         @plans.map { |plan| plan.course.curriculum_key }
+  end
+
+  # 便覧カタログに出す科目を、検索語（q）と区分（category）で絞り込む。
+  def load_catalogue
     @query = params[:q].to_s.strip
     @category = params[:category].to_s
     query = @query.downcase
