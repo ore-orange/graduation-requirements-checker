@@ -18,6 +18,10 @@ export IMAGE_TAG="$sha"
 compose=(docker compose -f /opt/grc/compose.prod.yml --project-directory /opt/grc)
 
 "${compose[@]}" pull
+# マイグレーションに失敗しても戻せるよう、直前にバックアップを取る。
+# grc-backup は動いている db コンテナで pg_dump するので、先に db を起動しておく。
+"${compose[@]}" up -d --wait db
+/usr/local/bin/grc-backup
 "${compose[@]}" run --rm web ./bin/rails db:migrate
 "${compose[@]}" up -d --remove-orphans
 
