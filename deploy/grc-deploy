@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# 学科サーバーVMの /usr/local/bin/grc-deploy に root 所有で置くスクリプト。
+# runner ユーザー(grc-runner)は sudo でこれだけを実行できる。
+# 使い方: sudo /usr/local/bin/grc-deploy <コミットSHA(40桁)>
+# 手順は docs/deploy-runner.md を参照。
+set -euo pipefail
+
+sha="${1:-}"
+if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "invalid sha" >&2; exit 2
+fi
+
+# 同時実行を防ぐ
+exec 9>/var/lock/grc-deploy.lock
+flock -n 9 || { echo "deploy already running" >&2; exit 3; }
+
+export IMAGE_TAG="$sha"
+compose=(docker compose -f /opt/grc/compose.prod.yml --project-directory /opt/grc)
+
+"${compose[@]}" pull
+"${compose[@]}" run --rm web ./bin/rails db:migrate
+"${compose[@]}" up -d --remove-orphans
+
+for i in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:3000/up >/dev/null; then
+    mkdir -p /var/lib/grc
+    echo "$sha" > /var/lib/grc/deployed_sha
+    echo "deployed $sha"
+    exit 0
+  fi
+  sleep 2
+done
+
+"${compose[@]}" logs --tail=100 web
+exit 1
