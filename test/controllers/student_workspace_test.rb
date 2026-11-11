@@ -182,15 +182,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-plan='#{foreign_plan.id}']", count: 0
   end
 
-  test 'catalogue search filters visible courses by name and category' do
-    get plan_path, params: { q: @candidate.fetch('name'), category: @candidate.fetch('category') }
+  test 'catalogue search filters visible courses by name' do
+    name = @candidate.fetch('name')
+    get plan_path, params: { pane: 'catalogue', q: name }
     assert_response :success
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
-    @courses.reject { |course| course['category'] == @candidate.fetch('category') }.each do |course|
+    @courses.reject { |course| catalogue_text(course).include?(name.downcase) }.each do |course|
       assert_select "[data-catalogue-key='#{course.fetch('key')}']", count: 0
     end
+    # 区分がわからない科目を調べるための検索なので、区分で絞り込む欄は置かない
+    assert_select "#catalogue [name='category']", count: 0
 
-    get plan_path, params: { q: 'does-not-exist-in-the-catalogue' }
+    get plan_path, params: { pane: 'catalogue', q: 'does-not-exist-in-the-catalogue' }
     assert_select '[data-catalogue-key]', count: 0
   end
 
@@ -534,6 +537,9 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   private
 
+  # 便覧カタログの検索が見る文字（科目名・科目番号・キー）を小文字でつなげたもの
+  def catalogue_text(course) = course.values_at('name', 'number', 'key').compact.join(' ').downcase
+
   def course_record(course)
     Course.find_by!(curriculum_key: course.fetch('key'))
   end
@@ -580,16 +586,17 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test '科目検索のフォームとリセットは履修計画表の見ている学期に留まる' do
-    get plan_path(term: '2-後期')
+    get plan_path(term: '2-後期', pane: 'catalogue')
 
     assert_select 'form[action=?][method=?]', plan_path, 'get' do
       assert_select "input[name='term'][value='2-後期']"
+      assert_select "input[name='pane'][value='catalogue']"
     end
-    assert_select 'a[href=?]', plan_path(term: '2-後期'), text: 'リセット'
+    assert_select 'a[href=?]', plan_path(term: '2-後期', pane: 'catalogue'), text: 'リセット'
   end
 
   test '便覧カタログから追加すると、見ている学期の予定になる' do
-    get plan_path(term: '4-前期')
+    get plan_path(term: '4-前期', pane: 'catalogue')
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[type='submit'][value='4年 前期に追加']"
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[name='term'][value='4-前期']"
 
@@ -600,10 +607,40 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test '過去の学期では便覧カタログから追加できない' do
-    get plan_path(term: '2-後期')
+    get plan_path(term: '2-後期', pane: 'catalogue')
 
     assert_select '#catalogue form[action=?]', plan_courses_path, count: 0
     assert_select '[data-catalogue-term]', text: /今の学期以降を表示すると追加できます/
+  end
+
+  test '便覧カタログは閉じていて、右上のボタンで右側のパネルとして開く' do
+    get plan_path(term: '4-前期')
+
+    assert_select '#catalogue', count: 0
+    assert_select '[data-catalogue-key]', count: 0
+    assert_select "a[data-catalogue-toggle='open'][href=?]", plan_path(term: '4-前期', pane: 'catalogue'), text: /便覧から探す/
+
+    get plan_path(term: '4-前期', pane: 'catalogue')
+
+    assert_select 'aside#catalogue', count: 1
+    category = @candidate.fetch('category')
+    assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] [data-catalogue-category]",
+                  text: StudentWorkspaceHelper::CATEGORY_LABELS.fetch(category, category)
+    assert_select "a[data-catalogue-toggle='close'][href=?]", plan_path(term: '4-前期'), text: /便覧を閉じる/
+  end
+
+  test '便覧のパネルを開いたまま学期を切り替えられる' do
+    get plan_path(term: '4-前期', pane: 'catalogue')
+
+    assert_select "[data-term-button='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
+  end
+
+  test '一覧には便覧のパネルもボタンも出さない' do
+    get plan_path(view: 'all', pane: 'catalogue')
+
+    assert_response :success
+    assert_select '#catalogue', count: 0
+    assert_select '[data-catalogue-toggle]', count: 0
   end
 end
 

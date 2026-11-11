@@ -10,8 +10,9 @@ class PlansController < ApplicationController
     @assessment = assess
     load_term
     load_unavailable_keys
-    # 便覧カタログは学期の画面にだけ出すので、一覧では検索しない
-    load_catalogue unless @overview
+    # 便覧カタログは、学期の画面で右側のパネルを開いている（?pane=catalogue）ときだけ検索する
+    @catalogue_open = !@overview && params[:pane] == 'catalogue'
+    load_catalogue if @catalogue_open
   end
 
   private
@@ -40,14 +41,11 @@ class PlansController < ApplicationController
                         @plans.map { |plan| plan.course.curriculum_key }
   end
 
-  # 便覧カタログに出す科目を、検索語（q）と区分（category）で絞り込む。
+  # 便覧カタログに出す科目を、検索語（q）で絞り込む。区分がわからない科目を調べるための検索なので、区分では絞り込まない。
   def load_catalogue
     @query = params[:q].to_s.strip
-    @category = params[:category].to_s
     query = @query.downcase
-    @catalogue = @curriculum.fetch('courses').select do |course|
-      (@category.blank? || course['category'] == @category) && matches_query?(course, query)
-    end
+    @catalogue = @curriculum.fetch('courses').select { |course| matches_query?(course, query) }
     keys = @catalogue.map { |course| course.fetch('key') }
     @persisted_keys = Course.where(curriculum_key: keys).pluck(:curriculum_key)
   end
