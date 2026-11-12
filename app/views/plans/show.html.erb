@@ -1,14 +1,14 @@
 <% content_for :title, app_name %>
 <% content_for :full_bleed, true %>
-<%# 一覧は縦に長いので、追加・削除で同じ画面に戻るときはスクロール位置を保つ %>
-<% turbo_refreshes_with(method: :replace, scroll: :preserve) if @overview %>
+<%# 表は縦に長いので、追加・削除で同じ画面（同じ URL）に戻るときはスクロール位置を保つ。戻る先は PlanCoursesController#back_to_plan が決める %>
+<% turbo_refreshes_with(method: :replace, scroll: :preserve) %>
 
 <div class="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
   <%= render 'shared/nav' %>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-    <%# 一覧はスクロール位置を保つので、結果は画面に固定して見えるようにする %>
-    <%= render(@overview ? 'shared/toast' : 'shared/flash') %>
+    <%# スクロール位置を保つので、結果は画面に固定して見えるようにする %>
+    <%= render 'shared/toast' %>
 
     <h2 class="sr-only">履修計画表</h2>
 

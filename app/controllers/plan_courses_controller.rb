@@ -35,9 +35,31 @@ class PlanCoursesController < ApplicationController
   private
 
   # 追加・削除のあとは、見ていた画面（全学期の一覧、または学期の計画表）に戻る。
+  # 送ってきたページがわかればその URL にそのまま戻る。今の URL と同じ URL に戻ると、スクロール位置が保たれる。
   def back_to_plan(**flash)
-    location = params[:view] == 'all' ? plan_path(view: 'all') : plan_path(term: (helpers.term_param(@term) if @term))
-    redirect_to location, status: :see_other, **flash
+    redirect_to plan_page_sent_from || plan_page_from_params, status: :see_other, **flash
+  end
+
+  # フォームを送ってきたページ（ブラウザが Referer として知らせる URL）が計画表なら、そのパスと ? 以降。
+  # ホストを捨ててパスだけ使うので、よそのサイトに戻ることはない。
+  def plan_page_sent_from
+    sent_from = URI.parse(request.referer.to_s)
+    sent_from.request_uri if sent_from.path == plan_path
+  rescue URI::InvalidURIError
+    nil
+  end
+
+  # 送ってきたページがわからないときは、フォームの項目から戻る先を組み立てる。
+  def plan_page_from_params
+    return plan_path(view: 'all') if params[:view] == 'all'
+
+    plan_path(term: (helpers.term_param(@term) if @term), **catalogue_pane_params)
+  end
+
+  # 便覧のパネルを開いていたら（pane=catalogue）、戻ったあとも開いたままにして、検索語（q）も残す。
+  def catalogue_pane_params
+    pane, query = params.permit(:pane, :q).values_at(:pane, :q)
+    pane == 'catalogue' ? { pane: pane, q: query.presence }.compact : {}
   end
 
   def selectable_course

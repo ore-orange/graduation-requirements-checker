@@ -53,6 +53,10 @@
               <%= form_with url: plan_courses_path, class: 'shrink-0' do |form| %>
                 <%= form.hidden_field :course_key, value: course.fetch('key'), id: nil %>
                 <%= hidden_field_tag :term, term_param(@term), id: nil %>
+                <%# 追加のあとも、パネルを開いたまま、検索語も残したままにする %>
+                <% @catalogue_pane_params.each do |name, value| %>
+                  <%= hidden_field_tag name, value, id: nil %>
+                <% end %>
                 <%= form.submit "#{term_label(@term)}に追加", class: 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer',
                                                             aria: { label: "#{course.fetch('name')}を#{term_label(@term)}の予定に追加" } %>
               <% end %>

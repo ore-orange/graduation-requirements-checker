@@ -387,7 +387,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_redirected_to plan_path(view: 'all')
   end
 
-  test '追加の結果は、一覧では固定のメッセージで、学期の画面では今までの形で出す' do
+  test '追加・削除の結果は、一覧でも学期の画面でも固定のメッセージで出す' do
     post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期', view: 'all' }
     follow_redirect!
     assert_select '[role="status"][data-controller="toast"]', text: /追加しました/, count: 1
@@ -395,8 +395,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     delete plan_course_path(@student.planned_courses.find_by!(course: course_record(@candidate))),
            params: { term: '4-前期' }
     follow_redirect!
-    assert_select '[role="status"]', text: /削除しました/, count: 1
-    assert_select '[data-controller="toast"]', count: 0
+    assert_select '[role="status"][data-controller="toast"]', text: /削除しました/, count: 1
   end
 
   test '一覧で失敗したときは、閉じるまで残る固定のメッセージで出す' do
@@ -641,6 +640,61 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select '#catalogue', count: 0
     assert_select '[data-catalogue-toggle]', count: 0
+  end
+
+  test '便覧のパネルから追加・削除しても、パネルは開いたままで検索語も残る' do
+    key = @candidate.fetch('key')
+    query = @candidate.fetch('name')
+    get plan_path(term: '4-前期', pane: 'catalogue', q: query)
+    assert_select "[data-catalogue-key='#{key}'] form" do
+      assert_select "input[name='pane'][value='catalogue']"
+      assert_select "input[name='q'][value=?]", query
+    end
+    assert_select "[data-add-course] form input[name='pane'][value='catalogue']"
+
+    post plan_courses_path, params: { course_key: key, term: '4-前期', pane: 'catalogue', q: query }
+    assert_redirected_to plan_path(term: '4-前期', pane: 'catalogue', q: query)
+    follow_redirect!
+    plan = @student.planned_courses.find_by!(course: course_record(@candidate))
+    assert_select "[data-plan='#{plan.id}'] form input[name='pane'][value='catalogue']"
+
+    delete plan_course_path(plan), params: { term: '4-前期', pane: 'catalogue', q: query }
+    assert_redirected_to plan_path(term: '4-前期', pane: 'catalogue', q: query)
+  end
+
+  test 'パネルを閉じているときの追加・削除は、パネルを開かない' do
+    get plan_path(term: '4-前期')
+    assert_select "input[name='pane']", count: 0
+
+    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期', pane: 'other', q: 'x' }
+    assert_redirected_to plan_path(term: '4-前期')
+  end
+
+  test '追加・削除のあとは、送ってきた計画表のページにそのまま戻る' do
+    key = @candidate.fetch('key')
+    # 学期の指定なしで開いたページからは、学期の指定なしの URL に戻る（URL が変わらないのでスクロール位置が保たれる）
+    post plan_courses_path, params: { course_key: key, term: CURRENT_TERM }, headers: { 'Referer' => plan_url }
+    assert_redirected_to plan_path
+
+    sent_from = plan_url(term: '4-前期', q: '', pane: 'catalogue', commit: '検索する')
+    plan = @student.planned_courses.find_by!(course: course_record(@candidate))
+    delete plan_course_path(plan), params: { term: '4-前期' }, headers: { 'Referer' => sent_from }
+    assert_redirected_to sent_from
+  end
+
+  test '送ってきたページが計画表でないときは、フォームの項目から戻る先を決める' do
+    key = @candidate.fetch('key')
+    [root_url, "https://evil.example#{requirements_path}", 'not a url'].each do |sent_from|
+      post plan_courses_path, params: { course_key: key, term: '4-前期' }, headers: { 'Referer' => sent_from }
+      assert_redirected_to plan_path(term: '4-前期')
+      @student.planned_courses.delete_all
+    end
+
+    # よそのサイトの /plan から送られてきても、戻る先はこのサイトの中
+    post plan_courses_path, params: { course_key: key, term: '4-前期' },
+                            headers: { 'Referer' => "https://evil.example#{plan_path(term: '1-前期')}" }
+    assert_redirected_to plan_path(term: '1-前期')
+    assert_equal 'localhost', URI.parse(response.location).host
   end
 end
 
