@@ -34,14 +34,18 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     field
   end
 
+  # 選ばれている選択肢の値(選択の欄は value を持たない)。
+  def selected_in(select) = select.css('option[selected]').first&.[]('value').to_s
+
   test '算入の上限・除外の接頭辞・必修の科目数・グループの分け方が、畳まずに直せる欄に出る(実物の2024年度)' do
     show(draft(document: real_document))
     index = ->(id) { css_select("#rule-#{id} input[name$='[id]']").first['name'][/\d+/] }
 
     assert_equal '2', field_in('#rule-natural_cap', "rules[#{index.call('natural_cap')}][credits]")['value']
-    assert_equal '知能', field_in('#rule-own_fusion', "rules[#{index.call('own_fusion')}][number_prefix]")['value']
-    assert_equal '', field_in('#rule-excluded_category',
-                              "rules[#{index.call('excluded_category')}][number_prefix]")['value'].to_s
+    # 提供コース(接頭辞)は、科目表に出てくる接頭辞からの選択肢(設計書 項目9)。
+    assert_equal '知能', selected_in(field_in('#rule-own_fusion', "rules[#{index.call('own_fusion')}][number_prefix]"))
+    assert_equal '', selected_in(field_in('#rule-excluded_category',
+                                          "rules[#{index.call('excluded_category')}][number_prefix]"))
     assert_equal '31', field_in('#rule-required_all',
                                 "rules[#{index.call('required_all')}][expected_course_count]")['value']
     assert_equal 'number_prefix', field_in('#rule-fusion_provider',
@@ -263,10 +267,13 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
   test '消した章の id を足し直すと、消した記録は外れる(人が戻した)' do
     draft = draft()
     save draft, display: { groups: [{ id: 'elective', _destroy: '1' }] }
-    assert_equal 1, draft.reload.document['removed_by_human'].size
+    # 章と、その行だけが指していた決まり(設計書 項目5)。
+    removed = draft.reload.document['removed_by_human']
+    assert_equal(%w[group elective rule fusion_provider], removed.flat_map { |entry| entry.values_at('kind', 'id') })
     save draft, new_group: { title: '3. 選択', required_credits: '4', id: 'elective' }
 
-    assert_empty draft.reload.document['removed_by_human']
+    removed = draft.reload.document['removed_by_human']
+    assert_equal(%w[rule fusion_provider], removed.flat_map { |entry| entry.values_at('kind', 'id') })
     assert_equal 'elective', groups(draft).last['id']
   end
 

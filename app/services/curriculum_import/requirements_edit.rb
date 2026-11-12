@@ -23,6 +23,7 @@ module CurriculumImport
     include RuleLinking
     include RuleEditing
     include DisplayEditing
+    include RuleCleanup
     include Additions
 
     # どの項目(kind と id)の、どんな問題か。kind が nil なら、項目に結びつかない問題。
@@ -58,7 +59,12 @@ module CurriculumImport
     # 空にしたときは欄ごと消す(欄があって空だと、読み込みが拒む)。
     # grouped_max の group_label は、学生に出す「同一の○○から」の○○。欄が無ければ group_by から作るので、
     # 必須にはしない(FIELD_KINDS に入れると、書いていない便覧が「欄が足りない」と言われる)。
-    RULE_EXTRA_FIELDS = { 'cap' => { 'credits' => :number }, 'exclude' => { 'number_prefix' => :optional_text },
+    # 算入しない科目の条件(設計書 項目9)。区分・提供コース(科目番号の接頭辞と、一致/以外)・名指しの科目番号。
+    # どれも必須ではないが、全部空にすると、すべての科目を算入から外す(Rules::Exclude の構築が断る)。
+    EXCLUDE_FIELDS = { 'category' => :optional_text, 'number_prefix' => :optional_text,
+                       'number_prefix_mode' => :prefix_mode, 'numbers' => :optional_list,
+                       'reason' => :text }.freeze
+    RULE_EXTRA_FIELDS = { 'cap' => { 'credits' => :number }, 'exclude' => EXCLUDE_FIELDS,
                           'grouped_max' => { 'group_label' => :optional_text },
                           'one_of_paths' => { 'review_note' => :optional_text } }.freeze
     # エラーの文で欄を呼ぶ名前(画面の欄の名前と同じ)。
@@ -69,7 +75,8 @@ module CurriculumImport
                      'reason' => '算入しない理由', 'review_note' => '要確認の理由', 'check_id' => '確認する規則', 'check_ids' => '確認する規則',
                      'row_ids' => '数える行', 'credits_from_check' => '単位を確認する規則から取るか',
                      'counts_toward_total' => '卒業の総単位に数えるか', 'credits' => '算入の上限(単位)',
-                     'number_prefix' => '科目番号の接頭辞', 'group_label' => 'グループの呼び名',
+                     'number_prefix' => '提供コース(科目番号の接頭辞)', 'number_prefix_mode' => '提供コースの一致・以外',
+                     'numbers' => '科目番号', 'group_label' => 'グループの呼び名',
                      'number_patterns' => '科目番号のパターン' }.freeze
     KIND_NAMES = { 'rule' => '規則', 'group' => '章', 'row' => '行', 'subtotal' => '小計', 'category' => '区分' }.freeze
     CONTRIBUTED_FIELD = { 'rule' => 'rules', 'group' => 'groups', 'subtotal' => 'subtotals' }.freeze
@@ -162,9 +169,11 @@ module CurriculumImport
       edit_categories
       edit_rules
       add_new_rule
+      add_new_exclude
       edit_display
       add_new_group
       add_new_row
+      drop_orphaned_rules
       decide_annotations
       remove_approval_note
     end

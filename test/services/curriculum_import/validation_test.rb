@@ -367,6 +367,36 @@ module CurriculumImport
       assert_blocking('reason', broken { |d| rule_in(d, 'excluded_category')['reason'] = ' ' })
     end
 
+    test '条件が1つも無い exclude は、すべての科目を外すので公開を止める' do
+      assert_blocking('条件が1つも無い', broken { |d| rule_in(d, 'excluded_category').delete('category') })
+    end
+
+    test 'exclude は区分が無くても、科目番号だけで書ける' do
+      assert_quiet(broken do |d|
+        d['rules'] << rule('by_number', 'exclude', reason: '他学部の情報系科目', numbers: %w[理101])
+      end)
+    end
+
+    test 'exclude の numbers が配列でなければ公開を止める' do
+      assert_blocking('numbers', broken do |d|
+        d['rules'] << rule('by_number', 'exclude', reason: 'r', numbers: '理101')
+      end)
+    end
+
+    test 'exclude の提供コースの一致・以外が読めなければ公開を止める' do
+      assert_blocking('number_prefix_mode', broken do |d|
+        d['rules'] << rule('own', 'exclude', category: 'fusion', reason: 'r', number_prefix: '知能',
+                                             number_prefix_mode: 'maybe')
+      end)
+      assert_blocking('number_prefix_mode', broken do |d|
+        d['rules'] << rule('own', 'exclude', category: 'fusion', reason: 'r', number_prefix_mode: 'except')
+      end)
+      assert_quiet(broken do |d|
+        d['rules'] << rule('own', 'exclude', category: 'fusion', reason: 'r', number_prefix: '知能',
+                                             number_prefix_mode: 'except')
+      end)
+    end
+
     test 'cap の credits が負・非数・無限なら公開を止める' do
       [-1, 'abc', nil, Float::INFINITY, Float::NAN].each do |credits|
         document = broken { |d| d['rules'] << rule('cap1', 'cap', category: 'humanities', credits: credits) }
@@ -424,10 +454,13 @@ module CurriculumImport
 
     test '総単位に数えない区分に、丸ごと算入から外す exclude 規則が無ければ公開を止める' do
       assert_blocking('exclude 規則がありません', broken { |d| d['rules'].reject! { |r| r['id'] == 'excluded_category' } })
-      # 接頭辞つきの exclude は区分の一部しか外さないので、覆ったことにしない。
+      # 接頭辞つき・科目番号つきの exclude は区分の一部しか外さないので、覆ったことにしない。
       document = broken { |d| rule_in(d, 'excluded_category')['number_prefix'] = '情' }
 
       assert_blocking 'exclude 規則がありません', document
+      named = broken { |d| rule_in(d, 'excluded_category')['numbers'] = ['情01'] }
+
+      assert_blocking 'exclude 規則がありません', named
     end
 
     test '総単位の規則が数える区分が、総単位に数える区分と違えば出す' do
@@ -588,6 +621,30 @@ module CurriculumImport
       document = broken { |d| d['display']['subtotals'] = [subtotal] }
 
       assert_warning('小計「sub」の必要単位(5)が、規則「fusion_provider」の必要単位(4)', document)
+    end
+
+    # 複数の決まりを持つ行も突き合わせる(設計書 項目5 の別立て)。どの決まりの数字とも合わなければ出す。
+    test '複数の決まりを持つ行の必要単位が、どの決まりの必要単位とも違えば出す' do
+      document = broken do |d|
+        row = d['display']['groups'][0]['rows'][0]
+        row['check_ids'] = %w[humanities english]
+        row['required_credits'] = 5
+      end
+
+      assert_warning('必要単位(5)が、どの決まりの必要単位(4・2)とも違います', document)
+    end
+
+    test '複数の決まりのどれかと合っていれば、必要単位の食い違いは出さない' do
+      assert_quiet(broken do |d|
+        d['display']['groups'][0]['rows'][0]['check_ids'] = %w[humanities english]
+      end)
+    end
+
+    # 単位の欄を持たない決まり(one_of_paths)しか指していない行は、比べる数字が無い。
+    test '必要単位を持つ決まりが1つも無い行は、食い違いを出さない' do
+      assert_quiet(broken do |d|
+        d['display']['groups'][0]['rows'][0]['check_ids'] = %w[path_rule]
+      end)
     end
 
     test '総単位が読めていなければ公開を止める' do

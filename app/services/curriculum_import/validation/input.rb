@@ -28,7 +28,9 @@ module CurriculumImport
         'any_of' => { 'options' => :list },
         'all_of' => { 'conditions' => :list },
         'cap' => { 'category' => :text },
-        'exclude' => { 'category' => :text, 'reason' => :text }
+        # exclude の区分は必須でない(科目番号だけの除外を書けるようにするため。設計書 項目9)。
+        # 条件が1つも無い除外は、すべての科目を外してしまうので、Rules::Exclude の構築が断る(RuleShape が blocking にする)。
+        'exclude' => { 'reason' => :text }
       }.freeze
       VALUE_CHECKS = { keys: :keys?, paths: :paths?, list: :list?, number: :number?, count: :count?,
                        text: :text? }.freeze

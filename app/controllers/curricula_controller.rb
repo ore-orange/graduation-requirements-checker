@@ -165,8 +165,8 @@ class CurriculaController < ApplicationController
 
   # 要件表の確認の入力。入れ子の形(章の中の行など)は、RequirementsEdit が1つずつ読んで型を確かめる。
   def rules_params
-    params.to_unsafe_h.slice('revision', 'categories', 'rules', 'display', 'new_rule', 'new_group', 'new_row',
-                             'annotations', 'remove_approval_note')
+    params.to_unsafe_h.slice('revision', 'categories', 'rules', 'display', 'new_rule', 'new_exclude', 'new_group',
+                             'new_row', 'annotations', 'remove_approval_note')
   end
 
   def rules_review_path = curriculum_path(@curriculum, anchor: 'requirements_review')

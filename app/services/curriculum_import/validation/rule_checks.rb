@@ -14,6 +14,9 @@ module CurriculumImport
         required_courses
       end
 
+      # 区分の一部しか外さない exclude の欄。1つでも書かれていれば、「区分を丸ごと外す」とは数えない(設計書 項目9)。
+      NARROWING_FIELDS = %w[number_prefix numbers].freeze
+
       private
 
       # 最上位の規則は、id で画面の行と結ばれ、label と出典が画面に出る。id が重なると、画面は先の1つを引き、
@@ -131,13 +134,19 @@ module CurriculumImport
 
       # 総単位に数えない区分の科目は、exclude 規則が算入から外す。規則が無いと、その科目の単位が他の規則に数えられる。
       def excluded_categories
-        covered = input.well_formed_nodes_of('exclude').select { |node| node.top && !node.rule.key?('number_prefix') }
+        covered = input.well_formed_nodes_of('exclude')
+                       .select { |node| node.top && whole_category_exclude?(node.rule) }
                        .map { |node| node.rule['category'] }
         (input.uncounted_category_keys.grep(String) - covered).each do |category|
           findings.blocking(:rule, category, "区分「#{input.category_label(category)}」は卒業の総単位に数えない" \
                                              '(counts_toward_total が false)のに、その区分の科目を丸ごと算入から外す' \
                                              'exclude 規則がありません。この区分の単位が算入されます。')
         end
+      end
+
+      def whole_category_exclude?(rule)
+        rule['category'].is_a?(String) && !rule['category'].empty? &&
+          NARROWING_FIELDS.none? { |field| rule[field].present? }
       end
 
       # 設計書 §4 の 3。必修の科目表と、要件表の「必修N科目M単位」を突き合わせる。判定は食い違いを要確認にするが、

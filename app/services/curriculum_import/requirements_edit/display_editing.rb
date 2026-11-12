@@ -46,7 +46,7 @@ module CurriculumImport
 
         removed = []
         merged = merge_in_order(groups, entries, '章', 'group') do |group, entry|
-          destroy?(entry) ? discard(group, 'group', removed) : edit_group(group, entry)
+          destroy?(entry) ? discard_group(group, removed) : edit_group(group, entry)
         end
         display['groups'] = merged
         mark_moved(groups.reject { |group| removed.include?(group['id']) }, merged)
@@ -65,7 +65,7 @@ module CurriculumImport
 
         removed = []
         merged = merge_in_order(rows, entries, "行(章「#{group['id']}」)", 'row') do |row, entry|
-          next discard(row, 'row', removed, group['id']) if destroy?(entry)
+          next discard_row(row, removed, group['id']) if destroy?(entry)
 
           row.deep_dup.tap { |copy| mark(copy, assign(copy, entry, ROW_FIELDS, 'row', row['id']).any?) }
         end

@@ -119,15 +119,30 @@ module CurriculumImport
         input.subtotals.each { |subtotal| agree(subtotal, Array.wrap(subtotal['check_ids']), "小計「#{subtotal['id']}」") }
       end
 
+      # 行に出ている数字と、判定が見る数字は別の場所にある(設計書 項目5)。画面は両方を出すので、
+      # 食い違いは人が目で見つけられるが、見落とさないようここでも言う。
+      # 決まりが2つ以上ある行は、どれか1つと合っていればよい(合計を数える決まりと、その内訳の決まりを
+      # 同じ行が指すことがある)。必要単位の欄を持たない決まり(one_of_paths など)は、比べる数字が無いので見ない。
       def agree(item, ids, name)
-        return unless ids.one? && number?(item['required_credits'])
+        shown = item['required_credits']
+        return unless number?(shown)
 
-        rule = condition_for(ids.first)
-        return unless rule && number?(rule['required_credits']) && rule['required_credits'] != item['required_credits']
+        rules = comparable_rules(ids)
+        return if rules.empty? || rules.any? { |rule| rule['required_credits'] == shown }
 
-        shown = format_number(item['required_credits'])
-        judged = format_number(rule['required_credits'])
-        findings.warning(:display, item['id'], "#{name}の必要単位(#{shown})が、規則「#{rule['id']}」の必要単位(#{judged})と違います。")
+        judged = rules.map { |rule| format_number(rule['required_credits']) }
+        findings.warning(:display, item['id'], disagree_message(name, format_number(shown), judged, rules))
+      end
+
+      def comparable_rules(ids)
+        ids.filter_map { |id| condition_for(id) }.select { |rule| number?(rule['required_credits']) }
+      end
+
+      def disagree_message(name, shown, judged, rules)
+        return "#{name}の必要単位(#{shown})が、規則「#{rules.first['id']}」の必要単位(#{judged.first})と違います。" if rules.one?
+
+        "#{name}の必要単位(#{shown})が、どの決まりの必要単位(#{judged.join('・')})とも違います" \
+          "(決まり: #{rules.pluck('id').join('、')})。"
       end
 
       def condition_for(id)

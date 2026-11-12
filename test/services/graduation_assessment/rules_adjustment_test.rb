@@ -165,9 +165,72 @@ class GraduationAssessment
       assert_raises(ArgumentError) { Rules.adjustment('type' => 'exclude', 'category' => 'excluded') }
     end
 
-    test 'exclude は category がなければ作れない' do
+    test 'exclude は条件が1つも無ければ作れない' do
       assert_raises(ArgumentError) { Rules.adjustment('type' => 'exclude', 'reason' => 'r') }
       assert_raises(ArgumentError) { Rules.adjustment('type' => 'exclude', 'category' => '', 'reason' => 'r') }
+      assert_raises(ArgumentError) { Rules.adjustment('type' => 'exclude', 'numbers' => [], 'reason' => 'r') }
+      assert_raises(ArgumentError) { Rules.adjustment('type' => 'exclude', 'numbers' => ['  '], 'reason' => 'r') }
+    end
+
+    test 'exclude は科目番号だけの指定で作れ、名指しの科目にだけ当たる' do
+      rule = Rules.adjustment('type' => 'exclude', 'numbers' => %w[理101 農201], 'reason' => '他学部の情報系科目')
+
+      assert_equal '他学部の情報系科目', rule.reason_for('category' => 'natural', 'number' => '理101')
+      assert_equal '他学部の情報系科目', rule.reason_for('category' => 'fusion', 'number' => '農201')
+      assert_nil rule.reason_for('category' => 'natural', 'number' => '理102')
+      assert_nil rule.reason_for('category' => 'natural', 'number' => nil)
+    end
+
+    test 'exclude の科目番号は全角や空白の表記違いも同じ番号として読む' do
+      rule = Rules.adjustment('type' => 'exclude', 'numbers' => [' 理１０１ '], 'reason' => 'r')
+
+      assert_equal 'r', rule.reason_for('number' => '理101')
+      assert_equal 'r', rule.reason_for('number' => '理１０１')
+    end
+
+    test 'exclude は numbers が配列でないか、中身が文字でなければ作れない' do
+      [[123], ['理101', nil], '理101'].each do |numbers|
+        assert_raises(ArgumentError, "numbers=#{numbers.inspect}") do
+          Rules.adjustment('type' => 'exclude', 'numbers' => numbers, 'reason' => 'r')
+        end
+      end
+    end
+
+    test 'exclude は区分と科目番号の両方を書くと、両方に当たる科目だけを除外する' do
+      rule = Rules.adjustment('type' => 'exclude', 'category' => 'fusion', 'numbers' => %w[理101], 'reason' => 'r')
+
+      assert_equal 'r', rule.reason_for('category' => 'fusion', 'number' => '理101')
+      assert_nil rule.reason_for('category' => 'natural', 'number' => '理101')
+      assert_nil rule.reason_for('category' => 'fusion', 'number' => '理102')
+    end
+
+    test 'exclude の提供コースは「以外」も書ける' do
+      rule = Rules.adjustment('type' => 'exclude', 'category' => 'fusion', 'number_prefix' => '知能',
+                              'number_prefix_mode' => 'except', 'reason' => '他コース提供')
+
+      assert_equal '他コース提供', rule.reason_for('category' => 'fusion', 'number' => '機械991')
+      assert_nil rule.reason_for('category' => 'fusion', 'number' => '知能993')
+    end
+
+    test 'exclude は提供コースが「以外」でも、科目番号が読めない科目には当たらない' do
+      rule = Rules.adjustment('type' => 'exclude', 'category' => 'fusion', 'number_prefix' => '知能',
+                              'number_prefix_mode' => 'except', 'reason' => 'r')
+
+      assert_nil rule.reason_for('category' => 'fusion', 'number' => nil)
+      assert_nil rule.reason_for('category' => 'fusion', 'number' => 'ドイツ語')
+    end
+
+    test 'exclude は number_prefix_mode が知らない値なら作れない' do
+      assert_raises(ArgumentError) do
+        Rules.adjustment('type' => 'exclude', 'category' => 'fusion', 'number_prefix' => '知能',
+                         'number_prefix_mode' => 'maybe', 'reason' => 'r')
+      end
+    end
+
+    test 'exclude は提供コースの一致・以外だけを書いても、当てる接頭辞が無ければ作れない' do
+      assert_raises(ArgumentError) do
+        Rules.adjustment('type' => 'exclude', 'category' => 'fusion', 'number_prefix_mode' => 'except', 'reason' => 'r')
+      end
     end
 
     test 'exclude は number_prefix が nil・空・空白入り・全角なら作れない' do

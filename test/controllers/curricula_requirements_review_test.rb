@@ -481,8 +481,121 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_equal %w[humanities], group(draft, 'common')['rows'].pluck('id')
     assert_nil group(draft, 'elective')
     assert_empty document['display']['subtotals']
-    assert_equal([%w[rule english 2], %w[row english 2], %w[group elective 2], ['subtotal', 'sub', '']],
+    # 章「elective」を消すと、その中の行「fusion」だけが指していた決まりも消える(設計書 項目5)。
+    assert_equal([%w[rule english 2], %w[row english 2], %w[group elective 2], ['subtotal', 'sub', ''],
+                  %w[rule fusion_provider 2]],
                  document['removed_by_human'].map { |entry| [entry['kind'], entry['id'], entry['page'].to_s] })
+  end
+
+  # ---- 算入しない科目(設計書 項目9) ----
+
+  test '算入しない科目の枠に、区分・提供コース・科目番号の欄が出る' do
+    show(draft)
+
+    key = '#requirements_excludes [data-rule-box=excluded_category]'
+    assert_select "#{key} select[name=?]", 'rules[6][category]'
+    assert_select "#{key} select[name=?]", 'rules[6][number_prefix]'
+    assert_select "#{key} input[type=radio][name=?][value=?]", 'rules[6][number_prefix_mode]', 'match'
+    assert_select "#{key} input[type=radio][name=?][value=?]", 'rules[6][number_prefix_mode]', 'except'
+    assert_select "#{key} input[name=?]", 'rules[6][numbers]'
+  end
+
+  # 便覧は提供コースの名前を持たないので、科目番号の接頭辞で表す。選択肢は科目表に出てくる接頭辞から作る。
+  test '提供コースの選択肢は、科目表に出てくる接頭辞から作り、当たる科目を例示する' do
+    show(draft)
+
+    options = css_select('#requirements_excludes select[name="rules[6][number_prefix]"] option')
+    assert_equal ['', '人', '外', '知能', '機械', '情'], options.pluck('value')
+    assert_match(/機械.*熱力学/, options.find { |option| option['value'] == '機械' }.text)
+  end
+
+  test '算入しない科目の条件を直せる(区分＋提供コースの一致・以外)' do
+    draft = draft()
+    save draft, rules: [{ id: 'excluded_category', category: 'fusion', number_prefix: '機械',
+                          number_prefix_mode: 'except', reason: '他コース提供以外は算入しない' }]
+
+    assert_equal ['fusion', '機械', 'except', '他コース提供以外は算入しない', true],
+                 rule(draft, 'excluded_category').values_at('category', 'number_prefix', 'number_prefix_mode',
+                                                            'reason', 'confirmed')
+  end
+
+  test '算入しない科目を、科目番号だけで直せる(区分を空にできる)' do
+    draft = draft()
+    save draft, rules: [{ id: 'excluded_category', category: '', numbers: '情01、理101 農201' }]
+
+    excluded = rule(draft, 'excluded_category')
+    assert_not excluded.key?('category')
+    assert_equal %w[情01 理101 農201], excluded['numbers']
+  end
+
+  # 条件が全部空の除外は、すべての科目を算入から外す。保存を断る(学生の単位が黙って消える)。
+  test '条件が全部空の除外は断る' do
+    draft = draft()
+    save draft, rules: [{ id: 'excluded_category', category: '', number_prefix: '', numbers: '' }]
+
+    assert_match(/区分・提供コース.*科目番号.*を書いてください/, response.body)
+    assert_equal 'excluded', rule(draft, 'excluded_category')['category']
+  end
+
+  test '算入しない科目を足せる' do
+    draft = draft()
+    save draft, new_exclude: { category: 'fusion', number_prefix: '知能', number_prefix_mode: 'match',
+                               numbers: '', reason: '自コース提供の工学融合科目は算入不可' }
+
+    added = draft.reload.document['rules'].last
+    assert_equal ['exclude', 'fusion', '知能', '自コース提供の工学融合科目は算入不可', true],
+                 added.values_at('type', 'category', 'number_prefix', 'reason', 'confirmed')
+    assert_equal 'added_rule_1', added['id']
+    # 空の欄・既定のままの欄(「一致」)は、欄ごと持たせない。
+    assert_not added.key?('numbers')
+    assert_not added.key?('number_prefix_mode')
+  end
+
+  test '算入しない科目を、条件なしでは足せない' do
+    draft = draft()
+    save draft, new_exclude: { category: '', number_prefix: '', numbers: '', reason: '何となく' }
+
+    assert_match(/区分・提供コース.*科目番号.*を書いてください/, response.body)
+    assert_equal 7, draft.reload.document['rules'].size
+  end
+
+  test '算入しない科目を、理由なしでは足せない' do
+    draft = draft()
+    save draft, new_exclude: { category: 'fusion', reason: '' }
+
+    assert_match(/算入しない理由/, response.body)
+    assert_equal 7, draft.reload.document['rules'].size
+  end
+
+  # ---- 行を消すと、その行だけが指していた決まりも消える(設計書 項目5) ----
+
+  test '行を消すと、その行だけが指していた決まりも消える' do
+    draft = draft()
+    save draft, display: { groups: [{ id: 'common', rows: [{ id: 'english', _destroy: '1' }] }] }
+
+    document = draft.reload.document
+    assert_not_includes document['rules'].pluck('id'), 'english'
+    assert_equal([%w[row english], %w[rule english]],
+                 document['removed_by_human'].map { |entry| entry.values_at('kind', 'id') })
+  end
+
+  test '行を消しても、ほかの行や章も指している決まりは残る' do
+    document = requirements_document
+    document['display']['groups'][2]['rows'] << fixture_row('fusion2', ['fusion'], ['fusion_provider'], 2)
+    draft = draft(document: document)
+    save draft, display: { groups: [{ id: 'elective', rows: [{ id: 'fusion', _destroy: '1' }] }] }
+
+    assert_includes draft.reload.document['rules'].pluck('id'), 'fusion_provider'
+  end
+
+  test '章を消すと、その章の行だけが指していた決まりも消える' do
+    draft = draft()
+    save draft, display: { groups: [{ id: 'common', _destroy: '1' }] }
+
+    ids = draft.reload.document['rules'].pluck('id')
+    assert_not_includes ids, 'humanities'
+    assert_not_includes ids, 'english'
+    assert_includes ids, 'total'
   end
 
   test '総単位を直すと、その値を足したページの記録から外れる(読み直しで消えない)' do

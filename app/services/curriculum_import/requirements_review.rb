@@ -139,6 +139,26 @@ module CurriculumImport
     # 算入しない科目。要件ではなく除外なので、章・行のツリーには混ぜず、専用の枠に出す(設計書 項目6)。
     def exclude_rules = claim(rules.select { |rule| rule['type'] == 'exclude' })
 
+    # 提供コースの選択肢(設計書 項目9)。便覧は提供コースの名前を持たないので、科目番号の接頭辞で表す。
+    # 選択肢は科目表に出てくる接頭辞から作り、当たる科目を例示する(接頭辞だけでは、何に当たるか画面から分からない)。
+    # いま除外が名指ししている接頭辞も入れる(選択肢から外すと、送り返すだけでその条件が消えてしまう)。
+    def number_prefixes
+      @number_prefixes ||= begin
+        found = courses.group_by { |course| CourseNumber.prefix(course['number']) }.except(nil)
+        named = rules.filter_map { |rule| rule['number_prefix'] if rule['number_prefix'].is_a?(String) }
+        (found.keys + named).uniq.map { |prefix| [prefix, found.fetch(prefix, []).pluck('name')] }
+      end
+    end
+
+    # 名指しの科目番号が、科目表のどの科目に当たるか。当たらない番号は、科目表に無いことが分かるように出す。
+    def named_courses(numbers)
+      Array(numbers).grep(String).map do |number|
+        wanted = CourseNumber.normalize(number)
+        course = courses.find { |item| CourseNumber.normalize(item['number']) == wanted }
+        [number, course&.dig('name')]
+      end
+    end
+
     # ここまでのどの枠も出さなかった決まり。読み取り直後にどこからも指されていない決まりも、黙って隠さない
     # (設計書 項目6)。ツリー・除外の枠をすべて描いたあとに呼ぶこと。
     def unclaimed_rules = claim(rules)

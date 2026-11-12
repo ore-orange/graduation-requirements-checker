@@ -72,11 +72,18 @@ module CurriculumImport
         @context = nil
       end
 
+      # 空にした欄は、欄ごと消す(欄があって空だと、読み込みが拒むか、何にも当たらない条件になる)。
       def store(item, field, kind, value)
-        if value.nil? && kind == :optional_text
-          item.delete(field)
-        else
-          item[field] = value
+        drop_field?(kind, value) ? item.delete(field) : item[field] = value
+      end
+
+      def drop_field?(kind, value)
+        case kind
+        when :optional_text then value.nil?
+        when :optional_list then Array(value).empty?
+        # 「一致 / 以外」の既定(一致)は、欄を持たないことで表す(Rules::Exclude の既定と同じ)。
+        when :prefix_mode then value.nil? || value == Coercion::PREFIX_MODE_DEFAULT
+        else false
         end
       end
 
@@ -95,14 +102,16 @@ module CurriculumImport
 
       # 消したものを記録する。読み直しが、同じ id(と、付け替わった id の元の由来)を戻さないように。
       # removed には消した id を積む。戻り値は nil。
-      def discard(item, kind, removed = [], group_id = nil)
+      # touch が false なら、その項目を「直した」欄として開いたままにはしない(人が触ったのは、消した行の方で、
+      # 決まりは連れて消えただけ)。
+      def discard(item, kind, removed = [], group_id = nil, touch: true)
         removed << item['id']
         page = owner_page(kind, item['id'], group_id)
         origin = page&.dig('contributed', 'origins', ORIGIN_FIELD.fetch(kind), item['id'])
         (@document[DraftMerge::REMOVED] ||= []) << { 'kind' => kind, 'id' => item['id'], 'page' => page&.dig('page'),
                                                      'origin' => origin }.compact
         @edited += 1
-        @touched << [kind, item['id']]
+        @touched << [kind, item['id']] if touch
         @notes << "#{KIND_NAMES.fetch(kind)}「#{item['id']}」を消しました。読み直しても戻りません。"
         nil
       end

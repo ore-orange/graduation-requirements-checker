@@ -79,7 +79,8 @@ module RequirementsReviewHelper
   RULE_TARGET_FIELDS = %w[categories category required_categories].freeze
   # 対象の区分のほかに、判定が当たる範囲を決める欄。これも畳まない
   # (必修の科目数・グループの分け方・科目番号の接頭辞を読み違えると、判定が変わる)。
-  RULE_SHOWN_FIELDS = %w[expected_course_count group_by number_prefix].freeze
+  # 算入しない科目の条件と理由も、畳まない(設計書 項目9)。当たる科目の単位は、修得していても消える。
+  RULE_SHOWN_FIELDS = %w[expected_course_count group_by number_prefix number_prefix_mode numbers reason].freeze
   # 経路・選択肢・条件は、1つの欄ではなく繰り返しの行で出す。
   RULE_NESTED_KINDS = %i[paths options conditions].freeze
 
@@ -123,7 +124,7 @@ module RequirementsReviewHelper
 
   # 規則の1つの欄の入力。欄の種類は RequirementsEdit.rule_fields と同じ表から決まる。
   def rule_field_input(name, field, kind, rule, review)
-    hint = field == 'number_prefix' ? '(空なら区分の全体)' : ''
+    hint = rule['type'] == 'exclude' ? RequirementsExcludeHelper::FIELD_HINTS[field].to_s : ''
     label = tag.span("#{FIELD_NAMES.fetch(field, field)}#{hint}", class: 'text-xs font-semibold text-slate-700')
     tag.div(label + rule_field_control(name, field, kind, rule[field], review), class: 'space-y-1')
   end
@@ -132,6 +133,9 @@ module RequirementsReviewHelper
     return category_chips(name, value, review, label: nil) if kind == :set
     return rv_number(name, value, id: nil, class: "w-28 #{FIELD_CLASS}") if %i[number count].include?(kind)
     return category_select(name, value, review) if field == 'category'
+    return prefix_select(name, value, review) if field == 'number_prefix'
+    return prefix_mode_picks(name, value) if field == 'number_prefix_mode'
+    return number_list_field(name, value, review) if kind == :optional_list
 
     rv_text(name, value, id: nil, class: "w-full #{FIELD_CLASS}")
   end

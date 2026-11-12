@@ -10,6 +10,7 @@ module CurriculumImport
       TRUE_VALUES = [true, '1', 'true', 'on'].freeze
       FALSE_VALUES = [false, nil, '', '0', 'false', 'off'].freeze
       NUMBER = /\A-?\d+(\.\d+)?\z/
+      PREFIX_MODE_DEFAULT = 'match'
       # 欄が無いときの値(画面の初期の表示と、判定の読み方に合わせる)。
       FLAG_DEFAULTS = { 'counts_toward_total' => true, 'credits_from_check' => false }.freeze
 
@@ -17,11 +18,11 @@ module CurriculumImport
 
       def coerce(value, kind, name)
         case kind
-        when :text, :optional_text then text(value, name)
+        when :text, :optional_text, :prefix_mode then text(value, name)
         when :number then number(value, name)
         when :count then count(value, name)
         when :flag then flag(value, name)
-        when :list, :set then list(value, name)
+        when :list, :set, :optional_list then list(value, name)
         else nested_coerce(value, kind, name)
         end
       end
@@ -72,6 +73,12 @@ module CurriculumImport
         items.filter_map { |item| item.to_s.strip.presence }
       end
 
+      # 「一致 / 以外」は欄が無ければ「一致」(Rules::Exclude の既定)。画面は既定を選んだまま毎回送り返すので、
+      # 欄が無いことと「一致」を同じ値として見ないと、触っていない除外に確認済みの印が付く。
+      def other_baseline(kind, current)
+        kind == :prefix_mode ? current.presence || PREFIX_MODE_DEFAULT : current
+      end
+
       def invalid(message)
         error(message)
         :invalid
@@ -106,9 +113,9 @@ module CurriculumImport
       def baseline(kind, field, current)
         case kind
         when :text, :optional_text then current.is_a?(String) ? normalize(current) : current
-        when :list, :paths, :options, :conditions then Array(current)
+        when :list, :optional_list, :paths, :options, :conditions then Array(current)
         when :flag then current.nil? ? FLAG_DEFAULTS.fetch(field, false) : current
-        else current
+        else other_baseline(kind, current)
         end
       end
     end
