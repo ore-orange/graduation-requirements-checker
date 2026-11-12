@@ -75,8 +75,8 @@
     <% if @overview %>
       <%= render 'plans/overview', credits_of_term: credits_of_term, overall_credit: overall_credit, mapped_categories: mapped_categories %>
     <% else %>
-      <%# 左に学期の表、右に便覧カタログのパネル（開いているときだけ）。せまい画面では縦に並ぶ %>
-      <div class="flex flex-col lg:flex-row lg:items-start gap-6">
+      <%# 左に学期の表、右に便覧カタログのパネル（開いているときだけ）。せまい画面ではパネルは画面の右側に重なる %>
+      <div class="flex flex-col xl:flex-row xl:items-start gap-6">
         <div class="min-w-0 flex-1">
           <%= render 'plans/term_table', term_credit: credits_of_term.fetch(@term), mapped_categories: mapped_categories %>
         </div>

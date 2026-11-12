@@ -1,7 +1,10 @@
 <%# 便覧カタログ (#catalogue)。学期の表の右に並ぶパネル。科目名・科目番号で検索して、どの区分の科目かを調べ、表示中の学期（@term）の予定として追加できる %>
-<%# 広い画面では、表をスクロールしてもパネルが画面に残るようにする（top-20 は上のナビの高さぶん） %>
+<%# せまい画面（幅1280未満）では、表と並べる場所がないので、画面の右側に重ねて出す %>
+<%# スマホではナビが2段になるので、ナビの上まで重ねる（z-40）。lg 以上ではナビ（z-30、高さ4rem）の下に出す %>
+<%# 広い画面（xl 以上）では表の右に並べ、表をスクロールしてもパネルが画面に残るようにする %>
 <aside id="catalogue" aria-labelledby="catalogue-heading"
-       class="w-full lg:w-80 xl:w-96 shrink-0 flex flex-col bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)]">
+       class="fixed z-40 top-0 lg:z-20 lg:top-16 right-0 bottom-0 w-full max-w-sm flex flex-col bg-white border-l border-slate-200 shadow-xl p-4
+              xl:sticky xl:z-auto xl:top-20 xl:right-auto xl:bottom-auto xl:w-96 xl:shrink-0 xl:max-h-[calc(100vh-6rem)] xl:rounded-2xl xl:border xl:border-slate-200/80 xl:shadow-xs">
   <div class="flex items-start justify-between gap-2">
     <div>
       <h2 id="catalogue-heading" class="text-base font-bold text-slate-900">便覧から探す</h2>
@@ -40,8 +43,8 @@
   <% if @catalogue.empty? %>
     <p class="mt-3 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語や区分を変更してください。</p>
   <% else %>
-    <%# せまい画面では高さを決めて中でスクロール。広い画面ではパネルの残りの高さを使う %>
-    <ul class="mt-2 divide-y divide-slate-100 overflow-y-auto pr-1 max-h-96 lg:max-h-none lg:min-h-0 lg:flex-1">
+    <%# パネルの残りの高さを使い、リストの中でスクロールする %>
+    <ul class="mt-2 divide-y divide-slate-100 overflow-y-auto pr-1 min-h-0 flex-1">
       <% @catalogue.each do |course| %>
         <% unavailable = catalogue_availability(course, unavailable_keys: @unavailable_keys, persisted_keys: @persisted_keys) %>
         <li class="py-2.5" data-catalogue-key="<%= course.fetch('key') %>">
