@@ -110,14 +110,15 @@ class RuleEditingTest < ActiveSupport::TestCase
     assert_not result.ok?
   end
 
-  # ---- 規則を足す(JSON ではなく、型と欄から) ----
+  # ---- 規則を足す(JSON でも id でもなく、型と欄から) ----
+  # 人は規則の id を一度も打たない。id はアプリが裏で振る(設計書 項目5)。
 
-  test '新しい規則をJSONを使わず型と欄から足す' do
-    result = edit(new_rule: { type: 'credit_sum', id: 'added_one', label: '追加分',
+  test '新しい規則をJSONを使わず型と欄から足す。id は自動で付く' do
+    result = edit(new_rule: { type: 'credit_sum', label: '追加分',
                               categories: %w[humanities], required_credits: '2' })
 
     assert result.ok?, result.errors.join('/')
-    rule = rule_after('added_one')
+    rule = rule_after('added_rule_1')
     assert_equal 'credit_sum', rule['type']
     assert_equal %w[humanities], rule['categories']
     assert_equal 2, rule['required_credits']
@@ -126,44 +127,49 @@ class RuleEditingTest < ActiveSupport::TestCase
   end
 
   test '足す規則の経路も、欄から組む' do
-    edit(new_rule: { type: 'one_of_paths', id: 'added_paths', label: '足した経路',
+    edit(new_rule: { type: 'one_of_paths', label: '足した経路',
                      paths: { 'a' => { roles: %w[role_a] }, 'b' => { roles: %w[role_b] } } })
 
-    assert_equal [%w[role_a], %w[role_b]], rule_after('added_paths')['paths']
+    assert_equal [%w[role_a], %w[role_b]], rule_after('added_rule_1')['paths']
   end
 
   test '足す規則の選択肢も、欄から組む' do
-    edit(new_rule: { type: 'any_of', id: 'added_any', label: '足した選択',
+    edit(new_rule: { type: 'any_of', label: '足した選択',
                      options: { 'a' => { type: 'credit_sum', categories: %w[english], required_credits: '2' } } })
 
     assert_equal [{ 'type' => 'credit_sum', 'categories' => %w[english], 'required_credits' => 2 }],
-                 rule_after('added_any')['options']
+                 rule_after('added_rule_1')['options']
   end
 
-  test '足す規則に id が無ければ断る' do
-    result = edit(new_rule: { type: 'credit_sum', id: '', categories: %w[humanities], required_credits: '2' })
+  # 結びつける先を選ぶと、id はその行・章・枠の id から作る(<行の id>_c1)。
+  test '足す規則の id は、結びつける先の id から作る' do
+    result = edit(new_rule: { type: 'credit_sum', label: '追加分', link: 'row:humanities',
+                              categories: %w[humanities], required_credits: '2' })
 
-    assert_not result.ok?
-    assert_match(/id/, result.errors.join)
+    assert result.ok?, result.errors.join('/')
+    assert_equal 'credit_sum', rule_after('humanities_c1')['type']
   end
 
-  test '足す規則の id が既にあれば断る' do
-    result = edit(new_rule: { type: 'credit_sum', id: 'humanities', categories: %w[humanities],
-                              required_credits: '2' })
+  # 自動で振る id が既にあるときは、重ならない番号まで進める。
+  test '規則を続けて足すと、id の番号が進む' do
+    edit(new_rule: { type: 'credit_sum', label: 'さき', categories: %w[english], required_credits: '2' })
+    result = edit(new_rule: { type: 'credit_sum', label: 'あと', categories: %w[humanities], required_credits: '2' })
 
-    assert_not result.ok?
+    assert result.ok?, result.errors.join('/')
+    assert_equal 'さき', rule_after('added_rule_1')['label']
+    assert_equal 'あと', rule_after('added_rule_2')['label']
   end
 
   test '足す規則の型が空なら、何も足さない(画面は空の組を毎回送る)' do
     before = document_after['rules'].size
-    result = edit(new_rule: { type: '', id: '', label: '' })
+    result = edit(new_rule: { type: '', label: '' })
 
     assert result.ok?
     assert_equal before, document_after['rules'].size
   end
 
   test '足す規則の型が知らないものなら断る' do
-    result = edit(new_rule: { type: 'nonsense', id: 'added_bad' })
+    result = edit(new_rule: { type: 'nonsense', label: 'あやしい' })
 
     assert_not result.ok?
   end
@@ -210,14 +216,14 @@ class RuleEditingTest < ActiveSupport::TestCase
   # 画面は種類ごとの欄を全部出す(JavaScript が動かないときも書けるように)。同じ名前で出すと、
   # 選んだ種類の値を、別の種類の空欄が後から上書きしてしまう。
   test '足す規則の欄は種類ごとに分かれていて、別の種類の空欄に消されない' do
-    result = edit(new_rule: { type: 'credit_sum', id: 'added_scoped', label: '追加',
+    result = edit(new_rule: { type: 'credit_sum', label: '追加',
                               fields: { 'credit_sum' => { categories: %w[humanities], required_credits: '2' },
                                         'grouped_max' => { category: '', group_by: '', required_credits: '' },
                                         'all_required' => { required_credits: '', expected_course_count: '' } } })
 
     assert result.ok?, result.errors.join('/')
-    assert_equal 2, rule_after('added_scoped')['required_credits']
-    assert_equal %w[humanities], rule_after('added_scoped')['categories']
+    assert_equal 2, rule_after('added_rule_1')['required_credits']
+    assert_equal %w[humanities], rule_after('added_rule_1')['categories']
   end
 
   # ---- 要確認の文面も欄から直す ----

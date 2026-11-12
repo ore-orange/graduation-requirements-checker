@@ -1,0 +1,54 @@
+<%# 章1つ。章も「◯以上〜◯以下」を持つ(設計書 項目3・5)。 %>
+<%#
+  章が単位を持てるようにしたのが、設計書 項目5 の肝。複数の行から指されていた「まとめた合計」の決まりは、
+  まとめている側(章・枠)に出し、行には出さない。
+  中身は、枠(小計)と行が混ざったツリー(review.nodes_of)。枠の中の行は、枠が描く。
+%>
+<% group_key = "display[groups][#{group_index}]" %>
+<% shown_rules = review.rules_under(group['check_id']) %>
+<% field_class = RequirementsReviewHelper::FIELD_CLASS %>
+<section id="group-<%= group['id'] %>" data-reorder-target="item"
+         class="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+  <div class="flex flex-wrap items-center gap-2.5">
+    <%= render 'requirements_reorder', noun: '章' %>
+    <%= hidden_field_tag "#{group_key}[id]", group['id'], id: nil %>
+    <label class="block">
+      <span class="sr-only">章の名前</span>
+      <%= rv_text "#{group_key}[title]", group['title'], id: nil,
+                  class: "w-64 font-bold text-slate-900 #{field_class}" %>
+    </label>
+    <%= credit_range(["#{group_key}[required_credits]", group['required_credits']], review.upper_limit(shown_rules)) %>
+    <% if human_confirmed?(group) %><span class="rv-confirmed">人が確認した</span><% end %>
+    <details class="ml-auto text-xs" <%= 'open' if review.open?('group', group['id']) %>>
+      <summary class="rv-more"
+               title="この章の、詳しい設定">…</summary>
+      <label class="mt-1 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-rose-800">
+        <%= rv_check "#{group_key}[_destroy]", '1', false, id: nil %>
+        この章を消す(読み直しても戻りません。行も一緒に消えます)
+      </label>
+    </details>
+  </div>
+
+  <%= render 'requirements_finding_notes', findings: review.findings_for(:display, group['id']) %>
+  <%= render 'requirements_problems', review: review, kind: 'group', id: group['id'] %>
+
+  <% if shown_rules.any? %>
+    <div class="mt-2 space-y-2">
+      <% shown_rules.each do |rule| %>
+        <%= render 'requirements_rule', review: review, rule: rule %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <div class="mt-4 ml-4 space-y-3 border-l-2 border-indigo-200 pl-4" data-controller="reorder">
+    <% review.nodes_of(group_index).each do |node, row_index| %>
+      <% if node.is_a?(CurriculumImport::RequirementsReview::Tree::Frame) %>
+        <%= render 'requirements_frame', review: review, frame: node, group_key: group_key %>
+      <% else %>
+        <div data-reorder-target="item">
+          <%= render 'requirements_row', review: review, row: node, row_key: "#{group_key}[rows][#{row_index}]" %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</section>

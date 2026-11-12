@@ -18,9 +18,12 @@
                   class: 'space-y-8 p-5 sm:p-6', data: { turbo: false } do |form| %>
       <%= hidden_field_tag :revision, review.revision, id: nil %>
       <%= hidden_field_tag :form, 'requirements', id: nil %>
+      <%# 描く順に意味がある。決まりの欄は、この画面で最初にその決まりを出した枠だけが持つ(claim_rule_box?)。
+          総単位の枠とツリー(requirements_table) → 算入しない科目 → 残りを引き受ける「結びついていない決まり」。 %>
       <%= render 'requirements_table', review: review %>
-      <%= render 'requirements_categories', review: review %>
+      <%= render 'requirements_excludes', review: review %>
       <%= render 'requirements_rules', review: review %>
+      <%= render 'requirements_categories', review: review %>
       <%= render 'requirements_additions', review: review %>
       <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
         <p class="text-xs text-slate-600">

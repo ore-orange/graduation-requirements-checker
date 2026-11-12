@@ -1,0 +1,57 @@
+<%# 決まり1つ。章・枠・行の下、総単位の枠、算入しない科目の枠、結びついていない決まりの枠で、同じ形で出す。 %>
+<%#
+  常時出すのは、判定の数字を決める値(「◯以上〜◯以下」・対象の区分・入れ子の経路と条件)と、
+  PDFと突き合わせる手がかり(出典)だけ(設計書 項目3・7)。名前・注記・要確認の理由・この決まりを消す は「…」の中。
+  欄は1ページにつき1組だけ(presenter の claim_rule_box? が、同じ決まりを2か所に出させない)。
+%>
+<% key = rule_param_key(rule, review) %>
+<% fields = rule_field_groups(rule) %>
+<% logic = rule_logic_label(rule) %>
+<div id="rule-<%= rule['id'] %>" data-rule-box="<%= rule['id'] %>"
+     class="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+  <%= hidden_field_tag "#{key}[id]", rule['id'], id: nil %>
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <div class="flex flex-wrap items-center gap-2">
+      <% if logic %>
+        <span data-rule-logic="<%= logic %>" class="rounded-md bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
+          <%= logic == 'AND' ? 'AND (すべて満たす)' : 'OR (いずれか満たす)' %>
+        </span>
+      <% end %>
+      <span class="text-sm font-bold text-slate-800"><%= rule['label'].presence || rule_type_name(rule['type']) %></span>
+      <span class="text-xs text-amber-800"><%= rule_type_name(rule['type']) %></span>
+      <% if human_confirmed?(rule) %><span class="rv-confirmed">人が確認した</span><% end %>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <%# cap は台帳全体のその区分に掛かる調整で、行や章には閉じていない。その場に書いておく(設計書 項目4) %>
+      <%= credit_range(fields[:lower] ? ["#{key}[#{RequirementsReviewHelper::RULE_LOWER_FIELD}]", rule['required_credits']] : nil,
+                       fields[:upper] ? ["#{key}[#{RequirementsReviewHelper::RULE_UPPER_FIELD}]", rule['credits']] : nil,
+                       note: rule['type'] == 'cap' ? '便覧全体で' : nil) %>
+      <%= render 'requirements_rule_more', review: review, rule: rule, key: key, fields: fields %>
+    </div>
+  </div>
+
+  <%# 出典は、PDFと突き合わせる唯一の手がかりなので畳まない(設計書 項目7) %>
+  <p class="mt-1 text-xs text-slate-500">出典 <%= rule['source_page'].presence || '(なし)' %></p>
+
+  <%# 対象の区分と、判定が当たる範囲を決める欄(必修の科目数・グループの分け方・科目番号の接頭辞)は畳まない %>
+  <% if fields[:target].any? || fields[:shown].any? %>
+    <div class="mt-1.5 flex flex-wrap items-end gap-3 text-xs">
+      <% (fields[:target] + fields[:shown]).each do |field, kind| %>
+        <div class="<%= 'w-full' if kind == :set %>">
+          <%= rule_field_input "#{key}[#{field}]", field, kind, rule, review %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%= render 'requirements_finding_notes', findings: review.findings_for(:rule, rule['id']) %>
+  <%= render 'requirements_problems', review: review, kind: 'rule', id: rule['id'] %>
+
+  <% if fields[:nested].any? %>
+    <div class="mt-2 ml-3 space-y-2 border-l-2 border-amber-300 pl-3">
+      <%= render 'requirements_rule_nested', review: review, rule: rule, key: key %>
+    </div>
+  <% end %>
+
+  <% if rule['detail'].present? %><p class="mt-1 text-xs text-amber-900"><%= rule['detail'] %></p><% end %>
+</div>

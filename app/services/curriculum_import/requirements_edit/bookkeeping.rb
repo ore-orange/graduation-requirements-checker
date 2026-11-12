@@ -40,7 +40,8 @@ module CurriculumImport
           fields.filter_map do |field, type|
             next unless entry.key?(field)
 
-            value = coerce(entry[field], type, "#{KIND_NAMES.fetch(kind)}「#{id}」の#{FIELD_LABELS.fetch(field, field)}")
+            value = coerce(submitted(entry, field, type), type,
+                           "#{KIND_NAMES.fetch(kind)}「#{id}」の#{FIELD_LABELS.fetch(field, field)}")
             next if value == :invalid || same?(type, field, value, item[field])
 
             store(item, field, type, value)
@@ -49,6 +50,18 @@ module CurriculumImport
         end
         @touched << [kind, id] if changed.any?
         changed
+      end
+
+      # 送られた値。区分の集合(:set)だけは、画面が2つの欄で送る(設計書 項目2)。
+      #   categories      … いま選んである区分のチップ(外したチップは送られない)
+      #   add][categories … 「＋」で選んだ、足す区分
+      # 便覧の区分を23個のチェックとして毎行に並べると、1画面が重くなるので、足す側は選択肢1つにしている。
+      # 同じ値を2か所から送ることにはならない(チップに無い区分だけが、足す側の選択肢に出る)。
+      def submitted(entry, field, type)
+        added = entry[:add][field] if type == :set && entry[:add].is_a?(Hash)
+        return entry[field] if added.blank?
+
+        ([entry[field]] + [added]).flatten.compact.uniq
       end
 
       # ブロックの中で積む問題を、この項目のものにする。

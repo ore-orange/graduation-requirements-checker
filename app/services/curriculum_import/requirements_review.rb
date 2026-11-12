@@ -7,6 +7,8 @@ module CurriculumImport
   # 画面がそれで落ちると、壊れた下書きを直す画面そのものが開けなくなるので、画面は Input を通して読む。
   class RequirementsReview
     SCOPE_NAMES = { course: '科目', rule: '規則', display: '画面の表', document: '文書全体' }.freeze
+    # 決まりが「何を数えるか」を書く欄。行の区分が空のとき、指す決まりの区分で代える。
+    CATEGORY_FIELDS = %w[category categories].freeze
 
     # 保存できなかった送信の、送られたままの入力(欄の名前 → 値)。画面を同じ入力で開き直すために持つ。
     # 画面のフォームごとに、持ち主を見分ける(要件表のフォームは form=requirements を送る)。
@@ -45,6 +47,17 @@ module CurriculumImport
     def field_checked?(name, value, default)
       @submission&.main_form? ? @submission.values(name).include?(value) : default
     end
+
+    # チップに出す区分。保存できなかった送信があれば、そのとき送られていた区分を出す
+    # (1つの打ち間違いで、選び直しをさせない)。「＋」で足した区分も、送られていればチップになる。
+    def chosen_categories(name, default)
+      return Array(default).grep(String) unless @submission&.main_form?
+
+      (@submission.values("#{name}[]") + [@submission.value(adder_name(name))]).grep(String).compact_blank.uniq
+    end
+
+    # categories → add][categories。画面の欄の名前の作り方と揃える(RequirementsReviewHelper#adder_name)。
+    def adder_name(name) = name.sub(/\[([^\[\]]+)\]\z/) { "[add][#{Regexp.last_match(1)}]" }
 
     def problems_for(kind, id) = problems.select { |problem| problem.kind == kind && problem.id == id.to_s }
 
@@ -107,6 +120,61 @@ module CurriculumImport
       @claimed_rule_boxes.add?(id).present?
     end
 
+    # ---- ツリー(設計書 項目4・6・10) ----
+
+    def tree = @tree ||= Tree.new(input)
+
+    delegate :nodes_of, :loose_subtotals, to: :tree
+
+    # 章・枠の下に出す決まり。その決まりの欄は、ここで初めて出す1か所だけが持つ。
+    def rules_under(ids) = claim(find_rules(ids))
+
+    # 行の下に出す決まり。行が指す決まりと、この行の区分に掛かる算入上限(設計書 項目4)。
+    def rules_under_row(row) = claim(find_rules(row['check_ids']) + tree.caps_of(row))
+
+    # 卒業に必要な総単位に当たる決まり。「卒業に必要な総単位」の枠に、その数字と一緒に出す(設計書 項目6)。
+    # 見つけ方は Validation::DisplayChecks#total_rule と同じ(必要単位が総単位と同じ credit_sum)。
+    def total_rule = @total_rule ||= claim(find_total_rule).first
+
+    # 算入しない科目。要件ではなく除外なので、章・行のツリーには混ぜず、専用の枠に出す(設計書 項目6)。
+    def exclude_rules = claim(rules.select { |rule| rule['type'] == 'exclude' })
+
+    # ここまでのどの枠も出さなかった決まり。読み取り直後にどこからも指されていない決まりも、黙って隠さない
+    # (設計書 項目6)。ツリー・除外の枠をすべて描いたあとに呼ぶこと。
+    def unclaimed_rules = claim(rules)
+
+    # 行が対象にしている区分の科目を、区分ごとに。区分が空の行(単位を決まりから取る行)は、
+    # 指す決まりが数える区分で代える(DisplayChecks#shown_categories と同じ読み方)。
+    def courses_of_row(row)
+      categories_of_row(row).uniq.map { |key| [key, input.courses_in(key)] }
+    end
+
+    def course_count_of_row(row) = courses_of_row(row).sum { |_, courses| courses.size }
+
+    # 「◯単位以下」に出す数。中にある算入上限の決まりが1つのときだけ数で出す
+    # (2つ以上あるときは、それぞれの決まりの箱で読む)。
+    def upper_limit(shown_rules)
+      caps = shown_rules.select { |rule| rule['type'] == 'cap' }
+      caps.one? ? caps.first['credits'] : nil
+    end
+
+    # 行の名前。小計がまとめている行を、id ではなく人が読める名前で出すために引く。
+    def row_names(ids)
+      Array.wrap(ids).grep(String).map do |id|
+        input.rows.find { |row| row['id'] == id }&.dig('name').presence || "#{id}(行が見つかりません)"
+      end
+    end
+
+    # 決まりを結びつける先の選択肢。人は id を打たず、章・枠・行を名前で選ぶ(設計書 項目5)。
+    # 値は "種類:id"。章の check_id は単数なので、すでに決まりを持つ章は選べない(設計書 項目6)。
+    def link_targets
+      groups.filter_map { |group| ["章: #{group['title']}", "group:#{group['id']}"] if group['check_id'].blank? } +
+        subtotals.map { |subtotal| ["枠: #{subtotal['name']}", "subtotal:#{subtotal['id']}"] } +
+        groups.flat_map do |group|
+          rows_of(group).map { |row| ["行: #{group['title']} / #{row['name']}", "row:#{row['id']}"] }
+        end
+    end
+
     def removed_items
       Array(curriculum.document.is_a?(Hash) ? curriculum.document[DraftMerge::REMOVED] : nil).grep(Hash)
     end
@@ -115,6 +183,38 @@ module CurriculumImport
 
     def input
       @input ||= Validation::Input.new(curriculum.document, curriculum.pages)
+    end
+
+    # 同じ決まりを2か所に出さない。id の重複も落とす(1つの行が同じ id を2回指していても、欄は1組)。
+    def claim(candidates)
+      candidates.uniq { |rule| rule['id'] }.select { |rule| claim_rule_box?(rule['id']) }
+    end
+
+    def find_rules(ids)
+      Array.wrap(ids).grep(String).filter_map { |id| rules.find { |rule| rule['id'] == id } }
+    end
+
+    def find_total_rule
+      total = display['total_credits']
+      return [] unless total.is_a?(Numeric)
+
+      [rules.find do |rule|
+        rule['type'] == 'credit_sum' && rule['required_credits'] == total && linked_rule_ids.exclude?(rule['id'])
+      end].compact
+    end
+
+    # 章・行・小計のどれかが指している決まりの id。
+    def linked_rule_ids
+      @linked_rule_ids ||= (groups.flat_map { |group| Array.wrap(group['check_id']) } +
+                            input.rows.flat_map { |row| Array.wrap(row['check_ids']) } +
+                            subtotals.flat_map { |subtotal| Array.wrap(subtotal['check_ids']) }).grep(String).uniq
+    end
+
+    def categories_of_row(row)
+      own = Array(row['categories']).grep(String)
+      return own if own.any?
+
+      find_rules(row['check_ids']).flat_map { |rule| CATEGORY_FIELDS.flat_map { |f| Array(rule[f]).grep(String) } }
     end
 
     # 規則も区分も表も無くても、読み取りが終わっていれば(承認の警告や欠けは)見せる。

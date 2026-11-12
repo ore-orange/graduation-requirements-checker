@@ -25,24 +25,56 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
 
   # ---- 判定の数字を決める値が、開かなくても見える ----
 
-  test '算入の上限・除外の接頭辞・経路・入れ子の選択肢の必要単位が、表に出る(実物の2024年度)' do
-    show(draft(document: real_document))
-
-    assert_select '#rule-natural_cap', text: /算入の上限\(単位\): 2/
-    assert_select '#rule-own_fusion', text: /科目番号の接頭辞: 知能/
-    assert_select '#rule-excluded_category', text: /科目番号の接頭辞: なし\(区分の全体\)/
-    assert_select '#rule-foreign_language', text: /選択肢1: 区分の合計単位/
-    assert_select '#rule-foreign_language', text: /必要単位: 12/
-    assert_select '#rule-foreign_language', text: /条件2: 同じ提供元・言語から/
-    assert_select '#rule-calculus', text: /経路1: calculus_st_1\(.*\) ＋ calculus_st_2/
-    assert_select '#rule-calculus', text: /経路2: calculus_intro_1/
+  # 判定の数字を決める値は、読むだけでなく、その場で直せる欄に出ている。
+  # 畳んだ中(「…」)に入れてはいけない。畳んだ中の誤読は、人が開かないと見つからない(設計書 項目3・7)。
+  def field_in(selector, name)
+    field = css_select("#{selector} [name='#{name}']").first
+    assert_not_nil field, "#{name} が #{selector} にありません"
+    assert_empty field.ancestors('details'), "#{name} が畳んだ中にあります"
+    field
   end
 
-  test '要確認の理由(review_note)が、規則の下に出る(実物の2024年度)' do
+  test '算入の上限・除外の接頭辞・必修の科目数・グループの分け方が、畳まずに直せる欄に出る(実物の2024年度)' do
+    show(draft(document: real_document))
+    index = ->(id) { css_select("#rule-#{id} input[name$='[id]']").first['name'][/\d+/] }
+
+    assert_equal '2', field_in('#rule-natural_cap', "rules[#{index.call('natural_cap')}][credits]")['value']
+    assert_equal '知能', field_in('#rule-own_fusion', "rules[#{index.call('own_fusion')}][number_prefix]")['value']
+    assert_equal '', field_in('#rule-excluded_category',
+                              "rules[#{index.call('excluded_category')}][number_prefix]")['value'].to_s
+    assert_equal '31', field_in('#rule-required_all',
+                                "rules[#{index.call('required_all')}][expected_course_count]")['value']
+    assert_equal 'number_prefix', field_in('#rule-fusion_provider',
+                                           "rules[#{index.call('fusion_provider')}][group_by]")['value']
+  end
+
+  # 入れ子(any_of の選択肢・one_of_paths の経路)の中身も、畳まずに繰り返しの行で出す。
+  test '入れ子の選択肢の必要単位と、経路の役割が、畳まずに出る(実物の2024年度)' do
     show(draft(document: real_document))
 
-    assert_select '#rule-calculus', text: /要確認の理由: 微分積分学の系列が混在・重複しており/
-    assert_select '#rule-physics', text: /要確認の理由: 物理学の代替科目を重複して/
+    assert_select '#rule-foreign_language [data-rule-conditions=?]', 'foreign_language' do
+      assert_select "input[value='12']"
+      assert_select 'select option[selected][value=?]', 'grouped_max'
+    end
+    assert_select '#rule-calculus [data-rule-paths=?]', 'calculus', text: /経路1/
+    assert_select '#rule-calculus input[type=checkbox][value=?][checked]', 'calculus_st_1'
+    assert_select '#rule-calculus input[type=checkbox][value=?][checked]', 'calculus_intro_1'
+    css_select('#rule-calculus [data-rule-paths] input[type=checkbox]').each do |box|
+      assert_empty box.ancestors('details'), '経路が畳んだ中にあります'
+    end
+  end
+
+  # 要確認の理由は、全学生の判定を「要確認」にし、学生の画面に出る値。人が外せること(設計書 項目7)。
+  test '要確認の理由(review_note)は、決まりの「…」の欄から外せる(実物の2024年度)' do
+    draft = draft(document: real_document)
+    show(draft)
+    index = css_select("#rule-calculus input[name$='[id]']").first['name'][/\d+/]
+
+    note = css_select("#rule-calculus [name='rules[#{index}][review_note]']").first
+    assert_match(/微分積分学の系列が混在・重複しており/, note['value'])
+
+    save draft, rules: [{ id: 'calculus', review_note: '' }]
+    assert_nil rule(draft, 'calculus')['review_note']
   end
 
   test '保存の宛先の URL を GET で開き直しても、404 にならず、確認画面へ戻る' do
@@ -52,12 +84,14 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     assert_redirected_to "/curricula/#{draft.id}#requirements_review"
   end
 
+  # 科目が1つも無い役割を名指しする経路は、その規則が必ず要確認になる。突き合わせが理由を言う。
   test '経路が名指しする役割に科目が1つも無ければ、そう出る' do
     document = requirements_document
     document['rules'].find { |rule| rule['id'] == 'path_rule' }['paths'] = [['no_such_role']]
     show(draft(document: document))
 
-    assert_select '#rule-path_rule', text: /経路1: no_such_role\(科目なし\)/
+    assert_select '#rule-path_rule input[type=checkbox][value=?][checked]', 'no_such_role'
+    assert_select '#rule-path_rule', text: /役割\(no_such_role\)を持つ科目が、科目表にありません/
   end
 
   test '上限と接頭辞は、欄で直せ、直すと印が付く。接頭辞を空にすると欄ごと消える' do
@@ -123,8 +157,10 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     # 変えた項目と問題のある項目は、開いたまま見せる
     assert_select '#rule-humanities details[open]'
     assert_select '#rule-english details[open]'
-    # 章・行は畳まないので、開き直す必要が無い(打った値は上のとおり、そのまま出ている)
-    assert_select '#group-common details', count: 0
+    # 章・行の値そのものは畳まないので、打った値はそのまま出ている(上のとおり)。
+    # 畳むのは「…」の中の、判定の数字を決めない値だけ。値を変えた項目は、その「…」も開いたまま見せる。
+    assert_select '#group-common > div > details[open]'
+    # 触っていない項目の「…」は開かない
     assert_select '#rule-core details[open]', count: 0
   end
 
@@ -238,10 +274,15 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     show(draft)
 
     # 畳まずに、最初から見えている(開かないと気づかない入口にしない)
-    assert_select '#requirements_additions details', count: 0
     assert_select '#requirements_additions input[name=?]', 'new_group[title]'
     assert_select '#requirements_additions input[name=?]', 'new_row[name]'
     assert_select 'select[name=?] option', 'new_row[group_id]', count: 4
+    css_select('#requirements_additions input[name^=new_]').each do |field|
+      assert_empty field.ancestors('details'), "#{field['name']} が畳んだ中にあります"
+    end
+    # 規則の id は打たせない(設計書 項目5)
+    assert_select '#requirements_additions input[name=?]', 'new_row[check_ids]', count: 0
+    assert_select '#requirements_additions input[name=?]', 'new_group[check_id]', count: 0
   end
 
   # ---- 承認の注記を外す ----

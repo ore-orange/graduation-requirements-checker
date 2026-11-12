@@ -1,0 +1,19 @@
+<%# 算入しない科目(設計書 項目6・9)。要件ではなく除外なので、章・行のツリーには混ぜず、専用の枠に出す。 %>
+<%# ここに当たる科目は、修得していても卒業の単位に数えません。取り違えると、学生の単位が消えます。 %>
+<% excludes = review.exclude_rules %>
+<div id="requirements_excludes">
+  <h4 class="text-sm font-bold text-slate-900">算入しない科目</h4>
+  <p class="mt-0.5 text-xs text-slate-500">
+    ここに当たる科目は、修得しても卒業の単位に数えません。
+    科目表に無く、どの区分の科目番号のパターンにも当たらない科目は、ここに書かなくても「要確認」になります。
+  </p>
+  <% if excludes.empty? %>
+    <p class="mt-2 text-sm text-slate-600">ありません。</p>
+  <% else %>
+    <ul class="mt-3 space-y-2">
+      <% excludes.each do |rule| %>
+        <li><%= render 'requirements_rule', review: review, rule: rule %></li>
+      <% end %>
+    </ul>
+  <% end %>
+</div>

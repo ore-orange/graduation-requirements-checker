@@ -1,0 +1,36 @@
+<%# 行の「…」(設計書 項目2)。PDFと突き合わせるときに目で追わない値だけを、ここにまとめる。 %>
+<% field_class = RequirementsReviewHelper::FIELD_CLASS %>
+<details class="text-xs" <%= 'open' if review.open?('row', row['id']) %>>
+  <summary class="rv-more"
+           title="この行の、詳しい設定">…</summary>
+  <div class="mt-1 grid gap-3 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-2">
+    <label class="block sm:col-span-2"><span class="font-semibold text-slate-700">副題(便覧の但し書き)</span>
+      <%= rv_text "#{row_key}[subtitle]", row['subtitle'], id: nil, class: "mt-1 block w-full #{field_class}" %></label>
+
+    <%#
+      必要単位(下限)が空の行は、代わりに出す言葉が要る(GraduationAssessment::Catalogue が、
+      required_credits が null の行に required_label が無いと便覧の読み込みを拒む)。
+      2024年度の3行の値は、学生の画面に大きく出ている文言なので、画面が勝手に書き換えない(設計書 項目3)。
+    %>
+    <div class="sm:col-span-2 rounded-lg bg-slate-50 p-2">
+      <p class="font-semibold text-slate-700">この行に必要な単位(下限)を空にするとき</p>
+      <p class="mt-0.5 text-slate-600">
+        この行だけの決まりが無く、上の章の単位に含まれる行です。学生の画面には、下の言葉がそのまま出ます
+        (どちらも空のときは「内数」とだけ出ます)。
+      </p>
+      <label class="mt-1.5 block"><span class="font-semibold text-slate-700">学生の画面に出す言葉</span>
+        <%= rv_text "#{row_key}[required_label]", row['required_label'], id: nil,
+                    class: "mt-1 block w-full #{field_class}" %></label>
+    </div>
+
+    <label class="flex items-center gap-1.5 text-slate-800">
+      <%= hidden_field_tag "#{row_key}[credits_from_check]", '0', id: nil %>
+      <%= rv_check "#{row_key}[credits_from_check]", '1', row['credits_from_check'] == true, id: nil %>
+      単位は、下の決まりから取る
+    </label>
+    <label class="flex items-center gap-1.5 text-rose-800">
+      <%= rv_check "#{row_key}[_destroy]", '1', false, id: nil %>
+      この行を消す(読み直しても戻りません)
+    </label>
+  </div>
+</details>

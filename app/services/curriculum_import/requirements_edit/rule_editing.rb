@@ -4,8 +4,9 @@ module CurriculumImport
   class RequirementsEdit
     # 規則の修正。欄ごとの値(経路・入れ子の条件も含めて、すべて欄から)と、規則を足す入口。
     module RuleEditing
-      # 「規則を足す」の組が書かれているかを見る欄。どれかが埋まっていれば、足そうとしていると見なす。
-      NEW_RULE_START = %i[type id label].freeze
+      # 「決まりを足す」の組が書かれているかを見る欄。どれかが埋まっていれば、足そうとしていると見なす。
+      # id は無い。人は規則の id を打たず、アプリが裏で振る(設計書 項目5。RuleLinking)。
+      NEW_RULE_START = %i[type label].freeze
 
       private
 
@@ -19,7 +20,22 @@ module CurriculumImport
           next discard(rules.delete_at(index), 'rule') if destroy?(entry)
 
           rules[index] = edit_rule(rules[index], entry)
+          attach_rule(rules[index], entry)
         end
+      end
+
+      # 「結びつける先」が選ばれていたら、その章・枠・行に結びつける(設計書 項目5)。
+      # 結びつけても、決まりそのものには印を付けない(値は AI の読みのままで、変えたのは結びつけだけ)。
+      def attach_rule(rule, entry)
+        return unless entry.key?(:link)
+
+        link = in_context('rule', rule['id']) { parse_link(entry[:link]) }
+        return unless link
+
+        problem = link_rule(link, rule['id'])
+        return error(problem, 'rule', rule['id']) if problem
+
+        @notes << "規則「#{rule['id']}」を結びつけました。"
       end
 
       # 欄ごとの値を当てる。id と型は変えられない(型を変えると持てる欄が変わり、別の規則になる)。
@@ -43,12 +59,13 @@ module CurriculumImport
         type = entry[:type].to_s.strip
         return error(new_rule_type_message) unless Validation::Input::TOP_LEVEL.include?(type)
 
-        rule = build_new_rule(type, entry)
-        problem = new_rule_problem(rule)
-        return error(problem) if problem
+        link = parse_link(entry[:link])
+        rule = build_new_rule(type, entry).merge('id' => new_rule_id(link))
         return if @problems.any? { |item| item.kind == 'new_rule' }
 
         append_new_rule(rule)
+        problem = link && link_rule(link, rule['id'])
+        error(problem) if problem
       end
 
       # 型ごとの欄は、既存の規則を直すときと同じ表(rule_fields)から決める。
@@ -65,11 +82,10 @@ module CurriculumImport
           value = coerce(given, kind, "足す規則の#{FIELD_LABELS.fetch(field, field)}")
           [field, value] unless value == :invalid || value.nil?
         end
-        skeleton.merge(built.to_h, 'id' => entry[:id].to_s.strip)
+        skeleton.merge(built.to_h)
       end
 
       def append_new_rule(rule)
-        clear_removed('rule', rule['id'])
         list_of(@document, 'rules')&.push(rule.merge(DraftMerge::CONFIRMED => true))
         @edited += 1
         @notes << "規則「#{rule['id']}」を足しました。"
@@ -77,13 +93,6 @@ module CurriculumImport
 
       def new_rule_type_message
         "足す規則の種類は次のどれかにしてください: #{Validation::Input::TOP_LEVEL.join('・')}。"
-      end
-
-      def new_rule_problem(rule)
-        return '足す規則の id を入れてください。' if rule['id'].blank?
-        return unless Array(@document['rules']).grep(Hash).any? { |other| other['id'] == rule['id'] }
-
-        "規則の id「#{rule['id']}」はすでにあります。"
       end
     end
   end

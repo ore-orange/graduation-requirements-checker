@@ -1,4 +1,6 @@
 <%# AI が読み落とした章・行を、人が足す。足したものは「人が確認した」印が付き、読み直しで消えない。 %>
+<%# 規則の id は人が打たない(設計書 項目5)。足した章・行を確かめる決まりは、下の「決まりを足す」で %>
+<%# 種類と欄を書き、「結びつける先」でこの章・行を名前で選ぶ。id はアプリが裏で振る。 %>
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
 <div id="requirements_additions" class="space-y-3">
   <div id="new_group" class="rounded-lg border border-dashed border-slate-300 px-3 py-2">
@@ -9,10 +11,6 @@
         <%= rv_text 'new_group[title]', nil, id: nil, class: "mt-1 block w-64 #{field_class}" %></label>
       <label class="block"><span class="text-xs font-semibold text-slate-700">必要単位</span>
         <%= rv_number 'new_group[required_credits]', nil, id: nil, class: "mt-1 block w-24 #{field_class}" %></label>
-      <label class="block"><span class="text-xs font-semibold text-slate-700">確認する規則(id。無ければ空)</span>
-        <%= rv_text 'new_group[check_id]', nil, id: nil, class: "mt-1 block w-48 #{field_class}" %></label>
-      <label class="block"><span class="text-xs font-semibold text-slate-700">id(空なら自動)</span>
-        <%= rv_text 'new_group[id]', nil, id: nil, class: "mt-1 block w-40 #{field_class}" %></label>
     </div>
   </div>
 
@@ -31,19 +29,12 @@
         <%= rv_number 'new_row[required_credits]', nil, id: nil, class: "mt-1 block w-24 #{field_class}" %></label>
       <label class="block"><span class="text-xs font-semibold text-slate-700">必要単位が空のときの表示</span>
         <%= rv_text 'new_row[required_label]', nil, id: nil, class: "mt-1 block w-48 #{field_class}" %></label>
-      <label class="block"><span class="text-xs font-semibold text-slate-700">確認する規則(id をカンマで区切る)</span>
-        <%= rv_text 'new_row[check_ids]', nil, id: nil, class: "mt-1 block w-64 #{field_class}" %></label>
-      <label class="block"><span class="text-xs font-semibold text-slate-700">id(空なら自動)</span>
-        <%= rv_text 'new_row[id]', nil, id: nil, class: "mt-1 block w-40 #{field_class}" %></label>
       <label class="flex items-center gap-1.5 text-xs text-slate-800">
         <%= hidden_field_tag 'new_row[credits_from_check]', '0', id: nil %>
         <%= rv_check 'new_row[credits_from_check]', '1', false, id: nil %>
         単位を確認する規則から取る
       </label>
     </div>
-    <div class="mt-2">
-      <span class="text-xs font-semibold text-slate-700">数える区分</span>
-      <%= category_checks 'new_row[categories]', [], review %>
-    </div>
+    <%= category_chips 'new_row[categories]', [], review %>
   </div>
 </div>

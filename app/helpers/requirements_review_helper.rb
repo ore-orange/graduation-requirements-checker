@@ -6,7 +6,9 @@ module RequirementsReviewHelper
                       'grouped_max' => '同じ提供元・言語から', 'any_of' => 'どれか1つを満たす', 'all_of' => 'すべてを満たす',
                       'cap' => '算入の上限', 'exclude' => '算入しない' }.freeze
   FIELD_NAMES = CurriculumImport::RequirementsEdit::FIELD_LABELS
-  FIELD_CLASS = 'rounded border border-slate-300 bg-white px-2 py-1.5 text-sm'
+  # 入力欄の見た目。くわしくは app/assets/tailwind/application.css の .rv-field。
+  # 行・決まりの数だけ繰り返すので、クラスの並びを直書きしない(1画面が重くなる)。
+  FIELD_CLASS = 'rv-field'
 
   # 単位の数。整数なら小数点を付けない。無ければダッシュ。
   def review_credits(value)
@@ -25,12 +27,6 @@ module RequirementsReviewHelper
   end
 
   def rule_logic_label(rule) = RULE_LOGIC_LABELS[rule['type']]
-
-  # 章・行が check_id/check_ids で指す規則そのもの。並びは指した順。見つからない id は含めない
-  # (「規則が見つかりません」は、今までどおり requirements_rule_links が言う)。
-  def rules_for(ids, review)
-    Array.wrap(ids).filter_map { |id| review.rules.find { |rule| rule['id'] == id } }
-  end
 
   # 入力欄。保存できなかった送信の入力があれば、それを残して出す(RequirementsReview#field_value)。
   # 数は文字の欄にする。数の欄(type=number)は、数でない文字をブラウザが捨てるので、打ち間違いが消えて、問題の文だけが残ってしまう。
@@ -54,17 +50,7 @@ module RequirementsReviewHelper
     select_tag(name, options_for_select(options, requirements_review.field_value(name, default)), **)
   end
 
-  # 区分を選ぶチェックの並び。1つも選ばないときも「空にする」と伝わるよう、先に空の値を送る。
-  def category_checks(name, selected, review)
-    boxes = review.category_keys.map do |key|
-      tag.label(class: 'inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-800') do
-        rv_check("#{name}[]", key, Array(selected).include?(key), id: nil) + review.category_label(key)
-      end
-    end
-    hidden_field_tag("#{name}[]", '', id: nil) + tag.div(safe_join(boxes), class: 'flex flex-wrap gap-x-3 gap-y-1')
-  end
-
-  # 経路に置く役割を選ぶチェックの並び。区分のチェック(category_checks)と同じ形で、選択肢は便覧が知っている役割。
+  # 経路に置く役割を選ぶチェックの並び。選択肢は便覧が知っている役割。
   # 役割のキーには、その役割を持つ科目の名前を添える(キーだけでは、どの科目を指すのか画面から分からない)。
   def role_checks(name, selected, review)
     boxes = review.known_roles.map do |role|
@@ -77,17 +63,63 @@ module RequirementsReviewHelper
     hidden_field_tag("#{name}[]", '', id: nil) + tag.div(safe_join(boxes), class: 'flex flex-wrap gap-x-3 gap-y-1')
   end
 
-  # 規則のフォームの欄の名前の前半(rules[添字])。規則の一覧でも、ツリーの中の枠でも、同じ名前で送る。
+  # 規則のフォームの欄の名前の前半(rules[添字])。どの枠で出しても、同じ名前で送る。
+  # 添字は id で引く(同じ中身の規則が2つあっても、別の添字になる)。
   def rule_param_key(rule, review)
-    "rules[#{review.rules.index(rule)}]"
+    "rules[#{review.rules.index { |candidate| candidate['id'] == rule['id'] }}]"
   end
 
-  # 入れ子を持つ規則のうち、この場所が枠を出すもの。同じ規則を2か所に出すと、同じ名前のパラメータが
-  # 2回送られ、触っていない規則が「直した」ことになってしまう。だから、1ページにつき最初の1か所だけが出す。
-  # 章・行(ツリー)が先に出て、どこからも指されていない規則だけが、あとの規則の一覧で出る。
-  def nested_rule_boxes(ids, review)
-    rules_for(ids, review).select { |rule| rule_logic_label(rule) && review.claim_rule_box?(rule['id']) }
+  # ---- 「◯単位以上 〜 ◯単位以下」(設計書 項目3) ----
+
+  # 決まりの箱で、場所を決めて出す欄。
+  RULE_LOWER_FIELD = 'required_credits'
+  RULE_UPPER_FIELD = 'credits'
+  RULE_RANGE_FIELDS = [RULE_LOWER_FIELD, RULE_UPPER_FIELD].freeze
+  # 対象の区分。判定が何を数えるかを決める値なので、常時出す。
+  RULE_TARGET_FIELDS = %w[categories category required_categories].freeze
+  # 対象の区分のほかに、判定が当たる範囲を決める欄。これも畳まない
+  # (必修の科目数・グループの分け方・科目番号の接頭辞を読み違えると、判定が変わる)。
+  RULE_SHOWN_FIELDS = %w[expected_course_count group_by number_prefix].freeze
+  # 経路・選択肢・条件は、1つの欄ではなく繰り返しの行で出す。
+  RULE_NESTED_KINDS = %i[paths options conditions].freeze
+
+  # 決まりの箱に出す欄を、出す場所ごとに分ける(設計書 項目3・7)。
+  #   lower・upper … 「◯以上〜◯以下」の2つの欄を、この決まりが持つか
+  #   target … 対象の区分  shown … 判定が当たる範囲を決める欄  nested … 経路・選択肢・条件
+  #   rest  … 残り(「…」の中。判定の数字を決めない値だけ)
+  def rule_field_groups(rule)
+    fields = CurriculumImport::RequirementsEdit.rule_fields(rule)
+    nested, plain = fields.partition { |_, kind| RULE_NESTED_KINDS.include?(kind) }
+    target, other = plain.partition { |field, _| RULE_TARGET_FIELDS.include?(field) }
+    shown, rest = other.partition { |field, _| RULE_SHOWN_FIELDS.include?(field) }
+    { nested: nested, target: target, shown: shown,
+      rest: rest.to_h.except(*RULE_RANGE_FIELDS).to_a,
+      lower: fields.key?(RULE_LOWER_FIELD), upper: fields.key?(RULE_UPPER_FIELD) }
   end
+
+  # 「◯以上 〜 ◯以下」の2つの欄。章・枠・行・決まりで同じ形にする。
+  # lower・upper は [欄の名前, 値] なら入力欄、それ以外(数・nil)は読むだけの枠。
+  # 読むだけの枠には name を付けない。名前の無い欄はブラウザも送らないので、
+  # 「触らずに保存したとき、文書が1バイトも変わらない」を壊さない。
+  def credit_range(lower, upper, note: nil)
+    parts = [credit_slot(lower, '下限なし(数えるだけ)'), tag.span('〜', class: 'text-slate-400'),
+             credit_slot(upper, '上限なし'), tag.span('単位', class: 'font-medium text-slate-600')]
+    parts << tag.span(note, class: 'text-amber-800') if note
+    tag.span(safe_join(parts, ' '), class: 'inline-flex items-center gap-1 whitespace-nowrap text-xs')
+  end
+
+  def credit_slot(slot, title)
+    if slot.is_a?(Array)
+      return rv_number(slot.first, slot.last, id: nil,
+                                              class: "w-16 text-right tabular-nums #{FIELD_CLASS}")
+    end
+
+    tag.span(review_credits(slot), title: slot.nil? ? title : nil, class: 'rv-slot')
+  end
+
+  # 必要単位(下限)も、その代わりに出す言葉も無い行。学生の画面では上の章の単位に含まれる。
+  # 「内数」は画面にだけ出し、文書には書き込まない(設計書 項目3)。
+  def inner_row?(row) = row['required_credits'].nil? && row['required_label'].blank?
 
   # 規則の1つの欄の入力。欄の種類は RequirementsEdit.rule_fields と同じ表から決まる。
   def rule_field_input(name, field, kind, rule, review)
@@ -97,7 +129,7 @@ module RequirementsReviewHelper
   end
 
   def rule_field_control(name, field, kind, value, review)
-    return category_checks(name, value, review) if kind == :set
+    return category_chips(name, value, review, label: nil) if kind == :set
     return rv_number(name, value, id: nil, class: "w-28 #{FIELD_CLASS}") if %i[number count].include?(kind)
     return category_select(name, value, review) if field == 'category'
 

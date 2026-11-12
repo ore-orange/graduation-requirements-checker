@@ -1,66 +1,42 @@
-<%# 規則の一覧。判定は、ここに書かれた規則だけで決まる。値は欄で、入れ子や経路は JSON で直す。 %>
+<%# どの章・枠・行にも結びついていない決まり(設計書 項目6)。 %>
+<%#
+  判定は、便覧の決まりだけで決まる。どこからも指されていない決まりを画面から消すと、その要件が見えなくなるので、
+  上のツリー・「算入しない科目」の枠が引き受けなかった決まりを、必ずここに出す。
+  「決まりを足す」も、この枠の中に残す(AI が読み落とした要件を、人が足す唯一の手段)。
+  このテンプレートは、ツリーと除外の枠より後に描くこと(先に描くと、ツリーに出るべき決まりをここが取ってしまう)。
+%>
+<% orphans = review.unclaimed_rules %>
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
 <div id="requirements_rules">
-  <h4 class="text-sm font-bold text-slate-900">規則</h4>
-  <p class="mt-0.5 text-xs text-slate-500">学生の判定は、これらの規則だけで決まります。要件表に書かれているのに、ここに無い規則は、判定されません。</p>
+  <h4 class="text-sm font-bold text-slate-900">どの行にも結びついていない決まり</h4>
+  <p class="mt-0.5 text-xs text-slate-500">
+    上の表のどの章・枠・行からも確かめられていない決まりです。判定には効きますが、学生の画面のどの行にも出ません。
+    便覧にそう書かれているなら、そのままで構いません。行に出すべきものは、「結びつける先」で選んでください。
+  </p>
 
-  <% if review.rules.empty? %>
-    <p class="mt-2 text-sm text-slate-600">規則がまだありません。</p>
+  <% if orphans.empty? %>
+    <p class="mt-2 text-sm text-slate-600">ありません(すべての決まりが、上の表のどこかに出ています)。</p>
   <% else %>
     <ul class="mt-3 space-y-2">
-      <% review.rules.each_with_index do |rule, index| %>
-        <% key = "rules[#{index}]" %>
-        <li id="rule-<%= rule['id'] %>" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-          <div class="flex flex-wrap items-start justify-between gap-2">
-            <p class="font-semibold text-slate-900">
-              <%= rule['label'].presence || rule_type_name(rule['type']) %>
-              <span class="text-xs font-normal text-slate-500">(<%= rule['id'] %>)</span>
-              <% if human_confirmed?(rule) %><span class="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">人が確認した</span><% end %>
-            </p>
-            <p class="text-xs text-slate-600"><%= rule_type_name(rule['type']) %> / 出典 <%= rule['source_page'].presence || '(なし)' %></p>
-          </div>
-          <% rule_summary(rule, review).each do |line| %><p class="mt-1 text-xs text-slate-700"><%= line %></p><% end %>
-          <% if rule['detail'].present? %><p class="mt-0.5 text-xs text-slate-600"><%= rule['detail'] %></p><% end %>
-          <%= render 'requirements_finding_notes', findings: review.findings_for(:rule, rule['id']) %>
-          <%= render 'requirements_problems', review: review, kind: 'rule', id: rule['id'] %>
-          <details class="mt-1" <%= 'open' if review.open?('rule', rule['id']) %>>
-            <summary class="cursor-pointer text-xs font-semibold text-slate-700">この規則を直す・消す</summary>
-            <div class="mt-2 grid gap-3 sm:grid-cols-2">
-              <%= hidden_field_tag "#{key}[id]", rule['id'], id: nil %>
-              <%# 経路・入れ子の条件は、繰り返しの行で直す。欄の名前が重ならないよう、ここには出さない %>
-              <% CurriculumImport::RequirementsEdit.rule_fields(rule).each do |field, kind| %>
-                <% next if CurriculumImport::RequirementsEdit::NESTED_RULE_FIELDS.key?(field) || kind == :paths %>
-                <div class="<%= 'sm:col-span-2' if %i[set text].include?(kind) %>">
-                  <%= rule_field_input "#{key}[#{field}]", field, kind, rule, review %>
-                </div>
-              <% end %>
-            </div>
-            <% if rule_logic_label(rule) %>
-              <div class="mt-3">
-                <% if nested_rule_boxes([rule['id']], review).any? %>
-                  <%# どの章・行からも指されていない規則。ツリーに出ないので、経路・条件はここで直す %>
-                  <%= render 'requirements_rule_box', review: review, rule: rule %>
-                <% else %>
-                  <p class="text-xs text-slate-600">
-                    経路・条件は、上の「区分ごとの必要単位」の中、この規則を確認する行の下で直します。
-                  </p>
-                <% end %>
-              </div>
-            <% end %>
-            <label class="mt-2 flex items-center gap-1.5 text-xs text-rose-800">
-              <%= rv_check "#{key}[_destroy]", '1', false, id: nil %>
-              この規則を消す(読み直しても戻りません。この規則を指す行は「規則が見つかりません」になります)
-            </label>
-          </details>
+      <% orphans.each do |rule| %>
+        <li>
+          <%= render 'requirements_rule', review: review, rule: rule %>
+          <%# 行に出すべき決まりは、ここから結びつける。人は id を打たない(設計書 項目5) %>
+          <label class="mt-1 ml-3 block text-xs">
+            <span class="font-semibold text-slate-700">この決まりを結びつける先</span>
+            <%= rv_select "rules[#{review.rules.index { |item| item['id'] == rule['id'] }}][link]",
+                          review.link_targets, nil, include_blank: '結びつけない', id: nil,
+                          class: "mt-1 block #{field_class}" %>
+          </label>
         </li>
       <% end %>
     </ul>
   <% end %>
 
-  <%# 規則を足す。種類を選び、その種類が持つ欄に書く(JSON は使わない)。 %>
-  <%# 種類ごとの欄は、選んだ種類のものだけを使う。種類を変えたら、一度保存してから中身を書き足す。 %>
+  <%# 決まりを足す。種類を選び、その種類が持つ欄に書く(JSON も id も使わない)。 %>
+  <%# 種類ごとの欄は全部出しておき、選ばれていない種類の欄は type_fields が隠して送らないようにする。 %>
   <div id="new_rule" data-controller="type-fields" class="mt-3 rounded-lg border border-dashed border-slate-300 px-3 py-2">
-    <p class="text-xs font-semibold text-slate-700">規則を足す(AI が読み落とした要件)</p>
+    <p class="text-xs font-semibold text-slate-700">＋ 決まりを足す(AI が読み落とした要件)</p>
     <%= render 'requirements_problems', review: review, kind: 'new_rule', id: 'new' %>
     <div class="mt-2 flex flex-wrap items-end gap-3">
       <label class="block"><span class="text-xs font-semibold text-slate-700">種類</span>
@@ -68,13 +44,13 @@
                       nil, include_blank: '選んでください', id: nil,
                       data: { type_fields_target: 'select', action: 'change->type-fields#sync' },
                       class: "mt-1 block #{field_class}" %></label>
-      <label class="block"><span class="text-xs font-semibold text-slate-700">id(他の規則と重ならない文字列)</span>
-        <%= rv_text 'new_rule[id]', nil, id: nil, class: "mt-1 block w-48 #{field_class}" %></label>
       <label class="block"><span class="text-xs font-semibold text-slate-700">名前</span>
         <%= rv_text 'new_rule[label]', nil, id: nil, class: "mt-1 block w-56 #{field_class}" %></label>
+      <label class="block"><span class="text-xs font-semibold text-slate-700">結びつける先</span>
+        <%= rv_select 'new_rule[link]', review.link_targets, nil, include_blank: '結びつけない', id: nil,
+                      class: "mt-1 block #{field_class}" %></label>
     </div>
 
-    <%# 種類ごとの欄を全部出しておき、選ばれていない種類の欄は type_fields が隠して送らないようにする %>
     <% CurriculumImport::Annotations::RULE_TYPES.each do |type| %>
       <% skeleton = { 'type' => type } %>
       <% fields = CurriculumImport::RequirementsEdit.rule_fields(skeleton)
@@ -90,7 +66,7 @@
         </div>
         <% if rule_logic_label(skeleton) %>
           <p class="text-xs text-slate-600">
-            経路・条件は、足したあとに、この規則の枠の中で書きます(先に種類と id を入れて保存してください)。
+            経路・条件は、足したあとに、この決まりの枠の中で書きます(先に種類を選んで保存してください)。
           </p>
         <% end %>
       </div>

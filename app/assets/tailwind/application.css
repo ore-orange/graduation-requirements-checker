@@ -11,6 +11,39 @@
 }
 
 @layer components {
+  /* 要件表の確認画面。行・決まり・区分の数だけ繰り返す部品は、クラスにまとめる。
+     長いクラスの並びをそのまま書くと、1画面が1MBを超えて重くなる(科目表の画面の重さの検査が止める)。 */
+  .rv-field {
+    @apply rounded border border-slate-300 bg-white px-2 py-1.5 text-sm;
+  }
+
+  /* 読むだけの枠(「◯以上〜◯以下」の、置き場所が無い側)。name を持たないので、ブラウザは送らない。 */
+  .rv-slot {
+    @apply inline-block w-16 rounded border border-dashed border-slate-300 px-2 py-1.5 text-right tabular-nums text-slate-500;
+  }
+
+  /* 対象の区分のチップ。× はチェックを外すラベルなので、外れたチップは取り消し線で見せる。 */
+  .rv-chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5;
+  }
+
+  .rv-chip-text {
+    @apply cursor-pointer text-slate-500 line-through peer-checked:text-indigo-900 peer-checked:no-underline;
+  }
+
+  .rv-pick {
+    @apply inline-flex items-center gap-1 whitespace-nowrap text-slate-800;
+  }
+
+  /* 「…」と「科目 N件」の見出し。 */
+  .rv-more {
+    @apply cursor-pointer rounded px-1.5 py-1 font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-700;
+  }
+
+  .rv-confirmed {
+    @apply rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800;
+  }
+
   .demo-panel {
     @apply min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6;
   }

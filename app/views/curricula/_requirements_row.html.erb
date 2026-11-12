@@ -1,63 +1,47 @@
-<%# 章の中の1行。名前と必要単位は常時編集できる欄にし、残りの欄はそのすぐ下に小さく並べる。 %>
-<%# 行が指す規則のうち、入れ子を持つもの(AND/OR)は、この行の下に枠で出す。row_key は欄の名前の前半。 %>
-<% field_class = RequirementsReviewHelper::FIELD_CLASS %>
+<%# 章の中の1行。1行が画面の1行に収まること(設計書 項目2)。 %>
+<%#
+  常時出すのは、PDFと突き合わせるときに目で追う4つだけ。
+    必要単位 … 「◯以上〜◯以下」(設計書 項目3。以上はこの行の required_credits、以下はこの行に掛かる算入上限)
+    科目名   … 行の名前
+    対象科目 … 対象の区分のチップと、その区分の科目(件数を押すと開く)
+    修了要件 … この行を確かめる決まり(下の箱)
+  残り(副題・必要単位が空のときの表示・単位を決まりから取るか・この行を消す)は「…」の中。
+  行の「以上〜以下」は display.rows[].required_credits だけを読み書きし、入れ子の決まりの数字には書き込まない
+  (行に出る数字と、決まりが判定に使う数字は別物。設計書 項目5)。
+%>
+<% shown_rules = review.rules_under_row(row) %>
+<% count = review.course_count_of_row(row) %>
 <div id="row-<%= row['id'] %>" class="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <div class="flex flex-wrap items-center gap-2">
-      <span class="h-2 w-2 shrink-0 rounded-full bg-indigo-400"></span>
-      <%= hidden_field_tag "#{row_key}[id]", row['id'], id: nil %>
-      <label class="block">
-        <span class="sr-only">行の名前</span>
-        <%= rv_text "#{row_key}[name]", row['name'], id: nil, class: "w-64 font-semibold text-slate-900 #{field_class}" %>
-      </label>
-      <% if human_confirmed?(row) %><span class="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">人が確認した</span><% end %>
+  <div class="flex flex-wrap items-center gap-2">
+    <%= render 'requirements_reorder', noun: '行' %>
+    <span class="h-2 w-2 shrink-0 rounded-full bg-indigo-400"></span>
+    <%= hidden_field_tag "#{row_key}[id]", row['id'], id: nil %>
+    <label class="block">
+      <span class="sr-only">行の名前</span>
+      <%= rv_text "#{row_key}[name]", row['name'], id: nil,
+                  class: "w-56 font-semibold text-slate-900 #{RequirementsReviewHelper::FIELD_CLASS}" %>
+    </label>
+    <%= credit_range(["#{row_key}[required_credits]", row['required_credits']], review.upper_limit(shown_rules)) %>
+    <% if inner_row?(row) %>
+      <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600"
+            title="必要単位(下限)も、その代わりに出す言葉もありません。学生の画面では上の章の単位に含まれます">内数</span>
+    <% end %>
+    <% if human_confirmed?(row) %><span class="rv-confirmed">人が確認した</span><% end %>
+    <div class="ml-auto flex items-center gap-1">
+      <%= render 'requirements_row_courses', review: review, row: row, count: count %>
+      <%= render 'requirements_row_more', review: review, row: row, row_key: row_key %>
     </div>
-    <label class="flex items-center gap-2">
-      <span class="text-xs font-medium text-slate-500">必要単位(内数なら空)</span>
-      <%= rv_number "#{row_key}[required_credits]", row['required_credits'], id: nil,
-                    class: "w-20 text-right font-semibold #{field_class}" %>
-    </label>
   </div>
 
-  <div class="mt-2 flex flex-wrap items-end gap-3 text-xs">
-    <label class="block"><span class="font-semibold text-slate-700">副題</span>
-      <%= rv_text "#{row_key}[subtitle]", row['subtitle'], id: nil, class: "mt-1 block w-56 #{field_class}" %></label>
-    <label class="block"><span class="font-semibold text-slate-700">必要単位が空のときの表示</span>
-      <%= rv_text "#{row_key}[required_label]", row['required_label'], id: nil, class: "mt-1 block w-44 #{field_class}" %></label>
-    <label class="block"><span class="font-semibold text-slate-700">確認する規則(id をカンマで区切る)</span>
-      <%= rv_text "#{row_key}[check_ids]", Array.wrap(row['check_ids']).join(', '), id: nil, class: "mt-1 block w-56 #{field_class}" %></label>
-    <label class="block"><span class="font-semibold text-slate-700">並び(小さい順)</span>
-      <%= rv_number "#{row_key}[position]", row_index + 1, id: nil, class: "mt-1 block w-20 #{field_class}" %></label>
-    <label class="flex items-center gap-1.5 text-slate-800">
-      <%= hidden_field_tag "#{row_key}[credits_from_check]", '0', id: nil %>
-      <%= rv_check "#{row_key}[credits_from_check]", '1', row['credits_from_check'] == true, id: nil %>
-      単位は確認する規則から取る
-    </label>
-    <label class="flex items-center gap-1.5 text-rose-800">
-      <%= rv_check "#{row_key}[_destroy]", '1', false, id: nil %>
-      この行を消す(読み直しても戻りません)
-    </label>
-  </div>
-
-  <div class="mt-2 text-xs">
-    <span class="font-semibold text-slate-700">数える区分</span>
-    <%= category_checks "#{row_key}[categories]", row['categories'], review %>
-  </div>
-
-  <div class="mt-2 text-xs">
-    <span class="font-semibold text-slate-700">確認する規則:</span>
-    <%= render 'requirements_rule_links', review: review, ids: Array.wrap(row['check_ids']) %>
-  </div>
+  <%= category_chips "#{row_key}[categories]", row['categories'], review %>
 
   <%= render 'requirements_finding_notes', findings: review.findings_for(:display, row['id']) %>
   <%= render 'requirements_problems', review: review, kind: 'row', id: row['id'] %>
 
-  <%# 入れ子を持つ規則(AND/OR)だけ、行の下に枠で出す。残りは上のリンクだけ。 %>
-  <% nested = nested_rule_boxes(row['check_ids'], review) %>
-  <% if nested.any? %>
+  <% if shown_rules.any? %>
     <div class="mt-2 ml-3 space-y-2 border-l-2 border-amber-300 pl-3">
-      <% nested.each do |rule| %>
-        <%= render 'requirements_rule_box', review: review, rule: rule %>
+      <% shown_rules.each do |rule| %>
+        <%= render 'requirements_rule', review: review, rule: rule %>
       <% end %>
     </div>
   <% end %>

@@ -20,6 +20,7 @@ module CurriculumImport
     include Bookkeeping
     include Coercion
     include NestedCoercion
+    include RuleLinking
     include RuleEditing
     include DisplayEditing
     include Additions

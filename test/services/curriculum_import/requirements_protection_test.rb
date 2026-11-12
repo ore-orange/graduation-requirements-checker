@@ -248,11 +248,10 @@ module CurriculumImport
 
     test '注釈から足した規則も、読み直しで消えない' do
       read
-      edit(new_rule: { type: 'credit_sum', id: 'extra', label: '追加', categories: ['natural'],
-                       required_credits: '2' })
+      edit(new_rule: { type: 'credit_sum', label: '追加', categories: ['natural'], required_credits: '2' })
       read(credits: 31)
 
-      assert_equal %w[common_total extra], document['rules'].pluck('id').sort
+      assert_equal %w[added_rule_1 common_total], document['rules'].pluck('id').sort
     end
   end
 end

@@ -1,0 +1,17 @@
+<%# 決まりの「…」。判定の数字を決めない値(名前・注記・グループの呼び名・要確認の理由)と、この決まりを消す。 %>
+<%# 要確認の理由(one_of_paths の review_note)は、全学生の判定を「要確認」にし、学生の画面に出るので、人が外せること(設計書 項目7)。 %>
+<details class="text-xs" <%= 'open' if review.open?('rule', rule['id']) %>>
+  <summary class="rv-more"
+           title="この決まりの、判定の数字を決めない設定">…</summary>
+  <div class="mt-2 grid gap-3 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-2">
+    <% fields[:rest].each do |field, kind| %>
+      <div class="<%= 'sm:col-span-2' if %i[set text].include?(kind) %>">
+        <%= rule_field_input "#{key}[#{field}]", field, kind, rule, review %>
+      </div>
+    <% end %>
+    <label class="flex items-center gap-1.5 text-rose-800 sm:col-span-2">
+      <%= rv_check "#{key}[_destroy]", '1', false, id: nil %>
+      この決まりを消す(読み直しても戻りません。この決まりで確かめていた行は「決まりがありません」になります)
+    </label>
+  </div>
+</details>

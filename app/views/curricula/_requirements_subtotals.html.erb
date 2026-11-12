@@ -1,39 +1,48 @@
-<%# 小計(複数の行をまとめて数える内数)。 %>
+<%# 枠にできなかった小計(設計書 項目10)。まとめている行が1つの章の中で連続していないと、行を囲めない。 %>
+<%# 囲めないものを黙って消すと、その小計が画面から無くなるので、今までどおり章の後ろに並べ、 %>
+<%# 「この小計がまとめている行」を名前で出す(id ではなく、人が読める名前で)。 %>
+<% loose = review.loose_subtotals %>
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
-<% if review.subtotals.any? %>
-  <h4 class="mt-6 text-sm font-bold text-slate-900">小計</h4>
+<% if loose.any? %>
+  <h4 class="mt-6 text-sm font-bold text-slate-900">行を囲めなかった小計</h4>
+  <p class="mt-0.5 text-xs text-slate-500">
+    まとめている行が、1つの章の中で続いていません。行の並びを揃えると、上の表の中で行を囲む枠になります。
+  </p>
   <ul class="mt-2 space-y-2" id="requirements_subtotals">
-    <% review.subtotals.each_with_index do |subtotal, index| %>
+    <% loose.each do |subtotal, index| %>
       <% key = "display[subtotals][#{index}]" %>
+      <% shown_rules = review.rules_under(subtotal['check_ids']) %>
       <li id="subtotal-<%= subtotal['id'] %>" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-        <p class="font-semibold text-slate-900">
-          <%= subtotal['name'] %> <span class="tabular-nums"><%= review_credits(subtotal['required_credits']) %>単位</span>
-          <% if human_confirmed?(subtotal) %><span class="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">人が確認した</span><% end %>
-        </p>
-        <p class="text-xs text-slate-600">
-          行: <%= Array.wrap(subtotal['row_ids']).join('・').presence || '(なし)' %> /
-          規則: <%= render 'requirements_rule_links', review: review, ids: Array.wrap(subtotal['check_ids']) %>
+        <div class="flex flex-wrap items-center gap-2">
+          <%= hidden_field_tag "#{key}[id]", subtotal['id'], id: nil %>
+          <label class="block">
+            <span class="sr-only">小計の名前</span>
+            <%= rv_text "#{key}[name]", subtotal['name'], id: nil,
+                        class: "w-64 font-semibold text-slate-900 #{field_class}" %>
+          </label>
+          <%= credit_range(["#{key}[required_credits]", subtotal['required_credits']], review.upper_limit(shown_rules)) %>
+          <% if human_confirmed?(subtotal) %><span class="rv-confirmed">人が確認した</span><% end %>
+          <details class="ml-auto text-xs" <%= 'open' if review.open?('subtotal', subtotal['id']) %>>
+            <summary class="rv-more"
+                     title="この小計の、詳しい設定">…</summary>
+            <label class="mt-1 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-rose-800">
+              <%= rv_check "#{key}[_destroy]", '1', false, id: nil %>
+              この小計を消す(読み直しても戻りません。行は消えません)
+            </label>
+          </details>
+        </div>
+        <p class="mt-1 text-xs text-slate-600">
+          まとめている行: <%= review.row_names(subtotal['row_ids']).join('・').presence || '(なし)' %>
         </p>
         <%= render 'requirements_finding_notes', findings: review.findings_for(:display, subtotal['id']) %>
         <%= render 'requirements_problems', review: review, kind: 'subtotal', id: subtotal['id'] %>
-        <details class="mt-1" <%= 'open' if review.open?('subtotal', subtotal['id']) %>>
-          <summary class="cursor-pointer text-xs font-semibold text-slate-700">この小計を直す・消す</summary>
-          <div class="mt-2 flex flex-wrap items-end gap-3">
-            <%= hidden_field_tag "#{key}[id]", subtotal['id'], id: nil %>
-            <label class="block"><span class="text-xs font-semibold text-slate-700">名前</span>
-              <%= rv_text "#{key}[name]", subtotal['name'], id: nil, class: "mt-1 block w-64 #{field_class}" %></label>
-            <label class="block"><span class="text-xs font-semibold text-slate-700">必要単位</span>
-              <%= rv_number "#{key}[required_credits]", subtotal['required_credits'], id: nil, class: "mt-1 block w-24 #{field_class}" %></label>
-            <label class="block"><span class="text-xs font-semibold text-slate-700">数える行(id をカンマで区切る)</span>
-              <%= rv_text "#{key}[row_ids]", Array.wrap(subtotal['row_ids']).join(', '), id: nil, class: "mt-1 block w-64 #{field_class}" %></label>
-            <label class="block"><span class="text-xs font-semibold text-slate-700">確認する規則(id をカンマで区切る)</span>
-              <%= rv_text "#{key}[check_ids]", Array.wrap(subtotal['check_ids']).join(', '), id: nil, class: "mt-1 block w-64 #{field_class}" %></label>
-            <label class="flex items-center gap-1.5 text-xs text-rose-800">
-              <%= rv_check "#{key}[_destroy]", '1', false, id: nil %>
-              この小計を消す(読み直しても戻りません)
-            </label>
+        <% if shown_rules.any? %>
+          <div class="mt-2 space-y-2">
+            <% shown_rules.each do |rule| %>
+              <%= render 'requirements_rule', review: review, rule: rule %>
+            <% end %>
           </div>
-        </details>
+        <% end %>
       </li>
     <% end %>
   </ul>

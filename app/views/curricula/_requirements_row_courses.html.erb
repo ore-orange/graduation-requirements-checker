@@ -1,0 +1,22 @@
+<%# 行の対象科目。件数だけ出し、押すとその場で開く(設計書 項目2)。2024年度は行あたり1件〜249件と幅がある。 %>
+<%# 科目は表示だけで、フォームの欄にはしない(249件を欄にすると送信が重い。科目を直すのは科目表の画面)。 %>
+<%# 1件だけの行は、最初から開いた状態にする。 %>
+<details class="text-xs" <%= 'open' if count == 1 %>>
+  <summary class="rv-more whitespace-nowrap font-normal text-slate-600">
+    科目 <span class="font-semibold tabular-nums"><%= count %></span>件
+  </summary>
+  <div class="mt-1 space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2">
+    <% if count.zero? %>
+      <p class="text-rose-700">この行の区分に、科目表の科目が1つもありません。</p>
+    <% end %>
+    <%# 科目1件の囲みは最小にする。行の数だけ繰り返すので、ここの余分な囲みが1画面の重さになる %>
+    <% review.courses_of_row(row).each do |category, courses| %>
+      <p class="mt-1 font-semibold text-slate-700"><%= review.category_label(category) %>(<%= courses.size %>件)</p>
+      <ul class="flex flex-wrap gap-x-3 text-slate-700 [&>li]:whitespace-nowrap">
+        <% courses.each do |course| %>
+          <li><%= course['number'] %> <%= course['name'] %> <%= review_credits(course['credits']) %>単位</li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+</details>
