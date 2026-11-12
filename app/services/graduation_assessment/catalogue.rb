@@ -96,6 +96,11 @@ class GraduationAssessment
       @exclusions.filter_map { |rule| rule.reason_for(course) }.first
     end
 
+    # 科目表に載っていない科目の、算入の対象外にする理由(設計書 項目9)。科目番号しか分からないので、
+    # 番号だけで決まる除外(区分を書いていないもの)にしか当たらない。区分を書いた除外を当てると、
+    # 「この科目はその区分である」と決めたことになるので、当てない。
+    def exclusion_by_number(number) = number.present? ? exclusion('number' => number) : nil
+
     private
 
     def roles_from_rules

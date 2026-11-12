@@ -87,6 +87,59 @@ class GraduationAssessmentTest < ActiveSupport::TestCase
     assert_equal 0, check.counted_credits
   end
 
+  # 科目表に載っていない科目にも、科目番号で名指しした除外を当てる(設計書 項目9)。
+  # 単位は動かない(どちらでも0)。「要確認」が「算入対象外」に変わるだけで、人が見て分かるようになる。
+  test '科目表に無い科目も、科目番号で名指しした除外に当たれば要確認にしない' do
+    curriculum = with_rule('id' => 'by_number', 'type' => 'exclude', 'numbers' => %w[他学999],
+                           'reason' => '他学部の情報系科目は卒業単位に算入しない')
+    result = GraduationAssessment.new(curriculum: curriculum).call(
+      completed: @completed + [{ key: 'unmatched:1', number: '他学999', credits: 2, approved: nil, name: '他学部の科目' }]
+    )
+
+    assert_equal :satisfied, result.actual.status
+    assert_equal 130, result.actual.counted_credits
+    assert_empty result.actual.review_notes
+    external = result.actual.course_results.find { |course| course.key == 'unmatched:1' }
+    assert_equal '他学部の情報系科目は卒業単位に算入しない', external.reason
+    assert_equal 0, external.counted_credits
+  end
+
+  # 区分を書いた除外は、区分の分からない科目には当てない。当てると「その区分である」と決めたことになる。
+  test '科目表に無い科目には、区分を書いた除外は当てない(要確認のまま)' do
+    curriculum = with_rule('id' => 'by_category', 'type' => 'exclude', 'category' => 'excluded',
+                           'numbers' => %w[他学999], 'reason' => '算入しない')
+    result = GraduationAssessment.new(curriculum: curriculum).call(
+      completed: [{ key: 'unmatched:1', number: '他学999', credits: 2, approved: nil, name: '他学部の科目' }]
+    )
+
+    assert_includes result.actual.review_notes.join, '分類・同一性の確認が必要'
+  end
+
+  # 番号を持たない履修は、当てる手がかりが無い。今までどおり要確認のまま。
+  test '番号を渡されない科目には、科目番号の除外を当てない(要確認のまま)' do
+    curriculum = with_rule('id' => 'by_number', 'type' => 'exclude', 'numbers' => %w[他学999],
+                           'reason' => '算入しない')
+    result = GraduationAssessment.new(curriculum: curriculum).call(
+      completed: [{ key: 'unmatched:1', credits: 2, approved: nil, name: '他学部の科目' }]
+    )
+
+    assert_includes result.actual.review_notes.join, '分類・同一性の確認が必要'
+  end
+
+  # 履修状態が未確認の科目(実績・見込みのどちらにも入れないもの)も、同じ経路を通る。
+  test '履修状態が未確認で科目表にも無い科目も、科目番号の除外に当たれば算入対象外と出す' do
+    curriculum = with_rule('id' => 'by_number', 'type' => 'exclude', 'numbers' => %w[他学999],
+                           'reason' => '算入しない')
+    result = GraduationAssessment.new(curriculum: curriculum).call(
+      completed: @completed,
+      unresolved: [{ key: 'unmatched:1', number: '他学999', credits: 2, name: '他学部の科目', reason: nil }]
+    )
+
+    external = result.actual.course_results.find { |course| course.key == 'unmatched:1' }
+    assert_equal '算入しない', external.reason
+    assert_empty result.actual.review_notes
+  end
+
   test 'a complete 130 credit selection satisfies all handbook checks' do
     snapshot = assess.actual
 
@@ -606,6 +659,9 @@ class GraduationAssessmentTest < ActiveSupport::TestCase
   def document
     { 'format_version' => 2, 'courses' => @courses, 'categories' => categories, 'rules' => rules }
   end
+
+  # 便覧の条件をそのまま残して、規則を1つ足した便覧(deep_merge は rules の配列を差し替えてしまう)。
+  def with_rule(rule) = document.merge('rules' => rules + [rule])
 
   def categories
     CATEGORY_KEYS.map { |key| { 'key' => key, 'label' => key, 'counts_toward_total' => key != 'excluded' } }

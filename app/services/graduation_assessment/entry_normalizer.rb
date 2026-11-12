@@ -83,8 +83,12 @@ class GraduationAssessment
       @ledger.uncertain_required << course['key'] if course['required']
     end
 
+    # 科目表にも番号パターンにも当たらなかった科目。科目番号で名指しした除外に当たれば「算入対象外」と出し、
+    # 当たらなければ今までどおり要確認にする(設計書 項目9)。どちらでも算入は0なので、単位は動かない。
     def unknown(entry)
-      @ledger.external(entry, nil, '科目の正規キーを科目表と照合できないため、分類・同一性の確認が必要', review: true)
+      excluded = @catalogue.exclusion_by_number(entry[:number])
+      reason = excluded || '科目の正規キーを科目表と照合できないため、分類・同一性の確認が必要'
+      @ledger.external(entry, nil, reason, review: excluded.nil?)
     end
 
     # 科目表に無い科目の番号から、number_patterns を使って区分を推定する。
@@ -109,7 +113,7 @@ class GraduationAssessment
 
     def normalize_unresolved(entry)
       course = @catalogue.find(entry[:key])
-      excluded = @catalogue.exclusion(course) if course
+      excluded = course ? @catalogue.exclusion(course) : @catalogue.exclusion_by_number(entry[:number])
       reason = excluded || entry[:reason] || '履修状態が未確認のため実績・見込みのいずれにも算入していません'
       @ledger.external(entry, course, reason, review: excluded.nil?)
     end
