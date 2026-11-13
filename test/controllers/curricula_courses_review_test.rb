@@ -155,6 +155,41 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     assert_select '#course-course_人101 td button:not(.cr-btn-bad)', text: '選べる'
   end
 
+  # ---- 区分の節は畳む(設計書 項目6) ----
+  #
+  # 2024年度の実データは484科目で、全部広げると科目表だけで約28画面分。自コースの専門区分を見たいだけでも、
+  # 共通教育の323科目を通り過ぎることになる。見出しだけ並べ、見たい区分を開く。
+
+  test '区分の節は、既定で畳まれている' do
+    show(course_draft)
+
+    # 見出しは出ている
+    assert_select 'tbody#course-category-humanities th', text: /人文系/
+    # 科目の行は畳まれている
+    assert_select 'tbody#course-course_人101[hidden]'
+  end
+
+  test '最初に見る科目は、畳まない' do
+    show(course_draft(document: mismatch_document))
+
+    assert_select 'tbody#course-first-look[hidden]', false
+    assert_select 'tbody#course-course_知能105:not([hidden])'
+  end
+
+  test '畳んだ見出しに、その区分の未確認の件数が出る' do
+    show(course_draft)
+
+    assert_select 'tbody#course-category-humanities th', text: /未確認3件/
+  end
+
+  # 「確認した」印は、その科目を読み直しから守る印。一度も見ていない科目にまとめて付けられる場所に置かない。
+  test 'まとめて確認するボタンは、畳んだ見出しではなく、開いた中にある' do
+    show(course_draft)
+
+    assert_select 'tbody#course-category-humanities th button[formaction]', false
+    assert_select 'tbody[hidden] button[formaction*=?]', 'bulk_confirm'
+  end
+
   test '科目表が読まれていない下書きは、読み取りを促すだけで、表を出さない' do
     unread = Curriculum.create!(slug: 'y', admission_year: 2025, faculty_name: '工学部', department_name: 'コース',
                                 source_filename: 'h.pdf',

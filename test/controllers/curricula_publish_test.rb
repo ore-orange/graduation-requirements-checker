@@ -199,7 +199,9 @@ class CurriculaPublishTest < ActionDispatch::IntegrationTest
     show(record)
 
     # 行ごとの操作と同じく、共有のフォーム(course_action_form)に formaction だけを足す(専用のフォームは置かない)。
-    assert_select "#course-category-humanities button[formaction^='#{bulk_confirm_courses_curriculum_path(record)}']",
+    # 節は畳まれているので、ボタンは見出しではなく、その区分の中にある(設計書 項目6)。
+    action = bulk_confirm_courses_curriculum_path(record)
+    assert_select "tbody[data-section=humanities] button[formaction^='#{action}']",
                   text: 'まとめて確認する(3科目)'
   end
 
@@ -207,7 +209,7 @@ class CurriculaPublishTest < ActionDispatch::IntegrationTest
     record = ready_draft # 全科目を確認済みにした下書き
     show(record)
 
-    assert_select '#course-category-humanities button[formaction*=bulk_confirm]', false
+    assert_select 'tbody[data-section=humanities] button[formaction*=bulk_confirm]', false
   end
 
   test 'まとめて確認すると、その区分の未確認の科目がすべて確認済みになり、区分へ戻る' do
