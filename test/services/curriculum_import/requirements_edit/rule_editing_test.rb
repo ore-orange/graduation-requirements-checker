@@ -78,6 +78,26 @@ class RuleEditingTest < ActiveSupport::TestCase
     assert_equal '開講コース', rule_after('fusion_provider')['group_label']
   end
 
+  # 画面は呼び名を隠し欄で送り返すので、もともと呼び名が無い決まりは空で返ってくる。
+  # それを「選び直された」と読むと、触っていない決まりに呼び名が書かれ、人が確認した印まで付く。
+  # 印が付くと、そのページを読み直しても判定の数字を直せなくなる(英語12 / 英語8＋同一言語4 など)。
+  test '呼び名の無い入れ子の決まりは、触らずに保存しても変わらない' do
+    document = @curriculum.document.deep_dup
+    rule = document['rules'].find { |item| item['id'] == 'some_any_of' }
+    rule['options'] = [{ 'type' => 'grouped_max', 'category' => 'fusion', 'group_by' => 'number_prefix',
+                         'required_credits' => 4 }]
+    @curriculum.update!(document: document)
+    before = @curriculum.document.deep_dup
+
+    result = edit(rules: { '0' => { id: 'some_any_of',
+                                    options: { 'a' => { type: 'grouped_max', category: 'fusion',
+                                                        group_by: 'number_prefix', group_label: '',
+                                                        required_credits: '4' } } } })
+
+    assert_predicate result, :ok?
+    assert_equal before, document_after
+  end
+
   test '経路を直した規則には、読み直しから守る印が付く' do
     edit(rules: { '0' => { id: 'english_required', paths: { 'a' => { roles: %w[role_b] } } } })
 
@@ -99,8 +119,10 @@ class RuleEditingTest < ActiveSupport::TestCase
                                                group_by: 'number_prefix', required_credits: '4' } } } })
 
     assert_equal [{ 'type' => 'credit_sum', 'categories' => %w[humanities], 'required_credits' => 4 },
+                  # 呼び名は書かない。学生の画面は、分け方から日本語を作る(RuleSentenceHelper::GROUP_BY_NAMES)。
+                  # 送られた値を読むだけにしておかないと、呼び名の無い決まりが保存のたびに書き換わる。
                   { 'type' => 'grouped_max', 'category' => 'fusion', 'group_by' => 'number_prefix',
-                    'group_label' => '提供コース', 'required_credits' => 4 }],
+                    'required_credits' => 4 }],
                  rule_after('some_any_of')['options']
   end
 

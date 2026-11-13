@@ -31,15 +31,16 @@ class RequirementCreditRangeHelperTest < ActionView::TestCase
     assert_match(/2/, markup.css('span').map(&:text).join)
   end
 
-  # 章や枠が先に取った決まりを指すだけの行は、その数字を判定が使っていない。入力欄にせず、
-  # どこに単位があるかを文で出す(設計書 項目1-2)。欄が無ければブラウザも送らない。
-  test 'credit_range は、held_by を渡されたら入力欄を出さず「◯に含む」と書く' do
+  # 章や枠が先に取った決まりを指すだけの行は、その数字を判定が使っていない。
+  # だからといって欄ごと消すと、学生のカードに出ている数字を直す手段が画面から無くなるので、
+  # 欄は残し、判定が見ている数字をその横に書く(設計書 項目1-2)。
+  test 'credit_range は、held_by を渡されたら欄を残したまま、判定が見る数字を添える' do
     markup = Nokogiri::HTML5.fragment(
       credit_range(['row[required_credits]', 22], nil, held_by: credits_held_by_text(['枠', '合計', 22]))
     )
 
-    assert_empty markup.css('input')
-    assert_equal '枠「合計」の22単位に含む', markup.text.strip
+    assert_equal ['row[required_credits]'], markup.css('input').pluck('name')
+    assert_includes markup.text, '判定は枠「合計」の22単位で見ます'
   end
 end
 

@@ -21,7 +21,7 @@ export default class extends Controller {
 
     const row = this.templateTarget.content.cloneNode(true)
     const token = this.token()
-    for (const element of row.querySelectorAll("[name], [id], [for]")) {
+    for (const element of row.querySelectorAll("*")) {
       this.replace(element, token)
     }
     this.listTarget.appendChild(row)
@@ -34,12 +34,17 @@ export default class extends Controller {
     if (row) row.remove()
   }
 
+  // 印は、どの属性に書いてあっても置き換える。
+  //
+  // name/id/for だけを見ていたころ、チップの欄が data-name に欄の名前を持っていたせいで、
+  // 足した組のチップが literal な __INDEX__ の名前で送られていた。2つ足すと、別々の組のはずの
+  // チップが1つのパラメータにまとまり、「どれか1つ」の組が「すべて要る」1つの組になっていた
+  // (便覧が「AまたはB」と書いているのに、AとBの両方を求める決まりが保存される)。
   replace(element, token) {
-    for (const name of ["name", "id", "for"]) {
-      const value = element.getAttribute(name)
-      if (value?.includes(this.constructor.PLACEHOLDER)) {
-        element.setAttribute(name, value.replaceAll(this.constructor.PLACEHOLDER, token))
-      }
+    for (const attribute of [...element.attributes]) {
+      if (!attribute.value.includes(this.constructor.PLACEHOLDER)) continue
+
+      element.setAttribute(attribute.name, attribute.value.replaceAll(this.constructor.PLACEHOLDER, token))
     }
   }
 

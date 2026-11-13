@@ -16,6 +16,9 @@ module CurriculumImport
     # 走るのは edit_rules・edit_display・行や章を足したあと。先に走ると、同じ保存の中で人が直した
     # 決まりを上書きしてしまう。
     module MirrorWriteback
+      # 持ち主が書く欄。画面が箱を出したかどうかも、送信にこの欄があるかで見分ける。
+      MIRRORED_FIELDS = %i[required_credits categories].freeze
+
       private
 
       def mirror_writeback
@@ -31,16 +34,27 @@ module CurriculumImport
 
       # 画面が箱を隠していた決まり。編集前の文書で決める。
       #
-      # 人がこの保存で値を直した決まりは除く(RuleCleanup#edited_rule_ids。箱が出ていたということなので、
-      # そちらを優先する)。「送られてきた決まり」で判じてはいけない。隠した決まりも、持ち主の「…」から
-      # id・名前・説明を送るので、送信にはどの決まりも出てくる。
+      # 箱が出ていた決まりは除く。見分け方は「送信にその決まりの判定の欄(必要単位・対象の区分)が
+      # 入っているか」。画面が箱を出したなら、ブラウザは必ずその欄を送る。隠した決まりは、持ち主の
+      # 「…」から id・名前・説明しか送らない。
+      #
+      # 「値を変えた決まり」(RuleCleanup#edited_rule_ids)では見分けられない。隠した決まりの名前と説明は
+      # 持ち主の「…」にあるので(設計書 項目2-2)、そこを直しただけで書き戻しが止まり、行の必要単位が
+      # どこにも書かれないまま保存されてしまう。そのとき判定の数字は画面のどこにも出ていない。
       def mirrored_targets
         before = @curriculum.document
         return {} unless before.is_a?(Hash)
 
         input = Validation::Input.new(before, @curriculum.pages)
         mirror = RequirementsReview::Mirror.new(input)
-        mirror.owners(RequirementsReview::Tree.new(input)).except(*edited_rule_ids)
+        mirror.owners(RequirementsReview::Tree.new(input)).except(*boxed_rule_ids)
+      end
+
+      # 送信が判定の欄を持っていた決まり = 画面に箱が出ていた決まり。
+      def boxed_rule_ids
+        @boxed_rule_ids ||= entries(@params[:rules], 'rules').to_a.filter_map do |entry|
+          entry[:id] if MIRRORED_FIELDS.any? { |field| entry.key?(field) }
+        end
       end
 
       # いまの文書での持ち主と決まりを引き、持ち主の値を決まりに書く。

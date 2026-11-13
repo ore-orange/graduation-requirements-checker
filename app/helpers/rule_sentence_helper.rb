@@ -15,7 +15,10 @@ module RuleSentenceHelper
   end
 
   # group_by が欄の名前（field:...）でないときの呼び名。
-  GROUP_BY_NAMES = { 'number_prefix' => '提供コース' }.freeze
+  # 学生の画面に出す「同一の◯◯から」の◯◯。便覧が呼び名(group_label)を持たないときに使うので、
+  # 内部の綴り(number_prefix・field:language)がそのまま学生に出ないよう、ここで日本語にする。
+  GROUP_BY_NAMES = { 'number_prefix' => '提供コース', 'number_prefix_hundreds' => '提供コース',
+                     'field:language' => '言語' }.freeze
 
   # 画面に並べる規則。cap・exclude は判定を作らない調整だが、便覧の規則なので並べる。
   TOP_LEVEL_RULES = (GraduationAssessment::Rules::TOP_LEVEL + GraduationAssessment::Rules::ADJUSTMENTS.keys).freeze
@@ -126,10 +129,10 @@ module RuleSentenceHelper
     return definition['group_label'] if definition['group_label'].present?
 
     group_by = definition['group_by'].to_s
-    field_group = GraduationAssessment::Ledger::FIELD_GROUP
-    return group_by.delete_prefix(field_group) if group_by.start_with?(field_group)
+    return GROUP_BY_NAMES.fetch(group_by) if GROUP_BY_NAMES.key?(group_by)
 
-    GROUP_BY_NAMES.fetch(group_by, group_by)
+    # 知らない欄で分ける便覧は、欄の名前をそのまま使う(便覧ごとの値なので、ここで訳しようがない)。
+    group_by.delete_prefix(GraduationAssessment::Ledger::FIELD_GROUP)
   end
 
   def credits_at_least(value) = value.is_a?(Numeric) ? "#{credit_number(value)}単位以上" : '必要単位が未設定'

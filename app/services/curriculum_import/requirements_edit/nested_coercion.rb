@@ -103,19 +103,7 @@ module CurriculumImport
         fields = condition_fields(row, type, name)
         return :invalid if fields.value?(:invalid)
 
-        rename_nested_group({ 'type' => type }.merge(fields.compact))
-      end
-
-      # 入れ子の grouped_max も、分け方を選び直したら呼び名を合わせる(設計書 項目3-3)。
-      # 画面は呼び名を隠し欄で送り返すので、分け方と食い違っていたら選び直されたということ。
-      def rename_nested_group(condition)
-        return condition unless condition['type'] == 'grouped_max'
-
-        label = GROUP_BY_LABELS[condition['group_by']]
-        return condition if label.nil? || condition['group_label'] == label
-
-        known = GROUP_BY_LABELS.value?(condition['group_label'])
-        condition['group_label'].blank? || known ? condition.merge('group_label' => label) : condition
+        { 'type' => type }.merge(fields.compact)
       end
 
       # 条件が持てる欄は、規則そのものと同じ表(RequirementsEdit.condition_fields)から決める。画面もこの表で欄を出すので、

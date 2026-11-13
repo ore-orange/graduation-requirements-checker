@@ -122,6 +122,24 @@ module CurriculumImport
       end
     end
 
+    # チップに出す科目。保存できなかった送信があれば、そのとき送られていた科目を出す
+    # (1つの打ち間違いで、選び直した組を全部失わせない)。「＋」で足した科目も、送られていればチップになる。
+    #
+    # 画面は科目の key を送り、文書は役割キーを持つ。どちらも courses の key か役割のどちらかなので、
+    # ここで科目に引き直してから並べる。
+    def chosen_path_courses(name, path)
+      return path_courses(path) unless @submission&.main_form?
+
+      keys = (@submission.values("#{name}[]") + [@submission.value(adder_name(name))]).grep(String).compact_blank.uniq
+      keys.map { |key| [key, course_for_chip(key)] }
+    end
+
+    def course_for_chip(key)
+      course = courses.find { |item| item['key'] == key } ||
+               courses.find { |item| Array(item['roles']).include?(key) }
+      course ? course_label(course) : "#{key}(科目表にありません)"
+    end
+
     def course_label(course) = "#{course['number']} #{course['name']}".strip
 
     # 経路に足せる科目。区分で絞る(484科目を1つの選択肢に並べない)。選んである科目は出さない。

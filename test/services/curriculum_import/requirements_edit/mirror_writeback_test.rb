@@ -127,6 +127,26 @@ class MirrorWritebackTest < ActiveSupport::TestCase
     assert_equal 9, rule_after('humanities')['required_credits']
   end
 
+  # 隠した決まりの名前と説明は、持ち主の「…」から送られる(設計書 項目2-2)。
+  # それを直したからといって書き戻しを止めると、行の必要単位がどこにも書かれない。
+  # そのとき判定の数字は画面のどこにも出ていないので、人は食い違いに気づけない。
+  test '隠した決まりの名前を一緒に直しても、必要単位は書き戻す' do
+    edit(display: row_param(required_credits: '6'),
+         rules: { '0' => { id: 'humanities', label: '直した名前' } })
+
+    assert_equal 6, rule_after('humanities')['required_credits'], '名前を直すと書き戻しが止まっていた'
+    assert_equal '直した名前', rule_after('humanities')['label']
+  end
+
+  # 箱が出ている決まりは、人がその欄で直す。送信にその欄が入っているかで見分ける
+  # (画面が箱を出したなら、ブラウザは必ずその欄を送る)。
+  test '送信に判定の欄が入っている決まりには、書き戻さない' do
+    edit(display: row_param(required_credits: '9'),
+         rules: { '0' => { id: 'humanities', required_credits: '4', categories: ['humanities'] } })
+
+    assert_equal 4, rule_after('humanities')['required_credits'], '画面に出ていた値を上書きした'
+  end
+
   # ---- 壊れた送信でも落ちない ----
 
   # 行を消すと、その行だけが指していた決まりも drop_orphaned_rules が消す。

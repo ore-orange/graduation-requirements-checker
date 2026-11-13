@@ -173,6 +173,24 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     assert_select '#rule-fusion_provider details[open]', count: 0
   end
 
+  # 経路のチップも、ほかの欄と同じく「1つの打ち間違いで、打った全部を失わせない」の約束の中にある。
+  # 送った組を画面が古い中身で描き直すと、何件もの選び直しが黙って消える。
+  test '保存できなかったとき、経路に選んだ科目も、送ったとおりに残る' do
+    draft = draft(document: real_document)
+    pairs = browser_pairs(draft)
+    index = pairs.find { |name, value| name.end_with?('[id]') && value == 'physics' }&.first&.[](/\d+/)
+    pairs = pairs.reject { |name, _| name.start_with?("rules[#{index}][paths]") }
+    pairs << ["rules[#{index}][paths][0][roles][]", 'course_先31']
+    pairs << ["rules[#{index}][paths][1][roles][]", 'course_先11']
+    # 別の欄で打ち間違える
+    pairs = pairs.map { |name, value| name == 'display[total_credits]' ? [name, 'いっぱい'] : [name, value] }
+    submit_pairs(draft, pairs)
+
+    assert_response :unprocessable_content
+    chosen = css_select('#rule-physics input[type=checkbox][checked]').pluck('value')
+    assert_equal %w[course_先31 course_先11].sort, chosen.sort, '送った科目ではなく、古い組が描き直された'
+  end
+
   test '保存できなかったとき、チェックの箱・注釈の選択も、送ったとおりに残る' do
     draft = draft()
     changes = { 'rules[3][required_credits]' => '4単位' }

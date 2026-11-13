@@ -12,7 +12,7 @@
 # JavaScript が無くても、保存すれば結果が見える。
 module RequirementCourseChipsHelper
   def course_chips(name, path, review, rule)
-    chosen = review.path_courses(path)
+    chosen = review.chosen_path_courses(name, path)
     tag.div(class: 'mt-1 flex flex-wrap items-center gap-1.5 text-sm', data: { controller: 'chip-adder' }) do
       safe_join([hidden_field_tag("#{name}[]", '', id: nil),
                  tag.span(safe_join(chosen.map { |key, label| course_chip(name, key, label) }, ' '),
@@ -23,6 +23,8 @@ module RequirementCourseChipsHelper
   end
 
   # チップは「いま選んである」ことそのもの。チェックは必ず入れる(外すのは × で、外したチップは描かれない)。
+  # rv_check は送信の中身で入り切りを決めるので使わない。どのチップを描くかは chosen_path_courses が決め、
+  # 描いたチップは必ずチェックが入っている(区分のチップと同じ作り)。
   def course_chip(name, key, label)
     tag.label(class: 'rv-chip') do
       check_box_tag("#{name}[]", key, true, id: nil, class: 'peer sr-only') +

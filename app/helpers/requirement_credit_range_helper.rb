@@ -7,21 +7,23 @@ module RequirementCreditRangeHelper
   # lower・upper は [欄の名前, 値] なら入力欄、それ以外(数・nil)は読むだけの枠。
   # 読むだけの枠には name を付けない。名前の無い欄はブラウザも送らないので、
   # 「触らずに保存したとき、文書が1バイトも変わらない」を壊さない。
-  # held_by が渡されたら、2つの欄の代わりに「◯に含む」の文を出す。その行の数字は判定が使っていないので、
-  # 入力欄にすると「直しても判定が動かない」落とし穴になる(設計書 項目1-2)。
+  # held_by は「判定はどこの数字を見るか」の注記(設計書 項目1-2)。
+  #
+  # 章や枠が先に取った決まりを指すだけの行は、その数字を判定が使っていない。だからといって欄ごと消すと、
+  # 学生のカードに出ている数字(display.rows[].required_credits)を直す手段が画面から無くなる。
+  # 欄は残し、判定が見ている数字をその横に書いて、食い違いを目で見つけられるようにする。
   def credit_range(lower, upper, note: nil, held_by: nil)
-    return tag.span(held_by, class: 'rv-slot whitespace-nowrap') if held_by
-
     parts = [credit_slot(lower, '下限なし(数えるだけ)'), tag.span('〜', class: 'text-slate-400'),
              credit_slot(upper, '上限なし'), tag.span('単位', class: 'font-medium text-slate-600')]
     parts << tag.span(note, class: 'text-amber-800') if note
+    parts << tag.span(held_by, class: 'text-amber-800') if held_by
     tag.span(safe_join(parts, ' '), class: 'inline-flex items-center gap-1 whitespace-nowrap text-sm')
   end
 
-  # 行の単位を、どの章・枠が持っているかの文。credit_range の held_by に渡す。
+  # 判定がどこの数字を見るかの文。credit_range の held_by に渡す。
   def credits_held_by_text(holder)
     kind, name, credits = holder
-    "#{kind}「#{name}」の#{review_credits(credits)}単位に含む"
+    "判定は#{kind}「#{name}」の#{review_credits(credits)}単位で見ます"
   end
 
   def credit_slot(slot, title)

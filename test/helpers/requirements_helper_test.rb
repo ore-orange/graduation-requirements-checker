@@ -89,11 +89,11 @@ class RequirementsHelperTest < ActionView::TestCase
     assert_equal '提供：甲群のうち、同一の提供コースから 4単位以上', text
   end
 
-  test 'grouped_max は group_label が無ければ欄の名前を使う' do
+  test 'grouped_max は group_label が無くても、内部の綴りを学生に出さない' do
     text = rule_text('type' => 'grouped_max', 'label' => '言語', 'category' => 'a', 'group_by' => 'field:language',
                      'required_credits' => 4)
 
-    assert_equal '言語：甲群のうち、同一のlanguageから 4単位以上', text
+    assert_equal '言語：甲群のうち、同一の言語から 4単位以上', text
   end
 
   test 'all_required は科目数と区分を出す' do

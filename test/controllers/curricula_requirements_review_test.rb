@@ -301,12 +301,15 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
   # 章や枠が先に取った決まりを、その中の行も指していることがある。このとき行の required_credits は
   # 判定が使っていない数字で、入力欄のまま残すと「直しても判定が動かない」落とし穴がその行に残る。
 
-  test '自分の単位の決まりを持たない行は、単位を入力欄にせず、どこに単位があるかを文で出す' do
+  # 行の数字は、判定は使わないが、学生のカードには出る(display.rows[].required_credits)。
+  # 欄ごと消すと、学生に出ている数字を直す手段が画面から無くなる。欄は残し、
+  # 判定がどこの数字を見るかを、その横に書く。
+  test '自分の単位の決まりを持たない行は、単位の欄を残し、判定がどこを見るかを添える' do
     show(draft)
 
     # 行 required_core が指す core は、章「2. 必修」が先に取っている
-    assert_select '#row-required_core input[name=?]', 'display[groups][1][rows][0][required_credits]', count: 0
-    assert_select '#row-required_core', text: /章「2\. 必修」の4単位に含む/
+    assert_select '#row-required_core input[name=?]', 'display[groups][1][rows][0][required_credits]'
+    assert_select '#row-required_core', text: /判定は章「2\. 必修」の4単位で見ます/
   end
 
   # どの章・行・枠からも指されていない決まりは、判定には効くのに学生の画面のどの行にも出ない。
