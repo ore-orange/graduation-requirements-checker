@@ -7,6 +7,8 @@
 <% subtotal = frame.subtotal %>
 <% key = "display[subtotals][#{frame.index}]" %>
 <% shown_rules = review.rules_under(subtotal['check_ids']) %>
+<%# 枠と同じことを言っている決まりは、箱を描かず「…」に名前と説明だけを出す(設計書 項目1) %>
+<% hidden_rule = review.hidden_rule(:frame, frame, shown_rules) %>
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
 <div id="subtotal-<%= frame.id %>" data-reorder-target="item" data-subtotal-frame="<%= frame.id %>"
      class="rounded-xl border-2 border-indigo-200 bg-indigo-50/40 p-3">
@@ -20,23 +22,30 @@
                   class: "w-64 font-semibold text-slate-900 #{field_class}" %>
     </label>
     <%= credit_range(["#{key}[required_credits]", subtotal['required_credits']], review.upper_limit(shown_rules)) %>
-    <% if human_confirmed?(subtotal) %><span class="rv-confirmed">人が確認した</span><% end %>
-    <details class="ml-auto text-xs" <%= 'open' if review.open?('subtotal', subtotal['id']) %>>
+    <% if confirmed_with_hidden?(subtotal, hidden_rule) %><span class="rv-confirmed">人が確認した</span><% end %>
+    <details class="ml-auto text-xs"
+             <%= 'open' if review.open?('subtotal', subtotal['id']) || (hidden_rule && review.open?('rule', hidden_rule['id'])) %>>
       <summary class="rv-more"
                title="この枠の、詳しい設定">…</summary>
-      <label class="mt-1 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-rose-800">
-        <%= rv_check "#{key}[_destroy]", '1', false, id: nil %>
-        この枠を外す(中の行は章の直下に戻ります。行は消えません)
-      </label>
+      <div class="mt-1 grid gap-3 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-2">
+        <% if hidden_rule %>
+          <%= render 'requirements_hidden_rule', review: review, rule: hidden_rule %>
+        <% end %>
+        <label class="flex items-center gap-1.5 text-rose-800 sm:col-span-2">
+          <%= rv_check "#{key}[_destroy]", '1', false, id: nil %>
+          この枠を外す(中の行は章の直下に戻ります。行は消えません)
+        </label>
+      </div>
     </details>
   </div>
 
   <%= render 'requirements_finding_notes', findings: review.findings_for(:display, subtotal['id']) %>
   <%= render 'requirements_problems', review: review, kind: 'subtotal', id: subtotal['id'] %>
 
-  <% if shown_rules.any? %>
+  <% boxed_rules = shown_rules - [hidden_rule].compact %>
+  <% if boxed_rules.any? %>
     <div class="mt-2 space-y-2">
-      <% shown_rules.each do |rule| %>
+      <% boxed_rules.each do |rule| %>
         <%= render 'requirements_rule', review: review, rule: rule %>
       <% end %>
     </div>

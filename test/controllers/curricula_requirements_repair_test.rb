@@ -136,7 +136,8 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
 
   test '1つの打ち間違いで保存できなくても、打った他の欄は残り、問題は全部、項目の下に出る' do
     draft = draft()
-    changes = { 'rules[0][required_credits]' => '4単位', 'rules[1][label]' => '直した英語',
+    # 箱が出ている決まり(core)を打ち間違える。humanities・english は行と同じことを言っているので箱が無い。
+    changes = { 'rules[3][required_credits]' => '4単位', 'rules[1][label]' => '直した英語',
                 'display[groups][0][title]' => '1. 直した共通教育', 'display[total_credits]' => 'いっぱい',
                 'display[groups][1][_destroy]' => '1' }
     pairs = change(browser_pairs(draft), changes)
@@ -147,49 +148,51 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
     assert_equal requirements_document, draft.reload.document, '何も保存しない'
     # 問題は2件。一度に全部出る(1つ直しては送り直す、をさせない)
     assert_select '#requirements_errors li', count: 2
-    assert_select '#requirements_errors', text: /規則「humanities」の必要単位は数で入れてください/
+    assert_select '#requirements_errors', text: /規則「core」の必要単位は数で入れてください/
     assert_select '#requirements_errors', text: /卒業に必要な総単位は数で入れてください/
-    assert_select '#rule-humanities [role=alert]', text: /4単位/
+    assert_select '#rule-core [role=alert]', text: /4単位/
     assert_select '#total_credits_row [role=alert]', text: /いっぱい/
     # 打った値が、そのまま残る(数でない値も、他の欄も、消す印も)
-    assert_select 'input[name=?][value=?]', 'rules[0][required_credits]', '4単位'
+    assert_select 'input[name=?][value=?]', 'rules[3][required_credits]', '4単位'
     assert_select 'input[name=?][value=?]', 'rules[1][label]', '直した英語'
     assert_select 'input[name=?][value=?]', 'display[groups][0][title]', '1. 直した共通教育'
     assert_select 'input[name=?][value=?]', 'display[total_credits]', 'いっぱい'
     assert_select 'input[type=checkbox][name=?][checked]', 'display[groups][1][_destroy]'
     assert_select 'input[type=checkbox][name=?][checked]', 'display[groups][0][_destroy]', count: 0
     # 変えた項目と問題のある項目は、開いたまま見せる
-    assert_select '#rule-humanities details[open]'
-    assert_select '#rule-english details[open]'
+    assert_select '#rule-core details[open]'
+    # english の箱は行と同じことを言っていて出ないので、その名前の欄は行の「…」にある
+    assert_select '#row-english details[open]'
     # 章・行の値そのものは畳まないので、打った値はそのまま出ている(上のとおり)。
     # 畳むのは「…」の中の、判定の数字を決めない値だけ。値を変えた項目は、その「…」も開いたまま見せる。
     assert_select '#group-common > div > details[open]'
     # 触っていない項目の「…」は開かない
-    assert_select '#rule-core details[open]', count: 0
+    assert_select '#rule-fusion_provider details[open]', count: 0
   end
 
   test '保存できなかったとき、チェックの箱・注釈の選択も、送ったとおりに残る' do
     draft = draft()
-    changes = { 'rules[0][required_credits]' => '4単位' }
+    changes = { 'rules[3][required_credits]' => '4単位' }
     pairs = change(browser_pairs(draft), changes).reject do |name, value|
-      name == 'rules[0][categories][]' && value == 'humanities'
+      name == 'rules[3][required_categories][]' && value == 'required_core'
     end
-    pairs << ['rules[0][categories][]', 'english']
+    pairs << ['rules[3][required_categories][]', 'english']
     submit_pairs(draft, pairs)
 
     assert_response :unprocessable_content
-    assert_select 'input[name=?][value=?]', 'rules[0][required_credits]', '4単位'
-    assert_select 'input[type=checkbox][name=?][value=english][checked]', 'rules[0][categories][]'
-    assert_select 'input[type=checkbox][name=?][value=humanities][checked]', 'rules[0][categories][]', count: 0
+    assert_select 'input[name=?][value=?]', 'rules[3][required_credits]', '4単位'
+    assert_select 'input[type=checkbox][name=?][value=english][checked]', 'rules[3][required_categories][]'
+    assert_select 'input[type=checkbox][name=?][value=required_core][checked]',
+                  'rules[3][required_categories][]', count: 0
   end
 
   test '保存できたあとの画面は、送った入力ではなく、保存した中身を出す' do
     draft = draft()
-    submit_pairs(draft, change(browser_pairs(draft), 'rules[0][required_credits]' => '5'))
+    submit_pairs(draft, change(browser_pairs(draft), 'rules[3][required_credits]' => '5'))
     assert_redirected_to curriculum_path(draft, anchor: 'requirements_review')
     follow_redirect!
 
-    assert_select 'input[name=?][value=?]', 'rules[0][required_credits]', '5'
+    assert_select 'input[name=?][value=?]', 'rules[3][required_credits]', '5'
     assert_select '#requirements_errors', count: 0
   end
 

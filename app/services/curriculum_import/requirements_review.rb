@@ -120,6 +120,28 @@ module CurriculumImport
       @claimed_rule_boxes.add?(id).present?
     end
 
+    # ---- 持ち主と同じことを言っている決まり(設計書 項目1) ----
+
+    def mirror = @mirror ||= Mirror.new(input)
+
+    # rules のうち、持ち主(行・章・枠・総単位の枠)の欄が言い尽くしているもの。画面は、この決まりの箱を描かず、
+    # 名前と注記だけを持ち主の「…」に出す。欄の名前は箱に出すときと同じなので、保存側は何も変わらない。
+    # 指摘・入力の問題が付いた決まりは隠さない(隠すと、指摘を出す場所が画面から消える)。
+    def hidden_rule(owner_kind, owner, rules)
+      Array(rules).find { |rule| mirror.duplicate?(rule, owner_kind, owner, blocked: blocked_rule?(rule)) }
+    end
+
+    def blocked_rule?(rule)
+      id = rule['id']
+      findings_for(:rule, id).any? || problems_for('rule', id).any?
+    end
+
+    # この行の単位を持っている章・枠([種類, 名前, 単位])。行が自分の数字の決まりを持っていないときだけ出す。
+    #
+    # 章や枠が先に取った決まりを、その中の行も指していることがある。その行の required_credits は判定が
+    # 使っていない数字なので、入力欄のまま残すと「直しても判定が動かない」落とし穴がその行に残る(設計書 項目1-2)。
+    def credits_holder(row) = holders[row['id']]
+
     # ---- ツリー(設計書 項目4・6・10) ----
 
     def tree = @tree ||= Tree.new(input)
@@ -204,6 +226,36 @@ module CurriculumImport
     def input
       @input ||= Validation::Input.new(curriculum.document, curriculum.pages)
     end
+
+    # 行 id → その行の単位を持っている章・枠。描く順ではなく、ツリーの親子から決まる(画面が呼ぶ順に依らない)。
+    def holders
+      @holders ||= groups.each_with_index.with_object({}) do |(group, index), map|
+        holders_in(group, index, map)
+      end
+    end
+
+    def holders_in(group, index, map)
+      frames = tree.nodes_of(index).filter_map { |node, _| node if node.is_a?(Tree::Frame) }
+      rows_of(group).each do |row|
+        frame = frames.find { |item| item.rows.any? { |candidate| candidate['id'] == row['id'] } }
+        holder = holder_for(Array(row['check_ids']).grep(String), frame, group)
+        map[row['id']] = holder if holder
+      end
+    end
+
+    # 枠が先、次に章(画面が決まりの箱を描く順と同じ)。
+    def holder_for(ids, frame, group)
+      return frame_holder(frame) if frame_holds?(frame, ids)
+      return unless group['check_id'].is_a?(String) && ids.include?(group['check_id'])
+
+      ['章', group['title'], group['required_credits']]
+    end
+
+    def frame_holds?(frame, ids)
+      frame.present? && Array(frame.subtotal['check_ids']).grep(String).intersect?(ids)
+    end
+
+    def frame_holder(frame) = ['枠', frame.subtotal['name'], frame.subtotal['required_credits']]
 
     # 同じ決まりを2か所に出さない。id の重複も落とす(1つの行が同じ id を2回指していても、欄は1組)。
     def claim(candidates)

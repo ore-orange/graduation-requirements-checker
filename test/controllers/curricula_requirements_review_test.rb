@@ -40,20 +40,20 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     show(draft)
 
     judging = ['display[total_credits]', 'display[groups][0][required_credits]',
-               'display[groups][0][rows][0][required_credits]', 'rules[0][required_credits]']
+               'display[groups][0][rows][0][required_credits]', 'rules[3][required_credits]']
     judging.each do |name|
       fields = css_select("#requirements_form [name='#{name}']")
       assert_predicate fields, :any?, "#{name} が画面にありません"
       fields.each { |field| assert_empty field.ancestors('details'), "#{name} が畳んだ中にあります" }
     end
     # いま数えている区分(チェックが入っている区分)も畳まない。選んでいない区分だけが「＋」の中。
-    ['display[groups][0][rows][0][categories][]', 'rules[0][categories][]'].each do |name|
+    ['display[groups][0][rows][0][categories][]', 'rules[3][required_categories][]'].each do |name|
       checked = css_select("#requirements_form input[name='#{name}'][checked]")
       assert_predicate checked, :any?, "#{name} の選んである区分が画面にありません"
       checked.each { |field| assert_empty field.ancestors('details'), "#{name} が畳んだ中にあります" }
     end
     # 出典も畳まない(PDFと突き合わせる唯一の手がかり。設計書 項目7)
-    assert_select '#rule-humanities > p', text: /出典 PDF3ページ/
+    assert_select '#rule-core > p', text: /出典 PDF3ページ/
   end
 
   test '章・行の名前と必要単位は、開かなくても直せる(常時表示の入力欄)' do
@@ -79,8 +79,8 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
   test 'バッジが付くのは、入れ子を持つ規則だけ' do
     show(draft)
 
-    assert_select '#row-humanities [data-rule-box=?]', 'humanities'
-    assert_select '#row-humanities [data-rule-logic]', count: 0
+    assert_select '#row-fusion [data-rule-box=?]', 'fusion_provider'
+    assert_select '#row-fusion [data-rule-logic]', count: 0
   end
 
   # 行に常時出るのは、PDFと突き合わせるときに目で追う4つ(必要単位・科目名・対象科目・修了要件)。
@@ -92,7 +92,8 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#row-humanities input[type=checkbox][name=?][value=?][checked]',
                   'display[groups][0][rows][0][categories][]', 'humanities'
     assert_select '#row-humanities summary', text: /科目 3件/
-    assert_select '#row-humanities [data-rule-box=?]', 'humanities', text: /規則humanities/
+    # 確かめる決まりは、行と同じことを言っていなければ箱で出る(fusion_provider は grouped_max)
+    assert_select '#row-fusion [data-rule-box=?]', 'fusion_provider', text: /規則fusion_provider/
   end
 
   # 23個のチェックの並びはやめ、選んである区分だけをチップで出す。足すのは選択肢1つから。
@@ -112,7 +113,7 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
   test '保存できなかったとき、足した区分もチップに残る' do
     draft = draft()
     pairs = browser_pairs(draft)
-    pairs = pairs.map { |name, value| name == 'rules[0][required_credits]' ? [name, 'たくさん'] : [name, value] }
+    pairs = pairs.map { |name, value| name == 'rules[3][required_credits]' ? [name, 'たくさん'] : [name, value] }
     pairs << ['display[groups][0][rows][0][add][categories]', 'english']
     submit_pairs(draft, pairs)
 
@@ -169,14 +170,81 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#category-excluded .text-rose-700', text: /総単位に数えない/
   end
 
+  # ---- 持ち主と同じことを言っている決まりは、箱を出さない(設計書 項目1) ----
+  #
+  # 2024年度の実データでは27個の決まりのうち12個が、すぐ上の行・章・枠と文字どおり同じ。
+  # 同じことを二度書いた箱は、PDFと突き合わせる手がかりを増やさず、画面を読めなくするだけ。
+  # 消すのは「人が打つ欄」であって「人が見る値」ではない。隠した値は、持ち主の行にそのまま出ている。
+
+  test '行と同じことを言っている決まりの箱は、出さない' do
+    show(draft)
+
+    assert_select '[data-rule-box=?]', 'humanities', count: 0
+    # 隠しても、その値は行に出ている
+    assert_select '#row-humanities input[name=?][value=?]', 'display[groups][0][rows][0][required_credits]', '4'
+    assert_select '#row-humanities input[type=checkbox][name=?][value=?][checked]',
+                  'display[groups][0][rows][0][categories][]', 'humanities'
+  end
+
+  test '行と必要単位が食い違う決まりの箱は、出す' do
+    document = requirements_document
+    document['rules'].find { |rule| rule['id'] == 'humanities' }['required_credits'] = 6
+
+    show(draft(document: document))
+
+    assert_select '#row-humanities [data-rule-box=?]', 'humanities'
+  end
+
+  test '隠した決まりの名前と注記は、持ち主の … の中で直せる' do
+    show(draft)
+
+    assert_select '#row-humanities details input[name=?][value=?]', 'rules[0][label]', '規則humanities'
+    assert_select '#row-humanities details input[name=?]', 'rules[0][detail]'
+    # 保存が規則を引けるよう、id も送る
+    assert_select '#row-humanities input[type=hidden][name=?][value=?]', 'rules[0][id]', 'humanities'
+  end
+
+  # 隠した決まりを「どこからも指されていない」枠が拾うと、同じ決まりが2か所に出て、欄が重複する。
+  test '隠した決まりは、どの行にも結びついていない決まりの枠に落ちてこない' do
+    show(draft)
+
+    assert_select '#requirements_rules [data-rule-box=?]', 'humanities', count: 0
+  end
+
+  # 箱を隠すと、その決まりに付いた指摘を出す場所も消える。上のまとめには規則の id だけが残り、
+  # 画面のどこからもその id を辿れなくなる。
+  test '指摘が付いている決まりの箱は、重複していても出す' do
+    document = requirements_document
+    # 行が指す区分に科目が1つも無いと、突き合わせがその決まりを指す
+    document['courses'].reject! { |course| course['category'] == 'humanities' }
+
+    show(draft(document: document))
+
+    assert_select '#row-humanities [data-rule-box=?]', 'humanities'
+  end
+
+  # ---- 自分の単位の決まりを持たない行(設計書 項目1-2) ----
+  #
+  # 章や枠が先に取った決まりを、その中の行も指していることがある。このとき行の required_credits は
+  # 判定が使っていない数字で、入力欄のまま残すと「直しても判定が動かない」落とし穴がその行に残る。
+
+  test '自分の単位の決まりを持たない行は、単位を入力欄にせず、どこに単位があるかを文で出す' do
+    show(draft)
+
+    # 行 required_core が指す core は、章「2. 必修」が先に取っている
+    assert_select '#row-required_core input[name=?]', 'display[groups][1][rows][0][required_credits]', count: 0
+    assert_select '#row-required_core', text: /章「2\. 必修」の4単位に含む/
+  end
+
   # どの章・行・枠からも指されていない決まりは、判定には効くのに学生の画面のどの行にも出ない。
   # 画面から消すとその要件が見えなくなるので、必ず専用の枠に出す(設計書 項目6)。
   test 'どこからも指されていない決まりは、専用の枠に出る' do
     show(draft)
 
     # 人工の文書では total(総単位の決まり)が総単位の枠、excluded_category が算入しない科目の枠に出る。
+    # total は総単位の数字と同じことを言っているので、箱は出さず「…」に学生向けの文言だけを置く(設計書 項目1)。
     # 残り(どの行も指していない決まり)が、この枠に出る。
-    assert_select '#total_credits_row [data-rule-box=?]', 'total'
+    assert_select '#total_credits_row input[type=hidden][name=?][value=?]', 'rules[5][id]', 'total'
     assert_select '#requirements_excludes [data-rule-box=?]', 'excluded_category'
     # path_rule は、人工の文書ではどの行も指していない。その枠に出る
     assert_select '#requirements_rules li [data-rule-box=?]', 'path_rule'
@@ -199,7 +267,11 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     show(draft)
 
     ids = %w[humanities english path_rule core fusion_provider total excluded_category]
-    ids.each { |id| assert_select '[data-rule-box=?]', id, count: 1 }
+    # 箱で出る決まりは、箱が1つだけ。持ち主と同じことを言っている決まりは箱を持たない(設計書 項目1)。
+    %w[path_rule core fusion_provider excluded_category].each do |id|
+      assert_select '[data-rule-box=?]', id, count: 1
+    end
+    %w[humanities english total].each { |id| assert_select '[data-rule-box=?]', id, count: 0 }
     # 決まり1つにつき、id の hidden が1つだけ(欄の名前が重なっていない)
     names = css_select('#requirements_form input[type=hidden]').pluck('name').grep(/\Arules\[\d+\]\[id\]\z/)
     assert_equal ids.size, names.size
@@ -256,8 +328,8 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#requirements_findings', text: /公開を止める問題が1件/
     # 該当の行の中にも、同じ理由が出る
     assert_select '#row-humanities', text: /規則が見つかりません: vanished/
-    # 行が確かめている決まりは、id ではなく名前で出る(設計書 項目5)
-    assert_select '#row-humanities [data-rule-box=?]', 'humanities', text: /規則humanities/
+    # 行と同じことを言っている決まりは箱を出さないが、学生に出る名前は「…」で直せる(設計書 項目1・2-2)
+    assert_select '#row-humanities input[name=?][value=?]', 'rules[0][label]', '規則humanities'
     assert_select '#row-humanities .text-rose-900', text: /規則が見つかりません: vanished/
   end
 
@@ -335,9 +407,10 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     document['display']['groups'][0]['confirmed'] = true
     show(draft(document: document))
 
-    assert_select '#rule-humanities', text: /人が確認した/
+    # humanities の箱は行と同じことを言っているので出ない。印は、その値を出している行に付ける(設計書 項目1)
+    assert_select '#row-humanities', text: /人が確認した/
     assert_select '#group-common', text: /人が確認した/
-    assert_select '#rule-english', text: /人が確認した/, count: 0
+    assert_select '#row-english', text: /人が確認した/, count: 0
   end
 
   test '壊れた document でも、画面は開ける' do
@@ -832,11 +905,15 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#requirements_table input[name=?][value=?]', 'display[total_credits]', '130'
     assert_select '#requirements_findings [data-blocking=true]', count: 0
     assert_select '#category-excluded', text: /総単位に数えない/
-    # 27個の決まりが、画面のどこかに1組ずつ出ている(どれも消えていない。設計書 項目6)
+    # 27個の決まりが、画面のどこかに1組ずつ出ている(どれも消えていない。設計書 項目6)。
+    # 持ち主と同じことを言っている12個は箱を持たず、持ち主の「…」が id・名前・説明を持つ(設計書 項目1)。
+    hidden = css_select('#requirements_form input[type=hidden]').pluck('name', 'value')
+    held = hidden.select { |name, _| name.match?(/\Arules\[\d+\]\[id\]\z/) }
+    assert_equal document['rules'].pluck('id').sort, held.map(&:last).sort
     boxes = css_select('[data-rule-box]').pluck('data-rule-box')
-    assert_equal document['rules'].pluck('id').sort, boxes.sort
+    assert_equal 15, boxes.size
     # 置き場所: 総単位の枠・算入しない科目の枠・結びついていない決まりの枠
-    assert_select '#total_credits_row [data-rule-box=?]', 'total'
+    assert_select '#total_credits_row input[type=hidden][value=?]', 'total'
     assert_select '#requirements_excludes [data-rule-box=?]', 'excluded_category'
     assert_select '#requirements_excludes [data-rule-box=?]', 'own_fusion'
     assert_select '#requirements_rules li [data-rule-box=?]', 'required_total'
@@ -868,14 +945,15 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
 
   test '画面のフォームのまま1つだけ値を変えて保存すると、その項目にだけ印が付く' do
     draft = draft()
-    target = 'rules[0][required_credits]'
+    # 箱が出ている決まり(core は all_required なので、行と同じことを言っていない)を1つだけ直す
+    target = 'rules[3][required_credits]'
     pairs = browser_pairs(draft).map { |name, value| name == target ? [name, '5'] : [name, value] }
     assert_includes pairs, [target, '5']
     submit_pairs(draft, pairs)
 
-    assert_equal [5], [rule(draft, 'humanities')['required_credits']]
+    assert_equal [5], [rule(draft, 'core')['required_credits']]
     confirmed = draft.document['rules'].select { |entry| entry['confirmed'] }.pluck('id')
-    assert_equal %w[humanities], confirmed
+    assert_equal %w[core], confirmed
     assert(groups(draft).none? { |entry| entry['confirmed'] })
   end
 

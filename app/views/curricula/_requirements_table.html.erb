@@ -30,11 +30,21 @@
     <%= render 'requirements_finding_notes', findings: review.findings_for(:display, 'total_credits') %>
     <%= render 'requirements_problems', review: review, kind: 'total', id: 'total' %>
 
-    <%# 総単位に当たる決まりも、同じ枠に出す。数字だけを出して決まりを隠すと、判定を決める側が見えない(設計書 項目6) %>
+    <%# 総単位に当たる決まりも、同じ枠に出す。数字だけを出して決まりを隠すと、判定を決める側が見えない(設計書 項目6)。 %>
+    <%# ただし、その決まりが上の数字と同じことを言っているなら(必要単位も、数える区分も)、箱は出さない(設計書 項目1)。 %>
     <% if (total_rule = review.total_rule) %>
-      <div class="mt-2">
-        <%= render 'requirements_rule', review: review, rule: total_rule %>
-      </div>
+      <% if review.hidden_rule(:total, nil, [total_rule]) %>
+        <details class="mt-2 text-xs">
+          <summary class="rv-more" title="総単位の決まりの、学生の画面に出る文言">…</summary>
+          <div class="mt-1 grid gap-3 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-2">
+            <%= render 'requirements_hidden_rule', review: review, rule: total_rule %>
+          </div>
+        </details>
+      <% else %>
+        <div class="mt-2">
+          <%= render 'requirements_rule', review: review, rule: total_rule %>
+        </div>
+      <% end %>
     <% end %>
   </div>
 

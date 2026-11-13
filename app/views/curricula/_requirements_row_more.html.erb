@@ -1,9 +1,15 @@
 <%# 行の「…」(設計書 項目2)。PDFと突き合わせるときに目で追わない値だけを、ここにまとめる。 %>
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
-<details class="text-xs" <%= 'open' if review.open?('row', row['id']) %>>
+<%# 隠した決まりの欄はこの中にある。その決まりを直した(問題があった)ときも、開いたまま見せる %>
+<% hidden_rule = local_assigns[:hidden_rule] %>
+<details class="text-xs"
+         <%= 'open' if review.open?('row', row['id']) || (hidden_rule && review.open?('rule', hidden_rule['id'])) %>>
   <summary class="rv-more"
            title="この行の、詳しい設定">…</summary>
   <div class="mt-1 grid gap-3 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-2">
+    <% if local_assigns[:hidden_rule] %>
+      <%= render 'requirements_hidden_rule', review: review, rule: hidden_rule %>
+    <% end %>
     <label class="block sm:col-span-2"><span class="font-semibold text-slate-700">副題(便覧の但し書き)</span>
       <%= rv_text "#{row_key}[subtitle]", row['subtitle'], id: nil, class: "mt-1 block w-full #{field_class}" %></label>
 

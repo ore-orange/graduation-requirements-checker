@@ -49,22 +49,6 @@ class RequirementsReviewHelperTest < ActionView::TestCase
     end
   end
 
-  # 必要単位(下限)も、代わりに出す言葉も無い行だけ「内数」と出す。文書には書き込まない(設計書 項目3)。
-  test 'inner_row? は、必要単位も表示の言葉も無い行だけ true' do
-    assert inner_row?({ 'required_credits' => nil, 'required_label' => nil })
-    assert_not inner_row?({ 'required_credits' => 4, 'required_label' => nil })
-    assert_not inner_row?({ 'required_credits' => nil, 'required_label' => '内数22単位枠' })
-  end
-
-  # 読むだけの枠には name を付けない。名前の無い欄はブラウザも送らないので、
-  # 「触らずに保存したとき、文書が1バイトも変わらない」を壊さない。
-  test 'credit_range は、読むだけの枠に name を付けない' do
-    markup = Nokogiri::HTML5.fragment(credit_range(['row[required_credits]', 4], 2))
-
-    assert_equal ['row[required_credits]'], markup.css('input').pluck('name')
-    assert_match(/2/, markup.css('span').map(&:text).join)
-  end
-
   test 'rule_logic_label は one_of_paths・any_ofをOR、all_ofをAND、それ以外はnilにする' do
     assert_equal 'OR', rule_logic_label({ 'type' => 'one_of_paths' })
     assert_equal 'OR', rule_logic_label({ 'type' => 'any_of' })

@@ -98,30 +98,6 @@ module RequirementsReviewHelper
       lower: fields.key?(RULE_LOWER_FIELD), upper: fields.key?(RULE_UPPER_FIELD) }
   end
 
-  # 「◯以上 〜 ◯以下」の2つの欄。章・枠・行・決まりで同じ形にする。
-  # lower・upper は [欄の名前, 値] なら入力欄、それ以外(数・nil)は読むだけの枠。
-  # 読むだけの枠には name を付けない。名前の無い欄はブラウザも送らないので、
-  # 「触らずに保存したとき、文書が1バイトも変わらない」を壊さない。
-  def credit_range(lower, upper, note: nil)
-    parts = [credit_slot(lower, '下限なし(数えるだけ)'), tag.span('〜', class: 'text-slate-400'),
-             credit_slot(upper, '上限なし'), tag.span('単位', class: 'font-medium text-slate-600')]
-    parts << tag.span(note, class: 'text-amber-800') if note
-    tag.span(safe_join(parts, ' '), class: 'inline-flex items-center gap-1 whitespace-nowrap text-xs')
-  end
-
-  def credit_slot(slot, title)
-    if slot.is_a?(Array)
-      return rv_number(slot.first, slot.last, id: nil,
-                                              class: "w-16 text-right tabular-nums #{FIELD_CLASS}")
-    end
-
-    tag.span(review_credits(slot), title: slot.nil? ? title : nil, class: 'rv-slot')
-  end
-
-  # 必要単位(下限)も、その代わりに出す言葉も無い行。学生の画面では上の章の単位に含まれる。
-  # 「内数」は画面にだけ出し、文書には書き込まない(設計書 項目3)。
-  def inner_row?(row) = row['required_credits'].nil? && row['required_label'].blank?
-
   # 規則の1つの欄の入力。欄の種類は RequirementsEdit.rule_fields と同じ表から決まる。
   def rule_field_input(name, field, kind, rule, review)
     hint = rule['type'] == 'exclude' ? RequirementsExcludeHelper::FIELD_HINTS[field].to_s : ''
@@ -146,6 +122,12 @@ module RequirementsReviewHelper
   end
 
   def human_confirmed?(item) = item[CurriculumImport::DraftMerge::CONFIRMED] == true
+
+  # 持ち主(行・章・枠)の「人が確認した」印。隠した決まりに付いた印も、ここに出す。
+  # 隠した決まりの値は持ち主の欄に出ているので、その印も持ち主に出さないと画面から消えてしまう。
+  def confirmed_with_hidden?(item, hidden_rule)
+    human_confirmed?(item) || (hidden_rule.present? && human_confirmed?(hidden_rule))
+  end
 
   def annotation_type_options
     CurriculumImport::Annotations::RULE_TYPES.map { |type| ["規則にする: #{rule_type_name(type)}(#{type})", type] }
