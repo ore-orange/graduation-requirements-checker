@@ -51,7 +51,7 @@ class PlanCoursesController < ApplicationController
 
   # 送ってきたページがわからないときは、フォームの項目から戻る先を組み立てる。
   def plan_page_from_params
-    return plan_path(view: 'all') if params[:view] == 'all'
+    return plan_path(view: 'all', **catalogue_pane_params) if params[:view] == 'all'
 
     plan_path(term: (helpers.term_param(@term) if @term), **catalogue_pane_params)
   end

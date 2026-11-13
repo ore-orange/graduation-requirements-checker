@@ -634,12 +634,46 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-term-button='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
   end
 
-  test '一覧には便覧のパネルもボタンも出さない' do
-    get plan_path(view: 'all', pane: 'catalogue')
-
-    assert_response :success
+  test '一覧でも、右上のボタンで便覧のパネルを開け閉めできる' do
+    get plan_path(view: 'all')
     assert_select '#catalogue', count: 0
-    assert_select '[data-catalogue-toggle]', count: 0
+    assert_select "[data-catalogue-toggle='open'][href=?]", plan_path(view: 'all', pane: 'catalogue'), count: 1
+
+    get plan_path(view: 'all', pane: 'catalogue', q: @candidate.fetch('name'))
+    assert_response :success
+    assert_select '[data-overview]', count: 1
+    assert_select "[data-catalogue-toggle='close'][href=?]", plan_path(view: 'all'), count: 1
+    assert_select '#catalogue' do
+      # 検索しても一覧のまま
+      assert_select "form[method='get'] input[name='view'][value='all']", count: 1
+      assert_select "form[method='get'] input[name='term']", count: 0
+      assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
+    end
+  end
+
+  test '一覧で便覧のパネルを開いたまま、学期の画面と行き来できる' do
+    get plan_path(view: 'all', pane: 'catalogue')
+    assert_select "[data-term-button='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
+    assert_select "[data-overview-term='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
+
+    get plan_path(term: '4-前期', pane: 'catalogue')
+    assert_select "[data-term-button='all'][href=?]", plan_path(view: 'all', pane: 'catalogue'), count: 1
+  end
+
+  test '一覧の便覧のパネルから追加すると、今の学期の予定になり、パネルを開いた一覧に戻る' do
+    key = @candidate.fetch('key')
+    get plan_path(view: 'all', pane: 'catalogue')
+    current = css_select('[data-term-current]').first['data-term-button']
+    assert_select "[data-catalogue-key='#{key}'] form" do
+      assert_select "input[name='term'][value=?]", current
+      assert_select "input[name='view'][value='all']"
+      assert_select "input[name='pane'][value='catalogue']"
+    end
+
+    assert_difference -> { @student.planned_courses.count }, 1 do
+      post plan_courses_path, params: { course_key: key, term: current, view: 'all', pane: 'catalogue' }
+    end
+    assert_redirected_to plan_path(view: 'all', pane: 'catalogue')
   end
 
   test '便覧のパネルから追加・削除しても、パネルは開いたままで検索語も残る' do

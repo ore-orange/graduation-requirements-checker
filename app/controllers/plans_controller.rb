@@ -10,8 +10,10 @@ class PlansController < ApplicationController
     @assessment = assess
     load_term
     load_unavailable_keys
-    # 便覧カタログは、学期の画面で右側のパネルを開いている（?pane=catalogue）ときだけ検索する
-    @catalogue_open = !@overview && params[:pane] == 'catalogue'
+    # いま見ている画面（一覧、または学期の画面）を表す URL の項目。パネルの開け閉めや検索で同じ画面に戻るために使う
+    @plan_page_params = @overview ? { view: 'all' } : { term: helpers.term_param(@term) }
+    # 便覧カタログは、右側のパネルを開いている（?pane=catalogue）ときだけ検索する。学期の画面でも一覧でも開ける
+    @catalogue_open = params[:pane] == 'catalogue'
     load_catalogue if @catalogue_open
     # 追加・削除のフォームに持たせる項目。パネルを開いたまま、検索語も残したまま計画表に戻るために使う
     @catalogue_pane_params = @catalogue_open ? { pane: 'catalogue', q: @query.presence }.compact : {}
