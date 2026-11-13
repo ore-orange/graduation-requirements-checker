@@ -15,7 +15,7 @@ module RuleSentenceHelper
   end
 
   # group_by が欄の名前（field:...）でないときの呼び名。
-  GROUP_BY_NAMES = { 'number_prefix' => '科目番号の接頭辞' }.freeze
+  GROUP_BY_NAMES = { 'number_prefix' => '提供コース' }.freeze
 
   # 画面に並べる規則。cap・exclude は判定を作らない調整だが、便覧の規則なので並べる。
   TOP_LEVEL_RULES = (GraduationAssessment::Rules::TOP_LEVEL + GraduationAssessment::Rules::ADJUSTMENTS.keys).freeze

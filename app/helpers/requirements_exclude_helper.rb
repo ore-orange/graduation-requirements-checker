@@ -19,7 +19,7 @@ module RequirementsExcludeHelper
   end
 
   # 「一致 / 以外」。欄が無いときは「一致」(Rules::Exclude の既定)を選んだ形で出す。
-  def prefix_mode_picks(name, value)
+  def prefix_mode_picks(name, value, _review = nil)
     picks = PREFIX_MODES.map do |label, mode|
       tag.label(class: 'rv-pick text-xs') do
         radio_button_tag(name, mode, requirements_review.field_value(name, value.presence || 'match') == mode,

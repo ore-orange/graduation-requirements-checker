@@ -57,6 +57,27 @@ class RuleEditingTest < ActiveSupport::TestCase
     assert_equal [%w[role_a]], rule_after('english_required')['paths']
   end
 
+  # ---- グループの分け方(設計書 項目3-3) ----
+
+  # 呼び名(group_label)は学生の画面に「同一の◯◯から」と出る値。画面の欄をやめ、分け方から決めて書く。
+  test 'グループの分け方を選び直すと、呼び名も合わせて書く' do
+    edit(rules: { '0' => { id: 'fusion_provider', group_by: 'field:language' } })
+
+    assert_equal 'field:language', rule_after('fusion_provider')['group_by']
+    assert_equal '言語', rule_after('fusion_provider')['group_label']
+  end
+
+  # AI が「開講コース」など別の呼び名で読んだ値を、画面を開いて保存しただけで上書きしない。
+  test '分け方を触らない保存では、呼び名を上書きしない' do
+    document = @curriculum.document.deep_dup
+    document['rules'].find { |rule| rule['id'] == 'fusion_provider' }['group_label'] = '開講コース'
+    @curriculum.update!(document: document)
+
+    edit(rules: { '0' => { id: 'fusion_provider', group_by: 'number_prefix' } })
+
+    assert_equal '開講コース', rule_after('fusion_provider')['group_label']
+  end
+
   test '経路を直した規則には、読み直しから守る印が付く' do
     edit(rules: { '0' => { id: 'english_required', paths: { 'a' => { roles: %w[role_b] } } } })
 
@@ -79,7 +100,7 @@ class RuleEditingTest < ActiveSupport::TestCase
 
     assert_equal [{ 'type' => 'credit_sum', 'categories' => %w[humanities], 'required_credits' => 4 },
                   { 'type' => 'grouped_max', 'category' => 'fusion', 'group_by' => 'number_prefix',
-                    'required_credits' => 4 }],
+                    'group_label' => '提供コース', 'required_credits' => 4 }],
                  rule_after('some_any_of')['options']
   end
 

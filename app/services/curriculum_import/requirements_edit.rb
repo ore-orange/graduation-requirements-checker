@@ -58,6 +58,11 @@ module CurriculumImport
     # FIELD_KINDS に無いが、判定の数字を決める欄。cap の上限(credits)を読み違えると、算入してはいけない単位が数えられる。
     # exclude の接頭辞(number_prefix)は、読み違えると何にも当たらず、何も除外しない。欄が無い(区分全体)と空は同じ意味なので、
     # 空にしたときは欄ごと消す(欄があって空だと、読み込みが拒む)。
+    # grouped_max のグループの分け方(設計書 項目3-3)。画面は内部の語彙(field:language など)を出さず、
+    # この表の呼び名で選ばせる。選び直したときだけ、学生に出る呼び名(group_label)も合わせて書く。
+    # 表に無い値(number_prefix_hundreds・field:<任意の欄>)は、画面が「いまの設定」として残す。
+    GROUP_BY_CHOICES = { 'number_prefix' => '提供コース(科目番号の先頭)', 'field:language' => '言語' }.freeze
+    GROUP_BY_LABELS = { 'number_prefix' => '提供コース', 'field:language' => '言語' }.freeze
     # grouped_max の group_label は、学生に出す「同一の○○から」の○○。欄が無ければ group_by から作るので、
     # 必須にはしない(FIELD_KINDS に入れると、書いていない便覧が「欄が足りない」と言われる)。
     # 算入しない科目の条件(設計書 項目9)。区分・提供コース(科目番号の接頭辞と、一致/以外)・名指しの科目番号。

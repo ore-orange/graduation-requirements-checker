@@ -86,7 +86,7 @@ class RequirementsHelperTest < ActionView::TestCase
     text = rule_text('type' => 'grouped_max', 'label' => '提供', 'category' => 'a', 'group_by' => 'number_prefix',
                      'required_credits' => 4)
 
-    assert_equal '提供：甲群のうち、同一の科目番号の接頭辞から 4単位以上', text
+    assert_equal '提供：甲群のうち、同一の提供コースから 4単位以上', text
   end
 
   test 'grouped_max は group_label が無ければ欄の名前を使う' do
@@ -264,7 +264,7 @@ class RequirementsHelperTest < ActionView::TestCase
 
   test '実物: grouped_max' do
     assert_includes real_text('fusion_provider'), '同一の他コースが提供する工学融合：'
-    assert_includes real_text('fusion_provider'), 'のうち、同一の科目番号の接頭辞から 4単位以上'
+    assert_includes real_text('fusion_provider'), 'のうち、同一の提供コースから 4単位以上'
   end
 
   test '実物: cap と exclude' do

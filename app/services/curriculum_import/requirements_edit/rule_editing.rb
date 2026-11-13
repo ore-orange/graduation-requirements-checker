@@ -44,9 +44,20 @@ module CurriculumImport
       def edit_rule(rule, entry)
         rule.deep_dup.tap do |copy|
           changed = assign(copy, entry, self.class.rule_fields(copy), 'rule', rule['id']).any?
+          rename_group(copy, rule)
           mark(copy, changed)
           check_adjustment(copy, kind: 'rule', id: rule['id']) if changed
         end
+      end
+
+      # グループの呼び名(学生の画面に出る「同一の◯◯から」の◯◯)は、画面の欄をやめ、分け方から決めて書く
+      # (設計書 項目3-3)。分け方を選び直したときだけ書く。触っていない保存で、AI が「開講コース」など
+      # 別の呼び名で読んだ値を上書きしない。
+      def rename_group(copy, before)
+        return unless copy['type'] == 'grouped_max' && copy['group_by'] != before['group_by']
+
+        label = GROUP_BY_LABELS[copy['group_by']]
+        copy['group_label'] = label if label
       end
 
       # 算入の調整(cap・exclude)として組み立てられない定義なら、その理由を問題にする。条件の型でないものは見ない。

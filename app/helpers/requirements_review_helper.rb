@@ -85,22 +85,48 @@ module RequirementsReviewHelper
       lower: fields.key?(RULE_LOWER_FIELD), upper: fields.key?(RULE_UPPER_FIELD) }
   end
 
+  # 画面に出さない欄。値は保存に要るので隠し欄で送り返すが、人には打たせない。
+  #   group_label … 学生に出る「同一の◯◯から」の◯◯。グループの分け方から決めて書く(設計書 項目3-3)。
+  HIDDEN_FIELDS = %w[group_label].freeze
+
   # 規則の1つの欄の入力。欄の種類は RequirementsEdit.rule_fields と同じ表から決まる。
   def rule_field_input(name, field, kind, rule, review)
+    return hidden_field_tag(name, rule[field], id: nil) if HIDDEN_FIELDS.include?(field)
+
     hint = rule['type'] == 'exclude' ? RequirementsExcludeHelper::FIELD_HINTS[field].to_s : ''
     label = tag.span("#{FIELD_NAMES.fetch(field, field)}#{hint}", class: 'text-xs font-semibold text-slate-700')
     tag.div(label + rule_field_control(name, field, kind, rule[field], review), class: 'space-y-1')
   end
 
+  # 欄の名前ごとの作り。表に無い欄は、種類(kind)で決める。
+  FIELD_CONTROLS = { 'category' => :category_select, 'group_by' => :group_by_select,
+                     'number_prefix' => :prefix_select, 'number_prefix_mode' => :prefix_mode_picks }.freeze
+
   def rule_field_control(name, field, kind, value, review)
+    builder = FIELD_CONTROLS[field]
+    return send(builder, name, value, review) if builder
     return category_chips(name, value, review, label: nil) if kind == :set
     return rv_number(name, value, id: nil, class: "w-28 #{FIELD_CLASS}") if %i[number count].include?(kind)
-    return category_select(name, value, review) if field == 'category'
-    return prefix_select(name, value, review) if field == 'number_prefix'
-    return prefix_mode_picks(name, value) if field == 'number_prefix_mode'
     return number_list_field(name, value, review) if kind == :optional_list
 
     rv_text(name, value, id: nil, class: "w-full #{FIELD_CLASS}")
+  end
+
+  def group_by_select(name, value, _review)
+    rv_select(name, group_by_options(value), value, id: nil, class: FIELD_CLASS)
+  end
+
+  # グループの分け方(設計書 項目3-3)。画面に field:language や number_prefix を打たせない。
+  #
+  # いまの値が2択に無ければ、現在値を3つめの選択肢として残す。この画面は未知の便覧を読むための画面で、
+  # Validation::RuleShape は number_prefix_hundreds や field:<任意の欄> も通す。2択に絞ると、
+  # 別の便覧でAIがそう読んだ決まりが、画面を開いて保存しただけで書き換わり、元の値がどこにも残らない。
+  def group_by_options(current)
+    current = current.to_s
+    options = CurriculumImport::RequirementsEdit::GROUP_BY_CHOICES.map { |value, label| [label, value] }
+    return options if current.blank? || options.any? { |_, value| value == current }
+
+    options + [["いまの設定: #{current}", current]]
   end
 
   def category_select(name, selected, review)

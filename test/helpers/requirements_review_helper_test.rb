@@ -49,6 +49,32 @@ class RequirementsReviewHelperTest < ActionView::TestCase
     end
   end
 
+  # ---- グループの分け方(設計書 項目3-3) ----
+  #
+  # いままでは group_by に field:language / number_prefix を手で打たせ、呼び名を別の欄で打たせていた。
+  # 画面に内部の語彙を出さないため、決まった選択肢にする。
+
+  test 'グループの分け方は、提供コースと言語の選択肢で出る' do
+    options = group_by_options('number_prefix')
+
+    assert_equal %w[number_prefix field:language], options.map(&:last)
+    assert_equal ['提供コース(科目番号の先頭)', '言語'], options.map(&:first)
+  end
+
+  # この画面は未知の便覧を読むための画面。RuleShape は number_prefix_hundreds や field:<任意の欄> も通す。
+  # 2択に絞ると、別の便覧でAIがそう読んだ決まりが、画面を開いて保存しただけで書き換わってしまう。
+  test '2択に無い値は、いまの設定として選択肢に残る' do
+    options = group_by_options('field:credits')
+
+    assert_includes options, ['いまの設定: field:credits', 'field:credits']
+  end
+
+  test '2択のどちらかなら、いまの設定は足さない' do
+    options = group_by_options('field:language')
+
+    assert_equal 2, options.size
+  end
+
   test 'rule_logic_label は one_of_paths・any_ofをOR、all_ofをAND、それ以外はnilにする' do
     assert_equal 'OR', rule_logic_label({ 'type' => 'one_of_paths' })
     assert_equal 'OR', rule_logic_label({ 'type' => 'any_of' })

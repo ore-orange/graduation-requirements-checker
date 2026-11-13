@@ -48,8 +48,9 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
                                           "rules[#{index.call('excluded_category')}][number_prefix]"))
     assert_equal '31', field_in('#rule-required_all',
                                 "rules[#{index.call('required_all')}][expected_course_count]")['value']
-    assert_equal 'number_prefix', field_in('#rule-fusion_provider',
-                                           "rules[#{index.call('fusion_provider')}][group_by]")['value']
+    # グループの分け方は、内部の語彙を打たせず選択肢にする(設計書 項目3-3)
+    assert_equal 'number_prefix', selected_in(field_in('#rule-fusion_provider',
+                                                       "rules[#{index.call('fusion_provider')}][group_by]"))
   end
 
   # 入れ子(any_of の選択肢・one_of_paths の経路)の中身も、畳まずに繰り返しの行で出す。
