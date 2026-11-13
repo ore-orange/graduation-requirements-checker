@@ -3,7 +3,7 @@
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
 <div id="annotation_cards" class="border-t border-slate-100 px-5 py-5 sm:px-6">
   <h4 class="text-sm font-bold text-slate-900">注釈</h4>
-  <p class="mt-0.5 text-xs text-slate-500">
+  <p class="mt-0.5 text-sm text-slate-600">
     便覧の但し書きのうち、機械が拾えたものです。拾えていないものもあります。PDFの要件表の注も、見て確かめてください。
   </p>
 
@@ -20,7 +20,7 @@
             <% if card.page.present? %><span class="ml-2 font-normal">(<%= card.page.is_a?(Integer) ? "PDF#{card.page}ページ" : card.page %>)</span><% end %>
           </p>
           <p class="mt-1 font-medium">「<%= card.text %>」</p>
-          <p class="mt-1 text-xs">
+          <p class="mt-1 text-sm">
             <% if card.kind == :approval_applied %>
               この注記が当たる科目(<%= card.covers %>科目)は、履修登録に指導教員の承認が要ります。承認を得たかどうかは学生ごとに違い、
               PDFには書かれていません。学生が「承認あり」と答えるまで、その科目の単位は算入されず、判定は「要確認」になります。

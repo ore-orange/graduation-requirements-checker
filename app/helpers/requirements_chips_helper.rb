@@ -11,7 +11,7 @@
 module RequirementsChipsHelper
   def category_chips(name, selected, review, label: '対象：')
     chosen = requirements_review.chosen_categories(name, selected) & review.category_keys
-    tag.div(class: 'mt-1.5 flex flex-wrap items-center gap-1.5 text-xs', data: { controller: 'chip-adder' }) do
+    tag.div(class: 'mt-1.5 flex flex-wrap items-center gap-1.5 text-sm', data: { controller: 'chip-adder' }) do
       safe_join([(label ? tag.span(label, class: 'font-semibold text-slate-700') : nil),
                  hidden_field_tag("#{name}[]", '', id: nil),
                  tag.span(safe_join(chosen.map { |key| category_chip(name, key, review) }, ' '),

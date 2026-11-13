@@ -28,6 +28,15 @@ module RequirementsReviewHelper
 
   def rule_logic_label(rule) = RULE_LOGIC_LABELS[rule['type']]
 
+  # 決まりの名前の横に出す一言(設計書 項目3)。型の名前は出さない。
+  # 必修をすべて修得する決まりだけは、便覧に書いてある科目数と、科目表の実数を並べて出す
+  # (食い違えば、科目表の転記漏れがその場で分かる)。
+  def rule_note(rule, review)
+    return nil unless rule['type'] == 'all_required'
+
+    "科目表の必修は #{review.courses.count { |course| course['required'] == true }} 科目"
+  end
+
   # 入力欄。保存できなかった送信の入力があれば、それを残して出す(RequirementsReview#field_value)。
   # 数は文字の欄にする。数の欄(type=number)は、数でない文字をブラウザが捨てるので、打ち間違いが消えて、問題の文だけが残ってしまう。
   def rv_text(name, default, **)
@@ -94,7 +103,7 @@ module RequirementsReviewHelper
     return hidden_field_tag(name, rule[field], id: nil) if HIDDEN_FIELDS.include?(field)
 
     hint = rule['type'] == 'exclude' ? RequirementsExcludeHelper::FIELD_HINTS[field].to_s : ''
-    label = tag.span("#{FIELD_NAMES.fetch(field, field)}#{hint}", class: 'text-xs font-semibold text-slate-700')
+    label = tag.span("#{FIELD_NAMES.fetch(field, field)}#{hint}", class: 'text-sm font-semibold text-slate-700')
     tag.div(label + rule_field_control(name, field, kind, rule[field], review), class: 'space-y-1')
   end
 

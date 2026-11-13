@@ -1,7 +1,7 @@
 <%# 行の対象科目。件数だけ出し、押すとその場で開く(設計書 項目2)。2024年度は行あたり1件〜249件と幅がある。 %>
 <%# 科目は表示だけで、フォームの欄にはしない(249件を欄にすると送信が重い。科目を直すのは科目表の画面)。 %>
 <%# 1件だけの行は、最初から開いた状態にする。 %>
-<details class="text-xs" <%= 'open' if count == 1 %>>
+<details class="text-sm" <%= 'open' if count == 1 %>>
   <summary class="rv-more whitespace-nowrap font-normal text-slate-600">
     科目 <span class="font-semibold tabular-nums"><%= count %></span>件
   </summary>

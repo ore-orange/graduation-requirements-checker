@@ -9,7 +9,7 @@
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
 <div id="requirements_table">
   <h4 class="text-sm font-bold text-slate-900">区分ごとの必要単位</h4>
-  <p class="mt-0.5 text-xs text-slate-500">
+  <p class="mt-0.5 text-sm text-slate-600">
     学生の画面に出る表と同じ並びです。PDFの要件表と、必要単位・科目名・対象科目・修了要件を1行ずつ見比べてください。
     並びは行の左の ▲▼ で変えられます。
   </p>
@@ -18,13 +18,13 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <span class="text-sm font-bold text-slate-900">卒業に必要な総単位</span>
-        <p class="mt-0.5 text-xs text-slate-600">この数字が低く読まれていると、足りない学生にも「卒業できます」と答えます。</p>
+        <p class="mt-0.5 text-sm text-slate-600">この数字が低く読まれていると、足りない学生にも「卒業できます」と答えます。</p>
       </div>
       <label class="flex items-center gap-2">
         <span class="sr-only">必要な総単位</span>
         <%= rv_number 'display[total_credits]', review.display['total_credits'], id: nil,
                       class: "w-20 text-right font-bold #{field_class}" %>
-        <span class="text-xs text-slate-500">単位以上</span>
+        <span class="text-sm text-slate-500">単位以上</span>
       </label>
     </div>
     <%= render 'requirements_finding_notes', findings: review.findings_for(:display, 'total_credits') %>

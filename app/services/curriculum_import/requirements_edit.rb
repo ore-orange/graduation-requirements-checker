@@ -76,7 +76,7 @@ module CurriculumImport
     # エラーの文で欄を呼ぶ名前(画面の欄の名前と同じ)。
     FIELD_LABELS = { 'label' => '名前', 'name' => '名前', 'detail' => '注記', 'title' => '章の名前', 'subtitle' => '副題',
                      'required_credits' => '必要単位', 'required_label' => '必要単位が空のときの表示',
-                     'expected_course_count' => '必修の科目数', 'categories' => '数える区分',
+                     'expected_course_count' => '必修の科目数', 'categories' => '対象の区分',
                      'required_categories' => '必修の区分', 'category' => '区分', 'group_by' => 'グループの分け方',
                      'reason' => '算入しない理由', 'review_note' => '要確認の理由', 'check_id' => '確認する規則', 'check_ids' => '確認する規則',
                      'row_ids' => '数える行', 'credits_from_check' => '単位を確認する規則から取るか',

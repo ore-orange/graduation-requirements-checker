@@ -52,8 +52,8 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
       assert_predicate checked, :any?, "#{name} の選んである区分が画面にありません"
       checked.each { |field| assert_empty field.ancestors('details'), "#{name} が畳んだ中にあります" }
     end
-    # 出典も畳まない(PDFと突き合わせる唯一の手がかり。設計書 項目7)
-    assert_select '#rule-core > p', text: /出典 PDF3ページ/
+    # 出典も畳まない(PDFと突き合わせる手がかり)。決まりごとではなく、節に1度出す(設計書 項目4)
+    assert_select '#requirements_review > div', text: /出典: PDF3ページ/
   end
 
   test '章・行の名前と必要単位は、開かなくても直せる(常時表示の入力欄)' do
@@ -168,6 +168,79 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
 
     assert_select '#requirements_categories li', count: 5
     assert_select '#category-excluded .text-rose-700', text: /総単位に数えない/
+  end
+
+  # ---- 画面に残っていた小さな傷(設計書 項目8) ----
+
+  test '区分の一覧に、内部のキーを出さない' do
+    show(draft)
+
+    assert_select '#category-humanities', text: /人文系/
+    assert_select '#category-humanities', text: /\(humanities\)/, count: 0
+  end
+
+  # 行は「対象：」、決まりは「数える区分」と、同じものを2つの言葉で呼んでいた。
+  test '決まりの区分も、行と同じ「対象：」と呼ぶ' do
+    show(draft)
+
+    assert_select '#requirements_form', text: /数える区分/, count: 0
+  end
+
+  # 名前の欄が空の算入の上限は、型の名前が見出しにも横にも出て「算入の上限 算入の上限」になっていた。
+  test '名前の無い決まりに、同じ言葉を二度出さない' do
+    document = requirements_document
+    document['rules'] << fixture_rule('natural_cap', 'cap', category: 'humanities', credits: 2).except('label')
+
+    show(draft(document: document))
+
+    assert_select '#rule-natural_cap', text: /算入の上限\s*算入の上限/, count: 0
+  end
+
+  # ---- 出典は節に1箇所(設計書 項目4) ----
+  #
+  # 2024年度は決まりが27個あり、「出典 …」が27回出ていた。中身は2種類しかない。
+
+  test '出典は、節の見出しの下に1箇所だけ出る' do
+    show(draft)
+
+    assert_select '#requirements_review', text: /出典: PDF3ページ/
+    assert_select '#rule-core > p', text: /出典/, count: 0
+  end
+
+  # 出典がばらばらなら、人が「この数字はPDFのどこか」を追えなくなる。そのときは決まりの横にも出す。
+  test '出典が4種類以上あるときは、決まりごとにも出す' do
+    document = requirements_document
+    document['rules'].each_with_index { |rule, index| rule['source_page'] = "PDF#{index + 1}ページ" }
+
+    show(draft(document: document))
+
+    assert_select '#rule-core > p', text: /出典/
+  end
+
+  test '出典が無い下書きでは、出典の行を出さない' do
+    document = requirements_document
+    document['rules'].each { |rule| rule['source_page'] = nil }
+
+    show(draft(document: document))
+
+    assert_select '#requirements_review', text: /出典:/, count: 0
+  end
+
+  # ---- 残る決まりは、型の名前なしの日本語で出す(設計書 項目3) ----
+
+  # 「区分の合計単位」「同じ提供元・言語から」はアプリの語彙。名前の横に並べても、人の助けにならない。
+  test '決まりの箱に、型の名前を出さない' do
+    show(draft)
+
+    assert_select '#rule-fusion_provider', text: /同じ提供元・言語から/, count: 0
+    assert_select '#rule-core', text: /必修をすべて修得/, count: 0
+  end
+
+  # 便覧に書いてある必修の科目数と、科目表の実数が食い違えば、転記漏れが分かる。並べて出す。
+  test '必修をすべて修得する決まりに、科目表の実数を添える' do
+    show(draft)
+
+    assert_select '#rule-core', text: /科目表の必修は 2 科目/
   end
 
   # ---- 持ち主と同じことを言っている決まりは、箱を出さない(設計書 項目1) ----

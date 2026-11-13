@@ -15,7 +15,7 @@ module RequirementCreditRangeHelper
     parts = [credit_slot(lower, '下限なし(数えるだけ)'), tag.span('〜', class: 'text-slate-400'),
              credit_slot(upper, '上限なし'), tag.span('単位', class: 'font-medium text-slate-600')]
     parts << tag.span(note, class: 'text-amber-800') if note
-    tag.span(safe_join(parts, ' '), class: 'inline-flex items-center gap-1 whitespace-nowrap text-xs')
+    tag.span(safe_join(parts, ' '), class: 'inline-flex items-center gap-1 whitespace-nowrap text-sm')
   end
 
   # 行の単位を、どの章・枠が持っているかの文。credit_range の held_by に渡す。

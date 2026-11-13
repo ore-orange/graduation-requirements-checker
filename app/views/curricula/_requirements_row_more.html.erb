@@ -2,7 +2,7 @@
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
 <%# 隠した決まりの欄はこの中にある。その決まりを直した(問題があった)ときも、開いたまま見せる %>
 <% hidden_rule = local_assigns[:hidden_rule] %>
-<details class="text-xs"
+<details class="text-sm"
          <%= 'open' if review.open?('row', row['id']) || (hidden_rule && review.open?('rule', hidden_rule['id'])) %>>
   <summary class="rv-more"
            title="この行の、詳しい設定">…</summary>

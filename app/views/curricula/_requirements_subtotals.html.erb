@@ -5,7 +5,7 @@
 <% field_class = RequirementsReviewHelper::FIELD_CLASS %>
 <% if loose.any? %>
   <h4 class="mt-6 text-sm font-bold text-slate-900">行を囲めなかった小計</h4>
-  <p class="mt-0.5 text-xs text-slate-500">
+  <p class="mt-0.5 text-sm text-slate-600">
     まとめている行が、1つの章の中で続いていません。行の並びを揃えると、上の表の中で行を囲む枠になります。
   </p>
   <ul class="mt-2 space-y-2" id="requirements_subtotals">
@@ -22,7 +22,7 @@
           </label>
           <%= credit_range(["#{key}[required_credits]", subtotal['required_credits']], review.upper_limit(shown_rules)) %>
           <% if human_confirmed?(subtotal) %><span class="rv-confirmed">人が確認した</span><% end %>
-          <details class="ml-auto text-xs" <%= 'open' if review.open?('subtotal', subtotal['id']) %>>
+          <details class="ml-auto text-sm" <%= 'open' if review.open?('subtotal', subtotal['id']) %>>
             <summary class="rv-more"
                      title="この小計の、詳しい設定">…</summary>
             <label class="mt-1 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-rose-800">
@@ -31,7 +31,7 @@
             </label>
           </details>
         </div>
-        <p class="mt-1 text-xs text-slate-600">
+        <p class="mt-1 text-sm text-slate-600">
           まとめている行: <%= review.row_names(subtotal['row_ids']).join('・').presence || '(なし)' %>
         </p>
         <%= render 'requirements_finding_notes', findings: review.findings_for(:display, subtotal['id']) %>

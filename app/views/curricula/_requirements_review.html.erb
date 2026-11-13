@@ -4,10 +4,14 @@
 <section id="requirements_review" aria-labelledby="requirements-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs">
   <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
     <h3 id="requirements-heading" class="text-base font-bold text-slate-900">② 要件表を確認する</h3>
-    <p class="mt-0.5 text-xs text-slate-500">
-      AI が読んだ卒業の要件です。必ず、PDFの要件表と見比べてください。違う数字・区分は直し、足りない規則・章・行は足します。
-      ここで直した項目は「人が確認した」印が付き、あとでそのページを読み直しても上書きされません。
+    <p class="mt-0.5 text-sm text-slate-600">
+      AI が読んだ卒業の要件です。必ず、PDFの要件表と見比べてください。
+      ここで直した項目には「人が確認した」印が付き、そのページを読み直しても上書きされません。
     </p>
+    <%# 出典は、PDFと突き合わせる手がかり。決まりごとに繰り返さず、ここに1度だけ出す(設計書 項目4)。 %>
+    <% if review.started? && review.source_pages.any? && !review.source_per_rule? %>
+      <p class="mt-1 text-sm font-medium text-slate-700">出典: <%= review.source_pages.join(' ／ ') %></p>
+    <% end %>
   </div>
 
   <% if review.started? %>

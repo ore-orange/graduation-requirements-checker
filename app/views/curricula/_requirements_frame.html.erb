@@ -23,7 +23,7 @@
     </label>
     <%= credit_range(["#{key}[required_credits]", subtotal['required_credits']], review.upper_limit(shown_rules)) %>
     <% if confirmed_with_hidden?(subtotal, hidden_rule) %><span class="rv-confirmed">人が確認した</span><% end %>
-    <details class="ml-auto text-xs"
+    <details class="ml-auto text-sm"
              <%= 'open' if review.open?('subtotal', subtotal['id']) || (hidden_rule && review.open?('rule', hidden_rule['id'])) %>>
       <summary class="rv-more"
                title="この枠の、詳しい設定">…</summary>

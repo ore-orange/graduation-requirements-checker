@@ -101,6 +101,14 @@ module CurriculumImport
 
     def rule_ids = input.rules.pluck('id')
 
+    # 決まりが名指ししている出典。2024年度は27個の決まりに2種類しかないので、節に1度だけ出す(設計書 項目4)。
+    def source_pages = @source_pages ||= rules.filter_map { |rule| rule['source_page'].presence }.uniq
+
+    # 出典がばらばらなら、節にまとめても「この数字はPDFのどこか」を追えない。そのときは決まりの横にも出す。
+    SOURCE_PAGE_LIMIT = 3
+
+    def source_per_rule? = source_pages.size > SOURCE_PAGE_LIMIT
+
     # 役割(経路が名指しするキー)を持つ科目の名前。規則が名指しする役割に科目が無いと、その規則は必ず要確認になる。
     def role_names(role) = courses.select { |course| Array(course['roles']).include?(role) }.pluck('name')
 
