@@ -170,8 +170,9 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
   test 'PDFのページを並べて見られる。ペインに出るのは科目表のページだけで、行から飛べる' do
     show(course_draft(images: [1, 2, 3]))
 
-    assert_select 'img[src*="page_image"]', count: 1
-    assert_select %(img[src="#{page_image_curriculum_path(Curriculum.last, 3)}"])
+    # ペインに並ぶのは科目表のページだけ。「① PDFを読み取る」のサムネイルは全ページに出るので、ペインの中で数える。
+    assert_select '#pdf-pane-row img[src*="page_image"]', count: 1
+    assert_select %(#pdf-pane-row img[src="#{page_image_curriculum_path(Curriculum.last, 3)}"])
     assert_select '#pdf-pane-row [data-action="pdf-pane#fit"]', text: '幅に合わせる'
     assert_select '#pdf-pane-row [data-action="pdf-pane#zoomIn"]'
     assert_select '#course-review table[data-controller="pdf-pane"][data-pdf-pane-page-width-value="1200"]'

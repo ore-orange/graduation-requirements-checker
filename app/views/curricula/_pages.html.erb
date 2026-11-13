@@ -5,12 +5,13 @@
          data-controller="read-pages">
   <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
     <div class="min-w-0">
-      <h3 id="pages-heading" class="text-base font-bold text-slate-900">読むページ</h3>
-      <p class="mt-0.5 text-xs text-slate-500">
-        ページごとに、科目表・要件表・読まない のどれかを選んでください。便覧によってページの並びが違うため、最初はすべて「読まない」です。
+      <h3 id="pages-heading" class="text-base font-bold text-slate-900">① PDFを読み取る</h3>
+      <p class="mt-0.5 text-sm text-slate-600">
+        便覧PDFのページを1枚ずつAIに読ませます。どのページが要件表で、どのページが科目表かは便覧ごとに違うので、
+        サムネイルを見て指定してください。
       </p>
       <% unless reader_available %>
-        <p class="mt-1 text-xs text-slate-600">
+        <p class="mt-1 text-sm text-slate-600">
           読み取りに使うAPIキー(CURRICULUM_READER_API_KEY)が設定されていないので、自動で読む機能は使えません。
         </p>
       <% end %>

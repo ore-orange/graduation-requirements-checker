@@ -573,6 +573,43 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_select 'label', text: /読まない/
   end
 
+  # ---- 画面は、上から順にたどる手順にする(設計書 項目7) ----
+  #
+  # 「読むページ」は、PDFの各ページに種別を付けてAIに読ませる取り込みの操作で、確認・編集とは別の作業。
+  # 順番の印が無いまま同じ画面に並んでいるのが、分かりづらさの元だった。
+
+  test '画面の節は、番号の付いた手順として出る' do
+    get curriculum_path(draft), env: ENV_LOCAL
+
+    assert_select 'h3', text: /①\s*PDFを読み取る/
+    assert_select 'h3', text: /②\s*要件表を確認する/
+    assert_select 'h3', text: /③\s*科目表を確認する/
+    assert_select 'h3', text: /④\s*公開する/
+  end
+
+  # どのページが要件表かは、ページ番号だけでは画面から分からない(別のPDFビューアで数えるしかなかった)。
+  test 'ページの行に、そのページのサムネイルが出る' do
+    curriculum = draft(pages: blank_pages(2))
+    FileUtils.mkdir_p(curriculum.images_dir)
+    File.binwrite(curriculum.images_dir.join('p1.png'), 'x')
+
+    get curriculum_path(curriculum), env: ENV_LOCAL
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(curriculum, 'page_1')} img[src=?][loading=?]",
+                  page_image_curriculum_path(curriculum, page: 1), 'lazy'
+  ensure
+    FileUtils.rm_rf(curriculum.images_dir)
+  end
+
+  # 画像が無いページで src だけ出すと、壊れた画像が並ぶ(page_image_data は nil を返し 404 になる)。
+  test '画像が無いページには、img を出さない' do
+    curriculum = draft(pages: blank_pages(2))
+
+    get curriculum_path(curriculum), env: ENV_LOCAL
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(curriculum, 'page_1')} img", false
+  end
+
   test '/requirements は、選ぶまで何も出さず、下書きは選んだ組み合わせから辿る。アップロードの入口もある' do
     mine = draft
     other = Curriculum.create!(slug: 'other', admission_year: 2026, faculty_name: '工学部', department_name: 'X',
