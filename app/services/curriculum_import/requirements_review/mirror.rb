@@ -33,6 +33,22 @@ module CurriculumImport
           same_set?(rule['categories'], counted_categories(owner_kind, owner))
       end
 
+      # 画面が箱を隠す決まりと、その持ち主。{ 規則 id => [持ち主の種類, 持ち主の id] }。
+      # 持ち主の id は、行・章・小計の id(枠は小計の id)。総単位の枠は nil。
+      #
+      # たどる順は、画面が箱を描く順(総単位 → 章 → 枠 → 行)と同じ。先に来た持ち主がその決まりを取る
+      # (RequirementsReview#claim_rule_box? と同じ決め方)。保存の書き戻しが、画面と同じ持ち主を選ぶために要る。
+      def owners(tree)
+        claimed = Set.new
+        found = {}
+        take(found, claimed, total_rule_id, :total, nil)
+        @input.groups.each_with_index do |group, index|
+          take(found, claimed, group['check_id'], :group, group)
+          owners_in_group(found, claimed, tree.nodes_of(index))
+        end
+        found
+      end
+
       # 持ち主が数える区分。書き戻し(RequirementsEdit::MirrorWriteback)も、この同じ集合を書く。
       #   行   … その行の区分
       #   章・枠 … 中の行の区分の合併
@@ -47,7 +63,51 @@ module CurriculumImport
         end
       end
 
+      # 総単位に当たる決まり。探し方は画面(RequirementsReview#total_rule)と同じ。
+      def total_rule_id
+        total = @input.display['total_credits']
+        return nil unless total.is_a?(Numeric)
+
+        linked = linked_rule_ids
+        @input.rules.find do |rule|
+          rule['type'] == 'credit_sum' && rule['required_credits'] == total && linked.exclude?(rule['id'])
+        end&.dig('id')
+      end
+
       private
+
+      # nodes は [節点, 行の位置] の組の配列(Tree#nodes_of)。ここで要るのは節点だけ。
+      def owners_in_group(found, claimed, nodes)
+        nodes.map(&:first).each do |node|
+          if node.is_a?(Tree::Frame)
+            take(found, claimed, node.subtotal['check_ids'], :frame, node)
+            node.rows.each { |row| take(found, claimed, row['check_ids'], :row, row) }
+          else
+            take(found, claimed, node['check_ids'], :row, node)
+          end
+        end
+      end
+
+      def take(found, claimed, ids, kind, owner)
+        Array.wrap(ids).grep(String).each do |id|
+          next unless claimed.add?(id)
+
+          rule = @input.rules.find { |candidate| candidate['id'] == id }
+          found[id] = [kind, owner_id(kind, owner)] if rule && duplicate?(rule, kind, owner)
+        end
+      end
+
+      def owner_id(kind, owner)
+        return owner.id if kind == :frame
+
+        owner['id'] if owner.is_a?(Hash)
+      end
+
+      def linked_rule_ids
+        (@input.groups.flat_map { |group| Array.wrap(group['check_id']) } +
+         @input.rows.flat_map { |row| Array.wrap(row['check_ids']) } +
+         @input.subtotals.flat_map { |subtotal| Array.wrap(subtotal['check_ids']) }).grep(String).uniq
+      end
 
       def required_credits(owner_kind, owner)
         return @input.display['total_credits'] if owner_kind == :total

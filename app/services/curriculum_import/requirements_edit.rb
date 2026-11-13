@@ -23,6 +23,7 @@ module CurriculumImport
     include RuleLinking
     include RuleEditing
     include DisplayEditing
+    include MirrorWriteback
     include RuleCleanup
     include Additions
 
@@ -173,6 +174,9 @@ module CurriculumImport
       edit_display
       add_new_group
       add_new_row
+      # 持ち主の値を、その持ち主が隠している決まりにも書く(設計書 項目2)。
+      # 人が直した決まり・章・行がすべて当たったあとに走らせること(先に走ると、同じ保存で直した値を上書きする)。
+      mirror_writeback
       drop_orphaned_rules
       decide_annotations
       remove_approval_note
