@@ -182,15 +182,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-plan='#{foreign_plan.id}']", count: 0
   end
 
-  test 'catalogue search filters visible courses by name and category' do
-    get plan_path, params: { q: @candidate.fetch('name'), category: @candidate.fetch('category') }
+  test 'catalogue search filters visible courses by name' do
+    name = @candidate.fetch('name')
+    get plan_path, params: { pane: 'catalogue', q: name }
     assert_response :success
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
-    @courses.reject { |course| course['category'] == @candidate.fetch('category') }.each do |course|
+    @courses.reject { |course| catalogue_text(course).include?(name.downcase) }.each do |course|
       assert_select "[data-catalogue-key='#{course.fetch('key')}']", count: 0
     end
+    # 区分がわからない科目を調べるための検索なので、区分で絞り込む欄は置かない
+    assert_select "#catalogue [name='category']", count: 0
 
-    get plan_path, params: { q: 'does-not-exist-in-the-catalogue' }
+    get plan_path, params: { pane: 'catalogue', q: 'does-not-exist-in-the-catalogue' }
     assert_select '[data-catalogue-key]', count: 0
   end
 
@@ -384,7 +387,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_redirected_to plan_path(view: 'all')
   end
 
-  test '追加の結果は、一覧では固定のメッセージで、学期の画面では今までの形で出す' do
+  test '追加・削除の結果は、一覧でも学期の画面でも固定のメッセージで出す' do
     post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期', view: 'all' }
     follow_redirect!
     assert_select '[role="status"][data-controller="toast"]', text: /追加しました/, count: 1
@@ -392,8 +395,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     delete plan_course_path(@student.planned_courses.find_by!(course: course_record(@candidate))),
            params: { term: '4-前期' }
     follow_redirect!
-    assert_select '[role="status"]', text: /削除しました/, count: 1
-    assert_select '[data-controller="toast"]', count: 0
+    assert_select '[role="status"][data-controller="toast"]', text: /削除しました/, count: 1
   end
 
   test '一覧で失敗したときは、閉じるまで残る固定のメッセージで出す' do
@@ -534,6 +536,9 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   private
 
+  # 便覧カタログの検索が見る文字（科目名・科目番号・キー）を小文字でつなげたもの
+  def catalogue_text(course) = course.values_at('name', 'number', 'key').compact.join(' ').downcase
+
   def course_record(course)
     Course.find_by!(curriculum_key: course.fetch('key'))
   end
@@ -580,16 +585,17 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test '科目検索のフォームとリセットは履修計画表の見ている学期に留まる' do
-    get plan_path(term: '2-後期')
+    get plan_path(term: '2-後期', pane: 'catalogue')
 
     assert_select 'form[action=?][method=?]', plan_path, 'get' do
       assert_select "input[name='term'][value='2-後期']"
+      assert_select "input[name='pane'][value='catalogue']"
     end
-    assert_select 'a[href=?]', plan_path(term: '2-後期'), text: 'リセット'
+    assert_select 'a[href=?]', plan_path(term: '2-後期', pane: 'catalogue'), text: 'リセット'
   end
 
   test '便覧カタログから追加すると、見ている学期の予定になる' do
-    get plan_path(term: '4-前期')
+    get plan_path(term: '4-前期', pane: 'catalogue')
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[type='submit'][value='4年 前期に追加']"
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[name='term'][value='4-前期']"
 
@@ -600,10 +606,172 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test '過去の学期では便覧カタログから追加できない' do
-    get plan_path(term: '2-後期')
+    get plan_path(term: '2-後期', pane: 'catalogue')
 
     assert_select '#catalogue form[action=?]', plan_courses_path, count: 0
     assert_select '[data-catalogue-term]', text: /今の学期以降を表示すると追加できます/
+  end
+
+  test '便覧カタログは閉じていて、右上のボタンで右側のパネルとして開く' do
+    get plan_path(term: '4-前期')
+
+    assert_select '#catalogue', count: 0
+    assert_select '[data-catalogue-key]', count: 0
+    assert_select "a[data-catalogue-toggle='open'][href=?]", plan_path(term: '4-前期', pane: 'catalogue'), text: /便覧から探す/
+
+    get plan_path(term: '4-前期', pane: 'catalogue')
+
+    assert_select 'aside#catalogue', count: 1
+    category = @candidate.fetch('category')
+    assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] [data-catalogue-category]",
+                  text: StudentWorkspaceHelper::CATEGORY_LABELS.fetch(category, category)
+    assert_select "a[data-catalogue-toggle='close'][href=?]", plan_path(term: '4-前期'), text: /便覧を閉じる/
+  end
+
+  test '便覧のパネルを開いたまま学期を切り替えられる' do
+    get plan_path(term: '4-前期', pane: 'catalogue')
+
+    assert_select "[data-term-button='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
+  end
+
+  test '一覧でも、右上のボタンで便覧のパネルを開け閉めできる' do
+    get plan_path(view: 'all')
+    assert_select '#catalogue', count: 0
+    assert_select "[data-catalogue-toggle='open'][href=?]", plan_path(view: 'all', pane: 'catalogue'), count: 1
+
+    get plan_path(view: 'all', pane: 'catalogue', q: @candidate.fetch('name'))
+    assert_response :success
+    assert_select '[data-overview]', count: 1
+    assert_select "[data-catalogue-toggle='close'][href=?]", plan_path(view: 'all'), count: 1
+    assert_select '#catalogue' do
+      # 検索しても一覧のまま
+      assert_select "form[method='get'] input[name='view'][value='all']", count: 1
+      assert_select "form[method='get'] input[name='term']", count: 0
+      assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
+    end
+  end
+
+  test '一覧で便覧のパネルを開いたまま、学期の画面と行き来できる' do
+    get plan_path(view: 'all', pane: 'catalogue')
+    assert_select "[data-term-button='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
+    assert_select "[data-overview-term='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
+
+    get plan_path(term: '4-前期', pane: 'catalogue')
+    assert_select "[data-term-button='all'][href=?]", plan_path(view: 'all', pane: 'catalogue'), count: 1
+  end
+
+  test '一覧の便覧のパネルから追加すると、今の学期の予定になり、パネルを開いた一覧に戻る' do
+    key = @candidate.fetch('key')
+    get plan_path(view: 'all', pane: 'catalogue')
+    current = css_select('[data-term-current]').first['data-term-button']
+    assert_select "[data-catalogue-key='#{key}'] form" do
+      assert_select "input[name='term'][value=?]", current
+      assert_select "input[name='view'][value='all']"
+      assert_select "input[name='pane'][value='catalogue']"
+    end
+
+    assert_difference -> { @student.planned_courses.count }, 1 do
+      post plan_courses_path, params: { course_key: key, term: current, view: 'all', pane: 'catalogue' }
+    end
+    assert_redirected_to plan_path(view: 'all', pane: 'catalogue')
+  end
+
+  test '一覧の便覧のパネルでは、追加先の学期を今の学期以降から選べる' do
+    get plan_path(view: 'all', pane: 'catalogue')
+    current = css_select('[data-term-current]').first['data-term-button']
+    terms = css_select('[data-term-button]').pluck('data-term-button') - ['all']
+    open_terms = terms.drop(terms.index(current))
+
+    # 選べるのは今の学期以降だけで、最初は今の学期が選ばれている
+    assert_equal open_terms, css_select('[data-catalogue-add-to] option').pluck('value')
+    assert_select '[data-catalogue-add-to] option[selected][value=?]', current, count: 1
+
+    # 学期の画面のパネルには、選ぶ欄を出さない（表示中の学期に追加するため）
+    get plan_path(term: '4-前期', pane: 'catalogue')
+    assert_select '[data-catalogue-add-to]', count: 0
+  end
+
+  test '一覧の便覧のパネルで選んだ学期に追加でき、選んだ学期は追加のあとも残る' do
+    key = @candidate.fetch('key')
+    get plan_path(view: 'all', pane: 'catalogue', add_to: '4-後期')
+    assert_select '[data-catalogue-add-to] option[selected][value=?]', '4-後期', count: 1
+    assert_select "[data-catalogue-key='#{key}'] form" do
+      assert_select "input[name='term'][value='4-後期']"
+      assert_select "input[name='add_to'][value='4-後期']"
+      assert_select "input[type='submit'][value='4年 後期に追加']"
+    end
+
+    post plan_courses_path, params: { course_key: key, term: '4-後期', view: 'all', pane: 'catalogue', add_to: '4-後期' }
+    assert_redirected_to plan_path(view: 'all', pane: 'catalogue', add_to: '4-後期')
+    assert_equal '後期', @student.planned_courses.joins(:course).find_by!(courses: { curriculum_key: key }).semester
+  end
+
+  test '一覧の便覧のパネルの追加先に、過去の学期や読めない値を指定されたら、今の学期にする' do
+    get plan_path(view: 'all', pane: 'catalogue')
+    current = css_select('[data-term-current]').first['data-term-button']
+
+    %w[1-前期 x].each do |add_to|
+      next if add_to == current
+
+      get plan_path(view: 'all', pane: 'catalogue', add_to: add_to)
+      assert_response :success
+      assert_select '[data-catalogue-add-to] option[selected][value=?]', current, count: 1
+    end
+  end
+
+  test '便覧のパネルから追加・削除しても、パネルは開いたままで検索語も残る' do
+    key = @candidate.fetch('key')
+    query = @candidate.fetch('name')
+    get plan_path(term: '4-前期', pane: 'catalogue', q: query)
+    assert_select "[data-catalogue-key='#{key}'] form" do
+      assert_select "input[name='pane'][value='catalogue']"
+      assert_select "input[name='q'][value=?]", query
+    end
+    assert_select "[data-add-course] form input[name='pane'][value='catalogue']"
+
+    post plan_courses_path, params: { course_key: key, term: '4-前期', pane: 'catalogue', q: query }
+    assert_redirected_to plan_path(term: '4-前期', pane: 'catalogue', q: query)
+    follow_redirect!
+    plan = @student.planned_courses.find_by!(course: course_record(@candidate))
+    assert_select "[data-plan='#{plan.id}'] form input[name='pane'][value='catalogue']"
+
+    delete plan_course_path(plan), params: { term: '4-前期', pane: 'catalogue', q: query }
+    assert_redirected_to plan_path(term: '4-前期', pane: 'catalogue', q: query)
+  end
+
+  test 'パネルを閉じているときの追加・削除は、パネルを開かない' do
+    get plan_path(term: '4-前期')
+    assert_select "input[name='pane']", count: 0
+
+    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期', pane: 'other', q: 'x' }
+    assert_redirected_to plan_path(term: '4-前期')
+  end
+
+  test '追加・削除のあとは、送ってきた計画表のページにそのまま戻る' do
+    key = @candidate.fetch('key')
+    # 学期の指定なしで開いたページからは、学期の指定なしの URL に戻る（URL が変わらないのでスクロール位置が保たれる）
+    post plan_courses_path, params: { course_key: key, term: CURRENT_TERM }, headers: { 'Referer' => plan_url }
+    assert_redirected_to plan_path
+
+    sent_from = plan_url(term: '4-前期', q: '', pane: 'catalogue', commit: '検索する')
+    plan = @student.planned_courses.find_by!(course: course_record(@candidate))
+    delete plan_course_path(plan), params: { term: '4-前期' }, headers: { 'Referer' => sent_from }
+    assert_redirected_to sent_from
+  end
+
+  test '送ってきたページが計画表でないときは、フォームの項目から戻る先を決める' do
+    key = @candidate.fetch('key')
+    [root_url, "https://evil.example#{requirements_path}", 'not a url'].each do |sent_from|
+      post plan_courses_path, params: { course_key: key, term: '4-前期' }, headers: { 'Referer' => sent_from }
+      assert_redirected_to plan_path(term: '4-前期')
+      @student.planned_courses.delete_all
+    end
+
+    # よそのサイトの /plan から送られてきても、戻る先はこのサイトの中
+    post plan_courses_path, params: { course_key: key, term: '4-前期' },
+                            headers: { 'Referer' => "https://evil.example#{plan_path(term: '1-前期')}" }
+    assert_redirected_to plan_path(term: '1-前期')
+    assert_equal 'localhost', URI.parse(response.location).host
   end
 end
 

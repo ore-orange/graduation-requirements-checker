@@ -1,0 +1,102 @@
+<%# 便覧カタログ (#catalogue)。計画表の右に出すパネル。科目名・科目番号で検索して、どの区分の科目かを調べ、表示中の学期（@term）の予定として追加できる %>
+<%# せまい画面（幅1280未満）では、表と並べる場所がないので、画面の右側に重ねて出す %>
+<%# スマホではナビが2段になるので、ナビの上まで重ねる（z-40）。lg 以上ではナビ（z-30、高さ4rem）の下に出す %>
+<%# 広い画面（xl 以上）では表の右に並べ、表をスクロールしてもパネルが画面に残るようにする %>
+<aside id="catalogue" aria-labelledby="catalogue-heading"
+       class="fixed z-40 top-0 lg:z-20 lg:top-16 right-0 bottom-0 w-full max-w-sm flex flex-col bg-white border-l border-slate-200 shadow-xl p-4
+              xl:sticky xl:z-auto xl:top-20 xl:right-auto xl:bottom-auto xl:w-96 xl:shrink-0 xl:max-h-[calc(100vh-6rem)] xl:rounded-2xl xl:border xl:border-slate-200/80 xl:shadow-xs">
+  <div class="flex items-start justify-between gap-2">
+    <div>
+      <h2 id="catalogue-heading" class="text-base font-bold text-slate-900">便覧から探す</h2>
+      <p class="text-xs text-slate-500 mt-0.5">科目名や科目番号から、どの区分の科目かを調べられます。</p>
+    </div>
+    <%= link_to '✕', plan_path(**@plan_page_params),
+                class: 'shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600',
+                aria: { label: '便覧を閉じる' } %>
+  </div>
+
+  <%= form_with url: plan_path, method: :get, class: 'mt-3 space-y-2' do |form| %>
+    <%# 検索しても同じ画面（一覧、または同じ学期）のまま、パネルを開いたままにする %>
+    <% @plan_page_params.each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <%= hidden_field_tag :pane, 'catalogue', id: nil %>
+    <div>
+      <%= form.label :q, '科目名・科目番号で検索', class: 'block text-xs font-semibold text-slate-600 mb-1' %>
+      <%= form.search_field :q, value: @query, placeholder: '例: 機械学習 / 知能326 / 英語',
+                            class: 'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500' %>
+    </div>
+    <% if @overview %>
+      <%# 一覧には「表示中の学期」がないので、追加先の学期を選ぶ。選ぶとすぐに切り替わる（URL の add_to で持つ） %>
+      <div>
+        <%= form.label :add_to, '追加先の学期', class: 'block text-xs font-semibold text-slate-600 mb-1' %>
+        <%= form.select :add_to, options_for_select(@open_terms.map { |term| [term_label(term), term_param(term)] }, term_param(@term)), {},
+                        onchange: 'this.form.requestSubmit()', data: { catalogue_add_to: true },
+                        class: 'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500' %>
+      </div>
+    <% end %>
+    <div class="flex gap-2">
+      <%= form.submit '検索する', class: 'flex-1 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer' %>
+      <%= link_to 'リセット', plan_path(**@plan_page_params, **@catalogue_pane_params.except(:q)), class: 'px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 text-center' %>
+    </div>
+  <% end %>
+
+  <div class="mt-3 flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
+    <p class="<%= @term_open ? 'text-indigo-700' : 'text-slate-500' %>" data-catalogue-term>
+      <% if @term_open %>
+        <span class="font-semibold"><%= term_label(@term) %></span> の予定として追加します。
+      <% else %>
+        <%= term_label(@term) %> は過去の学期のため追加できません。今の学期以降を表示すると追加できます。
+      <% end %>
+    </p>
+    <span class="font-semibold text-slate-500"><%= @catalogue.size %> 科目</span>
+  </div>
+
+  <% if @catalogue.empty? %>
+    <p class="mt-3 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語を変更してください。</p>
+  <% else %>
+    <%# パネルの残りの高さを使い、リストの中でスクロールする %>
+    <ul class="mt-2 divide-y divide-slate-100 overflow-y-auto pr-1 min-h-0 flex-1">
+      <% @catalogue.each do |course| %>
+        <% unavailable = catalogue_availability(course, unavailable_keys: @unavailable_keys, persisted_keys: @persisted_keys) %>
+        <li class="py-2.5" data-catalogue-key="<%= course.fetch('key') %>">
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="min-w-0 text-sm font-semibold text-slate-900"><%= course.fetch('name') %></h3>
+            <% if unavailable %>
+              <span class="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-500"><%= unavailable %></span>
+            <% elsif @term_open %>
+              <%= form_with url: plan_courses_path, class: 'shrink-0' do |form| %>
+                <%= form.hidden_field :course_key, value: course.fetch('key'), id: nil %>
+                <%= hidden_field_tag :term, term_param(@term), id: nil %>
+                <%= hidden_field_tag :view, 'all', id: nil if @overview %>
+                <%# 追加のあとも、パネルを開いたまま、検索語も残したままにする %>
+                <% @catalogue_pane_params.each do |name, value| %>
+                  <%= hidden_field_tag name, value, id: nil %>
+                <% end %>
+                <%= form.submit "#{term_label(@term)}に追加", class: 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer',
+                                                            aria: { label: "#{course.fetch('name')}を#{term_label(@term)}の予定に追加" } %>
+              <% end %>
+            <% end %>
+          </div>
+          <%# 「どの区分の科目か」を調べるためのパネルなので、区分は科目名のすぐ下の決まった場所に出す %>
+          <div class="mt-1 flex flex-wrap items-center gap-1.5">
+            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700" data-catalogue-category><%= category_label(course.fetch('category')) %></span>
+            <% if course['required'] %>
+              <span class="rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">専門必修</span>
+            <% end %>
+            <% if course['number'].present? %>
+              <span class="font-mono text-[11px] text-slate-400"><%= course['number'] %></span>
+            <% end %>
+            <span class="text-[11px] text-slate-500"><%= credit_label(course['credits']) %></span>
+          </div>
+          <% if course['requires_approval'] %>
+            <p class="mt-1 text-xs text-amber-800">※指導教員の履修承認確認が必要です</p>
+          <% end %>
+          <% if course['review_reason'].present? %>
+            <p class="mt-1 text-xs text-amber-800">※要確認: <%= course['review_reason'] %></p>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+</aside>
