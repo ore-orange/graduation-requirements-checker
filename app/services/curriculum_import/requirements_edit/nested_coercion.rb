@@ -28,8 +28,21 @@ module CurriculumImport
         rows = nested_rows(value, name)
         return :invalid if rows == :invalid
 
-        built = rows.filter_map { |row| path_roles(list(row[:roles] || row['roles'], name), name).presence }
+        built = rows.filter_map { |row| path_roles(list(path_values(row), name), name).presence }
         built.include?(:invalid) ? :invalid : built
+      end
+
+      # 1つの組の科目は、区分のチップと同じく2つの欄で送られる(Bookkeeping#submitted と同じ読み方)。
+      #   roles      … いま選んである科目のチップ(外したチップは送られない)
+      #   add][roles … 「＋ 科目を足す」で選んだ、足す科目
+      # JavaScript が動く環境では chip_adder がチップに変えて送るので、足す側は空で来る。
+      # 動かない環境では足す側だけが来る。ここが読まないと、選んで保存しても何も足されない。
+      def path_values(row)
+        chosen = row[:roles] || row['roles']
+        added = (row[:add] || row['add']).then { |add| add[:roles] || add['roles'] if add.is_a?(Hash) }
+        return chosen if added.blank?
+
+        [chosen, added].flatten.compact
       end
 
       # 1つの経路の中身。科目の key は役割に直し、無ければその key を役割にして科目にも足す。
@@ -45,9 +58,18 @@ module CurriculumImport
         return value if known && course.nil?
         return unknown_course(value, name) if course.nil?
 
-        existing = Array(course['roles']).grep(String).first
-        existing || assign_role(course, value)
+        existing_role(course) || assign_role(course, value)
       end
+
+      # その科目が持つ役割。1つの科目が複数の役割を持つことがある(別々の決まりが、別の名前で
+      # 同じ科目を名指ししている)。先頭に丸めると、この決まりが名指ししていた役割が別のものに
+      # 書き換わり、判定が変わる。いま直している決まりが使っている役割があれば、それを保つ。
+      def existing_role(course)
+        roles = Array(course['roles']).grep(String)
+        roles.find { |role| editing_rule_roles.include?(role) } || roles.first
+      end
+
+      def editing_rule_roles = @editing_rule_roles || []
 
       def unknown_course(value, name)
         invalid("#{name}で選んだ科目(#{value.to_s.first(30)})が科目表にありません。科目表の画面で足してください。")

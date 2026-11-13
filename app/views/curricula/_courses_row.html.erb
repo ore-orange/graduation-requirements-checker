@@ -1,12 +1,14 @@
 <%# 科目1つ。1行目は「読む行」(判定の単位を水増しする値を、開かなくても見えるところに出す)。指摘・問題・編集欄は、あれば下に続く。 %>
 <%# 確認・選べる/選べないの切り替えは、画面に1つだけある共有のフォーム(course_action_form)へ送る(course_action)。 %>
 <%# 484行ぶん並ぶので、1行を軽く保つ(余白・文字の大きさ・リンクの見た目は、表の cr-table が決める)。 %>
-<%# section_key があれば、その区分の節に属する行(畳まれて始まる)。「最初に見る科目」の行には無い。 %>
+<%# section_key があれば、その区分の節に属する行(既定では畳まれている)。「最初に見る科目」の行には無い。 %>
+<%# open は、その節を開いた状態で出すか。 %>
 <% section_key = local_assigns[:section_key] %>
 <% course = row.course %>
 <% category = course['category'] %>
 <tbody id="<%= course_dom_id(row.key) %>" class="<%= course_tone(row) %>"
-       <%= tag.attributes(data: { section: section_key }) if section_key %> <%= 'hidden' if section_key %>>
+       <%= tag.attributes(data: { section: section_key }) if section_key %>
+       <%= 'hidden' if section_key && !local_assigns[:open] %>>
   <tr>
     <td><% if row.confirmed? %><%= course_action review, row, '✓ 確認した', class_name: 'cr-btn cr-btn-ok', confirmed: false, pressed: true, confirm: unconfirm_warning(course) %>
       <% else %><%= course_action review, row, course['review_again'] ? 'もう一度確認した' : '確認した', confirmed: true, pressed: false %><% end %></td>

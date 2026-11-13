@@ -72,6 +72,23 @@ module CurriculumImport
       end
     end
 
+    # その行が属する区分の節。「最初に見る科目」の行は、どの節にも畳まれないので nil。
+    # Turbo で行を差し替えるときも、画面を最初に描いたときと同じ節に入れる(data-section が消えると、
+    # 節を畳んでもその行だけが残る)。
+    def section_key_of(row)
+      return nil if row.look_first?
+
+      key = row.course['category']
+      category_keys.include?(key) ? key : UNKNOWN_KEY
+    end
+
+    # 畳まずに出す節。保存できなかった科目の入力は、その行の「直す」に残してある。
+    # 節が畳まれていると、画面には何も出ていないのに「入力は残してあります」と言うことになる。
+    def open_section_key
+      row = rows.find { |item| open?(item.key) }
+      row && section_key_of(row)
+    end
+
     def uncounted?(category) = review.uncounted_category_keys.include?(category)
 
     # 区分の節を key で引く。見出しの「まとめて確認する」が対象にする科目と指紋は、ここから作る1か所

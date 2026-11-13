@@ -42,12 +42,17 @@ module CurriculumImport
       # 値を変えた算入の調整(cap・exclude)は、その場で組み立てて検める。条件が全部空の除外のような、
       # 「黙ってすべての科目を外す」定義を保存させない(設計書 項目9)。
       def edit_rule(rule, entry)
+        # いまこの決まりが名指ししている役割。科目から役割を引くときに、別の役割へ書き換えないために使う
+        # (NestedCoercion#existing_role)。
+        @editing_rule_roles = Array(rule['paths']).flatten.grep(String).to_set
         rule.deep_dup.tap do |copy|
           changed = assign(copy, entry, self.class.rule_fields(copy), 'rule', rule['id']).any?
           rename_group(copy, rule)
           mark(copy, changed)
           check_adjustment(copy, kind: 'rule', id: rule['id']) if changed
         end
+      ensure
+        @editing_rule_roles = nil
       end
 
       # グループの呼び名(学生の画面に出る「同一の◯◯から」の◯◯)は、画面の欄をやめ、分け方から決めて書く

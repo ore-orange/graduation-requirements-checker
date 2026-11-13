@@ -57,7 +57,8 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
   def streams_of(response) = Nokogiri::HTML5.fragment(response.body).css('turbo-stream')
 
   def rows
-    css_select('#course-review tbody[id^="course-"]:not([id^="course-category-"]):not(#course-first-look)')
+    css_select('#course-review tbody[id^="course-"]' \
+               ':not([id^="course-category-"]):not([id^="course-section-"]):not(#course-first-look)')
   end
 
   # ---- 見せる ----
@@ -188,6 +189,37 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
 
     assert_select 'tbody#course-category-humanities th button[formaction]', false
     assert_select 'tbody[hidden] button[formaction*=?]', 'bulk_confirm'
+  end
+
+  # Turbo で差し替えた行が data-section を失うと、節を畳んでもその行だけ残ってしまう。
+  test '確認した科目を差し替えても、その行は節に属したまま' do
+    record = course_draft
+    row_key = record.document['courses'].find { |course| course['number'] == '人101' }['key']
+
+    update_course(record, key: row_key, confirmed: '1', headers: { 'Accept' => 'text/vnd.turbo-stream.html' })
+
+    assert_response :success
+    assert_match(/data-section="humanities"/, response.body)
+  end
+
+  # 入力を残して開き直したとき、その科目が畳まれた節の中にあると、画面には何も出ていないのに
+  # 「入力は、その科目の「直す」に残してあります」と言うことになる。
+  test '保存できなかった科目の節は、開いた状態で出す' do
+    record = course_draft
+    row_key = record.document['courses'].find { |course| course['number'] == '人101' }['key']
+
+    update_course(record, key: row_key, credits: 'たくさん')
+
+    assert_response :unprocessable_content
+    assert_select "tbody#course-#{row_key}[hidden]", false
+  end
+
+  # 開閉のボタンが指すのは、隠し出しする科目の行。見出しそのものを指しても、読み上げの役に立たない。
+  test '節のボタンは、開閉する科目の行を指す' do
+    show(course_draft)
+
+    assert_select 'button[data-section=humanities][aria-controls=?]', 'course-section-humanities'
+    assert_select 'tbody#course-section-humanities'
   end
 
   test '科目表が読まれていない下書きは、読み取りを促すだけで、表を出さない' do

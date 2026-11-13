@@ -100,6 +100,31 @@ class PathsTest < ActiveSupport::TestCase
     assert_equal [%w[role_a], %w[role_a course_人103]], rule_after('english_required')['paths']
   end
 
+  # 1つの役割を複数の科目が持つことがある(便覧が「次のどれかを修得」とまとめている科目の束)。
+  # 先頭の科目だけを出すと、ほかの科目でも満たせることが画面から分からない。
+  test '1つの役割を複数の科目が持つときは、件数を添えて出す' do
+    document = @curriculum.document.deep_dup
+    document['courses'].find { |item| item['key'] == 'course_人103' }['roles'] = ['role_a']
+    @curriculum.update!(document: document)
+    review = CurriculumImport::RequirementsReview.new(@curriculum.reload)
+
+    assert_equal [['course_人101', '人101 哲学 ほか1件']], review.path_courses(%w[role_a])
+  end
+
+  # 1つの科目が複数の役割を持つことがある(別々の決まりが、別の名前で同じ科目を名指ししている)。
+  # 先頭の役割に丸めると、その経路が名指ししていた役割が別のものに書き換わり、判定が変わる。
+  test '複数の役割を持つ科目を選んでも、その経路がいま名指ししている役割を保つ' do
+    document = @curriculum.document.deep_dup
+    document['courses'].find { |item| item['key'] == 'course_人101' }['roles'] = %w[role_a role_x]
+    document['rules'].find { |item| item['id'] == 'english_required' }['paths'] = [%w[role_x]]
+    @curriculum.update!(document: document)
+
+    result = edit(rules: { '0' => { id: 'english_required', paths: { 'a' => { roles: %w[course_人101] } } } })
+
+    assert_predicate result, :ok?
+    assert_equal [%w[role_x]], rule_after('english_required')['paths'], '別の役割に書き換わった'
+  end
+
   # 画面は役割キーを出さないが、保存できなかった送信を戻すときは役割キーのまま返ってくる。
   test 'いままでどおり役割キーが送られても、そのまま通る' do
     result = save_paths('a' => { roles: %w[role_b] })
@@ -110,6 +135,26 @@ class PathsTest < ActiveSupport::TestCase
 
   test '科目を1つも選ばなかった経路は捨てる' do
     result = save_paths('a' => { roles: [''] }, 'b' => { roles: %w[course_人101] })
+
+    assert_predicate result, :ok?
+    assert_equal [%w[role_a]], rule_after('english_required')['paths']
+  end
+
+  # 「＋ 科目を足す」は、区分のチップと同じく2つの欄で送る(いまのチップ + 足す1つ)。
+  # JavaScript が動かない環境では、足す側の欄だけが送られてくる。保存がそれを読まないと、
+  # 人は科目を選んで保存したのに「変えた箇所はありませんでした」と言われる。
+  test 'JavaScript が無くても、足す欄で選んだ科目が経路に入る' do
+    result = edit(rules: { '0' => { id: 'english_required',
+                                    paths: { 'a' => { roles: %w[role_a],
+                                                      add: { roles: 'course_人103' } } } } })
+
+    assert_predicate result, :ok?
+    assert_equal [%w[role_a course_人103]], rule_after('english_required')['paths']
+  end
+
+  test '足す欄だけで、科目の無い組にも科目を入れられる' do
+    result = edit(rules: { '0' => { id: 'english_required',
+                                    paths: { 'a' => { roles: [''], add: { roles: 'course_人101' } } } } })
 
     assert_predicate result, :ok?
     assert_equal [%w[role_a]], rule_after('english_required')['paths']

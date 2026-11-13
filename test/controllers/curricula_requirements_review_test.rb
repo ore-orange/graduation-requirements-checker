@@ -217,6 +217,17 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#rule-core > p', text: /出典/
   end
 
+  # 決まりごとに出すときも、隠した決まりには箱が無い。その出典が画面のどこにも出なくなるので、
+  # 持ち主の「…」に入れる(人が見る値を減らさない)。
+  test '出典が4種類以上あるとき、隠した決まりの出典は持ち主の … に出る' do
+    document = requirements_document
+    document['rules'].each_with_index { |rule, index| rule['source_page'] = "PDF#{index + 1}ページ" }
+
+    show(draft(document: document))
+
+    assert_select '#row-humanities details', text: /出典 PDF1ページ/
+  end
+
   test '出典が無い下書きでは、出典の行を出さない' do
     document = requirements_document
     document['rules'].each { |rule| rule['source_page'] = nil }

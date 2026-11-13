@@ -7,6 +7,11 @@
 %>
 <% key = rule_param_key(rule, review) %>
 <%= hidden_field_tag "#{key}[id]", rule['id'], id: nil %>
+<%# 便覧の中で出典がばらばらなときは、節にまとめず決まりごとに出す(設計書 項目4)。 %>
+<%# 隠した決まりには箱が無いので、その出典はここに入れる。画面のどこにも出ないことにしない。 %>
+<% if review.source_per_rule? %>
+  <p class="text-slate-500 sm:col-span-2">出典 <%= rule['source_page'].presence || '(なし)' %></p>
+<% end %>
 <label class="block sm:col-span-2"><span class="font-semibold text-slate-700">学生の画面に出す名前</span>
   <%= rv_text "#{key}[label]", rule['label'], id: nil,
               class: "mt-1 block w-full #{RequirementsReviewHelper::FIELD_CLASS}" %></label>

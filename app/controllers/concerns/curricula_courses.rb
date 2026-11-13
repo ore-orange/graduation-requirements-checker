@@ -132,7 +132,8 @@ module CurriculaCourses
     target = helpers.course_dom_id(key)
     return turbo_stream.remove(target) unless row
 
-    turbo_stream.replace(target, partial: 'curricula/courses_row', locals: { review: review, row: row })
+    turbo_stream.replace(target, partial: 'curricula/courses_row',
+                                 locals: { review: review, row: row, section_key: review.section_key_of(row) })
   end
 end
 

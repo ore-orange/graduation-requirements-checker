@@ -60,15 +60,20 @@
         %>
         <% review.sections.each do |section| %>
           <% pending = review.section_pending(section.key) %>
+          <%# 保存できなかった科目のいる節は、畳まない(入力はその行の「直す」に残してある) %>
+          <% open = review.open_section_key == section.key %>
           <tbody id="<%= course_category_dom_id(section.key) %>">
             <tr class="bg-slate-100">
               <th colspan="8" class="px-2 py-2 text-left">
-                <button type="button" class="text-left" aria-expanded="false"
-                        data-section="<%= section.key %>" data-action="click->section-toggle#toggle"
-                        aria-controls="<%= course_category_dom_id(section.key) %>">
-                  <span data-section-toggle-mark class="mr-1 text-slate-500" aria-hidden="true">▸</span>
-                  <h4 class="inline text-sm font-bold text-slate-900"><%= section.title %> ・ <%= section.total %>科目 ・ 必修<%= review_credits(section.required_credits) %>単位 ・ 未確認<%= pending.size %>件</h4>
-                </button>
+                <h4 class="inline">
+                  <button type="button" class="text-left text-sm font-bold text-slate-900"
+                          aria-expanded="<%= open %>" data-section="<%= section.key %>"
+                          data-action="click->section-toggle#toggle"
+                          aria-controls="course-section-<%= section.key %>">
+                    <span data-section-toggle-mark class="mr-1 font-normal text-slate-500" aria-hidden="true"><%= open ? '▾' : '▸' %></span>
+                    <%= section.title %> ・ <%= section.total %>科目 ・ 必修<%= review_credits(section.required_credits) %>単位 ・ 未確認<%= pending.size %>件
+                  </button>
+                </h4>
                 <% unless section.counted %><span class="cr-chip cr-bad ml-2">総単位に数えない</span><% end %>
                 <span class="cr-chip cr-muted ml-2">選べる<%= section.selectable %></span>
                 <% if section.unselectable.positive? %><span class="cr-chip cr-bad ml-1">選べない<%= section.unselectable %></span><% end %>
@@ -78,12 +83,13 @@
               </th>
             </tr>
           </tbody>
-          <% if pending.any? %>
-            <%# まとめて確認する前に、必ず件数を見せる(PDFと見比べずに押せてしまう操作なので、何件に効くかを隠さない)。 %>
-            <%# 節を畳んだので、見出しではなく開いた中に置く。一度も見ていない科目に、畳んだまま印を付けさせない。 %>
-            <%# 行ごとの操作(course_action)と同じく、共有のフォーム(course_action_form)に formaction だけ足す。 %>
-            <%# 484行×区分の数ぶん欄を増やさない(区分ごとにフォームと隠し欄を置くと、画面の重さの予算を超える)。 %>
-            <tbody data-section="<%= section.key %>" hidden>
+          <%# 節の中身の先頭。見出しのボタンが指す先で、まとめて確認するボタンの置き場でもある。 %>
+          <%# まとめて確認する前に、必ず件数を見せる(PDFと見比べずに押せてしまう操作なので、何件に効くかを隠さない)。 %>
+          <%# 節を畳んだので、見出しではなく開いた中に置く。一度も見ていない科目に、畳んだまま印を付けさせない。 %>
+          <%# 行ごとの操作(course_action)と同じく、共有のフォーム(course_action_form)に formaction だけ足す。 %>
+          <%# 484行×区分の数ぶん欄を増やさない(区分ごとにフォームと隠し欄を置くと、画面の重さの予算を超える)。 %>
+          <tbody id="course-section-<%= section.key %>" data-section="<%= section.key %>" <%= 'hidden' unless open %>>
+            <% if pending.any? %>
               <tr><td colspan="8" class="cr-sub">
                 <%= button_tag "まとめて確認する(#{pending.size}科目)", type: 'submit', form: 'course_action_form',
                                formaction: bulk_confirm_courses_curriculum_path(review.curriculum, category: section.key,
@@ -92,10 +98,10 @@
                                data: { turbo_confirm: "「#{section.title}」の#{pending.size}科目を、まとめて確認済みにします。" \
                                                       '個別の食い違いが無い科目だけが対象です。よろしいですか。' } %>
               </td></tr>
-            </tbody>
-          <% end %>
+            <% end %>
+          </tbody>
           <% section.rows.each do |row| %>
-            <%= render 'courses_row', review: review, row: row, section_key: section.key %>
+            <%= render 'courses_row', review: review, row: row, section_key: section.key, open: open %>
           <% end %>
         <% end %>
       </table>

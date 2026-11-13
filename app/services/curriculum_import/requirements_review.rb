@@ -109,16 +109,17 @@ module CurriculumImport
 
     def source_per_rule? = source_pages.size > SOURCE_PAGE_LIMIT
 
-    # 役割(経路が名指しするキー)を持つ科目の名前。規則が名指しする役割に科目が無いと、その規則は必ず要確認になる。
-    def role_names(role) = courses.select { |course| Array(course['roles']).include?(role) }.pluck('name')
-
     # 経路に出す科目(設計書 項目3-1)。役割キーは画面に出さず、科目の「番号 名前」で見せる。
     # 画面が送り返すのは科目の key で、保存(NestedCoercion#paths)が役割に直す。
     # 科目が1つも無い役割は、そのキーのまま返す(選択肢から外すと、送り返すだけでその経路が消えてしまう)。
+    # 1つの役割を複数の科目が持つことがある(便覧が「次のどれかを修得」とまとめている科目の束)。
+    # 先頭だけを出すと、ほかの科目でも満たせることが画面から分からないので、件数を添える。
     def path_courses(path)
       Array(path).grep(String).map do |role|
-        course = courses.find { |item| Array(item['roles']).include?(role) }
-        course ? [course['key'], course_label(course)] : [role, "#{role}(科目表にありません)"]
+        found = courses.select { |item| Array(item['roles']).include?(role) }
+        next [role, "#{role}(科目表にありません)"] if found.empty?
+
+        [found.first['key'], course_label(found.first) + (found.one? ? '' : " ほか#{found.size - 1}件")]
       end
     end
 
