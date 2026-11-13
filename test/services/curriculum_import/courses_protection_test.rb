@@ -345,6 +345,36 @@ module CurriculumImport
       assert course('知能101')['requires_approval'], '人が確認した科目の承認が、注記の削除に巻き込まれて外れた'
       assert_not course('知能103')['requires_approval'], '確認していない科目は、注記の削除で戻る'
     end
+
+    # 役割(role)は、要件表の確認画面が「経路」で科目を選んだときに付く値で、科目表のページから読む値ではない。
+    # 読み直しで入れ替えると、人が選んだ経路の科目が黙って外れ、one_of_paths が必ず要確認になる。
+    test '科目表を読み直しても、要件表の画面が足した役割は消えない' do
+      read
+      @curriculum.with_lock do
+        document = @curriculum.document.deep_dup
+        document['courses'].find { |item| item['number'] == '知能101' }['roles'] = ['course_知能101']
+        @curriculum.update!(document: document)
+      end
+
+      read
+
+      assert_equal ['course_知能101'], course('知能101')['roles']
+      assert_empty course('知能103')['roles']
+    end
+
+    # 読み取りが役割を返したときは、人が付けた役割と合わせる(どちらも落とさない)。
+    test '読み取りが返した役割と、画面が足した役割は、両方残る' do
+      read
+      @curriculum.with_lock do
+        document = @curriculum.document.deep_dup
+        document['courses'].find { |item| item['number'] == '知能101' }['roles'] = ['human_role']
+        @curriculum.update!(document: document)
+      end
+
+      read(row('知能101').merge('roles' => ['ai_role']), row('知能103'))
+
+      assert_equal %w[human_role ai_role].sort, course('知能101')['roles'].sort
+    end
   end
 end
 

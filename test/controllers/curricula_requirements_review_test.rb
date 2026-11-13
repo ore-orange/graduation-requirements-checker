@@ -72,7 +72,7 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     show(draft(document: document))
 
     assert_select '#row-humanities [data-rule-logic=?]', 'OR'
-    assert_select '#row-humanities [data-rule-box=?]', 'path_rule', text: /経路1/
+    assert_select '#row-humanities [data-rule-box=?]', 'path_rule', text: /次のどれか1組を、すべて修得/
   end
 
   # 入れ子を持たない規則(credit_sum など)も箱で出すが、AND/OR のバッジは付けない。

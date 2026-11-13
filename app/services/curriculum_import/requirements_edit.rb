@@ -178,6 +178,7 @@ module CurriculumImport
       # 人が直した決まり・章・行がすべて当たったあとに走らせること(先に走ると、同じ保存で直した値を上書きする)。
       mirror_writeback
       drop_orphaned_rules
+      drop_unused_roles
       decide_annotations
       remove_approval_note
     end

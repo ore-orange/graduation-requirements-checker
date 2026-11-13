@@ -104,11 +104,39 @@ module CurriculumImport
     # 役割(経路が名指しするキー)を持つ科目の名前。規則が名指しする役割に科目が無いと、その規則は必ず要確認になる。
     def role_names(role) = courses.select { |course| Array(course['roles']).include?(role) }.pluck('name')
 
-    # 経路の欄に出す役割の選択肢。科目が持つ役割に加えて、いま規則の経路が名指ししている役割も入れる
-    # (科目が1つも無い役割を選択肢から外すと、画面から送り返すだけでその経路が消えてしまう)。
-    def known_roles
-      (courses.flat_map { |course| Array(course['roles']) } +
-       rules.flat_map { |rule| Array(rule['paths']).flatten }).grep(String).uniq.sort
+    # 経路に出す科目(設計書 項目3-1)。役割キーは画面に出さず、科目の「番号 名前」で見せる。
+    # 画面が送り返すのは科目の key で、保存(NestedCoercion#paths)が役割に直す。
+    # 科目が1つも無い役割は、そのキーのまま返す(選択肢から外すと、送り返すだけでその経路が消えてしまう)。
+    def path_courses(path)
+      Array(path).grep(String).map do |role|
+        course = courses.find { |item| Array(item['roles']).include?(role) }
+        course ? [course['key'], course_label(course)] : [role, "#{role}(科目表にありません)"]
+      end
+    end
+
+    def course_label(course) = "#{course['number']} #{course['name']}".strip
+
+    # 経路に足せる科目。区分で絞る(484科目を1つの選択肢に並べない)。選んである科目は出さない。
+    def course_options(category, chosen)
+      input.courses_in(category).reject { |course| chosen.include?(course['key']) }
+           .map { |course| [course_label(course), course['key']] }
+    end
+
+    # 「＋ 科目を足す」に出す区分。その決まりを指す行が対象にしている区分だけに絞る。
+    #
+    # 2024年度は484科目あり、全部の区分の科目を経路の数だけ描くと、画面が1MBを超える(重さの予算)。
+    # 指定科目の系列は、その行が数える区分の中にある(日本語表現法入門→日本語、微分積分学→専門基礎)。
+    # 行が分からない決まりだけ、科目のある区分すべてを出す。
+    def path_category_options(rule)
+      keys = categories_for_rule(rule['id'])
+      keys = category_keys if keys.empty?
+      keys.filter_map { |key| [category_label(key), key] if input.courses_in(key).any? }
+    end
+
+    # その決まりを指している行が、対象にしている区分。
+    def categories_for_rule(id)
+      input.rows.select { |row| Array(row['check_ids']).grep(String).include?(id) }
+           .flat_map { |row| Array(row['categories']).grep(String) }.uniq
     end
 
     def rows_of(group) = Array(group['rows']).grep(Hash)

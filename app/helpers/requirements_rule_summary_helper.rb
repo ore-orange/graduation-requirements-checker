@@ -30,13 +30,14 @@ module RequirementsRuleSummaryHelper
     parts.join(' / ').presence
   end
 
-  # 経路は、役割のキーに、その役割を持つ科目の名前を添える。科目が1つも無い役割は、そう言う。
+  # 指定された科目の組。役割のキーは出さず、科目の「番号 名前」で言う(設計書 項目3-1)。
   def path_lines(rule, review)
     return [] unless rule['paths'].is_a?(Array)
 
+    many = rule['paths'].size > 1
     rule['paths'].each_with_index.map do |path, index|
-      roles = Array(path).map { |role| "#{role}(#{review.role_names(role).first(3).join('・').presence || '科目なし'})" }
-      "経路#{index + 1}: #{roles.join(' ＋ ').presence || '(空)'}"
+      names = review.path_courses(path).map(&:last)
+      "#{many ? "組#{index + 1}" : '次の科目をすべて'}: #{names.join(' ＋ ').presence || '(空)'}"
     end
   end
 

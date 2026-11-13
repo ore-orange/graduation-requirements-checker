@@ -19,14 +19,60 @@ module CurriculumImport
         end
       end
 
-      # 経路。画面は経路ごとに1行(rules[N][paths][M][roles][])で送る。1つの経路は、そろって要る役割の並び。
-      # 役割を1つも選ばなかった経路は捨てる(空の経路は「何も修得しなくてよい経路」になり、規則を骨抜きにする)。
+      # 経路。画面は経路ごとに1行(rules[N][paths][M][roles][])で送る。1つの経路は、そろって要る科目の並び。
+      #
+      # 画面が送るのは科目の key(設計書 項目3-1)。役割キーはアプリが裏で振るので、ここで役割に直す。
+      # 保存できなかった送信を画面に戻したときは役割キーのまま返ってくるので、それも通す。
+      # 科目を1つも選ばなかった経路は捨てる(空の経路は「何も修得しなくてよい経路」になり、規則を骨抜きにする)。
       def paths(value, name)
         rows = nested_rows(value, name)
         return :invalid if rows == :invalid
 
-        rows.filter_map { |row| list(row[:roles] || row['roles'], name).presence }
+        built = rows.filter_map { |row| path_roles(list(row[:roles] || row['roles'], name), name).presence }
+        built.include?(:invalid) ? :invalid : built
       end
+
+      # 1つの経路の中身。科目の key は役割に直し、無ければその key を役割にして科目にも足す。
+      def path_roles(values, name)
+        return :invalid if values == :invalid
+
+        values.map { |value| role_for(value, name) }.then { |roles| roles.include?(:invalid) ? :invalid : roles.uniq }
+      end
+
+      def role_for(value, name)
+        known = known_role?(value)
+        course = course_by_key(value)
+        return value if known && course.nil?
+        return unknown_course(value, name) if course.nil?
+
+        existing = Array(course['roles']).grep(String).first
+        existing || assign_role(course, value)
+      end
+
+      def unknown_course(value, name)
+        invalid("#{name}で選んだ科目(#{value.to_s.first(30)})が科目表にありません。科目表の画面で足してください。")
+      end
+
+      # 役割を持たない科目に、その科目の key を役割として付ける。
+      # 「人が確認した」印は付けない(印は科目の単位・区分を見比べたという意味で、科目表の画面のもの)。
+      def assign_role(course, key)
+        course['roles'] = Array(course['roles']).grep(String) | [key]
+        @edited += 1
+        key
+      end
+
+      # 便覧がすでに知っている役割(どれかの科目が持つ、またはどれかの経路が名指ししている)。
+      def known_role?(value)
+        @known_roles ||= (document_courses.flat_map { |course| Array(course['roles']) } +
+                          document_rules.flat_map { |rule| Array(rule['paths']).flatten }).grep(String).to_set
+        @known_roles.include?(value)
+      end
+
+      def course_by_key(key) = document_courses.find { |course| course['key'] == key }
+
+      def document_courses = Array(@document['courses']).grep(Hash)
+
+      def document_rules = Array(@document['rules']).grep(Hash)
 
       # any_of の選択肢・all_of の条件。型ごとに、その型が持てる欄だけを組み立て直す。
       # 読めない型・置けない型の条件は捨てて、問題を積む(黙って落とすと、要件が1つ消えたまま保存される)。

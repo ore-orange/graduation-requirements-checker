@@ -34,13 +34,14 @@ class RuleEditingTest < ActiveSupport::TestCase
 
   def rule_after(id) = document_after['rules'].find { |rule| rule['id'] == id }
 
-  test '経路をチェックの入力から直す(JSONを使わない)' do
+  # 画面が送るのは科目の key。役割キーはアプリが裏で振る(設計書 項目3-1)。
+  test '経路を科目の選択から直す(JSONを使わない)' do
     result = edit(rules: { '0' => { id: 'english_required',
-                                    paths: { 'a' => { roles: %w[university_english] },
-                                             'b' => { roles: %w[english_reading_intermediate] } } } })
+                                    paths: { 'a' => { roles: %w[course_外101] },
+                                             'b' => { roles: %w[course_外102] } } } })
 
     assert result.ok?, result.errors.join('/')
-    assert_equal [['university_english'], ['english_reading_intermediate']], rule_after('english_required')['paths']
+    assert_equal [['course_外101'], ['course_外102']], rule_after('english_required')['paths']
   end
 
   test '1つの経路に役割を2つ以上置ける(両方そろって1つの経路)' do

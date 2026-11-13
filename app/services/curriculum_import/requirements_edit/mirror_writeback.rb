@@ -30,7 +30,10 @@ module CurriculumImport
       end
 
       # 画面が箱を隠していた決まり。編集前の文書で決める。
-      # 人がこの保存で直接直した決まりは除く(箱が出ていたということなので、そちらを優先する)。
+      #
+      # 人がこの保存で値を直した決まりは除く(RuleCleanup#edited_rule_ids。箱が出ていたということなので、
+      # そちらを優先する)。「送られてきた決まり」で判じてはいけない。隠した決まりも、持ち主の「…」から
+      # id・名前・説明を送るので、送信にはどの決まりも出てくる。
       def mirrored_targets
         before = @curriculum.document
         return {} unless before.is_a?(Hash)
@@ -38,10 +41,6 @@ module CurriculumImport
         input = Validation::Input.new(before, @curriculum.pages)
         mirror = RequirementsReview::Mirror.new(input)
         mirror.owners(RequirementsReview::Tree.new(input)).except(*edited_rule_ids)
-      end
-
-      def edited_rule_ids
-        @edited_rule_ids ||= entries(@params[:rules], 'rules').to_a.filter_map { |entry| entry[:id] }
       end
 
       # いまの文書での持ち主と決まりを引き、持ち主の値を決まりに書く。

@@ -66,6 +66,9 @@ module CurriculumImport
     # 科目表のページ。番号が別のページの科目と同じ行は上書きせず別の key で残す(重複の判断は、あとの突き合わせと人がする)。
     def courses(answer)
       courses = @document['courses']
+      # 役割は、要件表の確認画面が「経路」で科目を選んだときに付く値で、科目表のページから読む値ではない。
+      # 引き継がないと、読み直しで人が選んだ経路の科目が黙って外れ、one_of_paths が必ず要確認になる。
+      held_roles = roles_by_identity(courses)
       @kept = withdraw_previous
       kept_keys = kept_ids('courses')
       held = held_identities(courses, kept_keys)
@@ -73,7 +76,7 @@ module CurriculumImport
       added = answer['courses'].each_with_index.filter_map do |row, index|
         next if human_owned?(row, held, removed)
 
-        course_entry(row, index, courses).tap { |entry| courses << entry }
+        course_entry(row, index, courses, held_roles).tap { |entry| courses << entry }
       end
       touch_source
       @kept.except('courses').merge('courses' => kept_keys + added.pluck('key'))
@@ -206,11 +209,20 @@ module CurriculumImport
     # 同じ科目かどうか(CourseReading が正規形を決める)。
     def identity(course) = CourseReading.identity(course)
 
-    def course_entry(row, index, existing)
+    # 読み直す前に、科目が持っていた役割を科目の同一性(番号、無ければ名前)で控える。
+    def roles_by_identity(courses)
+      courses.grep(Hash).each_with_object({}) do |course, table|
+        roles = Array(course['roles']).grep(String)
+        table[identity(course)] = roles if roles.any?
+      end
+    end
+
+    def course_entry(row, index, existing, held_roles = {})
       number = row['number'].presence&.strip
+      roles = (Array(row['roles']).grep(String) | held_roles.fetch(identity(row), []))
       { 'key' => course_key(number, index, existing), 'number' => number, 'name' => row['name'],
         'credits' => row['credits'], 'category' => row['category'], 'required' => row['required'],
-        'language' => row['language'], 'roles' => Array(row['roles']), 'source' => source_id,
+        'language' => row['language'], 'roles' => roles, 'source' => source_id,
         'source_page' => @label, 'review_reason' => row['review_reason'],
         'requires_approval' => row['requires_approval'] == true, 'selectable' => true }
     end

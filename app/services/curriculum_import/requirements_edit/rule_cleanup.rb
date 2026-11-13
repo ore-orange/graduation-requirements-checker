@@ -45,6 +45,22 @@ module CurriculumImport
 
       def edited_rule_ids = @touched.filter_map { |kind, id| id if kind == 'rule' }
 
+      # 経路から外した科目の役割を、科目からも外す(設計書 項目3-1)。
+      # 役割は、画面が経路で科目を選んだときに付ける値。どの経路も名指ししなくなったら、持ち続ける理由がない。
+      # 持ち主を失った役割が残ると、突き合わせ(RuleChecks#roles)が「使われていない役割」として指摘し続ける。
+      # 画面が付けた役割(科目の key と同じもの)だけを外す。AI や人が別の名前で付けた役割は触らない。
+      def drop_unused_roles
+        named = document_rules.flat_map { |rule| Array(rule['paths']).flatten }.grep(String).to_set
+        document_courses.each do |course|
+          roles = Array(course['roles']).grep(String)
+          kept = roles.reject { |role| role == course['key'] && named.exclude?(role) }
+          next if kept == roles
+
+          course['roles'] = kept
+          @edited += 1
+        end
+      end
+
       def referenced_rule_ids
         groups = display_groups
         from_rows = groups.flat_map do |group|

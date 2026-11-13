@@ -50,19 +50,6 @@ module RequirementsReviewHelper
     select_tag(name, options_for_select(options, requirements_review.field_value(name, default)), **)
   end
 
-  # 経路に置く役割を選ぶチェックの並び。選択肢は便覧が知っている役割。
-  # 役割のキーには、その役割を持つ科目の名前を添える(キーだけでは、どの科目を指すのか画面から分からない)。
-  def role_checks(name, selected, review)
-    boxes = review.known_roles.map do |role|
-      names = review.role_names(role).first(2).join('・')
-      tag.label(class: 'inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-800') do
-        rv_check("#{name}[]", role, Array(selected).include?(role), id: nil) +
-          "#{role}#{"(#{names})" if names.present?}"
-      end
-    end
-    hidden_field_tag("#{name}[]", '', id: nil) + tag.div(safe_join(boxes), class: 'flex flex-wrap gap-x-3 gap-y-1')
-  end
-
   # 規則のフォームの欄の名前の前半(rules[添字])。どの枠で出しても、同じ名前で送る。
   # 添字は id で引く(同じ中身の規則が2つあっても、別の添字になる)。
   def rule_param_key(rule, review)

@@ -60,11 +60,13 @@ class CurriculaRequirementsRepairTest < ActionDispatch::IntegrationTest
       assert_select "input[value='12']"
       assert_select 'select option[selected][value=?]', 'grouped_max'
     end
-    assert_select '#rule-calculus [data-rule-paths=?]', 'calculus', text: /経路1/
-    assert_select '#rule-calculus input[type=checkbox][value=?][checked]', 'calculus_st_1'
-    assert_select '#rule-calculus input[type=checkbox][value=?][checked]', 'calculus_intro_1'
+    # 指定科目の組は、役割キーではなく科目の「番号 名前」で出す(設計書 項目3-1)
+    assert_select '#rule-calculus [data-rule-paths=?]', 'calculus', text: /次のどれか1組を、すべて修得/
+    assert_select '#rule-calculus', text: /先11 微分積分学ＳＴ/
+    assert_select '#rule-calculus', text: /転03 微分積分学入門Ⅰ/
+    assert_select '#rule-calculus', text: /calculus_st_1/, count: 0
     css_select('#rule-calculus [data-rule-paths] input[type=checkbox]').each do |box|
-      assert_empty box.ancestors('details'), '経路が畳んだ中にあります'
+      assert_empty box.ancestors('details'), '指定科目の組が畳んだ中にあります'
     end
   end
 
