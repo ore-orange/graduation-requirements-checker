@@ -24,7 +24,7 @@
     <%= credit_range(["#{row_key}[required_credits]", row['required_credits']], review.upper_limit(shown_rules)) %>
     <% if inner_row?(row) %>
       <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600"
-            title="必要単位(下限)も、その代わりに出す言葉もありません。学生の画面では上の章の単位に含まれます">内数</span>
+            title="必要単位(下限)も、その代わりに出す言葉もありません。学生の画面では、まとめている枠か章の単位に含まれると出ます">内数</span>
     <% end %>
     <% if human_confirmed?(row) %><span class="rv-confirmed">人が確認した</span><% end %>
     <div class="ml-auto flex items-center gap-1">

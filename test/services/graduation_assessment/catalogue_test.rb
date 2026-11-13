@@ -144,20 +144,44 @@ class GraduationAssessment
       assert_nothing_raised { load_with_display(display_with_row(display_row('required_credits' => 0))) }
     end
 
-    # required_credits の綴り違いは「必要単位の無い行」に見え、満たしていない要件が画面から消える。
-    test '必要単位が無い行は、理由を表す required_label が無ければ読み込み時に例外になる' do
-      typo = display_row.except('required_credits').merge('requird_credits' => 2)
+    # required_credits の綴り違いや読み落ちは「必要単位の無い行」に見え、満たしていない要件が画面から消える。
+    # 行がどの枠・章の単位に数えられるのかを便覧が書いていないなら、その理由を書かせて弾く。
+    test '必要単位が無い行は、どの枠・章の単位に含まれるかも分からなければ読み込み時に例外になる' do
+      typo = display_row.except('required_credits').merge('requird_credits' => 2, 'check_ids' => ['japanese'])
+      lone = display_row('check_ids' => ['japanese']) # 章が出している規則(common_total)を指していない
 
-      [typo, display_row('required_credits' => nil), display_row('required_credits' => nil, 'required_label' => ''),
-       display_row('required_credits' => nil, 'required_label' => '  ')].each do |row|
+      [typo, lone.merge('required_credits' => nil), lone.merge('required_credits' => nil, 'required_label' => ''),
+       lone.merge('required_credits' => nil, 'required_label' => '  ')].each do |row|
         error = assert_raises(ArgumentError) { load_with_display(display_with_row(row)) }
         assert_includes error.message, 'required_label'
       end
     end
 
     test '必要単位が無くてもラベルのある行は読み込める' do
-      row = display_row('required_credits' => nil, 'required_label' => '内数22単位枠')
+      row = display_row('required_credits' => nil, 'required_label' => '内数22単位枠', 'check_ids' => ['japanese'])
 
+      assert_nothing_raised { load_with_display(display_with_row(row)) }
+    end
+
+    # 画面は、枠(小計)の単位を「この枠の22単位に含む」と出せる。人が書いた説明文は要らない。
+    test '必要単位が無い行は、枠(小計)がまとめているならラベルが無くても読み込める' do
+      row = display_row('required_credits' => nil, 'required_label' => nil, 'check_ids' => ['japanese'])
+      subtotal = { 'id' => 'inner', 'name' => '内数', 'required_credits' => 22, 'row_ids' => ['basic'],
+                   'check_ids' => [] }
+
+      assert_nothing_raised { load_with_display(display_with_row(row).merge('subtotals' => [subtotal])) }
+      # 枠の側に単位が無ければ、その枠に含まれると言っても数字が出せない。これまでどおり理由を求める。
+      error = assert_raises(ArgumentError) do
+        load_with_display(display_with_row(row).merge('subtotals' => [subtotal.merge('required_credits' => 0)]))
+      end
+      assert_includes error.message, 'required_label'
+    end
+
+    # 章と同じ規則を指す行は、章が出している単位がそのままその行の要件(例: 章「専門選択 37単位」と行「専門科目(自由)」)。
+    test '必要単位が無い行は、章と同じ規則を指しているならラベルが無くても読み込める' do
+      row = display_row('required_credits' => nil, 'required_label' => nil)
+
+      assert_equal ['common_total'], row['check_ids']
       assert_nothing_raised { load_with_display(display_with_row(row)) }
     end
 

@@ -79,7 +79,7 @@ module CurriculumImport
       def row_problem(row, groups, entry)
         return '足す行の名前を入れてください。' if row['name'].blank?
         if !row['required_credits'].is_a?(Numeric) && row['required_label'].blank?
-          return '足す行は、必要単位を数で入れるか、必要単位が空のときの表示(内数22単位枠など)を入れてください。'
+          return '足す行は、必要単位を数で入れるか、必要単位が空のときの表示(「卒業要件に含めない」など)を入れてください。'
         end
 
         taken = groups.flat_map { |group| Array(group['rows']).grep(Hash).pluck('id') }

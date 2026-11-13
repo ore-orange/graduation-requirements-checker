@@ -745,9 +745,9 @@
           {
             "id": "elective_math",
             "name": "数学基礎（選択）",
-            "subtitle": "工業数学Ⅲ・Ⅳ、確率及び統計 (内数22単位の対象)",
+            "subtitle": "工業数学Ⅲ・Ⅳ、確率及び統計",
             "required_credits": null,
-            "required_label": "内数22単位枠",
+            "required_label": null,
             "categories": [
               "elective_math"
             ],
@@ -759,9 +759,9 @@
           {
             "id": "advanced",
             "name": "知能情報アドバンスト",
-            "subtitle": "数学基礎(選択)・アドバンスト・関連の3区分計22単位以上",
+            "subtitle": null,
             "required_credits": 22,
-            "required_label": "3区分計 22単位",
+            "required_label": null,
             "categories": [
               "advanced"
             ],
@@ -773,9 +773,9 @@
           {
             "id": "related",
             "name": "知能情報関連",
-            "subtitle": "技術英語・関連専門科目 (内数22単位の対象)",
+            "subtitle": "技術英語・関連専門科目",
             "required_credits": null,
-            "required_label": "内数22単位枠",
+            "required_label": null,
             "categories": [
               "related"
             ],
@@ -801,9 +801,9 @@
           {
             "id": "free",
             "name": "専門科目（自由）",
-            "subtitle": "他コース・他学部等の所定専門科目 (選択全体37単位に算入)",
+            "subtitle": "他コース・他学部等の所定専門科目",
             "required_credits": null,
-            "required_label": "選択全体 37単位枠",
+            "required_label": null,
             "categories": [
               "free"
             ],

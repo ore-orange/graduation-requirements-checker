@@ -58,6 +58,12 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     @curriculum.update!(document: document)
   end
 
+  # 専門選択科目の章の1行。「内数22単位枠」などの表示の言葉が付いていた行を書き換えるために使う。
+  def elective_row(document, id)
+    group = document['display']['groups'].find { |entry| entry['id'] == 'elective' }
+    group['rows'].find { |row| row['id'] == id }
+  end
+
   # ---- 選ぶ ----
 
   test '何も選んでいないときは、卒業要件を出さずに選択だけ出す' do
@@ -481,11 +487,69 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test '必要単位を持たない行は required_label を出す' do
+  # 2024年度の専門選択科目の章は、3つの行をまとめた22単位の小計を持つ。便覧にはその22の置き場所が無かったので、
+  # 22を真ん中の行に押し込み、残りの行に「内数22単位枠」と書いて辻褄を合わせていた。小計を、まとめている行を
+  # 囲む枠のカードにして22を出せば、その説明文は要らなくなる。
+  test '小計は、まとめている行を囲む枠のカードになり、その単位数を出す' do
     show_selected
 
-    assert_select 'section[data-group="elective"] li[data-row="elective_math"]', text: /内数22単位枠/
-    assert_select 'li[data-row="elective_math"] [data-row-credits]', count: 0
+    assert_select 'section[data-group="elective"] li[data-subtotal="elective_inner"]' do
+      assert_select '[data-subtotal-credits]', text: /22\s*単位/
+      assert_select 'li[data-row]', count: 3
+      assert_select 'li[data-row="elective_math"]'
+      assert_select 'li[data-row="advanced"]'
+      assert_select 'li[data-row="related"]'
+    end
+    # 枠にできた小計は、章の後ろの別立ての節には出さない（同じことを2か所で言わない）
+    assert_select '[data-loose-subtotals]', count: 0
+  end
+
+  # どの枠・章の単位に数えられるのかは、枠と章の囲いが示す。行ごとに文で書かない。
+  test '自分の必要単位を持たない行は「- 単位」と出し、含む先は文にしない' do
+    show_selected
+
+    # その行だけの制限が無いことは空欄にせず「- 単位」と出す(読み落としと見分けられるように)
+    assert_select 'li[data-row="elective_math"] [data-row-credits]', text: /-\s*単位/
+    assert_select 'li[data-row="free"] [data-row-credits]', text: /-\s*単位/
+    assert_select '[data-row-included]', count: 0
+    assert_select 'body', text: /単位に含む/, count: 0
+    assert_select 'body', text: /内数22単位枠|選択全体\s*37単位枠|3区分計/, count: 0
+  end
+
+  # 行に書かれた22は、枠に置き場所が無かったせいで真ん中の行に置かれた、枠と同じ22。両方を数字で出すと
+  # 22＋22に見える。行が枠と同じ規則・同じ単位数を指しているなら、数字は枠に任せる。
+  test '枠と同じ規則・同じ単位数を指す行は、自分の数字を出さず枠の単位に任せる' do
+    show_selected
+
+    assert_select 'li[data-row="advanced"] [data-row-credits]', text: /-\s*単位/
+    assert_select 'li[data-subtotal="elective_inner"] [data-subtotal-credits]', text: /22\s*単位/
+  end
+
+  # 便覧が自分で書いている表示の言葉は、画面が勝手に消さない（「卒業要件に含めない」のように、
+  # 枠に数えられることとは別の意味を持つ年度がある）。
+  test '便覧が書いた表示の言葉は、消さずに添える' do
+    change_handbook do |document|
+      elective_row(document, 'elective_math')['required_label'] = '卒業要件に含めない'
+    end
+
+    show_selected
+
+    assert_select 'li[data-row="elective_math"]', text: /卒業要件に含めない/
+  end
+
+  # どの枠にもまとめられず、章の規則も指していない行は、どの単位に数えられるのかを便覧が書いていない。
+  # 構造から作った文を出すと、数えない単位を数えるかのように見せてしまう。
+  test 'どの枠・章の単位にも結びつかない行には、含む先の文を出さない' do
+    change_handbook do |document|
+      row = elective_row(document, 'free')
+      row['check_ids'] = []
+      row['required_label'] = '卒業要件に含めない'
+    end
+
+    show_selected
+
+    assert_select 'li[data-row="free"] [data-row-credits]', text: /-\s*単位/
+    assert_select 'li[data-row="free"]', text: /卒業要件に含めない/
   end
 
   test '章の名前と総単位は便覧を書き換えればその通りに変わる' do
@@ -501,13 +565,14 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select '[data-total-credits]', text: /124\s*単位/
   end
 
-  # 実物の2024年度が持つ27件の規則のうち、上のカード（章・行・小計）がすでに同じ単位数で言っている11件の credit_sum
-  # を除いた16件が、便覧の並びのまま出る。
-  SHOWN_2024 = %w[humanities social general_integrated general_without_natural japanese english_required
-                  foreign_language calculus physics required_all required_total fusion_provider total natural_cap
-                  excluded_category own_fusion].freeze
-  OMITTED_2024 = %w[health general_subtotal common_total basic_total required_information required_comprehensive
-                    required_research required_math required_core elective_inner elective_total].freeze
+  # 実物の2024年度が持つ27件の規則のうち、上のカードに出ている22件（章・行・枠が同じ単位数で言っている合計と、
+  # 行の下に決まりのカードとして出したもの）を除いた5件が、便覧の並びのまま出る。
+  # 残るのは、どの行にも結びついていない合計（専門必修の合計・卒業算入総単位）、章の「すべて修得」、算入しない2件。
+  SHOWN_2024 = %w[required_all required_total total excluded_category own_fusion].freeze
+  OMITTED_2024 = %w[health humanities social general_integrated general_without_natural general_subtotal japanese
+                    english_required foreign_language common_total basic_total calculus physics
+                    required_information required_comprehensive required_research required_math required_core
+                    elective_inner elective_total fusion_provider natural_cap].freeze
 
   test '判定の規則は、上のカードから読み取れないものだけが、便覧の並びのまま出る' do
     show_selected
@@ -515,26 +580,31 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     all_ids = @curriculum.document.fetch('rules').pluck('id')
     assert_equal all_ids - OMITTED_2024, css_select('#judgement-rules li[data-rule-id]').pluck('data-rule-id')
     assert_equal SHOWN_2024.sort, (all_ids - OMITTED_2024).sort
-    assert_select 'li[data-rule-id="natural_cap"]', text: /自然系.*2\s*単位/
+    # 算入上限は、その区分を数える行の中のカードに出る（便覧全体に掛かることは、その場に書く）
+    assert_select '[data-rule-card="natural_cap"]', text: /自然系.*2\s*単位まで.*便覧全体/m
     assert_select 'li[data-rule-id="own_fusion"]', text: /知能/
   end
 
-  test '2025年度の規則は、カードが同じ単位数で言っている8件を省く' do
+  OMITTED_2025 = %w[rule_foreign_lang rule_academic_skills rule_calculus_path rule_physics_path rule_health_sports
+                    rule_liberal_arts rule_humanities_min rule_natural_science_min rule_ryudai_local_min
+                    rule_ge_total rule_pe_required rule_pe_elective rule_pe_elective_course rule_pe_total].freeze
+
+  test '2025年度の規則は、カードに出ている14件を省く' do
     show_selected(admission_year: 2025)
 
     document = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2025).document
     all_ids = document.fetch('rules').pluck('id')
     assert_equal 19, all_ids.size
     shown = css_select('#judgement-rules li[data-rule-id]').pluck('data-rule-id')
-    assert_equal %w[rule_academic_skills rule_health_sports rule_liberal_arts rule_ge_total rule_pe_required
-                    rule_pe_elective rule_pe_elective_course rule_pe_total], all_ids - shown
-    assert_equal 11, shown.size
+    assert_equal OMITTED_2025, all_ids - shown
+    assert_equal 5, shown.size
     # 名指しされない卒業要件の合計は残る
     assert_select '#judgement-rules li[data-rule-id=?]', 'rule_total'
-    # 区分の下限、系列の選択、外国語の経路、算入しない規則は残る
-    assert_select '#judgement-rules li[data-rule-id=?]', 'rule_humanities_min'
-    assert_select '#judgement-rules li[data-rule-id=?]', 'rule_calculus_path'
-    assert_select '#judgement-rules li[data-rule-id=?]', 'rule_foreign_lang'
+    # 区分の下限、系列の選択、外国語の経路は、行の中のカードに出る
+    assert_select '[data-rule-card=?]', 'rule_humanities_min'
+    assert_select '[data-rule-card=?]', 'rule_calculus_path'
+    assert_select '[data-rule-card=?]', 'rule_foreign_lang'
+    # 算入しない規則は、どの行にも結びつかないので一覧に残る
     assert_select '#judgement-rules li[data-rule-type=exclude]', count: 4
   end
 
@@ -561,7 +631,7 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   test '省いた件数を、規則の節で伝える(黙って消さない)' do
     show_selected
 
-    assert_select '#judgement-rules [data-omitted-rules]', text: /11件/
+    assert_select '#judgement-rules [data-omitted-rules]', text: /22件/
   end
 
   # 省いた規則の欄。備考と出典は、省いた規則にしか無く、上のカードには出ていないので、ここから読めなくてはならない。
@@ -574,9 +644,9 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     panel = omitted_rules_panel
     assert_not panel.has_attribute?('open'), '省いた規則の欄は、初めは閉じていること'
     summary = panel.at_css('summary')
-    assert_match(/11件/, summary.text)
+    assert_match(/22件/, summary.text)
     # 捨てた規則ではなく、内容は上のカードに出ていることを、開く前の見出しで言う
-    assert_match(/上のカードと同じ内容/, summary.text)
+    assert_match(/上のカードに出ている/, summary.text)
     # JavaScript なしで開閉する（<details> だけ）
     assert_empty panel.css('[data-controller]')
   end
@@ -606,9 +676,9 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     rules.each do |rule|
       entry = panel.at_css("li[data-omitted-rule-id='#{rule['id']}']")
       lines = entry.css('p').map { |line| line.text.squish }
-      # どの規則か分かる: 名前と、単位数
-      assert_includes entry.text, rule['label']
-      assert_includes entry.text, "#{rule['required_credits']}単位"
+      # どの規則か分かる: 名前と、単位数（単位で言わない規則＝指定科目・算入上限は、名前だけ見る）
+      assert_includes entry.text, rule['label'] if rule['label'].present?
+      assert_includes entry.text, "#{rule['required_credits']}単位" if rule['required_credits']
       assert_includes lines, "出典：#{rule['source_page']}"
       if rule['detail'].present?
         assert_includes lines, "備考：#{rule['detail']}"
@@ -637,19 +707,18 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_equal @curriculum.document.fetch('rules').pluck('id').sort, (shown + in_panel).sort
   end
 
-  test '2025年度も、省いた8件が欄の中に出る' do
+  test '2025年度も、省いた14件が欄の中に出る' do
     show_selected(admission_year: 2025)
 
     panel = omitted_rules_panel
-    assert_equal %w[rule_academic_skills rule_health_sports rule_liberal_arts rule_ge_total rule_pe_required
-                    rule_pe_elective rule_pe_elective_course rule_pe_total],
-                 panel.css('li[data-omitted-rule-id]').pluck('data-omitted-rule-id')
-    assert_match(/8件/, panel.at_css('summary').text)
+    assert_equal OMITTED_2025, panel.css('li[data-omitted-rule-id]').pluck('data-omitted-rule-id')
+    assert_match(/14件/, panel.at_css('summary').text)
     assert_not panel.has_attribute?('open')
   end
 
   test '省く規則が無い便覧では、省いた規則の欄を出さない' do
-    change_handbook { |document| document['rules'].reject! { |rule| rule['type'] == 'credit_sum' } }
+    # どのカードにも結びついていない総単位の規則だけを残す（行が指す規則が無ければ、省くものも無い）
+    change_handbook { |document| document['rules'].select! { |rule| rule['id'] == 'total' } }
 
     show_selected
 
@@ -665,13 +734,15 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     show_selected
 
     assert_select '#judgement-rules li[data-rule-id=health]', count: 1
-    assert_select '#judgement-rules [data-omitted-rules]', text: /10件/
+    assert_select '#judgement-rules [data-omitted-rules]', text: /21件/
   end
 
   test '規則には出典のページを添える' do
     show_selected
 
-    assert_select 'li[data-rule-id="humanities"]', text: /便覧10ページ/
+    # 人文系はカードに出ているので、出典は省いた規則の欄から読む
+    assert_select 'li[data-omitted-rule-id="humanities"]', text: /便覧10ページ/
+    assert_select 'li[data-rule-id="total"]', text: /便覧10ページ/
   end
 
   test '区分の名前は便覧の和名で出す' do
@@ -681,7 +752,8 @@ class RequirementsTest < ActionDispatch::IntegrationTest
 
     show_selected
 
-    assert_select 'li[data-rule-id="humanities"]', text: /別名の人文の合計/
+    # カードは、その決まりが便覧で呼ばれている名前(label)で出す。区分の和名は、規則の一文の側に出る
+    assert_select 'li[data-omitted-rule-id="humanities"]', text: /別名の人文の合計/
   end
 
   test '判定の途中経過は出さない' do
@@ -764,7 +836,8 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   test '系列が混在したときの確認事項が出る' do
     show_selected
 
-    assert_select 'li[data-rule-id="calculus"]', text: /系列が混在したとき：/
+    assert_select '[data-rule-card="calculus"]', text: /系列が混在したとき：/
+    assert_select 'li[data-omitted-rule-id="calculus"]', text: /系列が混在したとき：/
   end
 
   # ---- 科目表 ----
@@ -855,8 +928,22 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_select 'li[data-row="health"].rounded-2xl.border.border-slate-200.bg-white.shadow-xs'
     assert_select 'li[data-row="health"] > div.grid.p-5.sm\\:p-6'
     assert_select 'li[data-row="health"] h4.text-xs.font-semibold.text-slate-500', text: /健康運動系/
-    assert_select 'li[data-row="health"] [data-row-credits] span.text-3xl.font-extrabold.tabular-nums', text: '2'
+    # 数字の大きさだけは、段の深さで変える（総単位 > 章 > 行）。同じだと合計と内訳が見分けられない
+    assert_select 'li[data-row="health"] [data-row-credits] span.text-2xl.font-extrabold.tabular-nums', text: '2'
     assert_select 'li[data-row="health"] [data-row-credits] span.text-sm.font-medium.text-slate-500', text: /単位/
+  end
+
+  # 章の数字が中の区分より小さいと、合計と内訳が逆に見える。章は中の区分を囲む殻にし、帯に大きく出す。
+  test '章は中の区分を囲む殻にし、章の必要単位を区分の数字より大きく出す' do
+    show_selected
+
+    assert_select 'section[data-group="common"].rounded-2xl.border.border-slate-300'
+    assert_select 'section[data-group="common"] [data-group-credits] span.text-4xl.font-extrabold.tabular-nums',
+                  text: '30'
+    assert_select 'section[data-group="common"] > ul > li[data-row]', count: 4
+    # 枠は章の殻の中、行は枠の中（親子が入れ子になっている）
+    assert_select 'section[data-group="elective"] > ul > li[data-subtotal="elective_inner"] ul > li[data-row]',
+                  count: 3
   end
 
   test 'ダッシュボードにある、学生の進み具合に結びついた部品は出さない' do

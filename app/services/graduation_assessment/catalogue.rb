@@ -127,99 +127,14 @@ class GraduationAssessment
       validate_display(document['display']) if document.key?('display')
     end
 
-    # display は画面に出る数字と行の元。欄の綴り違いや null は、黙って別の数字や「必要単位なしの行」になり、
-    # 満たしていない要件を画面から消してしまう。空欄のまま出る方が直せるので、読み込み時に弾く。
+    # display の形の検査は DisplayShape が持つ(この class を1つの主題に保つため)。
     # display を持たない便覧はここでは弾かない（画面を開いたときに KeyError になる）。
     def validate_display(display)
       raise ArgumentError, 'display はハッシュでなければなりません' unless display.is_a?(Hash)
 
-      problems = unknown_key_problems(display, DISPLAY_KEYS, 'display')
-      problems << 'total_credits は正の数でなければなりません' unless positive_number?(display['total_credits'])
-      problems.concat(groups_problems(display['groups']))
-      problems.concat(subtotal_problems(display['subtotals']))
+      problems = DisplayShape.new(display).problems
       raise ArgumentError, "display が正しくありません: #{problems.join('、')}" if problems.any?
     end
-
-    def groups_problems(groups)
-      return ['groups は配列でなければなりません'] unless groups.is_a?(Array)
-
-      groups.each_with_index.flat_map { |group, index| group_problems(group, "groups[#{element_name(group, index)}]") }
-    end
-
-    def group_problems(group, path)
-      return ["#{path} はハッシュでなければなりません"] unless group.is_a?(Hash)
-
-      problems = unknown_key_problems(group, DISPLAY_GROUP_KEYS + DISPLAY_DRAFT_KEYS, path)
-      problems.concat(missing_string_problems(group, %w[id title], path))
-      problems << "#{path}.required_credits は0以上の数でなければなりません" unless non_negative_number?(group['required_credits'])
-      return problems << "#{path}.rows は配列でなければなりません" unless group['rows'].is_a?(Array)
-
-      group['rows'].each_with_index do |row, index|
-        problems.concat(row_problems(row, "#{path}.rows[#{element_name(row, index)}]"))
-      end
-      problems
-    end
-
-    def row_problems(row, path)
-      return ["#{path} はハッシュでなければなりません"] unless row.is_a?(Hash)
-
-      problems = unknown_key_problems(row, DISPLAY_ROW_KEYS + DISPLAY_DRAFT_KEYS, path)
-      problems.concat(missing_string_problems(row, %w[id name], path))
-      # 欄が無い・綴りが違うと false 扱いになり、算入上限が効いた判定の単位と食い違う数字が出る。
-      unless BOOLEANS.include?(row['credits_from_check'])
-        problems << "#{path}.credits_from_check は true か false でなければなりません"
-      end
-      problems.concat(row_requirement_problems(row, path))
-    end
-
-    def missing_string_problems(hash, fields, path)
-      fields.reject { |field| present_string?(hash[field]) }.map { |field| "#{path}.#{field} がありません" }
-    end
-
-    # 必要単位を持たない行は「内数」の行として、バーも判定も出さない。意図した行だけがそうなるよう、
-    # 必要単位が null の行にはその理由を表すラベルを求める。綴り違いで必要単位が消えた行は、ここで弾かれる。
-    def row_requirement_problems(row, path)
-      credits = row['required_credits']
-      return ["#{path}.required_credits は0以上の数か null でなければなりません"] unless credits.nil? || non_negative_number?(credits)
-
-      return [] unless credits.nil? && !present_string?(row['required_label'])
-
-      ["#{path} は required_credits が null なので required_label が必要です"]
-    end
-
-    def subtotal_problems(subtotals)
-      return [] if subtotals.nil?
-      return ['subtotals は配列でなければなりません'] unless subtotals.is_a?(Array)
-
-      subtotals.each_with_index.flat_map do |subtotal, index|
-        path = "subtotals[#{element_name(subtotal, index)}]"
-        next ["#{path} はハッシュでなければなりません"] unless subtotal.is_a?(Hash)
-
-        problems = unknown_key_problems(subtotal, DISPLAY_SUBTOTAL_KEYS + DISPLAY_DRAFT_KEYS, path)
-        unless non_negative_number?(subtotal['required_credits'])
-          problems << "#{path}.required_credits は0以上の数でなければなりません"
-        end
-        problems
-      end
-    end
-
-    # 欄の名前を1つずつ必須にせず、知らない欄を弾く。required_credits を綴り違いにした行は、
-    # required_label があっても必要単位を失い、満たしていない要件が画面から消える。
-    def unknown_key_problems(hash, allowed, path)
-      unknown = hash.keys - allowed
-      unknown.empty? ? [] : ["#{path} に未知の欄があります: #{unknown.join('、')}"]
-    end
-
-    # 直す人が探せるよう、エラーの場所は配列の添字ではなく要素の id で示す。id が無ければ添字。
-    def element_name(element, index)
-      id = element['id'] if element.is_a?(Hash)
-      present_string?(id) ? id : index
-    end
-
-    def positive_number?(value) = number?(value) && value.positive?
-    def non_negative_number?(value) = number?(value) && !value.negative?
-    def number?(value) = value.is_a?(Numeric) && value.to_f.finite?
-    def present_string?(value) = value.is_a?(String) && !value.strip.empty?
 
     # 条件が1つも無い便覧は、何も確かめないまま判定を返す。規則を書く前の年度のファイルがこれになる。
     def validate_conditions

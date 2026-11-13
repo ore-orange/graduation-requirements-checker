@@ -19,19 +19,25 @@ module RuleTrimmingHelper
   #  - 複数の区分をまとめた1枚のカードの中にある、1区分の下限（人文2・自然2 など）
   #  - 解釈できない規則（赤で出す。間引いて見えなくしない）
   # どの規則を省くかは、規則 id の一覧ではなく、便覧の display と rules から決める（便覧が変わっても同じ考え方が通る）。
-  def visible_rules(curriculum)
+  # also_shown は、行の下に決まりのカードとして出した規則の id（RequirementCardsHelper#card_rule_ids）。
+  # カードがその規則そのものを出しているので、一覧には重ねて出さない。
+  def visible_rules(curriculum, also_shown: [])
     shown = card_statements(curriculum)
-    Array(curriculum['rules']).reject { |rule| repeats_card?(rule, shown) }
+    Array(curriculum['rules']).reject { |rule| on_a_card?(rule, shown, also_shown) }
   end
 
   # 省いた規則。画面では「省いた規則」の欄に畳んで出す。備考と出典のページは、上のカードに無いので、
   # 省くと便覧と見比べる手立てが無くなる。visible_rules と合わせると、便覧の規則がちょうど全部になる。
-  def omitted_rules(curriculum)
+  def omitted_rules(curriculum, also_shown: [])
     shown = card_statements(curriculum)
-    Array(curriculum['rules']).select { |rule| repeats_card?(rule, shown) }
+    Array(curriculum['rules']).select { |rule| on_a_card?(rule, shown, also_shown) }
   end
 
   private
+
+  def on_a_card?(rule, shown, also_shown)
+    (rule.is_a?(Hash) && also_shown.include?(rule['id'])) || repeats_card?(rule, shown)
+  end
 
   # 上のカードが言っていること。名指しした規則の id ごとの単位数と、その区分だけを数える行ごとの単位数。
   def card_statements(curriculum)

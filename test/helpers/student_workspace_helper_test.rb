@@ -25,7 +25,11 @@ class StudentWorkspaceHelperTest < ActionView::TestCase
     assert_equal({ id: 'health', name: '健康運動系', subtitle: '共通教育・教養領域', req: 2, req_label: nil,
                    categories: ['health'], check_ids: ['health'], credits_from_check: false }, health)
     assert_nil inner[:req]
-    assert_equal '内数22単位枠', inner[:req_label]
+    # 2024年度の内数の行は、まとめている枠(小計)が22単位を出すので、表示の言葉を持たない。
+    # req_label は、便覧が自分で言葉を書いている年度のために display から引き写す。
+    assert_nil inner[:req_label]
+    @curriculum['display']['groups'].last['rows'].first['required_label'] = '卒業要件に含めない'
+    assert_equal '卒業要件に含めない', planner_groups(@curriculum).last[:rows].first[:req_label]
   end
 
   test '章立ては便覧を書き換えればその通りに変わる' do
