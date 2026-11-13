@@ -56,10 +56,11 @@ class PlanCoursesController < ApplicationController
     plan_path(term: (helpers.term_param(@term) if @term), **catalogue_pane_params)
   end
 
-  # 便覧のパネルを開いていたら（pane=catalogue）、戻ったあとも開いたままにして、検索語（q）も残す。
+  # 便覧のパネルを開いていたら（pane=catalogue）、戻ったあとも開いたままにして、
+  # 検索語（q）と、一覧で選んだ追加先の学期（add_to）も残す。
   def catalogue_pane_params
-    pane, query = params.permit(:pane, :q).values_at(:pane, :q)
-    pane == 'catalogue' ? { pane: pane, q: query.presence }.compact : {}
+    pane, query, add_to = params.permit(:pane, :q, :add_to).values_at(:pane, :q, :add_to)
+    pane == 'catalogue' ? { pane: pane, q: query.presence, add_to: add_to.presence }.compact : {}
   end
 
   def selectable_course

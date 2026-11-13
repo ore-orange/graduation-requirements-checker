@@ -676,6 +676,49 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_redirected_to plan_path(view: 'all', pane: 'catalogue')
   end
 
+  test '一覧の便覧のパネルでは、追加先の学期を今の学期以降から選べる' do
+    get plan_path(view: 'all', pane: 'catalogue')
+    current = css_select('[data-term-current]').first['data-term-button']
+    terms = css_select('[data-term-button]').pluck('data-term-button') - ['all']
+    open_terms = terms.drop(terms.index(current))
+
+    # 選べるのは今の学期以降だけで、最初は今の学期が選ばれている
+    assert_equal open_terms, css_select('[data-catalogue-add-to] option').pluck('value')
+    assert_select '[data-catalogue-add-to] option[selected][value=?]', current, count: 1
+
+    # 学期の画面のパネルには、選ぶ欄を出さない（表示中の学期に追加するため）
+    get plan_path(term: '4-前期', pane: 'catalogue')
+    assert_select '[data-catalogue-add-to]', count: 0
+  end
+
+  test '一覧の便覧のパネルで選んだ学期に追加でき、選んだ学期は追加のあとも残る' do
+    key = @candidate.fetch('key')
+    get plan_path(view: 'all', pane: 'catalogue', add_to: '4-後期')
+    assert_select '[data-catalogue-add-to] option[selected][value=?]', '4-後期', count: 1
+    assert_select "[data-catalogue-key='#{key}'] form" do
+      assert_select "input[name='term'][value='4-後期']"
+      assert_select "input[name='add_to'][value='4-後期']"
+      assert_select "input[type='submit'][value='4年 後期に追加']"
+    end
+
+    post plan_courses_path, params: { course_key: key, term: '4-後期', view: 'all', pane: 'catalogue', add_to: '4-後期' }
+    assert_redirected_to plan_path(view: 'all', pane: 'catalogue', add_to: '4-後期')
+    assert_equal '後期', @student.planned_courses.joins(:course).find_by!(courses: { curriculum_key: key }).semester
+  end
+
+  test '一覧の便覧のパネルの追加先に、過去の学期や読めない値を指定されたら、今の学期にする' do
+    get plan_path(view: 'all', pane: 'catalogue')
+    current = css_select('[data-term-current]').first['data-term-button']
+
+    %w[1-前期 x].each do |add_to|
+      next if add_to == current
+
+      get plan_path(view: 'all', pane: 'catalogue', add_to: add_to)
+      assert_response :success
+      assert_select '[data-catalogue-add-to] option[selected][value=?]', current, count: 1
+    end
+  end
+
   test '便覧のパネルから追加・削除しても、パネルは開いたままで検索語も残る' do
     key = @candidate.fetch('key')
     query = @candidate.fetch('name')
