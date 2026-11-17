@@ -200,13 +200,9 @@ class CurriculaController < ApplicationController
   # 操作した便覧の、卒業要件の確認画面。選択を引き継いで、操作の結果をそのまま見せる(選択なしの画面に戻すと、
   # 自分の操作のあとに空の画面へ落ちる)。学部名・学科コース名を持たない古い行は選択できないので、選択なしの画面にする。
   # 公開・削除のあとでも属性はメモリに残っているので、削除した行からも作れる。保存前の行(取り込みの入力が不正だったとき)も同じ。
-  # department_name は学科名とコース名を結んだ1つの文字列なので、Programから引いて選択の2つの欄に分ける。
   def requirements_location(curriculum = @curriculum)
-    department, course = Program.department_and_course_for(curriculum.department_name)
-    selection = { faculty: curriculum.faculty_name, department: department, course: course,
-                  admission_year: curriculum.admission_year }.compact
-    required = [curriculum.faculty_name, department, curriculum.admission_year]
-    required.all?(&:present?) ? requirements_path(selection) : requirements_path
+    selection = CurriculumSelection.for(curriculum, choices: choices)
+    selection.named? ? requirements_path(selection.to_params) : requirements_path
   end
 
   def destroy_refusal
@@ -246,8 +242,11 @@ class CurriculaController < ApplicationController
     department = chosen_name(:department_name)
     return false if department.blank?
 
-    Department.find_by(name: department)&.programs&.exists? && chosen_name(:course_name).blank?
+    choices.courses_for(department).any? && chosen_name(:course_name).blank?
   end
+
+  # プルダウンの選択肢。1リクエストの中で何度も引くので、1つを使い回す。
+  def choices = @choices ||= CurriculumChoices.new
 
   # 画像とテキストはPDFがあるいましか取り出せない。取り出せなくても下書きは残し、何が取れなかったかを import_error に書く。
   # ページ数を数えられなければページは空のままで、手で指定できる。

@@ -2,8 +2,8 @@
     識別名(slug)は人に入力させない。学部名・学科コース名から Curriculum が決める(同じ課程なら既存のものを引き継ぐ)。
     学部・学科・コースはFaculty/Department/Programから作ったプルダウン。初めての学部・学科・コースは「その他」で打って登録できる。
     画面で選んでいた組み合わせがあれば、フォームに入れておく。 %>
-<% defaults = upload_form_defaults(@selection, @faculty_options, @department_options, @course_options) %>
-<% new_program = CurriculaController::NEW_PROGRAM %>
+<% defaults = upload_form_defaults(@selection, @choices) %>
+<% new_program = CurriculumChoices::NEW_PROGRAM %>
 <% new_program_label = 'その他（新しく登録する）' %>
 <% field_class = 'mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5' %>
 <section aria-labelledby="upload-curriculum-heading" data-curriculum-import
@@ -24,7 +24,7 @@
       <div class="grid gap-4 sm:grid-cols-4">
         <label class="block">
           <span class="text-sm font-semibold text-slate-700">学部名</span>
-          <%= form.select :faculty_name, options_for_select(@faculty_options + [[new_program_label, new_program]], defaults.faculty),
+          <%= form.select :faculty_name, options_for_select(@choices.faculties + [[new_program_label, new_program]], defaults.faculty),
                           { include_blank: '---------' },
                           { required: true, class: field_class,
                             data: { program_fields_target: 'faculty', action: 'change->program-fields#sync' } } %>
@@ -32,7 +32,7 @@
         <label class="block">
           <span class="text-sm font-semibold text-slate-700">学科名</span>
           <%= form.select :department_name,
-                          grouped_options_for_select(@department_options.to_a, defaults.department) +
+                          grouped_options_for_select(@choices.departments.to_a, defaults.department) +
                             options_for_select([[new_program_label, new_program]], defaults.department),
                           { include_blank: '---------' },
                           { required: true, class: field_class,
@@ -41,7 +41,7 @@
         <label class="block" data-program-fields-target="courseField">
           <span class="text-sm font-semibold text-slate-700">コース名</span>
           <%= form.select :course_name,
-                          grouped_options_for_select(@course_options.to_a, defaults.course) +
+                          grouped_options_for_select(@choices.courses.to_a, defaults.course) +
                             options_for_select([[new_program_label, new_program]], defaults.course),
                           { include_blank: '---------' },
                           { class: field_class,

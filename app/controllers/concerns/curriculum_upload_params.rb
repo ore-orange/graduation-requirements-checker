@@ -5,10 +5,6 @@
 module CurriculumUploadParams
   extend ActiveSupport::Concern
 
-  # 学部名・学科コース名のプルダウンで「その他（新しく登録する）」を選んだ印。名前としては保存しない。
-  # 空文字にしないのは、「何も選んでいない」と区別するため。選ぶと、横の自由入力欄(*_name_other)の値が名前になる。
-  NEW_PROGRAM = '__other__'
-
   private
 
   def upload_params
@@ -32,11 +28,11 @@ module CurriculumUploadParams
   end
 
   def chosen_name(field)
-    return upload_params[field] unless upload_params[field] == NEW_PROGRAM
+    return upload_params[field] unless upload_params[field] == CurriculumChoices::NEW_PROGRAM
 
     typed = upload_params[:"#{field}_other"]
     # 選んだ印そのものを打たれても名前にしない。保存すると、実在の課程と「その他」が同じ値の選択肢になり、見分けが付かなくなる。
-    typed.to_s.squish == NEW_PROGRAM ? nil : typed
+    typed.to_s.squish == CurriculumChoices::NEW_PROGRAM ? nil : typed
   end
 end
 

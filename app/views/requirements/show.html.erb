@@ -15,7 +15,7 @@
 
     <% if @published %>
       <%= render 'published' %>
-    <% elsif selection_complete? %>
+    <% elsif @selection.complete? %>
       <%# 公開済みが無い。下書きがあればその続きへ、どちらも無ければ「ありません」と作り始める入口 %>
       <% if @drafts.any? %>
         <%= render 'drafts', drafts: @drafts %>

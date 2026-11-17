@@ -10,11 +10,11 @@ module UploadFormHelper
   UploadDefaults = Struct.new(:faculty, :faculty_other, :department, :department_other, :course, :course_other,
                               :admission_year, :year_choices, keyword_init: true)
 
-  def upload_form_defaults(selection, faculty_options, department_options, course_options)
-    faculty, faculty_other = chosen_or_new(selection[:faculty], faculty_options)
-    department, department_other = chosen_or_new_under(faculty, selection[:department], department_options)
-    course, course_other = chosen_or_new_under(department, selection[:course], course_options)
-    year = Integer(selection[:admission_year].to_s, 10, exception: false)
+  def upload_form_defaults(selection, choices)
+    faculty, faculty_other = chosen_or_new(selection.faculty, choices.faculties)
+    department, department_other = chosen_or_new_under(faculty, selection.department, choices.departments)
+    course, course_other = chosen_or_new_under(department, selection.course, choices.courses)
+    year = Integer(selection.admission_year.to_s, 10, exception: false)
     year_choices = Curriculum.upload_year_choices(including: year)
     UploadDefaults.new(faculty: faculty, faculty_other: faculty_other,
                        department: department, department_other: department_other,
@@ -29,14 +29,14 @@ module UploadFormHelper
   def chosen_or_new_under(parent, value, options_by_parent)
     return [nil, nil] unless parent
 
-    chosen_or_new(value, parent == CurriculaController::NEW_PROGRAM ? [] : options_by_parent.fetch(parent, []))
+    chosen_or_new(value, parent == CurriculumChoices::NEW_PROGRAM ? [] : options_by_parent.fetch(parent, []))
   end
 
   # 値が選択肢にあれば [値, nil]、無ければ「その他」にして打った値として返す。空なら選んでいない。
   def chosen_or_new(value, options)
     return [nil, nil] if value.blank?
 
-    options.include?(value) ? [value, nil] : [CurriculaController::NEW_PROGRAM, value]
+    options.include?(value) ? [value, nil] : [CurriculumChoices::NEW_PROGRAM, value]
   end
 end
 

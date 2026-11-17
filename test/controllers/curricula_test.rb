@@ -276,9 +276,9 @@ class CurriculaTest < ActionDispatch::IntegrationTest
   # ---- 「その他（新しく登録する）」: 初めての学部・コースを登録する道は塞がない ----
 
   test 'その他を選んで打った学部名・学科コース名で、新しい課程の下書きを作れる' do
-    post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM,
+    post curricula_path, params: upload_params(faculty_name: CurriculumChoices::NEW_PROGRAM,
                                                faculty_name_other: '農学部',
-                                               department_name: CurriculaController::NEW_PROGRAM,
+                                               department_name: CurriculumChoices::NEW_PROGRAM,
                                                department_name_other: '亜熱帯農林環境科学科'), env: ENV_LOCAL
 
     created = Curriculum.order(:id).last
@@ -287,7 +287,7 @@ class CurriculaTest < ActionDispatch::IntegrationTest
   end
 
   test '学部は既存で、学科コースだけその他を選んで新しく打てる' do
-    post curricula_path, params: upload_params(department_name: CurriculaController::NEW_PROGRAM,
+    post curricula_path, params: upload_params(department_name: CurriculumChoices::NEW_PROGRAM,
                                                department_name_other: '工学科 情報通信コース'), env: ENV_LOCAL
 
     created = Curriculum.order(:id).last
@@ -308,8 +308,8 @@ class CurriculaTest < ActionDispatch::IntegrationTest
 
   test 'その他を選んだのに何も打たなければ、作らずに学部名・学科コース名を求める' do
     assert_no_difference('Curriculum.count') do
-      post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM,
-                                                 department_name: CurriculaController::NEW_PROGRAM,
+      post curricula_path, params: upload_params(faculty_name: CurriculumChoices::NEW_PROGRAM,
+                                                 department_name: CurriculumChoices::NEW_PROGRAM,
                                                  faculty_name_other: ' ', department_name_other: ''), env: ENV_LOCAL
     end
 
@@ -328,7 +328,7 @@ class CurriculaTest < ActionDispatch::IntegrationTest
   test 'その他の自由入力に、選んだ印と同じ文字列を打っても、名前として保存しない' do
     # 全角スペースで囲んだ場合も弾く。日本語の画面では半角より打たれやすく、
     # squish を strip に変えると素通りして元の不具合に戻る
-    sentinel = CurriculaController::NEW_PROGRAM
+    sentinel = CurriculumChoices::NEW_PROGRAM
     [sentinel, " #{sentinel} ", "　#{sentinel}　"].each do |typed|
       assert_no_difference('Curriculum.count') do
         post curricula_path, params: upload_params(faculty_name: sentinel, faculty_name_other: typed,
@@ -341,9 +341,9 @@ class CurriculaTest < ActionDispatch::IntegrationTest
 
   test '選んだ印そのもの(その他)を学部名として保存しない' do
     assert_no_difference('Curriculum.count') do
-      post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM), env: ENV_LOCAL
+      post curricula_path, params: upload_params(faculty_name: CurriculumChoices::NEW_PROGRAM), env: ENV_LOCAL
     end
-    assert_not Curriculum.exists?(faculty_name: CurriculaController::NEW_PROGRAM)
+    assert_not Curriculum.exists?(faculty_name: CurriculumChoices::NEW_PROGRAM)
   end
 
   test 'PDFでないファイルは作らない' do
@@ -394,9 +394,9 @@ class CurriculaTest < ActionDispatch::IntegrationTest
   end
 
   test '「その他」で打った新しい学部名・学科コース名も、作れなかったときに引き継ぐ' do
-    post curricula_path, params: upload_params(faculty_name: CurriculaController::NEW_PROGRAM,
+    post curricula_path, params: upload_params(faculty_name: CurriculumChoices::NEW_PROGRAM,
                                                faculty_name_other: '農学部',
-                                               department_name: CurriculaController::NEW_PROGRAM,
+                                               department_name: CurriculumChoices::NEW_PROGRAM,
                                                department_name_other: '亜熱帯農林環境科学科', file: nil), env: ENV_LOCAL
 
     assert_redirected_to requirements_path(faculty: '農学部', department: '亜熱帯農林環境科学科', admission_year: 2025)
@@ -668,14 +668,14 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     get requirements_path, env: ENV_LOCAL
 
     faculty = css_select("select[name='curriculum[faculty_name]'] option").pluck('value')
-    assert_equal ['', '工学部', CurriculaController::NEW_PROGRAM], faculty
-    assert_select "select[name='curriculum[faculty_name]'] option[value=?]", CurriculaController::NEW_PROGRAM,
+    assert_equal ['', '工学部', '理学部', CurriculumChoices::NEW_PROGRAM], faculty
+    assert_select "select[name='curriculum[faculty_name]'] option[value=?]", CurriculumChoices::NEW_PROGRAM,
                   text: 'その他（新しく登録する）'
     assert_select "select[name='curriculum[department_name]'] optgroup[label=?] option[value=?]", '工学部', '工学科'
-    assert_select "select[name='curriculum[department_name]'] option[value=?]", CurriculaController::NEW_PROGRAM,
+    assert_select "select[name='curriculum[department_name]'] option[value=?]", CurriculumChoices::NEW_PROGRAM,
                   text: 'その他（新しく登録する）'
     assert_select "select[name='curriculum[course_name]'] optgroup[label=?] option[value=?]", '工学科', '知能情報コース'
-    assert_select "select[name='curriculum[course_name]'] option[value=?]", CurriculaController::NEW_PROGRAM,
+    assert_select "select[name='curriculum[course_name]'] option[value=?]", CurriculumChoices::NEW_PROGRAM,
                   text: 'その他（新しく登録する）'
   end
 
@@ -703,8 +703,8 @@ class CurriculaTest < ActionDispatch::IntegrationTest
   test '選んだ学部・学科が選択肢に無いときは、その他を選び、選んだ名前を自由入力欄に入れておく' do
     get requirements_path(faculty: '農学部', department: '亜熱帯農林環境科学科', admission_year: this_year + 1), env: ENV_LOCAL
 
-    assert_select "select[name='curriculum[faculty_name]'] option[selected][value=?]", CurriculaController::NEW_PROGRAM
-    assert_select "select[name='curriculum[department_name]'] option[selected][value=?]", CurriculaController::NEW_PROGRAM
+    assert_select "select[name='curriculum[faculty_name]'] option[selected][value=?]", CurriculumChoices::NEW_PROGRAM
+    assert_select "select[name='curriculum[department_name]'] option[selected][value=?]", CurriculumChoices::NEW_PROGRAM
     assert_select '[data-new-faculty]:not([hidden]) input[name=?][value=?][required]',
                   'curriculum[faculty_name_other]', '農学部'
     assert_select '[data-new-department]:not([hidden]) input[name=?][value=?][required]',
@@ -717,7 +717,7 @@ class CurriculaTest < ActionDispatch::IntegrationTest
 
     assert_select "select[name='curriculum[faculty_name]'] option[selected][value=?]", '工学部'
     assert_select "select[name='curriculum[department_name]'] option[selected][value=?]", '工学科'
-    assert_select "select[name='curriculum[course_name]'] option[selected][value=?]", CurriculaController::NEW_PROGRAM
+    assert_select "select[name='curriculum[course_name]'] option[selected][value=?]", CurriculumChoices::NEW_PROGRAM
     assert_select '[data-new-faculty][hidden]'
     assert_select '[data-new-department][hidden]'
     assert_select '[data-new-course]:not([hidden]) input[name=?][value=?]', 'curriculum[course_name_other]',
