@@ -505,12 +505,10 @@ class RequirementsHelperTest < ActionView::TestCase
     assert_equal true, entry.required
   end
 
-  test '実物の登録科目は、Course の行が無くても1件も落とさず区分に入る' do
-    registered = @real.fetch('courses').pluck('number').compact_blank.uniq
-
+  test '実物の登録科目は、Course の行が無くても、番号の有無にかかわらず1件も落とさず区分に入る' do
     groups = courses_by_category(CourseDirectory.new(@real), @real)
 
-    assert_equal registered.sort, groups.flat_map { |group| group.courses.map(&:number) }.uniq.sort
+    assert_equal @real.fetch('courses').pluck('name').sort, groups.flat_map { |group| group.courses.map(&:name) }.sort
   end
 end
 

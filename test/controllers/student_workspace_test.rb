@@ -686,6 +686,16 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal 1, built
   end
 
+  test '登録の review_reason は、検索の一覧に「※要確認」として出る' do
+    reviewed = @courses.find { |course| course['review_reason'].present? }
+    assert_not_nil reviewed
+
+    get plan_path(q: reviewed.fetch('name')), env: local_env
+
+    assert_select '#catalogue li',
+                  text: /#{Regexp.escape(reviewed.fetch('name'))}.*※要確認: #{Regexp.escape(reviewed['review_reason'])}/m
+  end
+
   test '修得済み・予定済みの科目は、便覧から選択に出ない' do
     completed = @student.student_courses.where(enrollment_status: 'completed').joins(:course).first.course
     planned = course_record(@candidate)

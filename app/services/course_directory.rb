@@ -18,20 +18,23 @@
 # 「この便覧にどんな科目があるか」を見る場所から必修が黙って消える。その場合の Entry は course_id が nil で、
 # 名前と単位は登録の値を使う。course_id が nil の科目は PlannedCourse が指す行が無いので履修計画に追加できない。
 # 呼び手(Task 11)は course_id の nil で見分け、追加の可否を決める。
+# 番号の無い登録科目(2024年度の知能情報特別講義Ⅴ・Ⅵなど)も、course_id が nil の Entry として出す。
 # 同じ番号で名前の違う行は、どちらかを選ばず2件とも出す。Entry が course_id を持つので、呼び手が id で決める。
 #
 # 1回の描画で区分ごとに何度も呼ばれるので、Course は1つのインスタンスの中で1回だけ読む。
 class CourseDirectory
   Entry = Struct.new(:course_id, :number, :name, :credits, :category, :required, :roles, :requires_approval,
-                     :selectable)
+                     :selectable, :review_reason)
 
   # document は便覧の文書。categories が空、あるいは文書が空の下書きでも例外にせず、どの区分も空を返す。
   def initialize(document)
     document = {} unless document.is_a?(Hash)
     @category_keys = Array(document['categories']).grep(Hash).filter_map { |category| category['key'] }
     @patterns = CurriculumImport::NumberPatterns.new(document['categories'])
-    @registered = Array(document['courses']).grep(Hash).select { |course| course['number'].present? }
-                                            .index_by { |course| course['number'] }
+    registered = Array(document['courses']).grep(Hash)
+    @registered = registered.select { |course| course['number'].present? }.index_by { |course| course['number'] }
+    # 番号の無い登録科目。Course の行を引く手がかりが無いので、常に course_id が nil の Entry になる。
+    @unnumbered = registered.reject { |course| course['number'].present? }
   end
 
   # 区分の科目。番号順(同じ番号は名前、id の順)。
@@ -59,8 +62,9 @@ class CourseDirectory
   def entries
     @entries ||= begin
       courses = Course.where.not(course_number: [nil, '']).where(custom_category: nil).to_a
-      all = courses.filter_map { |course| entry_for(course) } + registered_only_entries(courses)
-      all.sort_by { |entry| [entry.number, entry.name.to_s, entry.course_id || 0] }
+      all = courses.filter_map { |course| entry_for(course) } + registered_only_entries(courses) +
+            @unnumbered.map { |registered| registered_only_entry(registered) }
+      all.sort_by { |entry| [entry.number.to_s, entry.name.to_s, entry.course_id || 0] }
     end
   end
 
@@ -75,7 +79,8 @@ class CourseDirectory
   # Course 行の無い登録科目。course_id は nil、名前と単位は登録の値。
   def registered_only_entry(registered)
     Entry.new(nil, registered['number'], registered['name'], registered['credits'], registered['category'],
-              registered['required'], registered['roles'], registered['requires_approval'], registered['selectable'])
+              registered['required'], registered['roles'], registered['requires_approval'], registered['selectable'],
+              registered['review_reason'])
   end
 
   def entry_for(course)
@@ -83,12 +88,13 @@ class CourseDirectory
     if registered
       Entry.new(course.id, course.course_number, course.name.presence || registered['name'],
                 course.credits || registered['credits'], registered['category'], registered['required'],
-                registered['roles'], registered['requires_approval'], registered['selectable'])
+                registered['roles'], registered['requires_approval'], registered['selectable'],
+                registered['review_reason'])
     else
       category = @patterns.category_for(course.course_number)
       return nil unless category
 
-      Entry.new(course.id, course.course_number, course.name, course.credits, category, false, [], false, true)
+      Entry.new(course.id, course.course_number, course.name, course.credits, category, false, [], false, true, nil)
     end
   end
 end

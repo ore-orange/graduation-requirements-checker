@@ -65,6 +65,27 @@ class CourseDirectoryTest < ActiveSupport::TestCase
     assert_equal true, entry.selectable
   end
 
+  test '番号の無い登録科目も、course_id が nil の Entry として出る(登録の名前・単位・区分を使う)' do
+    doc = document(courses: [registered('x').merge('number' => nil, 'name' => '番号なし特講', 'category' => 'related',
+                                                   'credits' => 2, 'required' => false)])
+    directory = CourseDirectory.new(doc)
+    entry = directory.in_category('related').sole
+
+    assert_nil entry.course_id
+    assert_nil entry.number
+    assert_equal ['番号なし特講', 2, 'related'], [entry.name, entry.credits, entry.category]
+    assert_equal ['related'], directory.categories
+  end
+
+  test '登録の review_reason は Entry に引き継がれる(Course の行があってもなくても)' do
+    Course.create!(course_number: '知能101', name: '知能入門', credits: 2)
+    doc = document(courses: [registered('知能101', 'review_reason' => '単位数が未確認'),
+                             registered('知能102', 'review_reason' => '名前が未確認')])
+    entries = CourseDirectory.new(doc).in_category('special')
+
+    assert_equal %w[単位数が未確認 名前が未確認], entries.map(&:review_reason)
+  end
+
   test '番号パターンで区分が決まらない Course は、名簿に出ない' do
     Course.create!(course_number: '知能999', name: '不明', credits: 2)
     directory = CourseDirectory.new(document)

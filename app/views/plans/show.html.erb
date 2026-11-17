@@ -261,6 +261,9 @@
                   <% if entry.requires_approval %>
                     <p class="mt-1 text-xs text-amber-800">※指導教員の履修承認確認が必要です</p>
                   <% end %>
+                  <% if entry.review_reason.present? %>
+                    <p class="mt-1 text-xs text-amber-800">※要確認: <%= entry.review_reason %></p>
+                  <% end %>
                 </div>
                 <% if unavailable %>
                   <span class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-500"><%= unavailable %></span>
