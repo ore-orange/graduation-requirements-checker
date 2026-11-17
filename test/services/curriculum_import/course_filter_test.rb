@@ -61,6 +61,48 @@ module CurriculumImport
       assert filter.keep?(course('人01', 'humanities', review_reason: '単位が読めません'))
     end
 
+    # grouped_max は区分の単位を欄の値ごとに分けて数える。欄の値は番号から決まらないので、外すと復元できない。
+    def grouped_document(group_by, nest: false, categories: DOCUMENT['categories'])
+      rule = { 'type' => 'grouped_max', 'id' => 'g', 'category' => 'humanities',
+               'group_by' => group_by, 'required_credits' => 4 }
+      rule = { 'type' => 'any_of', 'id' => 'a', 'options' => [{ 'type' => 'all_of', 'conditions' => [rule] }] } if nest
+      { 'categories' => categories, 'rules' => [rule] }
+    end
+
+    test '規則が欄で分ける便覧では、その欄に値を持つ科目は、パターンで決まっても残す' do
+      filter = CourseFilter.new(grouped_document('field:language'))
+
+      assert filter.keep?(course('人01', 'humanities', language: 'german'))
+    end
+
+    test '入れ子の規則が欄で分けていても、その欄に値を持つ科目は残す' do
+      filter = CourseFilter.new(grouped_document('field:language', nest: true))
+
+      assert filter.keep?(course('人01', 'humanities', language: 'german'))
+    end
+
+    test '欄で分ける規則があっても、その欄に値が無い科目は残さない' do
+      filter = CourseFilter.new(grouped_document('field:language'))
+
+      assert_not filter.keep?(course('人01', 'humanities'))
+      assert_not filter.keep?(course('人02', 'humanities', language: nil))
+      assert_not filter.keep?(course('人03', 'humanities', language: ''))
+    end
+
+    test 'その欄で分ける規則が無い便覧では、欄に値があっても残さない' do
+      assert_not filter.keep?(course('人01', 'humanities', language: 'german'))
+      assert_not CourseFilter.new(grouped_document('field:season')).keep?(
+        course('人01', 'humanities', language: 'german')
+      )
+    end
+
+    test '欄ではなく科目番号で分ける規則は、科目を残す理由にしない' do
+      filter = CourseFilter.new(grouped_document('number_prefix'))
+
+      assert_not filter.keep?(course('人01', 'humanities'))
+      assert_not filter.keep?(course('人02', 'humanities', language: 'german'))
+    end
+
     test '人が確認した科目は、パターンで決まっても残す' do
       assert filter.keep?(course('人01', 'humanities', confirmed: true))
     end
@@ -81,6 +123,16 @@ module CurriculumImport
       assert CourseFilter.new({}).keep?(course('人01', 'humanities'))
       broken = { 'categories' => [nil, 'x', { 'key' => 'a', 'number_patterns' => nil }] }
       assert CourseFilter.new(broken).keep?(course('人01', 'a'))
+    end
+
+    test '壊れた規則でも例外を出さず、欄で分ける規則として読まない' do
+      broken = { 'categories' => DOCUMENT['categories'],
+                 'rules' => [nil, 'x', { 'type' => 'grouped_max' },
+                             { 'type' => 'grouped_max', 'group_by' => 'field:' },
+                             { 'type' => 'grouped_max', 'group_by' => 42 },
+                             { 'type' => 'any_of', 'options' => 'x' }] }
+
+      assert_not CourseFilter.new(broken).keep?(course('人01', 'humanities', language: 'german'))
     end
 
     test 'partition は残すものと落とすものに分ける' do

@@ -56,8 +56,10 @@ module GraduationGolden
     { completed: completed, registered: registered, planned: [], unresolved: unresolved }
   end
 
+  # number は key と別に持つ。科目表から外した科目を番号パターンで数える経路(EntryNormalizer#pattern_course)は
+  # key ではなく number を見るので、番号を運ばないケースではその経路に入れない。
   def completed_entry(course, credits: course['credits'], approved: nil)
-    { key: course['key'], credits: credits, approved: approved, name: course['name'] }
+    { key: course['key'], number: course['number'], credits: credits, approved: approved, name: course['name'] }
   end
 
   def demo_case(courses)
