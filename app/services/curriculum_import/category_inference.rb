@@ -47,7 +47,43 @@ module CurriculumImport
       end
     end
 
+    # 区分に持たせる番号パターンの候補。{ 区分キー => [パターン] }。採用は人が決める(ここは計算だけ)。
+    # パターンの書き方は number_patterns と同じ。百の位の鍵("外1")と、接頭辞だけの鍵("外")。
+    #
+    # 鍵が1区分にしか現れず、根拠が MIN_SUPPORT 件以上あるものだけを挙げる。mismatches と同じ下限なので、
+    # 「言ってよい根拠」の基準が2か所でずれない。
+    # 百の位の鍵を先に見る。百の位で候補が出た区分には、接頭辞だけの鍵を重ねない。接頭辞だけの鍵は、
+    # 見ていない百の位の科目まで勝手にその区分へ数えるので、百の位のほうが安全側になる。
+    # categories を渡すと、既に number_patterns を持つ区分(共通教育など)は候補から外す。
+    def suggestions(categories = [])
+      skip = categories_with_patterns(categories)
+      found = {}
+      add_keys(found, @by_hundreds, skip)
+      add_keys(found, @by_prefix, skip + found.keys)
+      found
+    end
+
     private
+
+    # 1区分にしか現れず、根拠が足りているときのその区分。
+    def sole_category(counts)
+      return unless counts.size == 1 && counts.values.sum >= MIN_SUPPORT
+
+      counts.keys.first
+    end
+
+    def add_keys(found, tallies, skip)
+      tallies.each do |key, counts|
+        category = sole_category(counts)
+        (found[category] ||= []) << key if category && skip.exclude?(category)
+      end
+    end
+
+    def categories_with_patterns(categories)
+      Array(categories).grep(Hash).filter_map do |category|
+        category['key'] if Array(category['number_patterns']).any?
+      end
+    end
 
     # 番号か区分が読めない科目は、根拠にも食い違いにも入れない(読めないことは、その接頭辞に属する根拠にならない)。
     def entry_for(course)

@@ -88,6 +88,74 @@ module CurriculumImport
       assert_equal 'a', inference(%w[甲1 a], %w[甲2 a]).inferred('甲3')
       assert_equal 'b', inference(%w[甲1 b], %w[甲2 b]).inferred('甲3')
     end
+
+    def nums(prefix, range, category)
+      range.map { |n| ["#{prefix}#{n}", category] }
+    end
+
+    def curriculum_courses
+      path = Rails.root.join('config/curricula/intelligent_informatics/2024.json')
+      JSON.parse(path.read)
+    end
+
+    test '百の位の鍵が1区分にしか現れず、3件以上あれば候補になる' do
+      rows = nums('甲', 101..103, 'main') + nums('甲', 201..202, 'other')
+
+      assert_equal({ 'main' => ['甲1'] }, inference(*rows).suggestions)
+    end
+
+    test '複数の区分にまたがる鍵は候補にならない' do
+      rows = nums('甲', 101..103, 'main') + nums('甲', 104..105, 'other')
+
+      assert_empty inference(*rows).suggestions
+    end
+
+    test '根拠が2件以下の鍵は候補にならない' do
+      assert_empty inference(*nums('甲', 101..102, 'main')).suggestions
+    end
+
+    test '百の位で候補が出た区分には、接頭辞だけの鍵を重ねない' do
+      rows = nums('乙', 101..103, 'main') + nums('乙', 201..201, 'main')
+
+      assert_equal({ 'main' => ['乙1'] }, inference(*rows).suggestions)
+    end
+
+    test '百の位がばらけていても、接頭辞が1区分に決まり根拠が足りていれば、接頭辞の鍵を候補にする' do
+      rows = nums('丙', 101..102, 'main') + nums('丙', 201..202, 'main')
+
+      assert_equal({ 'main' => ['丙'] }, inference(*rows).suggestions)
+    end
+
+    test '接頭辞が複数の区分にまたがるなら、接頭辞の鍵は候補にならない' do
+      rows = nums('丁', 101..102, 'main') + nums('丁', 201..202, 'other')
+
+      assert_empty inference(*rows).suggestions
+    end
+
+    test '既にパターンを持つ区分には候補を出さない' do
+      rows = nums('甲', 101..103, 'main') + nums('丙', 101..103, 'done')
+      categories = [{ 'key' => 'main' }, { 'key' => 'done', 'number_patterns' => ['丙'] }]
+
+      assert_equal({ 'main' => ['甲1'] }, inference(*rows).suggestions(categories))
+    end
+
+    test '2024年度の便覧から、先0〜先5・知能4・知能9・機械9・エネ9・電気9・電情9・社基9・建築9 が候補になる' do
+      document = curriculum_courses
+      suggestions = CategoryInference.new(document['courses']).suggestions(document['categories'])
+
+      assert_equal %w[先0 先1 先2 先3 先4 先5], suggestions['basic']
+      assert_equal ['知能4'], suggestions['related']
+      assert_equal %w[エネ9 機械9 建築9 社基9 知能9 電気9 電情9].sort, suggestions['fusion'].sort
+    end
+
+    test '2024年度の便覧から、転・全教4・情0・情1 は候補にならず、共通教育の区分にも出さない' do
+      document = curriculum_courses
+      suggestions = CategoryInference.new(document['courses']).suggestions(document['categories'])
+      all = suggestions.values.flatten
+
+      assert_empty all & %w[転 転0 転1 転2 全教4 情0 情1]
+      assert_equal %w[basic fusion related], suggestions.keys.sort
+    end
   end
 end
 
