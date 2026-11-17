@@ -4,10 +4,18 @@
   is_current = StudentWorkspace::CURRENT_STATUSES.include?(enrollment.enrollment_status)
   is_other = %w[failed unknown].include?(enrollment.enrollment_status)
   card_credits = enrollment.enrollment_status == 'completed' ? enrollment.credits_earned : enrollment.course.credits
+  # カードの色。実線の枠＝状態が決まっている、点線の枠＝まだ決まっていない（状態未確認）。
+  # 並びは [カードの枠と地, 上の行の文字, 単位の文字]
+  card_tone, text_tone, chip_tone =
+    if is_current then ['border-sky-200 bg-sky-50/60', 'text-sky-700', 'bg-sky-100 text-sky-800']
+    elsif enrollment.enrollment_status == 'completed' then ['border-slate-200 bg-white', 'text-slate-400', 'bg-slate-100 text-slate-700']
+    elsif enrollment.enrollment_status == 'failed' then ['border-slate-300 bg-slate-100', 'text-slate-500', 'bg-slate-200 text-slate-700']
+    else ['border-dashed border-amber-300 bg-white', 'text-amber-800', 'bg-amber-100 text-amber-900']
+    end
 %>
 <div data-enrollment="<%= enrollment.id %>"
-     class="p-2 rounded-lg border <%= is_current ? 'border-sky-200 bg-sky-50/60' : (is_other ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200 bg-white') %> shadow-2xs">
-  <div class="flex items-center justify-between gap-1 text-[10px] font-mono <%= is_current ? 'text-sky-700' : (is_other ? 'text-amber-800' : 'text-slate-400') %>">
+     class="p-2 rounded-lg border <%= card_tone %> shadow-2xs">
+  <div class="flex items-center justify-between gap-1 text-[10px] font-mono <%= text_tone %>">
     <span>
       <%= course_num.presence || '番号未設定' %>
       <% if is_current %>
@@ -16,7 +24,7 @@
         <span class="font-sans font-semibold">(<%= enrollment_status_label(enrollment.enrollment_status) %>)</span>
       <% end %>
     </span>
-    <span class="font-sans font-bold <%= is_current ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 text-slate-700' %> px-1.5 py-0.5 rounded shrink-0">
+    <span class="font-sans font-bold <%= chip_tone %> px-1.5 py-0.5 rounded shrink-0">
       <%= credit_label(card_credits) %>
     </span>
   </div>
