@@ -207,7 +207,8 @@ sudo install -m 644 deploy/compose.prod.yml /opt/grc/compose.prod.yml
 #### 3-1. `.env`
 
 旧VMの `/opt/grc/.env` を新VMに持ってくる。中身は秘密情報なので、チャット・Issue・ログに貼らない。
-自分のPCを経由して、**コピーしたあとは手元のファイルも消す**。
+自分のPCを経由して送る。`scp -3` は手元のPCに保存せず中継するだけなので、手元にファイルは残らない。
+**消すのは、旧VMと新VMのホームに作った中間コピー**(`~/grc.env`)。
 
 ```bash
 # 手元のPCで(旧VMの .env は root 所有。先に旧VMで自分のホームにコピーして読めるようにする)
@@ -309,6 +310,25 @@ sudo chmod 440 /etc/sudoers.d/grc-runner
 sudo -l -U grc-runner          # grc-deploy だけが出ること
 ```
 
+`visudo` は nano で開くことが多い。開いたら次の順に操作する。
+
+1. 次の1行を入力(または貼り付け)する。行頭に空白や全角文字が混ざらないようにする。
+   ```
+   grc-runner ALL=(root) NOPASSWD: /usr/local/bin/grc-deploy
+   ```
+2. **Ctrl+O** で書き込む。下に `File Name to Write: ...` と出るので、そのまま **Enter** を押す。
+3. **Ctrl+X** で nano を閉じる。
+
+閉じるときに `visudo` が文法を自動でチェックする。
+
+- 問題がなければ、そのままシェルに戻る。
+- 文法エラーがあると `What now?` と聞かれる。**`e` を押して**編集に戻り、直す。
+  **`Q` は押さない。** `Q` で保存すると、壊れた設定のまま `sudo` が使えなくなることがある。
+- 保存せずに閉じたいときは、Ctrl+X のあと `Save modified buffer?` で **N** を押す。
+
+Ubuntu 26.04 は `sudo` が `sudo-rs` になっていることがあり、`visudo` のエラー画面の文言が少し違う場合がある。
+その場合も、エラーが出たら保存せずに編集に戻って直す。
+
 #### 5-3. runner は**まだ登録しない**
 
 新旧の runner が両方 `self-hosted` で動いていると、GitHub Actions のデプロイジョブがどちらに届くか分からない。
@@ -371,13 +391,37 @@ sudo $compose exec -T db psql -U app -d app_production -Atc '\dt'    # 空であ
 cat ~/app_production.dump | sudo $compose exec -T db pg_restore -U app -d app_production --no-owner --clean --if-exists
 ```
 
-件数が旧VMと同じか確かめる。`db-backup.md` の「復元テスト」にある `count_sql` を、旧VMと新VMの両方で実行して `diff` する。
+件数が旧VMと同じか確かめる。同じSQLを旧VMと新VMで実行し、結果のファイルを比べる。
+
+長い1行を貼ると、貼り付けで引用符が崩れてシェルが続きの入力を待ち、固まったように見えることがある。
+そこで、**引用符を使わないヒアドキュメント(`<<'SQL'`)**で渡す。SQLの部分は、そのままコピーして貼れる。
+
+- 新しくSSHで入り直したときは、`compose` が消えているので、**定義し直す**(上のコードブロックの1行目)。
+- `sudo` のパスワードを聞かれて、出力をファイルに向けると入力待ちが隠れる。先に `sudo -v` で認証を通しておく。
 
 ```bash
-count_sql="SELECT table_name, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', table_schema, table_name), false, true, '')))[1]::text::int AS rows FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name;"
-sudo $compose exec -T db psql -U app -d app_production -At -c "$count_sql" > ~/count_new.txt
-# 旧VMでも同じものを ~/count_old.txt に出力して、手元か新VMで diff
+# 新VM(旧VMでも、同じものを ~/count_old.txt に出力する)
+compose="docker compose -f /opt/grc/compose.prod.yml --project-directory /opt/grc"
+sudo -v
+
+sudo $compose exec -T db psql -U app -d app_production -At <<'SQL' > ~/count_new.txt
+SELECT table_name,
+       (xpath('/row/c/text()',
+              query_to_xml(format('SELECT count(*) AS c FROM %I.%I', table_schema, table_name), false, true, '')))[1]::text::int AS rows
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+ORDER BY table_name;
+SQL
+
+cat ~/count_new.txt            # テーブル名|件数 の行が並ぶこと
+sha256sum ~/count_new.txt      # 旧VMの ~/count_old.txt と同じ値になること
 ```
+
+- 件数が**全部 0**なら、復元が実行されていないか失敗している。`sudo $compose exec -T db psql -U app -d app_production -Atc '\dt'` でテーブルがあるか確認し、なければ上の `pg_restore` をやり直す。
+- ハッシュが違うときは、手元のPCから2つのファイルを並べて見る。新VMから旧VMへは SSH しない。
+  例: `diff <(ssh <旧VM> cat count_old.txt) <(ssh <新VM> cat count_new.txt)`
+- 画面に出す前にファイルへ向けて固まる場合は、`> ~/count_new.txt` を外して画面に出し、どこで止まるか見る。
+  DBの状態は `sudo $compose exec -T db psql -U app -d app_production -c "SELECT pid, state, wait_event_type, wait_event FROM pg_stat_activity WHERE datname = 'app_production';"` で確認できる。
 
 確認できたら、ダンプを消す。
 
