@@ -11,7 +11,13 @@ module CurriculumImport
       include Values
 
       # 規則1つ。入れ子の規則は、親の中での場所(target)と、そこに置ける型(allowed)を持つ。
-      Node = Struct.new(:rule, :target, :allowed, :top)
+      # target は突き合わせ用(id か、親の場所)。人に見せる名前は Input#node_name が作る(親と何番目かを parent・position から引く)。
+      Node = Struct.new(:rule, :target, :allowed, :top, :parent, :position)
+      # 規則を指している行・章・小計。名前の無い規則を、「どの行の規則か」で呼ぶための持ち主。
+      # [持ち主の一覧, 規則を指す欄, 名前の欄, 名前を作るメソッド]。行・章・小計の順に探す。
+      OWNERS = [[:rows, 'check_ids', 'name', :row_name], [:groups, 'check_id', 'title', :group_name],
+                [:subtotals, 'check_ids', 'name', :subtotal_name]].freeze
+      NESTED_NAMES = { 'options' => '選択肢', 'conditions' => '条件' }.freeze
       NESTING = { 'any_of' => ['options', GraduationAssessment::Rules::ANY_OF_OPTIONS],
                   'all_of' => ['conditions', GraduationAssessment::Rules::ALL_OF_CONDITIONS] }.freeze
       # 最上位に置ける型。判定を作る型に、算入を変える cap・exclude を足したもの。
@@ -76,7 +82,7 @@ module CurriculumImport
       # 入れ子も含めたすべての規則。
       def nodes
         @nodes ||= rules.each_with_index.flat_map do |rule, index|
-          walk(Node.new(rule, rule_name(rule, "rules[#{index}]"), TOP_LEVEL, true))
+          walk(Node.new(rule, rule_target(rule, "rules[#{index}]"), TOP_LEVEL, true))
         end
       end
 
@@ -113,6 +119,41 @@ module CurriculumImport
 
       def approval_recorded?
         approval_notes.any?
+      end
+
+      # ---- 人に見せる名前。内部の id(規則の id・行の id)を画面に出さないために、指摘の文面はここを通る ----
+
+      # 規則の名前。label があればそれ。無ければ「持ち主の行・章の名前 + 型の和名」(どちらか片方だけのこともある)。
+      def rule_name(rule)
+        return rule['label'].strip if text?(rule['label'])
+
+        type = RuleTypeNames.for(rule['type'])
+        owner = owner_name(rule)
+        return "#{owner}の#{type}" if owner && type
+
+        owner || type || '名前のない規則'
+      end
+
+      # 規則1つ(入れ子も)の名前。入れ子は、親の名前を使って「…の中の条件(2つ目)」と言う。
+      def node_name(node)
+        return rule_name(node.rule) if node.parent.nil?
+
+        field, number = node.position
+        "#{parent_reference(node.parent.rule)}の中の#{NESTED_NAMES.fetch(field, field)}(#{number}つ目)"
+      end
+
+      # 画面の行の名前。名前の無い行は、id を出さずに名前が無いと言う。
+      def row_name(row_id) = display_item_name(rows, row_id, 'name', '行', '名前のない行')
+
+      def group_name(group_id) = display_item_name(groups, group_id, 'title', '章', '名前のない章')
+
+      def subtotal_name(subtotal_id) = display_item_name(subtotals, subtotal_id, 'name', '小計', '名前のない小計')
+
+      # 規則を数える区分の和名。区分に名前が無ければ、区分のキーを出すしかない。
+      def category_labels(keys) = Array(keys).map { |key| category_label(key) }.join('、')
+
+      def role_label(key)
+        roles.find { |role| role['key'] == key }&.dig('label').presence || key
       end
 
       private
@@ -175,12 +216,35 @@ module CurriculumImport
         field, allowed = nesting
         children = list(node.rule, field, :rule, "#{node.target} の #{field}")
         [node] + children.each_with_index.flat_map do |child, index|
-          walk(Node.new(child, "#{node.target} の #{field}[#{index + 1}]", allowed, false))
+          walk(Node.new(child, "#{node.target} の #{field}[#{index + 1}]", allowed, false, node, [field, index + 1]))
         end
       end
 
-      def rule_name(rule, fallback)
+      def rule_target(rule, fallback)
         rule['id'].is_a?(String) && !rule['id'].empty? ? rule['id'] : fallback
+      end
+
+      def display_item_name(items, id, field, kind, nameless)
+        name = items.find { |candidate| candidate['id'] == id }&.dig(field)
+        text?(name) ? "#{kind}「#{name.strip}」" : nameless
+      end
+
+      def owner_name(rule)
+        id = rule['id']
+        return unless text?(id)
+
+        OWNERS.each do |list, field, name_field, namer|
+          owner = public_send(list).find { |candidate| Array.wrap(candidate[field]).include?(id) }
+          return send(namer, owner['id']) if owner && text?(owner[name_field])
+        end
+        nil
+      end
+
+      # 入れ子の親の呼び方。label があれば「その名前」、無ければ持ち主の行(「行「…」」)。それも無ければ規則の名前。
+      def parent_reference(rule)
+        return "「#{rule['label'].strip}」" if text?(rule['label'])
+
+        owner_name(rule) || rule_name(rule)
       end
     end
   end

@@ -93,7 +93,7 @@ module CurriculumImport
 
     def cards = @cards ||= Annotations.cards(curriculum.document, curriculum.pages)
 
-    delegate :category_label, to: :input
+    delegate :category_label, :rule_name, to: :input
 
     delegate :category_keys, :uncounted_category_keys, to: :input
 

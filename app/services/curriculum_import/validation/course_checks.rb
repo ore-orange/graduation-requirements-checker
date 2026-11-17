@@ -21,12 +21,17 @@ module CurriculumImport
       # 前の科目の単位は黙って消える。
       def duplicate_keys
         input.courses.each_with_index do |course, index|
-          findings.blocking(:course, target_of(course, index), '科目に key がありません') unless text?(course['key'])
+          unless text?(course['key'])
+            findings.blocking(:course, target_of(course, index), '科目に key がありません',
+                              label: label_of(course))
+          end
         end
         input.courses.pluck('key').select { |key| text?(key) }.tally.each do |key, count|
           next if count == 1
 
-          findings.blocking(:course, key, "key「#{key}」の科目が#{count}件あります。判定は後ろの1件しか使わず、前の科目の単位は数えられません。")
+          same = input.courses.select { |course| course['key'] == key }
+          findings.blocking(:course, key, "同じ key の科目が#{count}件あります(#{names(same)})。" \
+                                          '判定は後ろの1件しか使わず、前の科目の単位は数えられません。', label: label_of(same.first))
         end
       end
 
@@ -61,17 +66,17 @@ module CurriculumImport
         credits_problem(course, target, label) unless explained
         return if text?(course['source_page'])
 
-        findings.warning(:course, target, "#{label}は出典(source_page)がありません。便覧のどのページから読んだか分からず、確かめられません。")
+        findings.warning(:course, target, "#{label}は出典(source_page)がありません。便覧のどのページから読んだか分からず、確かめられません。", label: label)
       end
 
       def number_problem(course, target, label)
         number = course['number']
         if !text?(number)
           findings.warning(:course, target, "#{label}は、分類表にあって提供科目表に行がない科目です(科目番号が空)。" \
-                                            '番号が読めなかっただけかもしれません。ページを読み直すか、番号を埋めてください。')
+                                            '番号が読めなかっただけかもしれません。ページを読み直すか、番号を埋めてください。', label: label)
         elsif CourseNumber.prefix(number).nil? && prefix_dependent?(course['category'])
           findings.warning(:course, target, "#{label}の科目番号「#{number}」を、接頭辞と数字に分けて読めません。" \
-                                            'この区分の規則は科目番号の接頭辞で数えるので、この科目はグループにも除外にも当たりません。')
+                                            'この区分の規則は科目番号の接頭辞で数えるので、この科目はグループにも除外にも当たりません。', label: label)
         end
       end
 
@@ -96,14 +101,14 @@ module CurriculumImport
         return if input.category_keys.include?(category)
 
         findings.blocking(:course, target, "#{label}の区分「#{category}」が categories にありません。" \
-                                           'この科目の単位はどの区分にも数えられず、画面のどの行にも出てきません。')
+                                           'この科目の単位はどの区分にも数えられず、画面のどの行にも出てきません。', label: label)
       end
 
       def credits_problem(course, target, label)
         credits = decimal(course['credits'])
         return if credits&.positive?
 
-        findings.warning(:course, target, "#{label}の単位数(#{course['credits'].inspect})が読めていないか、0です。")
+        findings.warning(:course, target, "#{label}の単位数(#{course['credits'].inspect})が読めていないか、0です。", label: label)
       end
 
       # 番号から推定した区分と、読み取った区分が違う科目。人が確認済み(confirmed)にした科目は、見たうえでの判断なので出さない。
@@ -117,7 +122,7 @@ module CurriculumImport
           findings.warning(:course, target_of(courses.first, input.courses.index do |candidate|
             candidate.equal?(courses.first)
           end),
-                           mismatch_reason(courses.first, mismatch))
+                           mismatch_reason(courses.first, mismatch), label: label_of(courses.first))
         end
       end
 

@@ -1144,5 +1144,85 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
 
     assert_equal before, draft.reload.document
   end
+
+  # ---- 指摘と決まりの箱から、内部の識別子を消す(リンク先は id のまま) ----
+
+  # 規則に、id と別の名前を付けた文書。id が画面の文字に出れば、このテストが拾う。
+  def document_with_named_rules
+    document = requirements_document
+    document['rules'].find { |entry| entry['id'] == 'path_rule' }['label'] = '次のどちらかの系列'
+    document['rules'] << fixture_rule('rule_ge_total', 'credit_sum', categories: [], required_credits: 4,
+                                                                     label: '共通教育の合計')
+    document
+  end
+
+  test '指摘の一覧に、規則の名前が出て、規則の id は出ない。指摘は規則の箱にも残る' do
+    show(draft(document: document_with_named_rules))
+
+    assert_select '#requirements_findings [data-scope=rule]', text: /共通教育の合計/
+    findings_text = css_select('#requirements_findings').text
+    assert_not_includes findings_text, 'rule_ge_total'
+    # target は id のまま。決まりの箱に付く指摘は、今までどおり id で突き合わさる
+    assert_select '#rule-rule_ge_total', text: /categories\)が空/
+  end
+
+  test '指摘から、画面の該当する決まりへのリンクが残っている' do
+    show(draft(document: document_with_named_rules))
+
+    link = css_select('#requirements_findings [data-scope=rule] a[href="#rule-rule_ge_total"]')
+    assert_predicate link, :any?, '指摘に、決まりへのリンクが無い'
+    assert_equal '該当の箇所へ', link.first.text.strip
+    # リンク先が、実際にページにある
+    assert_select '#rule-rule_ge_total', 1
+  end
+
+  test '行の指摘から、その行へのリンクが残り、行の id は出ない' do
+    document = requirements_document
+    document['display']['groups'][0]['rows'] << fixture_row('row_ge_ghost', ['ghost'], [], 2, name: '幻の行')
+    show(draft(document: document))
+
+    item = css_select('#requirements_findings [data-scope=display]').find { |li| li.text.include?('幻の行') }
+    assert_not_nil item, '行の指摘が出ていない'
+    assert_not_includes item.text, 'row_ge_ghost'
+    assert_not_nil item.at_css('a[href="#row-row_ge_ghost"]')
+    assert_select '#row-row_ge_ghost', 1
+  end
+
+  test '決まりの箱に、規則の id が出ない' do
+    document = document_with_named_rules
+    document['display']['groups'][0]['rows'][0]['check_ids'] = %w[humanities path_rule]
+    show(draft(document: document))
+
+    box = css_select('#row-humanities [data-rule-box=path_rule]').first
+    assert_not_nil box, '決まりの箱が出ていない'
+    assert_includes box.text, '次のどちらかの系列'
+    assert_not_includes box.text, 'path_rule'
+  end
+
+  test '画面の中の「#rule-」へのリンクは、どれも画面の中の箱に着く(切れたリンクを作らない)' do
+    page = { 'page' => 6, 'kind' => 'requirements', 'status' => 'read', 'text' => '備考 外国人留学生の特例は別に定める。' }
+    draft = draft(document: document_with_named_rules, extra_pages: [page])
+    save draft, annotations: { card_id(draft, :foreign_student) => { disposition: 'credit_sum' } }
+    show(draft)
+
+    links = css_select('a[href^="#rule-"], a[href^="#row-"]').pluck('href')
+    assert_operator links.size, :>=, 2, '指摘と注釈のカードからのリンクが出ていない'
+    links.each { |href| assert_select "[id='#{href.delete_prefix('#')}']", 1, "#{href} の行き先が無い" }
+  end
+
+  test '注釈のカードに、足した規則の名前が出て、規則の id は出ない。リンクは残る' do
+    page = { 'page' => 6, 'kind' => 'requirements', 'status' => 'read', 'text' => '備考 外国人留学生の特例は別に定める。' }
+    draft = draft(extra_pages: [page])
+    id = card_id(draft, :foreign_student)
+    save draft, annotations: { id => { disposition: 'credit_sum' } }
+
+    show(draft)
+
+    card = css_select("#annotation-#{id}").first
+    assert_includes card.text, '備考 外国人留学生の特例は別に定める。'
+    assert_includes card.text, '足しました'
+    assert_not_includes card.text.gsub('「備考 外国人留学生の特例は別に定める。」', ''), "annotation_#{id}"
+    assert_not_nil card.at_css("a[href='#rule-annotation_#{id}']")
+  end
 end
 

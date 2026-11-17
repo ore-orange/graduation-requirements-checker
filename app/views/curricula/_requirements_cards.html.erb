@@ -48,7 +48,7 @@
                 区分「<%= review.category_label(decision['category']) %>」の承認の注記にしました。その区分の科目に承認の関門が付いています。
                 外すときは、同じ注記のカード(承認の注記)から外してください。
               <% else %>
-                規則「<a href="#rule-<%= decision['rule_id'] %>" class="underline"><%= decision['rule_id'] %></a>」(<%= rule_type_name(decision['disposition']) %>)を足しました。
+                規則「<a href="#rule-<%= decision['rule_id'] %>" class="underline"><%= rule_name_for(decision['rule_id'], review) %></a>」(<%= rule_type_name(decision['disposition']) %>)を足しました。
                 必要な値は、規則の表で入れてください。入れるまで、突き合わせが公開を止めるか、警告を出します。
               <% end %>
             </p>

@@ -9,7 +9,7 @@
         <%= logic == 'AND' ? 'AND (すべて満たす)' : 'OR (いずれか満たす)' %>
       </span>
       <span class="text-sm font-bold text-slate-800"><%= rule['label'].presence || rule_type_name(rule['type']) %></span>
-      <a href="#rule-<%= rule['id'] %>" class="text-xs text-slate-500 underline underline-offset-2">(<%= rule['id'] %>)</a>
+      <a href="#rule-<%= rule['id'] %>" class="text-xs text-slate-500 underline underline-offset-2">この決まりを直す</a>
     </div>
     <span class="text-xs text-amber-800"><%= rule_type_name(rule['type']) %></span>
   </div>

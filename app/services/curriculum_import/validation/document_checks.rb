@@ -12,7 +12,10 @@ module CurriculumImport
     class DocumentChecks < Checks
       def run
         no_courses
-        findings.blocking(:rule, 'rules', '判定の規則が1つもありません。要件表のページを読み取るか、規則を足してください。') if input.rules.empty?
+        if input.rules.empty?
+          findings.blocking(:rule, 'rules', '判定の規則が1つもありません。要件表のページを読み取るか、規則を足してください。',
+                            label: '規則の一覧')
+        end
         missing_display
       end
 
@@ -24,14 +27,15 @@ module CurriculumImport
         return unless input.courses.empty?
         return if input.counted_category_keys.any? && input.counted_category_keys.all? { |key| input.patterned?(key) }
 
-        findings.blocking(:course, 'courses', '科目が1つもありません。科目表のページを読み取り、科目を足してください。')
+        findings.blocking(:course, 'courses', '科目が1つもありません。科目表のページを読み取り、科目を足してください。',
+                          label: '科目表')
       end
 
       def missing_display
         return if input.rules.empty? || input.document['display'].is_a?(Hash)
 
         findings.blocking(:display, 'display', '画面の要件表(display)がありません。規則はあっても、学生の画面に章と行が出せません。' \
-                                               '要件表のページを読み取り直すか、章と行を足してください。')
+                                               '要件表のページを読み取り直すか、章と行を足してください。', label: '画面の要件表')
       end
     end
   end

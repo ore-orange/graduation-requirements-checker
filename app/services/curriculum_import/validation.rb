@@ -14,6 +14,10 @@ module CurriculumImport
   #          安全側に倒れるが、人が一度目を通すべきもの。
   # 要確認は常に安全な結果なので、迷ったら警告に置いた。逆に、止める側に置くものは、止めた理由を直す手段が人にあること。
   class Validation
+    # 形の問題の置き場所(document の欄の名前)を、人に見せる名前に直す表。表に無い置き場所は、そのまま見せる。
+    SHAPE_LABELS = { 'courses' => '科目表', 'categories' => '区分の一覧', 'rules' => '規則の一覧', 'roles' => '役割の一覧',
+                     'display' => '画面の要件表', 'display.groups' => '画面の章の一覧',
+                     'display.subtotals' => '画面の小計の一覧' }.freeze
     CHECKS = [DocumentChecks, CourseChecks, RuleShape, RuleChecks, DisplayChecks, PageChecks].freeze
 
     # 下書きの Curriculum から作る。ページの状態(pages)は document には無いので、一緒に渡す。
@@ -39,7 +43,7 @@ module CurriculumImport
     def run
       findings = Findings.new
       @input.shape_problems.each do |scope, target, reason|
-        findings.blocking(scope, target, "#{reason}。読めない形のため、検査できません。")
+        findings.blocking(scope, target, "#{reason}。読めない形のため、検査できません。", label: SHAPE_LABELS[target])
       end
       CHECKS.each { |checks| checks.new(@input, findings).run }
       probe(findings) unless findings.blocking?

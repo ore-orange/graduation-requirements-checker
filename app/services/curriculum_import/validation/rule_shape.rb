@@ -25,8 +25,8 @@ module CurriculumImport
         missing = input.missing_fields(node)
         return semantics(node, type) if missing.empty?
 
-        findings.blocking(:rule, node.target, "規則の型「#{type}」に必要な欄が無いか、形が違います: #{missing.join('、')}。" \
-                                              '判定の時にエラーになります。')
+        node_blocking(node, "規則の型「#{type}」に必要な欄が無いか、形が違います: #{missing.join('、')}。" \
+                            '判定の時にエラーになります。')
       end
 
       # 解釈できない型・置けない位置の規則は、判定で必ず要確認になる(充足とは言わない)。確認画面で直せるよう知らせる。
@@ -38,7 +38,7 @@ module CurriculumImport
                  else
                    "規則の型「#{type}」をこのアプリは解釈できません"
                  end
-        findings.warning(:rule, node.target, "#{reason}。この規則の判定は必ず要確認になります。")
+        node_warning(node, "#{reason}。この規則の判定は必ず要確認になります。")
       end
 
       def semantics(node, type)
@@ -57,13 +57,13 @@ module CurriculumImport
         always_satisfied(node, '必要単位') unless rule['required_credits'].positive?
         return unless rule['categories'].empty?
 
-        findings.warning(:rule, node.target, 'credit_sum が数える区分(categories)が空です。何も数えないので、必ず不足になります。')
+        node_warning(node, 'credit_sum が数える区分(categories)が空です。何も数えないので、必ず不足になります。')
       end
 
       # 必要単位が0以下の規則は、何も修得しなくても充足になる。必修の確認(all_required)は、科目数と単位が0の定義が
       # そのまま「必修0科目をすべて修得」になる。どちらも充足に倒れるので、公開は止める。
       def always_satisfied(node, field)
-        findings.blocking(:rule, node.target, "#{field}が0以下のため、何も修得しなくても常に充足になります。")
+        node_blocking(node, "#{field}が0以下のため、何も修得しなくても常に充足になります。")
       end
 
       def all_required(node)
@@ -72,16 +72,15 @@ module CurriculumImport
         always_satisfied(node, '必修の単位') unless rule['required_credits'].positive?
         return unless rule['required_categories'].empty?
 
-        findings.blocking(:rule, node.target,
-                          'all_required の required_categories が空です。必修の区分の取り違えを見張れず、公開すると便覧を読み込めません。')
+        node_blocking(node, 'all_required の required_categories が空です。必修の区分の取り違えを見張れず、公開すると便覧を読み込めません。')
       end
 
       def one_of_paths(node)
         paths = node.rule['paths']
         if paths.empty?
-          findings.warning(:rule, node.target, 'paths が空です。この規則は判定できず、必ず要確認になります。')
+          node_warning(node, 'paths が空です。この規則は判定できず、必ず要確認になります。')
         elsif paths.any?(&:empty?)
-          findings.warning(:rule, node.target, 'paths に空の経路があります。この規則は判定できず、必ず要確認になります。')
+          node_warning(node, 'paths に空の経路があります。この規則は判定できず、必ず要確認になります。')
         end
       end
 
@@ -94,8 +93,8 @@ module CurriculumImport
         if GROUP_BY_NUMBER.include?(group_by) || text?(field)
           field_without_values(node, field) if field
         else
-          findings.blocking(:rule, node.target, 'group_by は number_prefix・number_prefix_hundreds・field:<欄名> の' \
-                                                "どれかでなければなりません: #{group_by.inspect}。判定の時にエラーになります。")
+          node_blocking(node, 'group_by は number_prefix・number_prefix_hundreds・field:<欄名> の' \
+                              "どれかでなければなりません: #{group_by.inspect}。判定の時にエラーになります。")
         end
       end
 
@@ -104,22 +103,23 @@ module CurriculumImport
         courses = input.courses_in(node.rule['category'])
         return if courses.empty? || courses.any? { |course| text?(course[field].to_s) }
 
-        findings.warning(:rule, node.target,
-                         "group_by が指す欄「#{field}」に値のある科目が、区分「#{node.rule['category']}」にありません。この規則は必ず要確認になります。")
+        category = input.category_label(node.rule['category'])
+        node_warning(node, "group_by が指す欄「#{field}」に値のある科目が、区分「#{category}」にありません。" \
+                           'この規則は必ず要確認になります。')
       end
 
       def children(node)
         field = Input::NESTING.fetch(node.rule['type']).first
         return unless node.rule[field].empty?
 
-        findings.warning(:rule, node.target, "#{node.rule['type']} の #{field} が空です。この規則は判定できず、必ず要確認になります。")
+        node_warning(node, "#{node.rule['type']} の #{field} が空です。この規則は判定できず、必ず要確認になります。")
       end
 
       # cap の上限・exclude の理由と接頭辞は、読み込み時の構築がそのまま検める。同じ文面を画面に出す。
       def adjustment(node)
         Rules.adjustment(node.rule)
       rescue ArgumentError => e
-        findings.blocking(:rule, node.target, "#{e.message}。算入してはいけない単位を数えるので、公開すると便覧を読み込めません。")
+        node_blocking(node, "#{e.message}。算入してはいけない単位を数えるので、公開すると便覧を読み込めません。")
       end
     end
   end

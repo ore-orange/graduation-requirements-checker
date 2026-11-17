@@ -2,9 +2,7 @@
 
 # 要件表の確認画面(curricula/_requirements_*)の部品。値の書式と、フォームの欄の名前・種類をここに集める。
 module RequirementsReviewHelper
-  RULE_TYPE_NAMES = { 'credit_sum' => '区分の合計単位', 'all_required' => '必修をすべて修得', 'one_of_paths' => '指定科目の系列',
-                      'grouped_max' => '同じ提供元・言語から', 'any_of' => 'どれか1つを満たす', 'all_of' => 'すべてを満たす',
-                      'cap' => '算入の上限', 'exclude' => '算入しない' }.freeze
+  RULE_TYPE_NAMES = CurriculumImport::RuleTypeNames::NAMES
   FIELD_NAMES = CurriculumImport::RequirementsEdit::FIELD_LABELS
   # 入力欄の見た目。くわしくは app/assets/tailwind/application.css の .rv-field。
   # 行・決まりの数だけ繰り返すので、クラスの並びを直書きしない(1画面が重くなる)。

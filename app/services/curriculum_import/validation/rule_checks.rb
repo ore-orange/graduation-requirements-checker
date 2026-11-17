@@ -30,21 +30,20 @@ module CurriculumImport
         rule = node.rule
         return unless Input::TOP_LEVEL.include?(rule['type'])
 
-        findings.blocking(:rule, node.target, '規則に id がありません。画面の行から引けません。') unless text?(rule['id'])
-        if !input.adjustment?(rule) && !text?(rule['label'])
-          findings.blocking(:rule, node.target, '規則に label がありません。判定の時にエラーになります。')
-        end
+        node_blocking(node, '規則に id がありません。画面の行から引けません。') unless text?(rule['id'])
+        node_blocking(node, '規則に label がありません。判定の時にエラーになります。') if !input.adjustment?(rule) && !text?(rule['label'])
         return if text?(rule['source_page'])
 
-        findings.warning(:rule, node.target,
-                         '規則に出典(source_page)がありません。便覧のどのページから読んだか分からず、確かめられません。')
+        node_warning(node, '規則に出典(source_page)がありません。便覧のどのページから読んだか分からず、確かめられません。')
       end
 
       def duplicate_ids
         input.rules.pluck('id').select { |id| text?(id) }.tally.each do |id, count|
           next if count == 1
 
-          findings.blocking(:rule, id, "規則の id「#{id}」が#{count}件あります。画面の行は先の1件しか引けず、別の規則の数字が出ます。")
+          name = input.rule_name(input.rules.find { |rule| rule['id'] == id })
+          findings.blocking(:rule, id, "規則「#{name}」の id が、#{count}件の規則で重なっています。" \
+                                       '画面の行は先の1件しか引けず、別の規則の数字が出ます。', label: name)
         end
       end
 
@@ -56,8 +55,7 @@ module CurriculumImport
           referenced = referenced_categories(node.rule)
           unknown = referenced - input.category_keys
           if unknown.any?
-            findings.blocking(:rule, node.target,
-                              "規則が categories に無い区分を指しています: #{unknown.uniq.join('、')}。公開すると便覧を読み込めません。")
+            node_blocking(node, "規則が categories に無い区分を指しています: #{input.category_labels(unknown.uniq)}。公開すると便覧を読み込めません。")
           end
           without_courses(node, referenced) if unknown.empty?
         end
@@ -72,7 +70,7 @@ module CurriculumImport
         return unless %w[credit_sum grouped_max].include?(node.rule['type'])
         return if referenced.empty? || referenced.any? { |category| covered_without_listing?(category) }
 
-        findings.warning(:rule, node.target, "数える区分(#{referenced.join('、')})に科目が1つもありません。この規則は必ず不足になります。")
+        node_warning(node, "数える区分(#{input.category_labels(referenced)})に科目が1つもありません。この規則は必ず不足になります。")
       end
 
       def covered_without_listing?(category)
@@ -92,8 +90,8 @@ module CurriculumImport
           next if reachable.nil? || reachable >= rule['required_credits']
 
           required = format_number(rule['required_credits'])
-          findings.warning(:rule, node.target, "科目表の該当科目をすべて修得しても#{format_number(reachable)}単位で、" \
-                                               "必要な#{required}単位に届きません。科目の読み落としがないか確かめてください。")
+          node_warning(node, "科目表の該当科目をすべて修得しても#{format_number(reachable)}単位で、" \
+                             "必要な#{required}単位に届きません。科目の読み落としがないか確かめてください。")
         end
       end
 
@@ -121,7 +119,9 @@ module CurriculumImport
           roles = node.rule['paths'].flatten.uniq
           missing = roles - held
           if missing.any?
-            findings.warning(:rule, node.target, "規則が名指しする役割(#{missing.join('、')})を持つ科目が、科目表にありません。この規則は必ず要確認になります。")
+            node_warning(node, "規則が名指しする役割(#{missing.map do |role|
+              input.role_label(role)
+            end.join('、')})を持つ科目が、科目表にありません。この規則は必ず要確認になります。")
           end
           roles
         end.uniq
@@ -131,11 +131,12 @@ module CurriculumImport
       # 役割を持つ科目があるのに規則が無いなら、その要件が規則から落ちた疑いがある。疑いで公開は止めないが、人には渡す。
       def orphan_role(role, held)
         if held.include?(role)
-          findings.warning(:rule, role, "役割「#{role}」は科目に付いていますが、どの規則も参照していません。" \
+          findings.warning(:rule, role, "役割「#{input.role_label(role)}」は科目に付いていますが、どの規則も参照していません。" \
                                         'その科目に求める要件が規則から落ちていないか確かめてください。落ちていると、' \
-                                        '満たしていない学生にも何も言いません。')
+                                        '満たしていない学生にも何も言いません。', label: "役割「#{input.role_label(role)}」")
         else
-          findings.warning(:rule, role, "役割「#{role}」は宣言されていますが、どの規則も科目も使っていません。")
+          findings.warning(:rule, role, "役割「#{input.role_label(role)}」は宣言されていますが、どの規則も科目も使っていません。",
+                           label: "役割「#{input.role_label(role)}」")
         end
       end
 
@@ -147,7 +148,8 @@ module CurriculumImport
         (input.uncounted_category_keys.grep(String) - covered).each do |category|
           findings.blocking(:rule, category, "区分「#{input.category_label(category)}」は卒業の総単位に数えない" \
                                              '(counts_toward_total が false)のに、その区分の科目を丸ごと算入から外す' \
-                                             'exclude 規則がありません。この区分の単位が算入されます。')
+                                             'exclude 規則がありません。この区分の単位が算入されます。',
+                            label: "区分「#{input.category_label(category)}」")
         end
       end
 
@@ -162,7 +164,7 @@ module CurriculumImport
         input.well_formed_nodes_of('all_required').each do |node|
           mandatory = input.courses.select { |course| course['required'] }
           if mandatory.empty?
-            findings.warning(:rule, node.target, '必修の科目が科目表に1つもありません。この規則は必ず要確認になります。')
+            node_warning(node, '必修の科目が科目表に1つもありません。この規則は必ず要確認になります。')
           else
             required_totals(node, mandatory)
           end
@@ -174,11 +176,10 @@ module CurriculumImport
         credits = mandatory.sum(BigDecimal('0')) { |course| decimal(course['credits']) || BigDecimal('0') }
         if credits != BigDecimal(rule['required_credits'].to_s)
           required = format_number(rule['required_credits'])
-          findings.warning(:rule, node.target, "必修の単位合計(#{format_number(credits)})が、規則の必要単位(#{required})と違います。")
+          node_warning(node, "必修の単位合計(#{format_number(credits)})が、規則の必要単位(#{required})と違います。")
         end
         if mandatory.size != rule['expected_course_count']
-          findings.warning(:rule, node.target,
-                           "必修の科目数(#{mandatory.size})が、規則の科目数(#{rule['expected_course_count']})と違います。")
+          node_warning(node, "必修の科目数(#{mandatory.size})が、規則の科目数(#{rule['expected_course_count']})と違います。")
         end
         outside_required_categories(node, mandatory)
       end
@@ -189,8 +190,8 @@ module CurriculumImport
         outside = mandatory.reject { |course| allowed.include?(course['category']) }
         return if outside.empty?
 
-        names = outside.map { |course| "#{course['name']}(#{course['category']})" }.join('、')
-        findings.warning(:rule, node.target, "必修の科目が必修の区分(#{allowed.join('、')})の外にあります: #{names}。区分の取り違えがないか確かめてください。")
+        names = outside.map { |course| "#{course['name']}(#{input.category_label(course['category'])})" }.join('、')
+        node_warning(node, "必修の科目が必修の区分(#{input.category_labels(allowed)})の外にあります: #{names}。区分の取り違えがないか確かめてください。")
       end
     end
   end

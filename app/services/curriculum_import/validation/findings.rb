@@ -9,12 +9,14 @@ module CurriculumImport
         @items = []
       end
 
-      def blocking(scope, target, reason)
-        add(scope, target, reason, true)
+      # target は突き合わせ用の id(画面の箱・行に指摘を付けるのに使う)。人に見せる文字は label。
+      # label を渡さなければ target をそのまま見せる(id でない target = ページ名などのとき)。
+      def blocking(scope, target, reason, label: nil)
+        add(scope, target, reason, true, label)
       end
 
-      def warning(scope, target, reason)
-        add(scope, target, reason, false)
+      def warning(scope, target, reason, label: nil)
+        add(scope, target, reason, false, label)
       end
 
       def blocking?
@@ -27,8 +29,9 @@ module CurriculumImport
 
       private
 
-      def add(scope, target, reason, blocking)
-        @items << { scope: scope, target: target.to_s, reason: reason, blocking: blocking }
+      def add(scope, target, reason, blocking, label)
+        @items << { scope: scope, target: target.to_s, label: (label.presence || target).to_s, reason: reason,
+                    blocking: blocking }
       end
     end
   end

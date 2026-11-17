@@ -125,10 +125,10 @@ module CurriculumImport
       assert(validation.call.none? { |finding| finding[:blocking] })
     end
 
-    test '結果は scope・target・reason・blocking を持つ' do
+    test '結果は scope・target・label・reason・blocking を持つ' do
       result = findings_for(broken { |d| d['courses'][0]['category'] = 'nowhere' }).first
 
-      assert_equal %i[scope target reason blocking], result.keys
+      assert_equal %i[scope target label reason blocking], result.keys
       assert_equal :course, result[:scope]
       assert_equal 'course_人101', result[:target]
     end
@@ -143,7 +143,7 @@ module CurriculumImport
     end
 
     test '科目の key の重複と欠けを出し、公開を止める' do
-      assert_blocking('key「course_人101」の科目が2件', broken do |d|
+      assert_blocking('同じ key の科目が2件', broken do |d|
         d['courses'] << course('人199', 'x', 'humanities', key: 'course_人101')
       end)
       assert_blocking('科目に key がありません', broken { |d| d['courses'][0].delete('key') })
@@ -307,7 +307,7 @@ module CurriculumImport
     end
 
     test '規則の id の重複は公開を止める' do
-      assert_blocking('id「humanities」が2件', broken do |d|
+      assert_blocking('の id が、2件の規則で重なっています', broken do |d|
         d['rules'] << rule('humanities', 'credit_sum', categories: ['english'], required_credits: 2)
       end)
     end
@@ -439,7 +439,7 @@ module CurriculumImport
     end
 
     test '必修の科目が必修の区分の外にあれば出す' do
-      assert_warning('必修の区分(required_core)の外にあります', broken { |d| d['courses'][0]['required'] = true })
+      assert_warning('必修の区分(コア必修)の外にあります', broken { |d| d['courses'][0]['required'] = true })
     end
 
     test '科目表のすべての科目を修得しても必要単位に届かない credit_sum を出す' do
@@ -449,7 +449,7 @@ module CurriculumImport
     test '数える区分に科目が1つも無い規則を出す' do
       document = broken { |d| d['courses'].reject! { |c| c['category'] == 'humanities' } }
 
-      assert_warning '数える区分(humanities)に科目が1つもありません', document
+      assert_warning '数える区分(人文系)に科目が1つもありません', document
     end
 
     # 科目番号から区分が決まる科目は便覧に入れない。パターンを持つ区分は、科目0件が正常な状態。
@@ -480,7 +480,7 @@ module CurriculumImport
         d['categories'].find { |c| c['key'] == 'free' }['number_patterns'] = []
       end
 
-      assert_warning '数える区分(free)に科目が1つもありません', document, scope: :rule
+      assert_warning '数える区分(自由)に科目が1つもありません', document, scope: :rule
     end
 
     test '指す区分のうち1つでもパターンを持てば、警告を出さない' do
@@ -557,8 +557,8 @@ module CurriculumImport
     end
 
     test '総単位の規則が数える区分が、総単位に数える区分と違えば出す' do
-      assert_warning('足りない区分: fusion', broken { |d| rule_in(d, 'total')['categories'] -= ['fusion'] })
-      assert_warning('余分な区分: excluded', broken { |d| rule_in(d, 'total')['categories'] += ['excluded'] })
+      assert_warning('足りない区分: 工学融合', broken { |d| rule_in(d, 'total')['categories'] -= ['fusion'] })
+      assert_warning('余分な区分: 算入対象外', broken { |d| rule_in(d, 'total')['categories'] += ['excluded'] })
       assert_warning('総単位の判定が規則にありません', broken { |d| rule_in(d, 'total')['required_credits'] = 13 })
     end
 
@@ -622,7 +622,7 @@ module CurriculumImport
     test '科目が1つも無い区分が、必要単位のある行に出ていれば警告する(止めない)' do
       document = broken { |d| d['courses'].reject! { |c| c['category'] == 'english' } }
 
-      assert_warning '区分「英語」(english)に科目が1つもありません', document, scope: :display
+      assert_warning '区分「英語」に科目が1つもありません', document, scope: :display
       assert_not_predicate Validation.new(document), :blocking?
     end
 
@@ -643,7 +643,7 @@ module CurriculumImport
         rule_in(d, 'total')['categories'] << 'free'
       end
 
-      assert_warning '区分「自由」(free)に科目が1つもありません', document
+      assert_warning '区分「自由」に科目が1つもありません', document
       assert_not_predicate Validation.new(document), :blocking?
     end
 
@@ -706,14 +706,14 @@ module CurriculumImport
     end
 
     test '章・行の必要単位が、指す規則の必要単位と違えば出す' do
-      assert_warning('必要単位(5)が、規則「humanities」の必要単位(4)と違います',
+      assert_warning('必要単位(5)が、規則「規則humanities」の必要単位(4)と違います',
                      broken { |d| d['display']['groups'][0]['rows'][0]['required_credits'] = 5 })
-      assert_warning('章「required」の必要単位(5)', broken { |d| d['display']['groups'][1]['required_credits'] = 5 })
+      assert_warning('章「2. 必修」の必要単位(5)', broken { |d| d['display']['groups'][1]['required_credits'] = 5 })
       subtotal = { 'id' => 'sub', 'name' => '小計', 'required_credits' => 5, 'row_ids' => ['fusion'],
                    'check_ids' => ['fusion_provider'] }
       document = broken { |d| d['display']['subtotals'] = [subtotal] }
 
-      assert_warning('小計「sub」の必要単位(5)が、規則「fusion_provider」の必要単位(4)', document)
+      assert_warning('小計「小計」の必要単位(5)が、規則「規則fusion_provider」の必要単位(4)', document)
     end
 
     # 複数の決まりを持つ行も突き合わせる(設計書 項目5 の別立て)。どの決まりの数字とも合わなければ出す。
@@ -847,6 +847,206 @@ module CurriculumImport
 
     test '骨組みが揃っていれば、骨組みの指摘は出ない' do
       assert_empty(findings_for(base_document).select { |finding| finding[:target].in?(%w[courses rules display]) })
+    end
+
+    # ---- 指摘から内部の識別子を消す(target は突き合わせ用の id のまま、見せる文字は label) ----
+
+    # 規則・行の id は、人が一度も打たない値。画面に出る文字(label と reason)に入れない。
+    def shown_text(finding)
+      [finding[:label], finding[:reason]].join("\n")
+    end
+
+    def finding_on(document, target, scope: nil)
+      found = findings_for(document).select { |f| f[:target] == target && (scope.nil? || f[:scope] == scope) }
+      assert_predicate found, :any?, "target「#{target}」の指摘が出ていない: #{findings_for(document).pluck(:target, :reason)}"
+      found
+    end
+
+    test '規則の指摘は、target に id を残したまま、label に規則の名前を出す(id は見せる文字に入らない)' do
+      document = broken do |d|
+        d['rules'] << rule('rule_ge_total', 'credit_sum', categories: ['humanities'], required_credits: 0,
+                                                          label: '共通教育の合計')
+      end
+
+      found = finding_on(document, 'rule_ge_total', scope: :rule)
+
+      assert(found.all? { |f| f[:label] == '共通教育の合計' }, found.pluck(:label).inspect)
+      found.each { |f| assert_not_includes shown_text(f), 'rule_ge_total' }
+    end
+
+    test '規則に label が無ければ、持ち主の行の名前と型の和名を使う' do
+      document = broken do |d|
+        d['rules'] << rule('rule_ge_total', 'credit_sum', categories: ['humanities'],
+                                                          required_credits: 4).except('label')
+        d['display']['groups'][0]['rows'] << row('row_foreign', ['english'], ['rule_ge_total'], 2, name: '基幹領域：外国語科目')
+      end
+
+      found = finding_on(document, 'rule_ge_total', scope: :rule)
+
+      assert_equal ['行「基幹領域：外国語科目」の区分の合計単位'], found.pluck(:label).uniq
+    end
+
+    test '規則に label も持ち主の行も無ければ、型の和名だけを使う。型も無ければ名前の無い規則と言う' do
+      document = broken do |d|
+        d['rules'] << rule('rule_lost', 'credit_sum', categories: [], required_credits: 4).except('label')
+      end
+
+      assert_equal ['区分の合計単位'], finding_on(document, 'rule_lost').pluck(:label).uniq
+
+      untyped = broken { |d| d['rules'] << { 'id' => 'rule_untyped', 'source_page' => 'PDF3ページ' } }
+
+      assert_equal ['名前のない規則'], finding_on(untyped, 'rule_untyped').pluck(:label).uniq
+    end
+
+    test '入れ子の規則は「…の中の条件」と出し、options[1] のような添字を見せない' do
+      document = broken do |d|
+        d['rules'] << rule('rule_foreign_lang', 'all_of', conditions: [
+                             { 'type' => 'credit_sum', 'categories' => ['english'], 'required_credits' => 2 },
+                             { 'type' => 'credit_sum', 'categories' => ['english'], 'required_credits' => 0 }
+                           ]).except('label')
+        d['display']['groups'][0]['rows'] << row('row_foreign', ['english'], ['rule_foreign_lang'], 2,
+                                                 name: '基幹領域：外国語科目')
+      end
+
+      nested = finding_on(document, 'rule_foreign_lang の conditions[2]', scope: :rule)
+
+      assert_equal ['行「基幹領域：外国語科目」の中の条件(2つ目)'], nested.pluck(:label).uniq
+      nested.each do |f|
+        assert_no_match(/conditions|options|\[\d+\]|rule_foreign_lang/, shown_text(f))
+      end
+    end
+
+    test 'ラベルのある規則の中の選択肢は「その名前」の中の選択肢と出す' do
+      document = broken do |d|
+        d['rules'] << rule('rule_choice', 'any_of', label: 'どちらかを修得',
+                                                    options: [{ 'type' => 'credit_sum', 'categories' => ['english'],
+                                                                'required_credits' => 0 }])
+      end
+
+      assert_equal ['「どちらかを修得」の中の選択肢(1つ目)'], finding_on(document, 'rule_choice の options[1]').pluck(:label)
+    end
+
+    test '区分の一覧を出す文面は、キーではなく和名になる' do
+      document = broken { |d| d['rules'].find { |r| r['id'] == 'total' }['categories'] = %w[humanities english] }
+
+      found = findings_for(document).select { |f| f[:reason].include?('足りない区分') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      found.each do |f|
+        assert_includes f[:reason], '工学融合'
+        assert_includes f[:reason], 'コア必修'
+        assert_no_match(/fusion|required_core/, f[:reason])
+      end
+    end
+
+    test '余分な区分の一覧も、和名で出る' do
+      document = broken { |d| d['rules'].find { |r| r['id'] == 'total' }['categories'] += ['excluded'] }
+
+      found = findings_for(document).select { |f| f[:reason].include?('余分な区分') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      found.each do |f|
+        assert_includes f[:reason], '算入対象外'
+        assert_no_match(/excluded/, f[:reason])
+      end
+    end
+
+    test '行の指摘は、target に行の id を残したまま、label に行の名前を出す(id は見せる文字に入らない)' do
+      document = broken do |d|
+        d['display']['groups'][0]['rows'] << row('row_ge_humanities', ['ghost'], [], 2, name: '人文系の行')
+      end
+
+      found = finding_on(document, 'row_ge_humanities', scope: :display)
+
+      assert_equal ['行「人文系の行」'], found.pluck(:label).uniq
+      found.each { |f| assert_not_includes shown_text(f), 'row_ge_humanities' }
+    end
+
+    test '区分の和名が文面に出るとき、キーを括弧で添えない' do
+      document = broken { |d| d['display']['groups'][0]['rows'].each { |r| r['categories'] -= ['humanities'] } }
+
+      found = findings_for(document).select { |f| f[:reason].include?('どの行にも出てきません') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      found.each do |f|
+        assert_includes f[:reason], '区分「人文系」'
+        assert_not_includes f[:reason], 'humanities'
+        assert_equal '区分「人文系」', f[:label]
+      end
+    end
+
+    test '行と規則の必要単位が違うという指摘は、章・行・規則を名前で呼ぶ' do
+      document = broken do |d|
+        d['display']['groups'][0]['rows'] << row('row_ge_eng', ['english'], ['english'], 99, name: '外国語の行')
+      end
+
+      found = findings_for(document).select { |f| f[:reason].include?('必要単位(99)') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      found.each do |f|
+        assert_includes f[:reason], '行「外国語の行」'
+        assert_includes f[:reason], '規則「規則english」'
+        assert_no_match(/row_ge_eng/, shown_text(f))
+        assert_not_includes f[:reason], '「english」'
+      end
+    end
+
+    test '章の指摘も、章の名前で呼ぶ' do
+      document = broken { |d| d['display']['groups'][0]['check_id'] = 'nowhere' }
+
+      found = finding_on(document, 'common', scope: :display)
+
+      assert_equal ['章「1. 共通教育」'], found.pluck(:label).uniq
+      assert(found.all? { |f| f[:reason].include?('章「1. 共通教育」') }, found.pluck(:reason).inspect)
+    end
+
+    test '規則の id が重なる指摘は、規則の名前で言う' do
+      document = broken do |d|
+        d['rules'] << rule('english', 'credit_sum', categories: ['english'], required_credits: 2)
+      end
+
+      found = findings_for(document).select { |f| f[:reason].include?('重なっています') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      assert_equal ['規則english'], found.pluck(:label).uniq
+    end
+
+    test '壊れた便覧のどの指摘にも、規則の id と行の id が出ない(指摘は実際に何件も出ている)' do
+      ids = %w[rule_a rule_b rule_c row_a row_b]
+      document = broken do |d|
+        d['rules'] << rule('rule_a', 'credit_sum', categories: ['english'], required_credits: 0, label: '外国語の決まり')
+        empty_option = { 'type' => 'credit_sum', 'categories' => [], 'required_credits' => 1 }
+        d['rules'] << rule('rule_b', 'any_of', label: '条件の決まり', options: [empty_option])
+        d['rules'] << rule('rule_c', 'credit_sum', categories: ['ghost'], required_credits: 2).except('label')
+        d['display']['groups'][0]['rows'] << row('row_a', ['ghost'], [], 2, name: '行あ')
+        d['display']['groups'][0]['rows'] << row('row_b', ['english'], ['rule_c'], 77, name: '行い')
+        d['rules'].find { |r| r['id'] == 'total' }['categories'] = %w[humanities]
+      end
+
+      found = findings_for(document)
+
+      assert_operator found.size, :>=, 5, found.pluck(:reason).inspect
+      found.each do |f|
+        ids.each { |id| assert_not_includes shown_text(f), id, "#{id} が見える: #{f}" }
+      end
+      assert(found.any? { |f| f[:target].start_with?('rule_') }, 'target は id のまま')
+      assert(found.any? { |f| f[:target].start_with?('row_') }, 'target は id のまま')
+    end
+
+    test 'label を渡さない指摘は、target をそのまま見せる文字にする' do
+      findings = Validation::Findings.new
+      findings.warning(:course, 'x', '理由')
+
+      assert_equal 'x', findings.to_a.first[:label]
+    end
+
+    test 'Input#rule_name と #row_name は、内部の id を返さない' do
+      input = Validation::Input.new(broken { |d| d['rules'] << rule('rule_x', 'credit_sum').except('label') }, [])
+
+      assert_equal '規則english', input.rule_name(input.rules.find { |r| r['id'] == 'english' })
+      assert_equal '行「行humanities」', input.row_name('humanities')
+      assert_equal '名前のない行', input.row_name('no_such_row')
+      assert_equal '区分の合計単位', input.rule_name(input.rules.find { |r| r['id'] == 'rule_x' })
     end
 
     test '警告だけの文書は公開を止めない' do

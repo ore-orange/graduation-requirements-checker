@@ -103,7 +103,7 @@ module CurriculumImport
       assert_equal 'common_total_p4', chapter['check_id']
       # AI の38と直した37の食い違いは、突き合わせが見せる(AI の読みで黙って上書きされない)。
       reasons = Validation.for(@curriculum.reload).call.pluck(:reason)
-      assert(reasons.any? { |reason| reason.include?('章「g1_p4」の必要単位(38)が、規則「common_total_p4」の必要単位(37)と違います') })
+      assert(reasons.any? { |reason| reason.include?('章「共通教育」の必要単位(38)が、規則「common_total」の必要単位(37)と違います') })
       assert(reasons.none? { |reason| reason.include?('規則が見つかりません') })
     end
 

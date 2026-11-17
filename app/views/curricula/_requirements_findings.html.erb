@@ -21,7 +21,9 @@
           <span class="mr-2 inline-block rounded px-1.5 py-0.5 text-xs font-bold <%= finding[:blocking] ? 'bg-rose-700 text-white' : 'bg-amber-700 text-white' %>">
             <%= finding[:blocking] ? '公開を止める' : '確認' %>
           </span>
-          <span class="text-xs font-semibold"><%= review.scope_name(finding[:scope]) %>: <%= finding[:target] %></span>
+          <span class="text-xs font-semibold"><%= review.scope_name(finding[:scope]) %>: <%= finding[:label].presence || finding[:target] %></span>
+          <% anchor = finding_anchor(finding, review) %>
+          <% if anchor %><a href="<%= anchor %>" class="ml-2 text-xs underline underline-offset-2">該当の箇所へ</a><% end %>
           <p class="mt-1"><%= finding[:reason] %></p>
         </li>
       <% end %>
