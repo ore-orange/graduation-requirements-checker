@@ -101,35 +101,35 @@ module CurriculumImport
     test '百の位の鍵が1区分にしか現れず、3件以上あれば候補になる' do
       rows = nums('甲', 101..103, 'main') + nums('甲', 201..202, 'other')
 
-      assert_equal({ 'main' => ['甲1'] }, inference(*rows).suggestions)
+      assert_equal({ 'main' => ['甲1'] }, inference(*rows).suggestions([]))
     end
 
     test '複数の区分にまたがる鍵は候補にならない' do
       rows = nums('甲', 101..103, 'main') + nums('甲', 104..105, 'other')
 
-      assert_empty inference(*rows).suggestions
+      assert_empty inference(*rows).suggestions([])
     end
 
     test '根拠が2件以下の鍵は候補にならない' do
-      assert_empty inference(*nums('甲', 101..102, 'main')).suggestions
+      assert_empty inference(*nums('甲', 101..102, 'main')).suggestions([])
     end
 
     test '百の位で候補が出た区分には、接頭辞だけの鍵を重ねない' do
       rows = nums('乙', 101..103, 'main') + nums('乙', 201..201, 'main')
 
-      assert_equal({ 'main' => ['乙1'] }, inference(*rows).suggestions)
+      assert_equal({ 'main' => ['乙1'] }, inference(*rows).suggestions([]))
     end
 
     test '百の位がばらけていても、接頭辞が1区分に決まり根拠が足りていれば、接頭辞の鍵を候補にする' do
       rows = nums('丙', 101..102, 'main') + nums('丙', 201..202, 'main')
 
-      assert_equal({ 'main' => ['丙'] }, inference(*rows).suggestions)
+      assert_equal({ 'main' => ['丙'] }, inference(*rows).suggestions([]))
     end
 
     test '接頭辞が複数の区分にまたがるなら、接頭辞の鍵は候補にならない' do
       rows = nums('丁', 101..102, 'main') + nums('丁', 201..202, 'other')
 
-      assert_empty inference(*rows).suggestions
+      assert_empty inference(*rows).suggestions([])
     end
 
     test '既にパターンを持つ区分には候補を出さない' do

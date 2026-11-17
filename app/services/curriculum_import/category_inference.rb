@@ -54,8 +54,9 @@ module CurriculumImport
     # 「言ってよい根拠」の基準が2か所でずれない。
     # 百の位の鍵を先に見る。百の位で候補が出た区分には、接頭辞だけの鍵を重ねない。接頭辞だけの鍵は、
     # 見ていない百の位の科目まで勝手にその区分へ数えるので、百の位のほうが安全側になる。
-    # categories を渡すと、既に number_patterns を持つ区分(共通教育など)は候補から外す。
-    def suggestions(categories = [])
+    # categories は文書の区分の配列。既に number_patterns を持つ区分(共通教育など)は候補から外す。
+    # 科目表だけでは、どの区分が既にパターンを持つか分からないので、引数で受け取る(減らせない)。
+    def suggestions(categories)
       skip = categories_with_patterns(categories)
       found = {}
       add_keys(found, @by_hundreds, skip)
