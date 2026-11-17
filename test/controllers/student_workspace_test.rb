@@ -696,6 +696,17 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
                   text: /#{Regexp.escape(reviewed.fetch('name'))}.*※要確認: #{Regexp.escape(reviewed['review_reason'])}/m
   end
 
+  test '番号の無い登録科目は「科目番号が未掲載」と出し、「初期データ未登録」とは言わない' do
+    numberless = @courses.find { |course| course['number'].blank? && course['selectable'] == true }
+    assert_not_nil numberless
+
+    get plan_path(q: numberless.fetch('name')), env: local_env
+
+    assert_select '#catalogue li', text: /#{Regexp.escape(numberless.fetch('name'))}.*科目番号が未掲載のため選択できません/m
+    assert_select '#catalogue li', text: /初期データ未登録/, count: 0
+    assert_select '#catalogue li input[type=submit]', count: 0
+  end
+
   test '修得済み・予定済みの科目は、便覧から選択に出ない' do
     completed = @student.student_courses.where(enrollment_status: 'completed').joins(:course).first.course
     planned = course_record(@candidate)

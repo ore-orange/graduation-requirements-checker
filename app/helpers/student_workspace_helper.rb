@@ -32,6 +32,10 @@ module StudentWorkspaceHelper
     return '追加済み・修得済み・履修中' if unavailable_numbers.include?(entry.number)
     return '選択対象外' unless entry.selectable == true
 
+    # 番号の無い科目は、便覧自体に番号が無いので、時間割を取り込んでも Course の行は生まれない。
+    # course_id も nil になるので、この判定は course_id の判定より先に置く。
+    return '科目番号が未掲載のため選択できません' if entry.number.blank?
+
     # 計画は Course の行を指す。その年度の時間割をまだ取り込んでいない科目は、行が無いので追加できない。
     '初期データ未登録' if entry.course_id.nil?
   end
