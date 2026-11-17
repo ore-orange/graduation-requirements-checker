@@ -86,6 +86,25 @@ class CategoryPatternsTest < ActiveSupport::TestCase
     assert_includes numbers_after, '共104'
   end
 
+  # 画面が見せる「当たるN件を外します」は、実際に外れる件数と同じでなければならない。grouped_max が欄(language)で
+  # 分けている便覧では、その欄に値を持つ科目は外れない(CourseFilter の保護)。見せかけの文書に rules が無いと、
+  # この保護が効かず、画面は4件・実際は0件になる。
+  test '規則が欄で分ける便覧では、画面が見せる件数と、実際に外れる件数が一致する' do
+    document = document_with_intel
+    document['rules'] << fixture_rule('grouped', 'grouped_max', category: 'intel', group_by: 'field:language',
+                                                                required_credits: 4)
+    document['courses'].select { |course| course['category'] == 'intel' && course['selectable'] }
+                       .each { |course| course['language'] = 'german' }
+    @curriculum.update!(document: document)
+
+    shown = CurriculumImport::RequirementsReview.new(@curriculum).adoption_impact('intel').first
+    before = numbers_after.size
+    edit(adopt_patterns: { 'intel' => '1' })
+
+    assert_equal before - numbers_after.size, shown
+    assert_equal 0, shown
+  end
+
   test '既にパターンを持つ区分には、候補を出さない' do
     review = CurriculumImport::RequirementsReview.new(@curriculum)
 

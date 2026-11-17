@@ -14,7 +14,7 @@ import { Controller } from "@hotwired/stimulus"
 // 見せる/隠すは data-show の印で決める。値は wizard(1枚表示)・list(一覧)・nojs(JavaScript が無いとき)。
 // 行は読み取りのたびに Turbo Stream で差し替わるので、差し替わった行にも同じ表示を当て直す(pageTargetConnected)。
 export default class extends Controller {
-  static targets = ["page", "counter", "summary", "list", "prev", "progress", "commit", "readCount"]
+  static targets = ["page", "counter", "summary", "list", "prev", "progress", "readCount"]
 
   // 左右で前後、1・2・3 で 読まない・要件表・科目表(PAGE_KINDS の並びと同じ)
   static KINDS = ["skip", "requirements", "courses"]

@@ -90,7 +90,7 @@
       <%# 一覧の足。「この指定で読み取る」は保存して読み取りに入る。JavaScript が動かないときは、「ページの指定を保存」で保存する。 %>
       <div data-show="list nojs" class="mt-4 flex flex-wrap items-center justify-end gap-3">
         <%# 保存してから読み取りに入る(read-pages#saveAndRead)。APIキーが無ければ読み取れないので、使えないまま。 %>
-        <button type="button" <%= 'disabled' unless reader_available %> data-show="list" data-page-wizard-target="commit"
+        <button type="button" <%= 'disabled' unless reader_available %> data-show="list"
                 data-action="click->read-pages#saveAndRead" data-read-pages-target="commit"
                 class="demo-button disabled:cursor-not-allowed disabled:opacity-50">この指定で読み取る(<span data-page-wizard-target="readCount"></span>ページ)</button>
         <%= form.submit 'ページの指定を保存', class: 'demo-button' %>

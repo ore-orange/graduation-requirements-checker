@@ -13,6 +13,8 @@ require 'test_helper'
 class GraduationAssessmentFilteredTest < ActiveSupport::TestCase
   test '絞り込んだ便覧でも、2024年度の判定結果が変わらない' do
     full = GraduationGolden.curriculum_document
+    # 唯一の肯定 assert(assert_counted)が、ケース名の改名・削除で無言の空振りにならないように。
+    assert_includes GraduationGolden.cases(full).keys, 'clean_single_path'
     # filter_all は文書を書き換えるので、絞り込む側は別に読む(full を比較の基準として残す)。
     filtered = filter_all(GraduationGolden.curriculum_document)
     # 絞り込みが1件も効いていないのに緑になる空振りを防ぐ。484件から確実に減っていること。

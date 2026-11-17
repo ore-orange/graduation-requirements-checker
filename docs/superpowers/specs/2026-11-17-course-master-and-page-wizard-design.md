@@ -315,7 +315,9 @@ directory.category_for(number)          # => 区分キー or nil
 | `_add_course_box.html.erb:4` 「便覧から選択」 | 便覧の `courses` から `selectable` を抜く | 名簿の `in_category` から、修得・予定済みの番号を除く |
 | `plans_controller.rb:38` `@catalogue`（検索・一覧） | 同上 | 名簿を区分と検索語で絞る。`@persisted_numbers` は名簿が `Course` 由来なので不要になる |
 | `requirements_helper.rb#courses_by_category` 学生の科目表 | 便覧の `courses` を区分で束ねる | 名簿を区分で束ねる |
-| `student_workspace.rb:33` `@courses_by_number` | 便覧の `courses` の索引 | **変えない。** 判定へ渡す key の振り替えは `Catalogue` の責任のままにする（非ゴール「判定の数式を変えない」） |
+| `student_workspace.rb:33` `@courses_by_number` | 便覧の `courses` の索引 | **索引そのものと、判定へ渡す key の振り替え(`catalogue_entries`)は変えない**(非ゴール「判定の数式を変えない」。振り替えは `Catalogue` の責任のまま)。**ただし画面の区分計算(`course_category`・`category_credits`・`plan_credits` の呼び元)は、番号パターン(`@number_patterns`)も見る。** 便覧に登録が無い科目は、名簿と同じ規則で区分が決まる |
+
+**この表の最初の版は、最後の行を「変えない」で閉じていて、誤りだった。** `@courses_by_number` が2つの仕事(判定へ渡す key の振り替えと、画面の区分計算)を掛け持ちしているのに、1つの仕事と見なし、判定の側の都合(変えてはいけない)を画面の側にも当てはめた。絞り込んだ便覧では、番号で区分が決まる科目が索引から消えるので、画面の区分計算がそれらを `'excluded'`(算入対象外)と答える。実測(デモ学生・2024年度・候補を全採用)で、履修48件中7件が算入対象外に落ち、12単位が「算入対象外」の行に並び、「健康運動系」は判定が満たしているのに修得単位が 0/2 と出た。判定の数字は正しいまま、画面の単位の数字だけが間違う形で、次に便覧まわりを触る人が、この表を根拠に同じことをしないよう直した。絞り込み前後で画面の区分別単位が一致することは `test/helpers/student_workspace_filtered_test.rb` が押さえる。
 
 `plan_courses_controller.rb#find_catalogue_course` は、`selectable` の判定を名簿に聞く形にする。名簿に無い番号は、いまどおり追加させない。
 
@@ -406,7 +408,9 @@ directory.category_for(number)          # => 区分キー or nil
 
 ### R7. 2025年度の便覧は、この設計では変わらない
 
-`config/curricula/intelligent_informatics/2025.json` は `number_patterns` を1つも持たず、科目も99件（すべて専門）。パターンが無いので絞り込みは1件も落とさず、名簿の「パターンで `Course` を拾う」も効かない。2025年度の学生のメニューは、いまの99件のまま。
+`config/curricula/intelligent_informatics/2025.json` は `number_patterns` を1つも持たず、科目も99件（すべて専門）。パターンが無いので絞り込みは1件も落とさず、名簿の「パターンで `Course` を拾う」も効かない。2025年度の学生のメニューは、便覧の99件のままではなく、実測で **111件** になる(この設計の最初の版は99件と書いていたが、実測と違った)。
+
+内訳として、うち12組は同じ番号で綴りの違う重複表示になる(例: `知能212` の「ソフトウエア開発演習I」と「ソフトウエア開発演習Ⅰ」)。原因は2つの組み合わせで、`CourseDirectory#entry_for` が同じ番号で名前が違う `Course` 行を2件とも出すこと(R3 どおりの意図した挙動)と、`db/course_master.json` が2024・2025の便覧の科目を混ぜていること。判定は番号で振り替えるので、判定の数字は動かない。**表示だけの問題**として残す。
 
 壊れではない（便覧に登録された科目は名簿が最優先で出す）。受け入れ条件に「2024年度で175件に減ること」は書くが、「2025年度で減ること」は書かない。2025年度にパターンを入れるかどうかは、この設計の外。
 

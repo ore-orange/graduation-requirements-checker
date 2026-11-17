@@ -9,7 +9,9 @@
                   method: :post, class: 'cr-btn', params: { rev: review.droppable_revision },
                   form: { data: { turbo: false } },
                   data: { turbo_confirm: "番号から区分が決まり、読みとも一致する#{review.droppable_count}科目を、科目表から外します" \
-                                         "(うち#{review.droppable_confirmed_count}科目は確認済みです)。外した科目は戻せません。よろしいですか。" } %>
+                                         "(うち#{review.droppable_confirmed_count}科目は確認済みです)。外した科目は戻せません。" \
+                                         "その年度の時間割をまだ取り込んでいなければ、外した科目は学生の科目表と「便覧から選択」からも消えます。" \
+                                         'よろしいですか。' } %>
     <span>番号から区分が決まり、読みとも一致する科目です。うち<%= review.droppable_confirmed_count %>科目は確認済みです。</span>
   </div>
 <% end %>

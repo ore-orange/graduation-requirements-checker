@@ -44,6 +44,8 @@ module CurriculumImport
                        '(既にパターンがあるか、候補にする根拠が足りません)。', 'category', key)
         end
 
+        # 注意: 採用のあとで区分の欄から number_patterns を消すこともできる(画面の操作)。そのとき、採用で外した科目は
+        # 未確認の状態で戻り、確認の印は戻らない(外した行は残っていないので、人が付けた確認は復元できない)。
         category['number_patterns'] = patterns
         @touched << ['category', key]
         mark(category, true)

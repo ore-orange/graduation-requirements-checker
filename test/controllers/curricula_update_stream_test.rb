@@ -140,14 +140,14 @@ class CurriculaUpdateStreamTest < ActionDispatch::IntegrationTest
 
     assert_select '#pages-save-result[data-save-warnings=?]', '[]'
     assert_select 'progress[data-read-pages-target=bar]'
-    assert_select "button[data-page-wizard-target=commit][data-action*='read-pages#saveAndRead']:not([disabled])"
+    assert_select "button[data-read-pages-target=commit][data-action*='read-pages#saveAndRead']:not([disabled])"
   end
 
   test 'APIキーが無いときは、読み取る押しボタンを使えないままにする' do
     draft = draft()
     CurriculumReader.stub(:available?, false) { show(draft) }
 
-    assert_select 'button[data-page-wizard-target=commit][disabled]'
+    assert_select 'button[data-read-pages-target=commit][disabled]'
   end
 end
 

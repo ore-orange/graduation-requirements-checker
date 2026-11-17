@@ -301,7 +301,8 @@ module CurriculumImport
       adopted = input.categories.map do |category|
         category['key'] == category_key ? category.merge('number_patterns' => patterns) : category
       end
-      { 'categories' => adopted, 'courses' => input.courses }
+      # rules も渡す。CourseFilter が grouped_max の欄を規則から読むので、無いと保護が効かず、実際に外れる件数と食い違う。
+      { 'categories' => adopted, 'courses' => input.courses, 'rules' => input.document['rules'] }
     end
 
     def input
