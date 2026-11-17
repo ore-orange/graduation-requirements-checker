@@ -21,12 +21,29 @@ class GraduationAssessmentFilteredTest < ActiveSupport::TestCase
     GraduationGolden.cases(full).each do |name, arguments|
       expected = GraduationAssessment.new(curriculum: full).call(**rekey(arguments, full))
       actual = GraduationAssessment.new(curriculum: filtered).call(**rekey(arguments, filtered))
+      assert_counted(name, expected, actual)
       assert_equal GraduationGolden.snapshot(expected.actual), GraduationGolden.snapshot(actual.actual), name
       assert_equal GraduationGolden.snapshot(expected.projected), GraduationGolden.snapshot(actual.projected), name
     end
   end
 
   private
+
+  # 比べているものが本物の判定であることを押さえる。両側が揃って崩れると、一致だけを見る assert は通ってしまう。
+  # `GraduationGolden.completed_entry` の `number:` が失われると、rekey は両側の全科目を "unmatched:N" に潰し、
+  # 両側が全件「要確認」に落ちたまま一致する。科目数の assert も golden テストも、そこでは止まらない。
+  #
+  # clean_single_path は便覧どおりに履修を揃えたケースで、絞り込む前は「卒業できます」になる。絞り込んだ側も
+  # satisfied であれば、履修が科目番号を運び、科目表から外した科目が番号パターンで算入されている。
+  # 絞り込みの穴で最初に壊れたのも、このケース(satisfied → needs_review)。
+  def assert_counted(name, expected, actual)
+    return unless name == 'clean_single_path'
+
+    assert_equal 'satisfied', GraduationGolden.snapshot(expected.actual)['status'],
+                 "#{name}: 絞り込む前が satisfied でなければ、比較の基準が本物の判定ではない"
+    assert_equal 'satisfied', GraduationGolden.snapshot(actual.actual)['status'],
+                 "#{name}: 絞り込んだ側が satisfied でなければ、科目表から外した科目が算入されていない"
+  end
 
   # 候補をすべて採用した便覧。手順は RequirementsEdit::PatternAdoption と同じで、候補を区分の number_patterns に
   # 入れてから CoursePrune で科目表から外す(絞り込みの規則をテスト側で書き直さない)。
