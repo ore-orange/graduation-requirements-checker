@@ -29,8 +29,10 @@ services:
       DATABASE_USER: postgres
       DATABASE_PASSWORD: password
       RAILS_ENV: development
-      # ホスト側ポートをloopbackに限定したDockerプロキシ経由のローカルデモ。
-      LOCAL_DEMO_PROXY: "1"
+      # Googleログインの資格情報。値は .env に置く（Gitに入れない）。
+      # 未設定でも起動はできる。その場合Googleログインのボタンだけが出ない。
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     volumes:
       # ソースをマウントしてホストの編集を即反映
       - .:/app

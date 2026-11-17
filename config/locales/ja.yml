@@ -2,18 +2,34 @@ ja:
   errors:
     # 日本語では属性名と本文の間に空白を入れない
     format: "%{attribute}%{message}"
+    # rails-i18n は入れていないので、画面に出る組み込みのメッセージだけ訳す。
+    messages:
+      blank: を入力してください
+      taken: はすでに使われています
+      invalid: の形式が正しくありません
+      confirmation: は%{attribute}と一致しません
+      too_long: は%{count}文字以内にしてください
   activerecord:
     models:
       student: 学生
+      user: 利用者
       student_program_assignment: コース所属
     attributes:
       student:
         admission_year: 入学年度
+      user:
+        email: メールアドレス
+        password: パスワード
+        password_confirmation: パスワード（確認）
       student_program_assignment:
         assigned_at: 所属開始日
         ended_at: 所属終了日
     errors:
       models:
+        user:
+          attributes:
+            base:
+              no_credential: パスワードかGoogleアカウントのどちらかが必要です
         student:
           attributes:
             admission_year:

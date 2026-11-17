@@ -11,8 +11,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   setup do
     travel_to Date.new(2026, 10, 26)
     host! 'localhost'
-    DemoData.load!
-    @student = DemoAccount.student
+    SampleStudent.load!
+    @student = SampleStudent.student
     @student.planned_courses.delete_all
     sign_in_as(@student.user)
     @curriculum = CurriculumRepository.find(curriculum: 'intelligent_informatics', admission_year: 2024)
@@ -264,20 +264,19 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :see_other
   end
 
-  test '学籍情報のないユーザーには初期設定の案内を出し、データを作らない' do
+  test '学籍情報のないユーザーは登録画面へ送り、データを作らない' do
     sign_out
     sign_in_as(User.create!(email: 'no-student@example.test', password: 'a-test-password'))
 
     assert_no_difference ['Student.count', 'StudentCourse.count', 'PlannedCourse.count'] do
       get root_path
     end
-    assert_response :service_unavailable
-    assert_select '[data-assessment]', count: 0
+    assert_redirected_to new_student_path
 
     assert_no_difference 'PlannedCourse.count' do
       post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }
     end
-    assert_response :service_unavailable
+    assert_redirected_to new_student_path
   end
 
   test 'カリキュラムを登録していない学科では初期設定の案内を出す' do
