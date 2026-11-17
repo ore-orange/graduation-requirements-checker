@@ -13,7 +13,7 @@ class StudentProgramAssignment < ApplicationRecord
     return if ended_at.nil?
     return if assigned_at.present? && ended_at >= assigned_at
 
-    errors.add(:ended_at, 'must be on or after assigned_at')
+    errors.add(:ended_at, :before_assigned_at)
   end
 end
 

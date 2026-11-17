@@ -10,7 +10,7 @@ runner の権限を「指定したSHAをデプロイする」ことだけに絞�
 main へ push → CI 成功 → Deploy ワークフロー
   ├─ build  (ubuntu-latest) イメージを ghcr.io に push (:latest と :<SHA>)
   └─ deploy (self-hosted)   sudo /usr/local/bin/grc-deploy <SHA>
-                              └─ pull → db:migrate → up -d → ヘルスチェック
+                              └─ pull → db:migrate → master:load → up -d → ヘルスチェック
 ```
 
 - runner は専用ユーザー `grc-runner` で動く。`docker` / `sudo` グループには入れない。

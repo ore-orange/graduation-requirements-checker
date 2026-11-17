@@ -8,19 +8,20 @@ class GraduationDataTest < ActiveSupport::TestCase
   setup do
     @faculty = Faculty.create!(name: 'テスト学部')
     @department = Department.create!(faculty: @faculty, name: 'テスト学科')
+    @program = Program.create!(department: @department, name: 'テストコース')
     @user = User.create!(email: 'student@example.test', password: 'a-test-password')
-    @student = Student.create!(user: @user, department: @department, admission_year: 2024)
-    @program = Program.create!(department: @department, name: 'テストプログラム')
+    @student = Student.create!(user: @user, program: @program, admission_year: 2024)
     @course = Course.create!(course_number: 'TEST-01', name: 'テスト科目', credits: 2)
   end
 
-  test 'associations work and students may have no assigned program' do
+  test 'associations work and students start with no assignment history' do
     assert_equal @student, @user.student
     assert_equal @faculty, @student.department.faculty
     assert_includes @faculty.departments, @department
     assert_includes @department.programs, @program
     assert_includes @department.students, @student
-    assert_empty @student.programs
+    assert_equal @program, @student.program
+    assert_empty @student.student_program_assignments
   end
 
   test 'email is normalized and unique regardless of case' do
@@ -45,10 +46,10 @@ class GraduationDataTest < ActiveSupport::TestCase
   end
 
   test 'one student per user is enforced by model and database' do
-    assert_not Student.new(user: @user, department: @department, admission_year: 2025).valid?
+    assert_not Student.new(user: @user, program: @program, admission_year: 2025).valid?
     assert_raises(ActiveRecord::RecordNotUnique) do
       Student.transaction(requires_new: true) do
-        Student.insert_all!([{ user_id: @user.id, department_id: @department.id, admission_year: 2025 }])
+        Student.insert_all!([{ user_id: @user.id, program_id: @program.id, admission_year: 2025 }])
       end
     end
   end
@@ -78,12 +79,12 @@ class GraduationDataTest < ActiveSupport::TestCase
     previous = @student.student_program_assignments.create!(program: @program, status: 'test-ended',
                                                             assigned_at: Time.zone.local(2024, 4, 1),
                                                             ended_at: Time.zone.local(2025, 3, 31))
-    next_program = Program.create!(department: @department, name: '別テストプログラム')
+    next_program = Program.create!(department: @department, name: '別テストコース')
     current = @student.student_program_assignments.create!(program: next_program, status: 'test-assigned',
                                                            assigned_at: Time.zone.local(2025, 4, 1))
     assert_equal [previous, current], @student.student_program_assignments.order(:assigned_at).to_a
     assert_includes @program.students, @student
-    assert_includes @student.programs, next_program
+    assert_includes @student.student_program_assignments.map(&:program), next_program
     assert @student.student_program_assignments.new(program: @program, status: 'test-pending').valid?
   end
 
@@ -103,9 +104,9 @@ class GraduationDataTest < ActiveSupport::TestCase
     [
       [Department, { faculty_id: -1, name: 'test' }],
       [Program, { department_id: -1, name: 'test' }],
-      [Student, { user_id: -1, department_id: @department.id, admission_year: 2024 }],
+      [Student, { user_id: -1, program_id: @program.id, admission_year: 2024 }],
       [Student,
-       { user_id: User.create!(email: 'other@example.test', password: 'a-test-password').id, department_id: -1,
+       { user_id: User.create!(email: 'other@example.test', password: 'a-test-password').id, program_id: -1,
          admission_year: 2024 }],
       [StudentCourse, { student_id: -1, course_id: @course.id, academic_year: 2024 }],
       [StudentCourse, { student_id: @student.id, course_id: -1, academic_year: 2024 }],
@@ -137,7 +138,7 @@ class GraduationDataTest < ActiveSupport::TestCase
       @course.class.transaction(requires_new: true) { @course.update_columns(name: nil) }
     end
     assert_raises(ActiveRecord::NotNullViolation) do
-      @student.class.transaction(requires_new: true) { @student.update_columns(department_id: nil) }
+      @student.class.transaction(requires_new: true) { @student.update_columns(program_id: nil) }
     end
   end
 

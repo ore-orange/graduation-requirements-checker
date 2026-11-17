@@ -2,9 +2,10 @@
 
 class Program < ApplicationRecord
   belongs_to :department
+  has_many :students, dependent: :restrict_with_error
+  # コース変更の履歴を持たせるための表。いまは未使用。
   has_many :student_program_assignments, dependent: :restrict_with_error
-  has_many :students, through: :student_program_assignments
 
-  validates :name, presence: true
+  validates :name, presence: true, uniqueness: { scope: :department_id }
 end
 
