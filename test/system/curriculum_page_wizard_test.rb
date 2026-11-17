@@ -317,6 +317,66 @@ class CurriculumPageWizardTest < ApplicationSystemTestCase
     assert_empty reader.calls
   end
 
+  test '「全部読む」も、保存してから読む(未保存の選択が、読み取りで保存値に戻らない)' do
+    first_page_is_requirements
+    reader = StubReader.new
+    with_reader(reader) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '科目表', '読まない', '読まない', '読まない' # 2ページ目の科目表は、まだ保存していない選択
+      click_on '全部読む'
+
+      assert_text '読み取りが終わりました。'
+    end
+
+    assert_equal %w[requirements courses skip skip skip], kinds
+    assert_equal %w[read read pending pending pending], statuses
+    assert_equal %w[p1.png p2.png], reader.calls
+  end
+
+  test '読み取りが終わったら、進み具合の見出しは「読み取り中」のままにしない' do
+    with_reader(StubReader.new) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '読まない', '読まない', '読まない', '読まない'
+      click_on 'この指定で読み取る(1ページ)'
+
+      assert_text '読み取りが終わりました。'
+      assert_text '読み取り済み'
+      assert_no_text '読み取り中'
+      assert_text '1 / 1 ページ'
+    end
+  end
+
+  # 読み取り中に画面を離れて戻る。離れ方は、Turbo の遷移(画面のキャッシュを復元)と、Turbo を通らない遷移(ブラウザの復元)の2通り。
+  def assert_sections_touchable
+    assert_selector '#requirements_review'
+    assert_no_selector '[inert]'
+    assert_no_selector '[data-reading-note]'
+    assert_no_selector 'progress', visible: :visible
+  end
+
+  def leave_while_reading
+    with_reader(StubReader.new(delay: 3)) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '読まない', '読まない', '読まない', '読まない'
+      click_on 'この指定で読み取る(1ページ)'
+      assert_selector '#requirements_review[inert]'
+      yield
+      go_back
+      assert_sections_touchable
+    end
+  end
+
+  test '読み取り中に Turbo の遷移で別の画面へ移って戻っても、②③④の節は触れる状態に戻る' do
+    leave_while_reading do
+      click_on '卒業要件の確認'
+      assert_current_path(%r{/requirements})
+    end
+  end
+
+  test '読み取り中にブラウザの遷移で別の画面へ移って戻っても、②③④の節は触れる状態に戻る' do
+    leave_while_reading { visit requirements_path }
+  end
+
   test '保存できなかったときは、読み取りに進まず、理由を一覧の上に出す' do
     reader = StubReader.new
     with_reader(reader) do
@@ -332,6 +392,12 @@ class CurriculumPageWizardTest < ApplicationSystemTestCase
     end
 
     assert_empty reader.calls
+  end
+
+  def first_page_is_requirements
+    @curriculum.update!(pages: @curriculum.pages.map do |page|
+      page['page'] == 1 ? page.merge('kind' => 'requirements') : page
+    end)
   end
 
   # 1ページ目が、読み取りの結果(規則 humanities)を持つ要件表になっている下書き。

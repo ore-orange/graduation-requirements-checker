@@ -10,22 +10,49 @@ const READ_TIMEOUT_MS = 10 * 60 * 1000
 const LOCKED_SECTIONS = ["requirements_review", "course-review", "publish"]
 
 export default class extends Controller {
-  static targets = ["all", "one", "commit", "message", "progressBox", "bar", "count", "elapsed", "done"]
+  static targets = ["all", "one", "commit", "message", "progressBox", "bar", "count", "elapsed", "done", "heading"]
+
+  // 画面を離れたあとも、タイマーと inert を残さない。Turbo は遷移の前(turbo:before-cache)の画面を保存し、「戻る」でそれを復元する。
+  // 読み取りの途中の見た目(inert・薄い見た目・進捗の箱)のまま保存されると、復元した画面で②③④が触れないまま残る。
+  // 復元された画面は、必ず触れる状態から始める(connect)。
+  connect() {
+    this.connected = true
+    this.beforeCache = this.beforeCache.bind(this)
+    this.onPageShow = (event) => { if (event.persisted) this.resetReadingState() }
+    document.addEventListener("turbo:before-cache", this.beforeCache)
+    // Turbo を通らない遷移で離れた画面を「戻る」で復元したとき(bfcache)は、connect が走らないので、ここで整える。
+    window.addEventListener("pageshow", this.onPageShow)
+    this.resetReadingState()
+  }
+
+  disconnect() {
+    this.connected = false
+    document.removeEventListener("turbo:before-cache", this.beforeCache)
+    window.removeEventListener("pageshow", this.onPageShow)
+    this.stopTimer()
+  }
+
+  beforeCache() {
+    this.stopTimer()
+    this.resetReadingState()
+  }
+
+  resetReadingState() {
+    this.lockSections(false)
+    if (this.hasProgressBoxTarget) this.progressBoxTarget.hidden = true
+    if (this.hasDoneTarget) this.doneTarget.hidden = true
+  }
 
   readOne(event) {
     const row = event.currentTarget.closest("[data-read-url]")
     return this.readRows([row])
   }
 
-  // 読み終わっていない(未読か失敗)、読む種別のページを、要件表 → 科目表の順に、ページ番号順で読む。
-  readAll() {
-    return this.readRows(this.rowsToRead())
-  }
-
-  // 一覧の「この指定で読み取る」。保存してから読む(順を逆にしない)。
+  // 一覧の「この指定で読み取る」と、「全部読む」。保存してから読む(順を逆にしない)。
   // 1ページ読むたびにその行が差し替わり、そのとき保存していないラジオの選択は保存値に戻る。先に読み始めると、人が選んだ指定が消える。
   // 警告(読み取り結果を外す・人が直したものがあるページを読み直す)は、保存の応答がサーバーの保存済みの内容から作って返す。
   // 保存前の状態から画面で作ると、同じ判断を画面にも持つことになる。
+  // 読むのは、読み終わっていない(未読か失敗)、読む種別のページを、要件表 → 科目表の順に、ページ番号順で。
   async saveAndRead() {
     if (this.busy) return
     this.setBusy(true)
@@ -40,12 +67,12 @@ export default class extends Controller {
       this.show(["ページの指定を保存しました。読み取るページ(要件表・科目表)が選ばれていないので、読み取りは始めませんでした。", ...saved.warnings].join("\n"))
       return this.setBusy(false)
     }
-    if (saved.warnings.length > 0 && !window.confirm(saved.warnings.join("\n\n"))) {
-      this.show("ページの指定は保存しました。読み取りは始めませんでした。")
-      return this.setBusy(false)
-    }
     if (rows.length === 0) {
       this.show("ページの指定を保存しました。読むページはすべて読み取り済みです。読み直すときは、行の「読み直す」を押してください。")
+      return this.setBusy(false)
+    }
+    if (saved.warnings.length > 0 && !window.confirm(saved.warnings.join("\n\n"))) {
+      this.show("ページの指定は保存しました。読み取りは始めませんでした。")
       return this.setBusy(false)
     }
     this.setBusy(false)
@@ -135,6 +162,7 @@ export default class extends Controller {
     this.setBusy(true)
     this.clearDone()
     this.lockSections(true)
+    this.headingTarget.textContent = "読み取り中"
     this.progressBoxTarget.hidden = false
     let failed = 0
     try {
@@ -144,17 +172,24 @@ export default class extends Controller {
       }
     } finally {
       this.stopTimer()
-      this.progress(jobs.length, jobs.length)
-      this.lockSections(false)
-      this.setBusy(false)
+      // 読み取りの途中で画面を離れていれば、触れる画面はもう無い(復元された画面は connect が整える)。
+      if (this.connected) this.finishReading(jobs.length, failed)
     }
+  }
+
+  // 終わりの後始末。例外で抜けたときも通る(秒数や「読み取り中」を残さない)。
+  finishReading(total, failed) {
+    this.progress(total, total)
+    this.headingTarget.textContent = "読み取り済み"
     this.elapsedTarget.textContent = ""
+    this.lockSections(false)
+    this.setBusy(false)
     let message = failed === 0 ? "読み取りが終わりました。" : `読み取りが終わりました(${failed}ページは読めませんでした。行の表示を確認してください)。`
-    if (failed < jobs.length) message += "読み取った結果は、画面を開き直すと下の節に出ます。"
+    if (failed < total) message += "読み取った結果は、画面を開き直すと下の節に出ます。"
     this.show(message)
     // 下の要件表と注釈は、このページを開いたときの内容のまま。読み取った結果を見るには、開き直す必要がある。
     // (古い表のまま直しても、保存のときに弾かれる。中身を取り違えて書き込むことはない)
-    if (failed < jobs.length) this.doneTarget.hidden = false
+    if (failed < total) this.doneTarget.hidden = false
   }
 
   // 「要件表の確認へ」: 画面を開き直して②へ飛ぶ。

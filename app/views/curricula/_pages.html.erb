@@ -24,7 +24,7 @@
       <% end %>
     </div>
     <% if reader_available && curriculum.pages.any? { |page| Curriculum::READABLE_PAGE_KINDS.include?(page['kind']) } %>
-      <button type="button" class="demo-button" data-read-pages-target="all" data-action="click->read-pages#readAll">全部読む</button>
+      <button type="button" class="demo-button" data-read-pages-target="all" data-action="click->read-pages#saveAndRead">全部読む</button>
     <% end %>
   </div>
   <p class="px-5 pt-3 text-xs font-medium text-slate-700 sm:px-6" role="status" aria-live="polite"
@@ -32,7 +32,7 @@
   <%# 読み取り中の進み具合。止まって見えないよう、バーと「n / m ページ」と、いまのページの経過秒数(1秒ごと)を出す。 %>
   <div hidden data-read-pages-target="progressBox" class="px-5 pt-2 sm:px-6">
     <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-      <span class="text-sm font-bold text-slate-900">読み取り中</span>
+      <span class="text-sm font-bold text-slate-900" data-read-pages-target="heading">読み取り中</span>
       <progress value="0" max="1" data-read-pages-target="bar" class="h-3 w-full max-w-md flex-1 accent-slate-800" aria-label="読み取りの進み具合"></progress>
       <span class="text-sm font-semibold tabular-nums text-slate-800" data-read-pages-target="count"></span>
     </div>
