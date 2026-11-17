@@ -82,18 +82,65 @@ class DemoDataTest < ActiveSupport::TestCase
   end
 
   test 'unverified source credits stay unknown rather than being fabricated' do
-    document = curriculum
     number = demo_enrollments.first.fetch('course_number')
-    entry = document.fetch('courses').find { |course| course.fetch('number') == number }
-    entry['credits'] = nil
-    published_curriculum.update!(document: document)
-    student = DemoData.load!.first
+    master = course_master
+    entry = master.find { |course| course.fetch('number') == number }
+    with_course_master(master.map { |course| course.equal?(entry) ? course.merge('credits' => nil) : course }) do
+      student = DemoData.load!.first
 
-    course = Course.find_by!(course_number: number, name: entry.fetch('name'))
-    assert_nil course.credits
-    current = student.student_courses.create!(course: course, academic_year: 2025, enrollment_status: 'registered')
-    assert_nil current.assessment_entry.fetch(:credits)
-    assert_nil current.assessment_entry.fetch(:approved)
+      course = Course.find_by!(course_number: number, name: entry.fetch('name'))
+      assert_nil course.credits
+      current = student.student_courses.create!(course: course, academic_year: 2025, enrollment_status: 'registered')
+      assert_nil current.assessment_entry.fetch(:credits)
+      assert_nil current.assessment_entry.fetch(:approved)
+    end
+  end
+
+  test 'デモの投入で、course_master.json の科目が Course になる' do
+    DemoData.load!
+
+    course_master.each do |entry|
+      course = Course.find_by(course_number: entry.fetch('number'), name: entry.fetch('name'))
+      assert_not_nil course, "#{entry['number']} #{entry['name']} が Course に無い"
+      assert_equal entry.fetch('credits'), course.credits&.to_i
+    end
+    assert_equal course_master.size, Course.count
+  end
+
+  test '同じ番号・名前の行は1件にまとまる' do
+    keys = course_master.map { |entry| entry.values_at('number', 'name') }
+
+    assert_equal keys.uniq, keys
+    assert_equal course_master.pluck('number').sort, course_master.pluck('number')
+
+    # 重複を含む種ファイルでも、Course は(番号, 名前)ごとに1件になる。
+    duplicated = [{ 'number' => 'TEST900', 'name' => '重複科目', 'credits' => 2 },
+                  { 'number' => 'TEST900', 'name' => '重複科目', 'credits' => 4 }]
+    with_course_master(duplicated) do
+      DemoData.send(:import_courses)
+      assert_equal 1, Course.where(course_number: 'TEST900', name: '重複科目').count
+      assert_equal 2, Course.find_by!(course_number: 'TEST900').credits
+    end
+  end
+
+  test 'デモ学生の履修が、すべて Course に当たる' do
+    numbers = course_master.pluck('number')
+
+    assert_equal 48, demo_enrollments.size
+    assert_empty demo_enrollments.pluck('course_number') - numbers
+    assert_empty demo_enrollments(2025).pluck('course_number') - numbers
+    assert_nothing_raised { DemoData.load! }
+  end
+
+  test '便覧の courses を空にしても、デモの投入が通る' do
+    Curriculum.find_each do |curriculum|
+      curriculum.update!(document: curriculum.document.merge('courses' => []))
+    end
+
+    students = nil
+    assert_nothing_raised { students = DemoData.load! }
+    assert_equal 2, students.size
+    assert_equal 48, students.first.student_courses.count
   end
 
   test 'demo enrollments point at courses by number, and every number is in the handbook' do
@@ -167,6 +214,27 @@ class DemoDataTest < ActiveSupport::TestCase
 
   def curriculum(year = 2024)
     published_curriculum(year).document
+  end
+
+  def course_master
+    JSON.parse(Rails.root.join(DemoData::COURSE_MASTER_FILE).read)
+  end
+
+  # 種ファイルの中身を差し替えて、ブロックの間だけ使う。
+  def with_course_master(entries)
+    Tempfile.create(['course_master', '.json']) do |file|
+      file.write(JSON.generate(entries))
+      file.flush
+      original = DemoData::COURSE_MASTER_FILE
+      DemoData.send(:remove_const, :COURSE_MASTER_FILE)
+      DemoData.const_set(:COURSE_MASTER_FILE, file.path)
+      begin
+        yield
+      ensure
+        DemoData.send(:remove_const, :COURSE_MASTER_FILE)
+        DemoData.const_set(:COURSE_MASTER_FILE, original)
+      end
+    end
   end
 
   def demo_enrollments(year = 2024)

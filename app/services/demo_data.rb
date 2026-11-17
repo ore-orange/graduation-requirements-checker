@@ -9,6 +9,10 @@ class DemoData
     2025 => 'db/demo_enrollments_2025.json'
   }.freeze
 
+  # デモの Course の種。便覧の文書ではなく、このファイルから作る(rake course_master:build で作り直す)。
+  # 形は [{ "number", "name", "credits" }, ...]。
+  COURSE_MASTER_FILE = 'db/course_master.json'
+
   # 設定されているデモ学生のうち、便覧が公開済みのものだけを投入する。戻り値は実際に投入した学生の配列
   # (DemoAccount.students と要素数が一致しないことがある)。全員まとめて1つのトランザクションにし、
   # どれか1人でも既存データと衝突すれば全体を巻き戻す(一部だけ作られた中途半端な状態を残さない)。
@@ -31,19 +35,21 @@ class DemoData
 
       enrollments = JSON.parse(Rails.root.join(ENROLLMENT_FILES.fetch(definition.admission_year)).read)
                         .fetch('enrollments')
-      courses = import_courses(curriculum.document.fetch('courses'))
+      courses = import_courses
       student = find_or_create_student(definition, curriculum)
       import_enrollments(student, courses, enrollments)
       student
     end
 
-    # 科目番号の無い科目は、履修や予定から引き当てる手がかりが無いので作らない。
+    # 科目は便覧の文書ではなく種ファイル(COURSE_MASTER_FILE)から作る。便覧が持つ科目は「科目番号から区分が
+    # 決まらないもの」だけに絞られていて、デモ学生の履修を引き当てるには足りないため。
     # 時間割の取り込みと同じく (科目番号, 科目名) で行を探す。同じ番号で名前だけ違う行は別の行になる。
     # 単位数は最初に取り込んだ便覧の値を正とする(先着優先)。2024年度と2025年度の便覧には(科目番号, 科目名)が
     # 一致する行が57件あり、後から読む便覧の値で無条件に上書きすると、片方の便覧で単位数を「未確認」にしていても
     # もう片方の便覧が読み込まれた瞬間に値が復活してしまう。
-    def import_courses(entries)
-      entries.select { |entry| entry['number'].present? }.to_h do |entry|
+    def import_courses
+      entries = JSON.parse(Rails.root.join(COURSE_MASTER_FILE).read)
+      entries.to_h do |entry|
         course = course_for(entry.fetch('number'), entry.fetch('name'))
         course.update!(credits: entry.fetch('credits')) if course.credits.nil?
         [course.course_number, course]
