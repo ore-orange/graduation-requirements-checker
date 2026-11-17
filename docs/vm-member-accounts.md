@@ -226,6 +226,36 @@ sudo sshd -t && echo "syntax ok"          # 何か出力されたら反映せず
 sudo systemctl reload ssh                  # いまの接続は切れない
 ```
 
+### エディタ(vi)で編集する場合
+
+`tee` の代わりに `vi` で書いてもよい。内容は同じ。
+
+```bash
+sudo vi /etc/ssh/sshd_config.d/00-disable-password.conf
+```
+
+1. **`i`** を押して、入力モードにする(画面下に `-- INSERT --` と出る)。
+2. 次の内容を入力(または貼り付け)する。
+
+   ```
+   # SSH はパスワードでは入れない。公開鍵だけにする。
+   PasswordAuthentication no
+   KbdInteractiveAuthentication no
+   PubkeyAuthentication yes
+   PermitRootLogin no
+   ```
+
+3. **`Esc`** を押して、入力モードを抜ける。
+4. **`:wq`** と入力して Enter。書き込んで終了する。
+   - 保存せずに終了するときは **`:q!`** と入力して Enter。
+
+そのあとの `sshd -t` と `reload` は、上のコードブロックと同じ。
+
+- 既存のファイル(`/etc/ssh/sshd_config` や `50-cloud-init.conf` の値)を直す場合も、同じ操作でよい。
+  ただし、`sshd_config.d` の中に `PasswordAuthentication yes` が残っていると、**そちらが先に読まれて優先される**。直したあとは、必ず `sudo sshd -T | grep -i '^passwordauthentication'` で、実際に `no` になっているか確認する。
+- Ubuntu の `vi` が簡易版(`vim-tiny`)だと、入力モードで矢印キーを押すと `A` `B` などの文字が入ることがある。その場合は `Esc` で抜けて、`h` `j` `k` `l` で移動するか、`:set nocompatible` と入力してから続ける。
+- 編集中に `sudo` を付け忘れて `vi` で開くと、`:wq` で保存できない(`E45: 'readonly' option is set` など)。`:q!` で抜けて、`sudo vi` で開き直す。
+
 | 行 | 意味 |
 |---|---|
 | `PasswordAuthentication no` | パスワード認証を無効にする |
