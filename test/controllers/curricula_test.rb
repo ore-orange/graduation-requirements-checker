@@ -610,6 +610,65 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     assert_select "##{ActionView::RecordIdentifier.dom_id(curriculum, 'page_1')} img", false
   end
 
+  # ---- 手順①は、1ページずつ見て選ぶ(設計書 §6-1)。1枚表示にするのは Stimulus で、HTML は全ページぶんを出す ----
+
+  test '1ページ目の画像が、1枚表示用に大きく出る' do
+    curriculum = draft(pages: blank_pages(2))
+    FileUtils.mkdir_p(curriculum.images_dir)
+    File.binwrite(curriculum.images_dir.join('p1.png'), 'x')
+
+    get curriculum_path(curriculum), env: ENV_LOCAL
+
+    row = "##{ActionView::RecordIdentifier.dom_id(curriculum, 'page_1')}"
+    assert_select "#{row} img[data-show~=wizard][src=?][width=600]", page_image_curriculum_path(curriculum, page: 1)
+    assert_select "#{row} img[data-show~=list][width=64]"
+    assert_select 'section[data-controller~=page-wizard][data-controller~=read-pages]'
+  ensure
+    FileUtils.rm_rf(curriculum.images_dir)
+  end
+
+  test '3択のラジオが、すべてのページぶん HTML に入っている' do
+    curriculum = draft(pages: blank_pages(4))
+
+    get curriculum_path(curriculum), env: ENV_LOCAL
+
+    assert_select 'form[action=?] input[type=radio]', curriculum_path(curriculum), count: 12
+    (1..4).each do |number|
+      Curriculum::PAGE_KINDS.each do |kind|
+        assert_select 'input[type=radio][name=?][value=?]', "pages[#{number}]", kind
+      end
+    end
+    # JavaScript が無ければ、いまと同じ一覧として保存できる
+    assert_select 'form input[type=submit][value=?]', 'ページの指定を保存'
+    assert_select 'noscript style'
+  end
+
+  test 'ページ画像が無い下書きでは、取り出した文字の冒頭200字を代わりに出す' do
+    curriculum = draft(pages: Curriculum.blank_pages(2, texts: ['あ' * 300, nil]))
+
+    get curriculum_path(curriculum), env: ENV_LOCAL
+
+    row = "##{ActionView::RecordIdentifier.dom_id(curriculum, 'page_1')}"
+    assert_select "#{row} img", false
+    assert_select "#{row} [data-show~=wizard][data-page-text]" do |nodes|
+      text = nodes.first.text
+      assert_includes text, 'あ' * 200
+      assert_not_includes text, 'あ' * 201
+    end
+    page_two = "##{ActionView::RecordIdentifier.dom_id(curriculum, 'page_2')}"
+    assert_select "#{page_two} [data-page-text]", text: /文字を取り出せませんでした/
+  end
+
+  test 'ページが1件も無い下書きでは、ページ数を指定する欄を出し、1枚表示は出さない' do
+    curriculum = draft(pages: [])
+
+    get curriculum_path(curriculum), env: ENV_LOCAL
+
+    assert_select 'input[name=page_count]'
+    assert_select 'section[data-controller~=page-wizard]', false
+    assert_select 'input[type=radio][name^="pages["]', false
+  end
+
   test '/requirements は、選ぶまで何も出さず、下書きは選んだ組み合わせから辿る。アップロードの入口もある' do
     mine = draft
     other = Curriculum.create!(slug: 'other', admission_year: 2026, faculty_name: '工学部', department_name: 'X',

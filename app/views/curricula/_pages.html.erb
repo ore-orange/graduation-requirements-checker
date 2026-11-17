@@ -1,14 +1,20 @@
 <%# どのページを読むかは、便覧ごとに人が決める。初めはすべて「読まない」にしてあり、推測では決めない。 %>
+<%#
+  サーバーは全ページぶんの行を出す。1枚表示にするのは page-wizard(Stimulus)で、いまのページ以外を隠すだけ。
+  ブラウザのページ内検索が隠れた行にも届くように、遅延読み込みにはしない(科目表の確認画面と同じ判断)。
+  種別の選択はラジオの値を書き換えるだけで、送信しない。保存は一覧の「この指定で読み取る」で1回だけ(Task 13)。
+%>
 <%# 読み取りは1ページずつ、画面から順に呼ぶ(要件表を先に)。バックグラウンドの仕組みは使わない。 %>
 <% reader_available = CurriculumReader.available? %>
-<section aria-labelledby="pages-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs"
-         data-controller="read-pages">
+<section id="pages-section" aria-labelledby="pages-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs"
+         data-controller="read-pages<%= ' page-wizard' unless curriculum.pages.empty? %>"
+         <% unless curriculum.pages.empty? %>data-page-wizard-total-value="<%= curriculum.pages.size %>"<% end %>>
   <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
     <div class="min-w-0">
       <h3 id="pages-heading" class="text-base font-bold text-slate-900">① PDFを読み取る</h3>
       <p class="mt-0.5 text-sm text-slate-600">
         便覧PDFのページを1枚ずつAIに読ませます。どのページが要件表で、どのページが科目表かは便覧ごとに違うので、
-        サムネイルを見て指定してください。
+        1ページずつ見て、読まない・要件表・科目表のどれかを選んでください。最後に一覧で確認できます。
       </p>
       <% unless reader_available %>
         <p class="mt-1 text-sm text-slate-600">
@@ -37,13 +43,40 @@
       </div>
     <% end %>
   <% else %>
+    <%# JavaScript が動かないと1枚表示も一覧への切り替えもできない。そのときは一覧だけを出す(いまの画面と同じ形)。 %>
+    <noscript><style>#pages-section [data-show]:not([data-show~="nojs"]) { display: none !important; }</style></noscript>
     <%= form_with url: curriculum_path(curriculum), method: :patch, class: 'p-5 sm:p-6', data: { turbo: false } do |form| %>
-      <ul class="divide-y divide-slate-100">
+      <%# 1枚表示の頭: 何ページ目か %>
+      <p data-show="wizard" class="mb-3 text-sm font-semibold text-slate-900" role="status" aria-live="polite">
+        <span data-page-wizard-target="counter"></span>
+      </p>
+      <%# 一覧の頭: 指定の確認と件数 %>
+      <div data-show="list" class="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h4 class="text-sm font-bold text-slate-900">指定の確認</h4>
+        <p class="text-sm font-semibold text-slate-800" data-page-wizard-target="summary"></p>
+      </div>
+      <ul class="divide-y divide-slate-100" data-page-wizard-target="list">
         <% curriculum.pages.each do |page| %>
           <%= render 'page_row', curriculum: curriculum, page: page, reader_available: reader_available %>
         <% end %>
       </ul>
-      <div class="mt-4 flex justify-end">
+      <%# 1枚表示の足: 前へ・次へ・進み具合 %>
+      <div data-show="wizard" class="mt-4 space-y-3">
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  data-page-wizard-target="prev" data-action="click->page-wizard#prev">← 前へ</button>
+          <button type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  data-action="click->page-wizard#next">次へ →</button>
+          <p class="text-sm text-slate-700">指定済み <span data-page-wizard-target="progress"></span></p>
+        </div>
+        <p class="text-xs text-slate-600">キーボードの ← → で前後、1・2・3 で 読まない・要件表・科目表 を選べます。</p>
+        <button type="button" class="text-sm font-semibold text-slate-800 underline underline-offset-2"
+                data-action="click->page-wizard#showList">▸ 全ページを一覧で見る</button>
+      </div>
+      <%# 一覧の足。「この指定で読み取る」の送信は Task 13 が作る(いまは置くだけ)。保存は、それまで下の「ページの指定を保存」で行う。 %>
+      <div data-show="list nojs" class="mt-4 flex flex-wrap items-center justify-end gap-3">
+        <button type="button" disabled data-show="list" data-page-wizard-target="commit"
+                class="demo-button disabled:cursor-not-allowed disabled:opacity-50">この指定で読み取る(<span data-page-wizard-target="readCount"></span>ページ)</button>
         <%= form.submit 'ページの指定を保存', class: 'demo-button' %>
       </div>
     <% end %>
