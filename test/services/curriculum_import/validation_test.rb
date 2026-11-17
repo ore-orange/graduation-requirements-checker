@@ -1033,6 +1033,48 @@ module CurriculumImport
       assert(found.any? { |f| f[:target].start_with?('row_') }, 'target は id のまま')
     end
 
+    test '規則の conditions が配列でない形の問題は、規則の名前で言い、規則の id を出さない' do
+      document = broken do |d|
+        d['rules'] << rule('rule_ge_total', 'any_of', label: '共通教育の合計', options: 'こわれた')
+      end
+
+      found = finding_on(document, 'rule_ge_total の options', scope: :rule)
+
+      assert_equal ['共通教育の合計の選択肢'], found.pluck(:label).uniq
+      found.each do |f|
+        assert_includes f[:reason], '共通教育の合計の選択肢 は配列でなければなりません'
+        assert_not_includes shown_text(f), 'rule_ge_total'
+      end
+    end
+
+    test '章の rows が配列でない形の問題は、章の名前で言い、章の id を出さない' do
+      document = broken do |d|
+        d['display']['groups'] << { 'id' => 'g_common', 'title' => '共通教育の章', 'required_credits' => 1, 'rows' => 'こわれた' }
+      end
+
+      found = finding_on(document, 'display.groups[g_common].rows', scope: :display)
+
+      assert_equal ['章「共通教育の章」の行'], found.pluck(:label).uniq
+      found.each do |f|
+        assert_includes f[:reason], '章「共通教育の章」の行 は配列でなければなりません'
+        assert_not_includes shown_text(f), 'g_common'
+      end
+    end
+
+    test '入れ子の規則の欄が配列でない形の問題も、名前で言う。ハッシュでない要素の件数の文面も同じ' do
+      document = broken do |d|
+        d['rules'] << rule('rule_nest', 'any_of', label: '入れ子の親',
+                                                  options: [1, { 'type' => 'all_of', 'conditions' => 5 }])
+      end
+
+      found = findings_for(document).select do |f|
+        (f[:target].start_with?('rule_nest') && f[:reason].include?('配列')) || f[:reason].include?('ハッシュでない')
+      end
+
+      assert_operator found.size, :>=, 2, findings_for(document).pluck(:reason).inspect
+      found.each { |f| assert_no_match(/rule_nest|options|conditions/, shown_text(f)) }
+    end
+
     test 'label を渡さない指摘は、target をそのまま見せる文字にする' do
       findings = Validation::Findings.new
       findings.warning(:course, 'x', '理由')

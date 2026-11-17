@@ -174,22 +174,26 @@ module CurriculumImport
         @display = value.is_a?(Hash) ? value : {}
         @groups = list(display, 'groups', :display, 'display.groups')
         @subtotals = list(display, 'subtotals', :display, 'display.subtotals')
-        @rows = groups.flat_map { |group| list(group, 'rows', :display, "display.groups[#{group['id']}].rows") }
+        @rows = groups.flat_map do |group|
+          list(group, 'rows', :display, "display.groups[#{group['id']}].rows", "#{group_name(group['id'])}の行")
+        end
       end
 
       # nil は「無い」として空。配列以外と、ハッシュ以外の要素は読めないので外し、形の問題として残す。
-      def list(source, field, scope, name)
+      # name は置き場所(突き合わせ用。id を含みうる)。shown は人に見せる呼び名で、reason と label に使う。
+      # 規則や章の中の欄は、id ではなく名前で呼ぶ(shown を渡す)。固定の欄(courses など)は name のまま。
+      def list(source, field, scope, name, shown = name)
         value = source[field]
         return [] if value.nil?
-        return not_a_list(scope, name) unless value.is_a?(Array)
+        return not_a_list(scope, name, shown) unless value.is_a?(Array)
 
         broken = value.grep_v(Hash)
-        @shape_problems << [scope, name, "#{name} にハッシュでない要素が#{broken.size}件あります"] if broken.any?
+        @shape_problems << [scope, name, "#{shown} にハッシュでない要素が#{broken.size}件あります", shown] if broken.any?
         value.grep(Hash)
       end
 
-      def not_a_list(scope, name)
-        @shape_problems << [scope, name, "#{name} は配列でなければなりません"]
+      def not_a_list(scope, name, shown)
+        @shape_problems << [scope, name, "#{shown} は配列でなければなりません", shown]
         []
       end
 
@@ -214,7 +218,8 @@ module CurriculumImport
         return [node] unless nesting
 
         field, allowed = nesting
-        children = list(node.rule, field, :rule, "#{node.target} の #{field}")
+        children = list(node.rule, field, :rule, "#{node.target} の #{field}",
+                        "#{node_name(node)}の#{NESTED_NAMES.fetch(field, field)}")
         [node] + children.each_with_index.flat_map do |child, index|
           walk(Node.new(child, "#{node.target} の #{field}[#{index + 1}]", allowed, false, node, [field, index + 1]))
         end

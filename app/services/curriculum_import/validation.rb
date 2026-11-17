@@ -42,8 +42,8 @@ module CurriculumImport
 
     def run
       findings = Findings.new
-      @input.shape_problems.each do |scope, target, reason|
-        findings.blocking(scope, target, "#{reason}。読めない形のため、検査できません。", label: SHAPE_LABELS[target])
+      @input.shape_problems.each do |scope, target, reason, shown|
+        findings.blocking(scope, target, "#{reason}。読めない形のため、検査できません。", label: SHAPE_LABELS[target] || shown)
       end
       CHECKS.each { |checks| checks.new(@input, findings).run }
       probe(findings) unless findings.blocking?
