@@ -49,7 +49,8 @@ class CourseDirectory
   # 後者は RequirementsHelper#courses_by_category と同じ扱い。科目表は全科目が見える場であるべきなので、
   # 便覧に無い区分の科目も落とさず最後へ出す。
   def categories
-    present = entries_by_category.keys
+    # 区分の無い登録(壊れた下書き)は、並べ替えで落ちないよう、また区分の一覧に nil が出ないよう除く。
+    present = entries_by_category.keys.grep(String)
     (@category_keys & present) + (present - @category_keys).sort
   end
 

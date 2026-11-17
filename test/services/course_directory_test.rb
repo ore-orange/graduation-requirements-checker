@@ -140,6 +140,32 @@ class CourseDirectoryTest < ActiveSupport::TestCase
     assert_nil directory.find(nil)
   end
 
+  test 'category_for は、登録の区分と番号パターンの区分が食い違えば、登録の区分を返す' do
+    # 人文101 は番号パターンでは ge_humanities だが、登録は special とする
+    Course.create!(course_number: '人文101', name: '哲学')
+    directory = CourseDirectory.new(document(courses: [registered('人文101')]))
+
+    assert_equal 'special', directory.category_for('人文101')
+    assert_equal ['special'], directory.categories
+    assert_equal [], directory.in_category('ge_humanities')
+  end
+
+  test 'categories は、文書の区分の順が先で、文書に無い区分が末尾に並ぶ' do
+    Course.create!(course_number: '外101', name: '英語')
+    Course.create!(course_number: '人文101', name: '哲学')
+    docs = document(courses: [registered('知能1', 'category' => 'zz_extra'), registered('知能2', 'category' => 'aa_extra')])
+
+    assert_equal %w[ge_humanities foreign aa_extra zz_extra], CourseDirectory.new(docs).categories
+  end
+
+  test '区分の無い登録や区分が文字列でない登録があっても、categories は落ちない' do
+    Course.create!(course_number: '人文101', name: '哲学')
+    docs = document(courses: [registered('知能1', 'category' => nil), registered('知能2', 'category' => 'aa_extra'),
+                              registered('知能3', 'category' => 'zz_extra')])
+
+    assert_equal %w[ge_humanities aa_extra zz_extra], CourseDirectory.new(docs).categories
+  end
+
   test 'Course は1つのインスタンスの中で1回しか引かない' do
     Course.create!(course_number: '人文101', name: '哲学')
     directory = CourseDirectory.new(document)
