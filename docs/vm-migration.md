@@ -32,8 +32,9 @@ Phase C  確認と後片付け
 ## 事前に決めておくこと
 
 - **切り替えの方法**: 同じホスト名のDNSを新VMに向けるのか、IPアドレスを入れ替えるのか。
-- **TLS**: Let's Encrypt を使うなら、DNSが新VMを向いてからでないと証明書が取れない。
-  DNSのTTLを事前に短くしておく。学内専用の名前なら `tls internal` を使う(`deploy/Caddyfile` のコメント参照)。
+- **TLS**: 公開DNSにレコードがあるかで決まる(確認方法は 4)。
+  - 公開DNSにあり、80/443 が学外から届く → Let's Encrypt(Caddy の既定)。DNSが新VMを向いてからでないと取れない。DNSのTTLを事前に短くしておく。
+  - **学内DNSにしかない(学内専用)→ Let's Encrypt は使えない。** `tls internal`(自己署名。ブラウザに警告が出る)か、大学が発行する証明書を使う。
 - **利用者への告知**: Phase B の間はアクセスできない。
 - 新VMに旧VMと同じ**タイムゾーン**を設定する(バックアップは 03:30 に動く)。旧VMで `timedatectl` を確認。
 
@@ -276,12 +277,109 @@ Postgres は秘密鍵の権限が緩い(group/other に読み書きが付いて�
 sudo apt-get install -y caddy
 sed 's/<HOST>/ここに公開するホスト名/' deploy/Caddyfile | sudo tee /etc/caddy/Caddyfile >/dev/null
 sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl enable --now caddy
-sudo systemctl reload caddy
 ```
 
-- 学内専用の名前なら、`deploy/Caddyfile` のコメントのとおり `tls internal` を足す。
-- DNS が新VMを向く前は、Let's Encrypt の証明書は取れず、`journalctl -u caddy` にエラーが出る。切り替え(9)のあとで解消する。
+`Valid configuration` と出れば、書き方は正しい。ただし、これは**設定ファイルの文法の確認だけ**で、証明書が取れたかは分からない。
+証明書の方式を決めてから、起動する(4-1)。
+
+#### 4-1. 証明書の方式を決める
+
+Caddy の既定は Let's Encrypt。ただし、**公開DNSにホスト名のレコードが無いと取れない**。手元のPCで確認する。
+
+```bash
+dig +short <HOST>                 # 普段使っているDNS(学内DNS)
+dig +short <HOST> @1.1.1.1        # 公開DNS
+```
+
+| 結果 | 方式 |
+|---|---|
+| 公開DNSにも新VMのIPが出る(80/443 が学外から届く) | **A. Let's Encrypt**(Caddyfile はそのまま) |
+| 学内DNSには出るが、公開DNSは空 | **B. `tls internal`** または **C. 大学が発行する証明書** |
+
+公開DNSに無い状態で A のまま起動すると、`journalctl -u caddy` に次のエラーが繰り返し出て、ブラウザは `ERR_SSL_PROTOCOL_ERROR` になる(証明書が無く、TLSのハンドシェイクに応答できないため)。
+
+```
+DNS problem: NXDOMAIN looking up A for <HOST>
+```
+
+Caddy は再試行の間隔を延ばしながら(最大30分)試し続ける。止めてよいし、DNSが直れば自動で取り直す。
+
+**B. `tls internal`(学内専用で、まず動かしたいとき)**
+
+`/etc/caddy/Caddyfile` に `tls internal` を足す。
+
+```
+<HOST> {
+	tls internal
+	reverse_proxy 127.0.0.1:3000
+}
+```
+
+- Caddy 自身の認証局で証明書を作る。公開DNSは要らない。更新も自動。
+- ブラウザには**「接続はプライベートではありません」の警告**が出る。「詳細設定」から進める。
+- 警告を消すには、Caddy のルート証明書(`/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`)を端末に信頼させる。
+  **ただし、その端末は、このVMが作る証明書を、どのドメインでも信頼する。** VMが侵害されると中間者攻撃に使われるので、信頼させるのは管理者の数台までにする。
+
+**C. 大学が発行する証明書(警告を出したくないとき)**
+
+大学や学科のネットワーク管理者に、サーバー証明書の発行手段があるか確認する。入手したら次のように置く。
+
+```bash
+sudo install -d -o root -g caddy -m 750 /etc/caddy/certs
+sudo install -o root -g caddy -m 644 server.crt /etc/caddy/certs/server.crt     # 中間証明書を含むチェーン
+sudo install -o root -g caddy -m 640 server.key /etc/caddy/certs/server.key
+```
+
+```
+<HOST> {
+	tls /etc/caddy/certs/server.crt /etc/caddy/certs/server.key
+	reverse_proxy 127.0.0.1:3000
+}
+```
+
+秘密鍵は `caddy` グループだけが読める権限(640)にし、リポジトリ・チャット・Issue には出さない。
+**有効期限が来たら手動で入れ替える**。期限の少し前に更新する予定を入れておく。
+
+#### 4-2. 起動と確認
+
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl enable --now caddy
+sudo systemctl reload caddy
+sudo journalctl -u caddy -n 30 --no-pager
+```
+
+ログの見方:
+
+| ログ | 意味 |
+|---|---|
+| `certificate obtained successfully` | 証明書が取れた |
+| `failed to install root certificate ... failed to execute sudo`(`tls internal` のとき) | Caddy が**VM自身の**信頼ストアにルート証明書を入れようとして失敗した。配信には関係ないので**無視してよい** |
+| `not NSS security databases found` / `define JAVA_HOME ...` | Firefox・Java の信頼ストアが無いという情報。無視してよい |
+| `no OCSP stapling ... no OCSP server specified`(`tls internal` のとき) | 内部認証局の証明書には OCSP の指定が無い。無視してよい |
+| `context canceled` | リロードで前の処理が中断された。直後に取得できていれば無視してよい |
+| `NXDOMAIN` | 公開DNSにレコードが無い。4-1 の B か C にする |
+| `caddy_legacy_user_removed`(ZeroSSL) | Let's Encrypt が失敗したあとの予備の発行元の失敗。本筋ではないので無視してよい |
+
+`failed to install root certificate` の表示が気になるなら、Caddyfile の先頭に次を足すと止まる(動作には影響しない)。
+
+```
+{
+	skip_install_trust
+}
+```
+
+手元のPCから、証明書の検証を外して確認する(`tls internal` の場合)。
+
+```bash
+curl -vk https://<HOST>/up 2>&1 | grep -E 'HTTP/|issuer|subject'
+```
+
+- `issuer` に `Caddy Local Authority` と出れば、内部認証局の証明書。
+- `HTTP/2 200` なら、`web` まで繋がっている。`HTTP/2 502` は、Caddy は動いているが `web` が未起動(手順 8 の前なら正常)。
+
+ブラウザは、`ERR_SSL_PROTOCOL_ERROR` が `ERR_CERT_AUTHORITY_INVALID`(警告)に変われば、Caddy は応答している。
+まだ `ERR_SSL_PROTOCOL_ERROR` なら、シークレットウィンドウで試す(キャッシュが残っている)。
 
 ### 5. デプロイ用スクリプト・runner・バックアップ
 
@@ -450,8 +548,9 @@ DNS を切り替える前に確認したいときは、手元のPCの `/etc/host
 
 ### 9. 接続先と runner を切り替える
 
-1. **DNS を新VMに向ける**(またはIPを入れ替える)。Caddy が証明書を取れたか確認する:
-   `sudo journalctl -u caddy -n 30`
+1. **DNS を新VMに向ける**(またはIPを入れ替える)。
+   - 4-1 の A(Let's Encrypt)なら、DNS が向いたあとに Caddy が証明書を取る。`sudo journalctl -u caddy -n 30` で `certificate obtained successfully` を確認する。取れていなければ `sudo systemctl reload caddy` で再試行を促す。
+   - B(`tls internal`)・C(大学の証明書)なら、証明書は DNS に依存しない。DNS を向けたあと、ブラウザで開けることを確認する。
 2. **旧VMの runner を外す。** 手順は [deploy-runner.md](deploy-runner.md) の「4. runner の登録」の最初のブロック(`svc.sh stop` / `uninstall` / `config.sh remove`)。
    GitHub の Settings → Actions → Runners で、旧VMのものが消えたことも確認する。
 3. **新VMに runner を登録する**(同じ手順の続き。`grc-runner` で登録し、root で `svc.sh install grc-runner && svc.sh start`)。
@@ -510,7 +609,7 @@ runner も、旧VM側に戻すなら登録し直す。
 - [ ] ダンプのハッシュが旧VMと新VMで一致
 - [ ] 復元後の件数が旧VMと一致
 - [ ] `deployed_sha` が旧VMと同じ
-- [ ] Caddy で HTTPS の証明書が取れている
+- [ ] Caddy で HTTPS の証明書が取れている(A: `certificate obtained successfully` / B: `Caddy Local Authority` の証明書 / C: 大学の証明書と有効期限を控えた)
 - [ ] 旧VMの runner が GitHub から消え、新VMの runner が Idle になっている
 - [ ] main への push で新VMにデプロイされる
 - [ ] バックアップのタイマーが動き、ダンプが増えている
