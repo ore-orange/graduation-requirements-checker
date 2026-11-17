@@ -115,5 +115,18 @@ class CurriculaPublishRaceTest < ActionDispatch::IntegrationTest
     assert_equal PUBLISHED_ALERT, flash[:alert]
     assert_equal before, record.reload.document
   end
+
+  test '科目を外す途中で公開されていたら、何も変えずに断る' do
+    document = requirements_document
+    document['categories'].find { |category| category['key'] == 'english' }['number_patterns'] = ['外']
+    record = draft(document: document)
+    before = record.reload.document
+
+    simulate_race_after_load_draft { post filter_courses_curriculum_path(record), env: ENV_LOCAL }
+
+    assert_redirected_to requirements_path_for(record)
+    assert_equal PUBLISHED_ALERT, flash[:alert]
+    assert_equal before, record.reload.document
+  end
 end
 

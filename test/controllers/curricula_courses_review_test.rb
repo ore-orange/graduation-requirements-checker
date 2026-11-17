@@ -715,6 +715,83 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
          "(全体 #{response.body.bytesize / 1024}KB)"
   end
 
+  # ---- 番号で決まる科目を外す ----
+
+  # 人文系は「人」、英語は「外」の番号で区分が決まる。人101・人102は役割があるので残り、人103と外101・外102の3科目が外せる。
+  def prunable_document
+    document = requirements_document
+    document['categories'].find { |category| category['key'] == 'humanities' }['number_patterns'] = ['人']
+    document['categories'].find { |category| category['key'] == 'english' }['number_patterns'] = ['外']
+    document
+  end
+
+  def filter_courses(record) = post(filter_courses_curriculum_path(record), env: ENV_LOCAL)
+
+  def numbers_of(record) = record.reload.document['courses'].pluck('number')
+
+  test '外せる科目があるとき、③の節にボタンと、効く件数・確認済みの件数が出る' do
+    document = prunable_document
+    document['courses'].find { |course| course['number'] == '外101' }['confirmed'] = true
+    record = course_draft(document: document)
+    show(record)
+
+    assert_select '#course-review form[action=?] button', filter_courses_curriculum_path(record),
+                  text: '番号で決まる科目を外す(3科目)'
+    assert_select '#course-review', text: /番号から区分が決まり、読みとも一致する科目です。うち1科目は確認済みです/
+    assert_select '#course-review button[data-turbo-confirm*="3科目"]'
+  end
+
+  test '外せる科目が無いとき、ボタンを出さない' do
+    show(course_draft) # number_patterns を持たない文書
+
+    assert_select '#course-review form[action$="courses/filter"]', false
+  end
+
+  test '押すと、条件に当たる科目が文書から外れ、件数を知らせて、科目表に戻る' do
+    record = course_draft(document: prunable_document)
+
+    filter_courses(record)
+
+    assert_redirected_to curriculum_path(record, anchor: 'course-review')
+    assert_equal %w[人101 人102 知能101 知能102 機械991 機械992 情01], numbers_of(record)
+    assert_match(/3科目/, flash[:notice])
+  end
+
+  test '公開済みの便覧では断り、何も外さない' do
+    record = course_draft(document: prunable_document)
+    record.update_columns(published_at: Time.current) # rubocop:disable Rails/SkipsModelValidations -- 公開の関門は、このテストの関心ではない
+
+    assert_no_changes -> { record.reload.document } do
+      filter_courses(record)
+    end
+    assert_redirected_to requirements_path_for(record)
+  end
+
+  test '複製した下書き(全件が確認済み)でも、外せる科目は外れる' do
+    real = JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2024.json').read)
+    published = Curriculum.create!(slug: 'dup', admission_year: 2024, faculty_name: '工学部',
+                                   department_name: '工学科 知能情報コース', source_filename: 'x.pdf', pages: [],
+                                   document: real, published_at: Time.current)
+    duplicate = CurriculumImport::Duplicate.call(published)
+    expected = CurriculumImport::CoursePrune.dropping(duplicate.document, drop_confirmed: true).size
+    assert_operator expected, :>, 0
+    assert_equal 484, duplicate.document['courses'].size
+
+    show(duplicate)
+    assert_select '#course-review form[action$="courses/filter"] button', text: "番号で決まる科目を外す(#{expected}科目)"
+    filter_courses(duplicate)
+
+    assert_equal 484 - expected, duplicate.reload.document['courses'].size
+  end
+
+  test 'ローカル以外からは外せない' do
+    record = course_draft(document: prunable_document)
+
+    post filter_courses_curriculum_path(record), env: { 'REMOTE_ADDR' => '203.0.113.9' }
+
+    assert_equal 10, numbers_of(record).size
+  end
+
   test '484科目でも、画面の重さと欄の数を抑える' do
     real = JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2024.json').read)
     draft = course_draft(document: real)

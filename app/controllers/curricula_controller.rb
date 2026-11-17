@@ -7,6 +7,7 @@
 class CurriculaController < ApplicationController
   include LocalAccessOnly
   include CurriculaCourses
+  include CurriculaCourseFilter
   include CurriculumUploadParams
 
   MAX_PDF_BYTES = 10.megabytes
@@ -15,9 +16,10 @@ class CurriculaController < ApplicationController
 
   helper_method :requirements_review, :publication
 
-  # update_courses・edit_course・bulk_confirm_courses は CurriculaCourses(concern)が定義する。
+  # update_courses・edit_course は CurriculaCourses、filter_courses は CurriculaCourseFilter(concern)が定義する。
   before_action :load_draft, only: # rubocop:disable Rails/LexicallyScopedActionFilter
-    %i[show update update_rules update_courses bulk_confirm_courses edit_course destroy page_image read_page publish]
+    %i[show update update_rules update_courses bulk_confirm_courses filter_courses edit_course destroy page_image
+       read_page publish]
 
   rescue_from ActiveRecord::RecordNotFound do
     redirect_to requirements_path, alert: 'この下書きは見つかりません。削除された可能性があります。', status: :see_other

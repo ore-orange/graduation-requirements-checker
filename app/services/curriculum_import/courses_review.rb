@@ -49,6 +49,15 @@ module CurriculumImport
 
     def confirmed_count = rows.count(&:confirmed?)
 
+    # 「番号で決まる科目を外す」が外す科目。人が押した操作なので、確認済み・手で足した科目も数える(CoursePrune の drop_confirmed)。
+    # 実際に外すのも同じ CoursePrune なので、見せた件数と外れる件数は一致する。
+    def droppable = @droppable ||= CoursePrune.dropping(curriculum.document, drop_confirmed: true)
+
+    def droppable_count = droppable.size
+
+    # 外せる科目のうち、人が確認した科目の数(押す前に見せる。確認を捨てることになるので)。
+    def droppable_confirmed_count = droppable.count { |course| CourseEdit.confirmed?(course) }
+
     def blocking_count = rows.count { |row| row.reasons.include?(:blocking) }
 
     # 先に見る科目の数。人が確認していない食い違いなど。

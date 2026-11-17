@@ -17,6 +17,7 @@
   <% if review.started? %>
     <%= render 'courses_errors', review: review %>
     <%= render 'courses_summary', review: review %>
+    <%= render 'courses_filter', review: review %>
     <p id="courses_notice" role="status" aria-live="polite" class="px-5 pt-2 text-xs font-medium text-emerald-800 empty:hidden sm:px-6"></p>
 
     <%# 行の「確認した」などのボタンが送る、共有のフォーム(科目ごとにフォームを置かない) %>
