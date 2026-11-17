@@ -18,7 +18,7 @@ VM の全体の運用は [vm-operations.md](vm-operations.md)、新VMへの移�
 ```
 メンバー: 1. 自分の端末で鍵を作る → 公開鍵(.pub)だけを管理者に送る
 管理者  : 2. 受け取った公開鍵でユーザーを作る(add_member)
-メンバー: 3. ログインできることを確認する
+メンバー: 3. ログインできることを確認する(入れなければ 8 で切り分け。直らなければ 9 で鍵を作り直す)
 管理者  : 4. 必要な人だけ sudo を与える   5. 全員が鍵で入れたら、パスワード認証を切る
 ```
 
@@ -384,6 +384,77 @@ ssh -i ~/.ssh/<秘密鍵> -o IdentitiesOnly=yes -o PreferredAuthentications=publ
 
 ---
 
+## 9. それでも入れないとき: 鍵を作り直す
+
+8 の切り分けで原因が分からない、または直しても入れないときは、**鍵ペアを新しく作り直して、登録し直す**。
+古い鍵に何か問題がある(別の端末の鍵を送った、公開鍵が壊れた、どの鍵が登録されているか分からなくなった、など)場合は、これが一番早い。
+
+> **既定の名前(`id_ed25519`)で作り直さない。** GitHub や他のサーバーで同じ鍵を使っていると、上書きした時点でそちらに入れなくなる。
+> このVM専用の別の名前で作る。古い鍵は、他で使っていないと確認できるまで消さない。
+
+### メンバー: 新しい鍵を別の名前で作る
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/grc_new -C "<名前>-<端末名>"      # パスフレーズも付ける
+ls -l ~/.ssh/grc_new ~/.ssh/grc_new.pub                           # 2つできていること
+cat ~/.ssh/grc_new.pub                                            # この1行だけを管理者に送る
+```
+
+- 渡すのは `grc_new.pub`(公開鍵)。`grc_new`(秘密鍵)は渡さない。
+- 秘密鍵のファイルを、うっかり送ってしまったときは、その鍵は使わずに破棄して、もう一度作り直す。
+
+### 管理者: 登録し直す
+
+受け取った1行をファイルにして、`add_member` で**置き換える**(古い鍵は消える)。
+
+```bash
+cat > ~/member.pub          # 受け取った1行を貼り付けて、Ctrl+D
+add_member <ユーザー名> ~/member.pub
+rm ~/member.pub
+```
+
+`add_member` は、ユーザーがすでにいても、`authorized_keys` を新しい鍵で置き換える。
+`256 SHA256:... (ED25519)` と、鍵のフィンガープリントが表示されることを確認する。
+
+### メンバー: 新しい鍵で入る
+
+```bash
+ssh -i ~/.ssh/grc_new -o IdentitiesOnly=yes -o PreferredAuthentications=publickey <ユーザー名>@<新VM>
+```
+
+- `Enter passphrase for key '...grc_new':` と聞かれたら、**新しい鍵に付けたパスフレーズ**を入力する。
+- 毎回 `-i` を付けたくなければ、`~/.ssh/config` の `IdentityFile` を `~/.ssh/grc_new` に書き換える([3](#鍵を別の名前で作った場合複数ある場合))。
+
+### 管理者: 確認する
+
+```bash
+sudo journalctl -u ssh -n 10 --no-pager | grep -E 'Accepted|Failed'
+# Accepted publickey for <ユーザー名> from ... ED25519 SHA256:xxxx
+```
+
+`xxxx` が、メンバーの `ssh-keygen -lf ~/.ssh/grc_new.pub` と一致していれば成功。
+
+### それでも入れないとき
+
+鍵は新しくしたので、鍵そのものではなく、**鍵以外**が原因。次を順に見る。
+
+| 確認 | 見るもの |
+|---|---|
+| ユーザー名 | `ssh <ここ>@<新VM>` が、VM に作ったユーザー名と一字一句同じか(`getent passwd <ユーザー名>`) |
+| 権限 | `ls -ld /home/<名前> /home/<名前>/.ssh /home/<名前>/.ssh/authorized_keys`。所有者が本人、`.ssh` は 700、`authorized_keys` は 600 |
+| サーバーの設定 | `sudo sshd -T \| grep -iE '^(allowusers\|allowgroups\|denyusers\|denygroups\|pubkeyauthentication\|authorizedkeysfile) '` |
+| 接続先 | 学内ネットワークかVPNに繋がっているか。別のVMや旧VMに繋いでいないか |
+| ログ | ログイン試行の直後の `sudo journalctl -u ssh -n 20 --no-pager`(8 の表) |
+
+### 後片付け
+
+新しい鍵で入れることを確認したあと、古い鍵を整理する。
+
+- 古い鍵を **他で使っていないとき**は、`~/.ssh` から削除してよい。使っているかどうかは、`ssh-keygen -lf <古い鍵>.pub` のフィンガープリントを、GitHub の SSH キー一覧などと見比べて確かめる。
+- 他のサーバーで使っているときは、**残す**。このVMの `~/.ssh/config` からは、`grc_new` を指すだけにする。
+
+---
+
 ## チェックリスト
 
 - [ ] メンバーが、自分の端末で鍵を作った(パスフレーズ付き)
@@ -395,3 +466,4 @@ ssh -i ~/.ssh/<秘密鍵> -o IdentitiesOnly=yes -o PreferredAuthentications=publ
 - [ ] 全員が鍵で入れることを確認してから、SSH のパスワード認証を切った
 - [ ] 切ったあと、別の端末で、鍵では入れてパスワードでは入れないことを確認した
 - [ ] 抜けたメンバーは `--expiredate 1` で失効させた
+- [ ] 入れなかったメンバーは、別の名前(`grc_new`)で鍵を作り直して登録し直した。古い鍵は、他で使っていないと確かめてから消した
