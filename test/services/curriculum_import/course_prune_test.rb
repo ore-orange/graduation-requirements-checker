@@ -34,6 +34,19 @@ module CurriculumImport
       assert_equal %w[知能404 知能501], doc['courses'].pluck('number')
     end
 
+    # 判定が個別に見る科目は、人の印を外して判定しても残る(外れると、その要件が判定から消える)。
+    test '個別に見る科目は、確認済みでも手で足していても drop_confirmed: true で残る' do
+      special = { required: true, roles: ['x'], requires_approval: true, selectable: false, review_reason: '要確認' }
+      courses = special.each_with_index.flat_map do |(field, value), index|
+        [course("知能46#{index}", field => value), course("知能47#{index}", field => value, confirmed: true),
+         course("知能48#{index}", field => value, added_by_hand: true)]
+      end
+      doc = { 'categories' => document['categories'], 'courses' => courses }
+
+      assert_equal [], CoursePrune.call(doc, drop_confirmed: true)
+      assert_equal courses.pluck('number'), doc['courses'].pluck('number')
+    end
+
     test 'only を渡すと、その区分のパターンだけで判定する' do
       doc = document
 

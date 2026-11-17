@@ -24,6 +24,10 @@ class CategoryPatternsTest < ActiveSupport::TestCase
                             fixture_course('知能403', 'C', 'intel'),
                             fixture_course('知能404', 'D', 'intel', 'confirmed' => true),
                             fixture_course('知能405', 'E', 'intel', required: true),
+                            fixture_course('知能406', 'R', 'intel', roles: ['x']),
+                            fixture_course('知能407', 'S', 'intel', requires_approval: true, 'confirmed' => true),
+                            fixture_course('知能408', 'T', 'intel', selectable: false),
+                            fixture_course('知能409', 'U', 'intel', review_reason: '要確認'),
                             fixture_course('共101', 'F', 'common'), fixture_course('共102', 'G', 'common'),
                             fixture_course('共103', 'H', 'common')]
     document
@@ -62,6 +66,7 @@ class CategoryPatternsTest < ActiveSupport::TestCase
     assert_not_includes numbers_after, '知能403'
     # 条件に当たらない科目・判定が個別に見る科目(必修)は残る
     assert_includes numbers_after, '知能405'
+    %w[知能406 知能407 知能408 知能409].each { |number| assert_includes numbers_after, number }
     assert_includes numbers_after, '人101'
   end
 
