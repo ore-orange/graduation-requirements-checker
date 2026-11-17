@@ -7,7 +7,7 @@ namespace :course_master do
   # 便覧は「科目番号から区分が決まらない科目」しか持たなくなっていくが、科目の実体は courses テーブルが正本で、
   # デモの履修はそこにある科目を引く。種を便覧の文書から切り離しておくために、ファイルとして持つ。
   # 年度の便覧を足したときは、このタスクを流し直してコミットする。
-  desc '便覧JSON(config/curricula/**/*.json)の科目から db/course_master.json を作り直す'
+  desc '便覧JSON(config/curricula/**/*.json)の科目から db/course_master.json を作り直す(便覧JSONの科目を直したら流し直してコミットする)'
   task build: :environment do
     entries = Rails.root.glob('config/curricula/**/*.json').sort.flat_map do |path|
       JSON.parse(path.read).fetch('courses', [])

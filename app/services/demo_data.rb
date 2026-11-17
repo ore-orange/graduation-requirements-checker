@@ -44,15 +44,22 @@ class DemoData
     # 科目は便覧の文書ではなく種ファイル(COURSE_MASTER_FILE)から作る。便覧が持つ科目は「科目番号から区分が
     # 決まらないもの」だけに絞られていて、デモ学生の履修を引き当てるには足りないため。
     # 時間割の取り込みと同じく (科目番号, 科目名) で行を探す。同じ番号で名前だけ違う行は別の行になる。
+    # Course は種ファイルの行ごとに作る(便覧から予定を追加するとき、PlanCoursesController が(番号, 名前)で
+    # Course を引くので、どの年度の便覧の名前でも行が要る)。
+    # ただしデモの履修データ(db/demo_enrollments*.json)は course_number しか持たないので、種ファイルに同じ番号で
+    # 名前の違う行が2つあると(例: 知能212 はローマ数字の全角・半角違いで2024年度と2025年度に別名で載っている)、
+    # 履修をつなぐ先はどちらか1つに決めるしかない。番号で引く Hash を後勝ちで作ると並び順任せになり、
+    # 学生ごとに別の Course に当たって同じ履修が2件できる。そこで、返す Hash は番号順に並んだ種ファイルの
+    # 最初の行を採る(先勝ち)。
     # 単位数は最初に取り込んだ便覧の値を正とする(先着優先)。2024年度と2025年度の便覧には(科目番号, 科目名)が
     # 一致する行が57件あり、後から読む便覧の値で無条件に上書きすると、片方の便覧で単位数を「未確認」にしていても
     # もう片方の便覧が読み込まれた瞬間に値が復活してしまう。
     def import_courses
       entries = JSON.parse(Rails.root.join(COURSE_MASTER_FILE).read)
-      entries.to_h do |entry|
+      entries.each_with_object({}) do |entry, courses|
         course = course_for(entry.fetch('number'), entry.fetch('name'))
         course.update!(credits: entry.fetch('credits')) if course.credits.nil?
-        [course.course_number, course]
+        courses[course.course_number] ||= course
       end
     end
 

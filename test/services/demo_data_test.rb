@@ -99,12 +99,13 @@ class DemoDataTest < ActiveSupport::TestCase
   test 'デモの投入で、course_master.json の科目が Course になる' do
     DemoData.load!
 
-    course_master.each do |entry|
+    expected = course_master
+    expected.each do |entry|
       course = Course.find_by(course_number: entry.fetch('number'), name: entry.fetch('name'))
       assert_not_nil course, "#{entry['number']} #{entry['name']} が Course に無い"
       assert_equal entry.fetch('credits'), course.credits&.to_i
     end
-    assert_equal course_master.size, Course.count
+    assert_equal expected.size, Course.count
   end
 
   test '同じ番号・名前の行は1件にまとまる' do
@@ -120,6 +121,22 @@ class DemoDataTest < ActiveSupport::TestCase
       DemoData.send(:import_courses)
       assert_equal 1, Course.where(course_number: 'TEST900', name: '重複科目').count
       assert_equal 2, Course.find_by!(course_number: 'TEST900').credits
+    end
+  end
+
+  test '同じ番号で名前の違う行が2つあっても、1つの履修から StudentCourse は1件しかできない' do
+    number = demo_enrollments.first.fetch('course_number')
+    other = course_master.reject { |entry| entry['number'] == number }
+    named = course_master.find { |entry| entry['number'] == number }
+    rows = [named, named.merge('name' => "#{named['name']}(別表記)")]
+    with_course_master(rows + other) do
+      2.times { DemoData.load! }
+      student = DemoAccount.students.first.curriculum && User.find_by!(email: DemoAccount.students.first.email).student
+
+      assert_equal 2, Course.where(course_number: number).count
+      assert_equal demo_enrollments.size, student.student_courses.count
+      enrolled = student.student_courses.find_by!(course: Course.where(course_number: number))
+      assert_equal named['name'], enrolled.course.name
     end
   end
 
