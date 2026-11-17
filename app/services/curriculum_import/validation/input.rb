@@ -106,6 +106,11 @@ module CurriculumImport
         courses.select { |course| course['category'] == category }
       end
 
+      # その区分が、科目番号のパターンを持つか。持つ区分の科目は便覧に書かず、番号で決まるので、科目0件は異常ではない。
+      def patterned?(category_key)
+        categories.any? { |category| category['key'] == category_key && Array(category['number_patterns']).any? }
+      end
+
       def approval_recorded?
         approval_notes.any?
       end

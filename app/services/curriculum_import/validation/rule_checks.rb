@@ -49,7 +49,8 @@ module CurriculumImport
       end
 
       # 便覧に無い区分を指す規則は、何も数えないまま不足とも充足とも言う(公開すると Catalogue が読み込みを拒む)。
-      # 区分はあっても科目が1つも無ければ、その規則は必ず不足になる。取り込みの途中か、科目表の読み落とし。
+      # 区分はあっても科目が1つも無ければ、その規則は必ず不足になる
+      # (番号パターンを持つ区分は科目を持たずに判定されるので、1つでもそういう区分を指す規則は、必ず不足とは言えない)。取り込みの途中か、科目表の読み落とし。
       def category_references
         input.nodes.each do |node|
           referenced = referenced_categories(node.rule)
@@ -69,9 +70,13 @@ module CurriculumImport
 
       def without_courses(node, referenced)
         return unless %w[credit_sum grouped_max].include?(node.rule['type'])
-        return if referenced.empty? || referenced.any? { |category| input.courses_in(category).any? }
+        return if referenced.empty? || referenced.any? { |category| covered_without_listing?(category) }
 
         findings.warning(:rule, node.target, "数える区分(#{referenced.join('、')})に科目が1つもありません。この規則は必ず不足になります。")
+      end
+
+      def covered_without_listing?(category)
+        input.courses_in(category).any? || input.patterned?(category)
       end
 
       # 科目表のすべての科目を修得しても必要単位に届かない credit_sum。要件表の数字が正しいなら、科目表に読み落としがある。

@@ -452,6 +452,84 @@ module CurriculumImport
       assert_warning '数える区分(humanities)に科目が1つもありません', document
     end
 
+    # 科目番号から区分が決まる科目は便覧に入れない。パターンを持つ区分は、科目0件が正常な状態。
+    def with_patterns(document, *keys)
+      keys.each do |key|
+        document['categories'].find { |c| c['key'] == key }['number_patterns'] = ['人']
+      end
+    end
+
+    def add_free_category(document)
+      document['categories'] << { 'key' => 'free', 'label' => '自由', 'counts_toward_total' => true }
+    end
+
+    test '番号パターンを持つ区分が0件でも、規則の警告を出さない' do
+      document = broken do |d|
+        d['courses'].reject! { |c| c['category'] == 'humanities' }
+        with_patterns(d, 'humanities')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:reason].include?('科目が1つもありません') })
+    end
+
+    test 'パターンも科目も持たない区分だけを指す規則には、いまどおり警告を出す' do
+      document = broken do |d|
+        add_free_category(d)
+        d['rules'] << rule('free_rule', 'credit_sum', categories: ['free'], required_credits: 2)
+        # 空のパターンは持っていないのと同じ。
+        d['categories'].find { |c| c['key'] == 'free' }['number_patterns'] = []
+      end
+
+      assert_warning '数える区分(free)に科目が1つもありません', document, scope: :rule
+    end
+
+    test '指す区分のうち1つでもパターンを持てば、警告を出さない' do
+      document = broken do |d|
+        d['courses'].reject! { |c| c['category'] == 'humanities' }
+        add_free_category(d)
+        d['rules'] << rule('mixed', 'credit_sum', categories: %w[humanities free], required_credits: 2)
+        with_patterns(d, 'humanities')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:target] == 'mixed' && f[:reason].include?('科目が1つもありません') })
+    end
+
+    test '行の区分がパターンを持つなら、0件でも警告を出さない' do
+      document = broken do |d|
+        d['courses'].reject! { |c| c['category'] == 'english' }
+        with_patterns(d, 'english')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:scope] == :display && f[:reason].include?('科目が1つもありません') })
+    end
+
+    test '科目0件でも、数える区分がすべてパターンを持つなら公開を止めない' do
+      document = broken do |d|
+        d['courses'] = []
+        with_patterns(d, 'humanities', 'english', 'required_core', 'fusion')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:target] == 'courses' && f[:blocking] })
+    end
+
+    test '科目0件で、パターンを持たない数える区分があれば公開を止める' do
+      document = broken do |d|
+        d['courses'] = []
+        with_patterns(d, 'humanities', 'english', 'required_core')
+      end
+
+      assert_blocking '科目が1つもありません', document, scope: :course
+    end
+
+    test '科目0件で、数える区分が1つも無いなら公開を止める' do
+      document = broken do |d|
+        d['courses'] = []
+        d['categories'] = []
+      end
+
+      assert_blocking '科目が1つもありません', document, scope: :course
+    end
+
     test '総単位に数えない区分に、丸ごと算入から外す exclude 規則が無ければ公開を止める' do
       assert_blocking('exclude 規則がありません', broken { |d| d['rules'].reject! { |r| r['id'] == 'excluded_category' } })
       # 接頭辞つき・科目番号つきの exclude は区分の一部しか外さないので、覆ったことにしない。

@@ -11,12 +11,21 @@ module CurriculumImport
     # display は画面の元なので、読み込みの時には求めない)。学生に出せる状態かどうかは、ここで決める。
     class DocumentChecks < Checks
       def run
-        findings.blocking(:course, 'courses', '科目が1つもありません。科目表のページを読み取り、科目を足してください。') if input.courses.empty?
+        no_courses
         findings.blocking(:rule, 'rules', '判定の規則が1つもありません。要件表のページを読み取るか、規則を足してください。') if input.rules.empty?
         missing_display
       end
 
       private
+
+      # 科目0件は、読み落としで区分ごと消えた疑いがあるので止める。ただし、数える区分がすべて番号パターンを持つなら、
+      # 科目を持たずに判定できるので止めない。数える区分が1つも無い便覧は、その根拠が無いので止める。
+      def no_courses
+        return unless input.courses.empty?
+        return if input.counted_category_keys.any? && input.counted_category_keys.all? { |key| input.patterned?(key) }
+
+        findings.blocking(:course, 'courses', '科目が1つもありません。科目表のページを読み取り、科目を足してください。')
+      end
 
       def missing_display
         return if input.rules.empty? || input.document['display'].is_a?(Hash)

@@ -102,7 +102,7 @@ module CurriculumImport
           next unless positive_number?(row['required_credits']) && row['categories'].is_a?(Array)
 
           (row['categories'] & input.counted_category_keys).each do |category|
-            next if input.courses_in(category).any?
+            next if input.courses_in(category).any? || input.patterned?(category)
 
             findings.warning(:display, row['id'], "行「#{row['id']}」は必要単位がありますが、区分「#{input.category_label(category)}」" \
                                                   "(#{category})に科目が1つもありません。読み落としで消えていると、この区分の単位は" \

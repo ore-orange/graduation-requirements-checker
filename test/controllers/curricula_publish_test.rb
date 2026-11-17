@@ -254,8 +254,10 @@ class CurriculaPublishTest < ActionDispatch::IntegrationTest
 
   test '警告が20件を超えると、要件表の確認への案内が出る' do
     document = JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2024.json').read)
-    document['courses'] = document['courses'].first(20) # 実物から20件だけ残すと、警告が20件を超える(Task 20 で確認済み)
-    document['courses'].each { |course| course['confirmed'] = true }
+    # 実物から20件だけ残すと、科目が無い区分の警告で20件を超えていた(Task 20)。いまは番号パターンを持つ区分の科目0件は
+    # 警告しないので、その警告には頼らず、20件の出典を空にして、科目ごとの警告で20件を超えさせる。
+    document['courses'] = document['courses'].first(20)
+    document['courses'].each { |course| course.merge!('confirmed' => true, 'source_page' => nil) }
     record = Curriculum.create!(slug: 'tiny', admission_year: 2024, faculty_name: '工学部', department_name: '工学科',
                                 source_filename: 'handbook.pdf', document: document)
     publication = CurriculumImport::Publication.new(record)
