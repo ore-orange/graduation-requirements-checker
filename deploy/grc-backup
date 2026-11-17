@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# 学科サーバーVMの本番DBを pg_dump で保存する。root で実行する。
+set -euo pipefail
+
+dir=/var/backups/grc
+keep_days=14
+compose=(docker compose -f /opt/grc/compose.prod.yml --project-directory /opt/grc)
+
+umask 077
+mkdir -p "$dir"
+
+# 同時実行を防ぐ(デプロイ前バックアップと重なった場合など)
+exec 9>/var/lock/grc-backup.lock
+flock -n 9 || { echo "backup already running" >&2; exit 3; }
+
+f="$dir/app_production_$(date +%F_%H%M%S).dump"
+"${compose[@]}" exec -T db pg_dump -U app -Fc app_production > "$f.tmp"
+
+# ダンプとして読めるか検証する(VM に pg_restore が無くてもよいよう、コンテナ内で実行)
+"${compose[@]}" exec -T db pg_restore -l < "$f.tmp" > /dev/null
+mv "$f.tmp" "$f"
+
+find "$dir" -name 'app_production_*.dump' -mtime +"$keep_days" -delete
+echo "backup ok: $f ($(du -h "$f" | cut -f1))"
