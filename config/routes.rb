@@ -16,6 +16,9 @@ Rails.application.routes.draw do
   resource :session, only: %i[new create destroy]
   resource :demo_session, only: :create
 
+  # 初回ログイン後にコースと入学年度を登録する。
+  resource :student, only: %i[new create]
+
   # Googleログイン。開始のPOSTはOmniAuthのミドルウェアが先に受けるため、
   # 下のルートはURLを組み立てるためだけに置いている。
   post 'auth/:provider', to: 'oauth_sessions#passthru', as: :oauth_request
