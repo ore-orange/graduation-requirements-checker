@@ -39,6 +39,12 @@ module CurriculumImport
       assert ReadPage.new(@curriculum, reader: StubReader.new('科目' => { 'courses' => rows })).call(9)
     end
 
+    # 確認画面の保存と同じ道(CourseEdit)で確認済みにする。
+    def confirm(number)
+      key = @curriculum.reload.document['courses'].find { |course| course['number'] == number }['key']
+      @curriculum.with_lock { assert_predicate CourseEdit.new(@curriculum, key: key, confirmed: true).call, :ok? }
+    end
+
     def numbers = @curriculum.reload.document['courses'].pluck('number')
 
     def warnings = @curriculum.reload.pages.first['warnings'].to_a
@@ -103,6 +109,21 @@ module CurriculumImport
       read(row('知能301'), row('知能302'))
 
       assert_equal %w[知能301 知能302], numbers
+      contributed = @curriculum.reload.pages.first['contributed']['courses']
+      assert_equal ['course_知能302'], contributed
+    end
+
+    # 人の手にある科目の判定が先。重複が先に走ると、確認済みの科目との違いを知らせる警告が黙って消える。
+    test '確認済みの科目と同じ番号・名前で単位だけ違う行は、重複ではなく差分の警告になる' do
+      build
+      read(row('知能301'))
+      confirm('知能301')
+      read(row('知能301').merge('credits' => 4))
+
+      assert_equal ['知能301'], numbers
+      assert_equal 1, warnings.size
+      assert(warnings.none? { |sentence| sentence.include?('重複') })
+      assert_match(/知能301/, warnings.first)
     end
 
     test '重複と絞り込みの警告は、別の文になる' do
