@@ -73,16 +73,54 @@ module CurriculumImport
       kept_keys = kept_ids('courses')
       held = held_identities(courses, kept_keys)
       removed = removed_course_records
-      added = answer['courses'].each_with_index.filter_map do |row, index|
-        next if human_owned?(row, held, removed)
-
-        course_entry(row, index, courses, held_roles).tap { |entry| courses << entry }
-      end
+      added, dropped, duplicates = add_course_rows(answer['courses'], courses, held_roles, held, removed)
+      warn_course_gates(dropped, duplicates)
       touch_source
       @kept.except('courses').merge('courses' => kept_keys + added.pluck('key'))
     end
 
     private
+
+    # 読んだ行を、人の手にある科目(先に判定)・重複・絞り込みの順に通して文書に足す。順を変えると人の訂正が消える。
+    # 戻り値は [足した科目, 絞り込みで落とした科目, 外した重複の数]。足したものだけが、読み直しで外す対象になる。
+    def add_course_rows(rows, courses, held_roles, held, removed)
+      added = []
+      dropped = []
+      duplicates = 0
+      rows.each_with_index do |row, index|
+        next if human_owned?(row, held, removed)
+
+        entry = course_entry(row, index, courses, held_roles)
+        if duplicate?(entry, courses) then duplicates += 1
+        elsif course_filter.keep?(entry) then added << entry.tap { courses << entry }
+        else dropped << entry
+        end
+      end
+      [added, dropped, duplicates]
+    end
+
+    # 落とした科目と外した重複を、別々の文で警告に出す。0件なら何も足さない(毎回「0件」の行を出さない)。
+    # 落とした科目は文書に入らないので、contributed(読み直しで外す対象)にも載らない。
+    def warn_course_gates(dropped, duplicates)
+      @warnings << course_filter.drop_summary(dropped) if dropped.any?
+      @warnings << "科目番号と科目名が同じ科目#{duplicates}件は、重複なので登録しませんでした。" if duplicates.positive?
+    end
+
+    # 絞り込みは、読み取りの前の文書の区分で決める(読み取り中に文書の区分は変わらない)。
+    def course_filter
+      @course_filter ||= CourseFilter.new(@document)
+    end
+
+    # いま文書にある科目(同じ読み取りで足した行も含む)と、番号(CourseNumber.normalize)と名前(squish)が両方同じか。
+    # 番号が同じで名前が違う行は、本物の読み違いなので入れる(あとの突き合わせが公開を止める)。
+    def duplicate?(entry, courses)
+      signature = course_signature(entry)
+      courses.grep(Hash).any? { |course| course_signature(course) == signature }
+    end
+
+    def course_signature(course)
+      [CourseNumber.normalize(course['number']), course['name'].to_s.squish]
+    end
 
     # このページが足したものの記録。残したもの(人が直した)も、このページのものとして記録する。
     def contribution(added_rules, display)
