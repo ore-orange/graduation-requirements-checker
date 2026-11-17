@@ -1,3 +1,6 @@
 engineering_informatics:
   faculty: engineering
   name: 工学科
+science_mathematics:
+  faculty: science
+  name: 数理科学科

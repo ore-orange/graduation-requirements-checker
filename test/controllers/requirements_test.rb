@@ -106,7 +106,7 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   # 連動は見え方だけ。JavaScript が動かないときに選べる選択肢を減らしてはいけない
   # (_selector.html.erb 冒頭が約束している「JSが無くても動く」を壊さない)。
   test '連動しても、JavaScript が無いときは全学部の学科・全学科のコースから選べる' do
-    Faculty.create!(name: '理学部').departments.create!(name: '数理科学科').programs.create!(name: '数学コース')
+    faculties(:science).departments.find_by!(name: '数理科学科').programs.create!(name: '数学コース')
 
     get requirements_path, env: local_env
 
@@ -136,8 +136,7 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   end
 
   test '学部・学科・コースの選択肢は、便覧の有無を問わずFaculty/Department/Programテーブルから作る' do
-    Faculty.create!(name: '理学部')
-
+    # 理学部(fixture)には便覧が1つも無いが、マスタにあるので選択肢には出る
     get requirements_path, env: local_env
 
     assert_select 'select[name=faculty] option[value=?]', '理学部'

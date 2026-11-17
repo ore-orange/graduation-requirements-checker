@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import OptionGroups from "controllers/option_groups"
 
 // 取り込みフォームの学部名・学科名・コース名。プルダウンで選び、「その他（新しく登録する）」を選んだときだけ、
 // 自由入力欄を出す。学部を選ぶとその学部の学科だけを残す(dependent-select と同じ作り)。
@@ -10,7 +11,14 @@ export default class extends Controller {
   static values = { other: String }
 
   connect() {
+    this.departments = new OptionGroups(this.departmentTarget)
+    this.courses = new OptionGroups(this.courseTarget)
     this.sync()
+  }
+
+  disconnect() {
+    this.departments.restore()
+    this.courses.restore()
   }
 
   sync() {
@@ -24,15 +32,11 @@ export default class extends Controller {
     this.show(this.newCourseTarget, this.courseTarget.value === this.otherValue)
   }
 
-  // 学科コースは <optgroup label="学部名"> で全部出してあり、選ばれた学部のものだけ残す。「その他」は常に残る。
+  // 学科コースは <optgroup label="学部名"> で全部出してあり、選ばれた学部のものだけ残す
+  // (OptionGroups が合わない optgroup を DOM から外す)。<optgroup> の外にある「その他」は常に残る。
   // 新しい学部には既存の学科が無いので、学科も「その他」に固定する。
   filterDepartments(newFaculty) {
-    const faculty = this.facultyTarget.value
-    for (const group of this.departmentTarget.querySelectorAll("optgroup")) {
-      const matches = !newFaculty && group.label === faculty
-      group.hidden = !matches
-      group.disabled = !matches
-    }
+    this.departments.keep(newFaculty ? null : this.facultyTarget.value)
 
     if (newFaculty) {
       this.departmentTarget.value = this.otherValue
@@ -44,31 +48,16 @@ export default class extends Controller {
       this.forcedOtherDepartment = false
       if (this.departmentTarget.value === this.otherValue) this.departmentTarget.value = ""
     }
-    // 隠れた学部の学科が選ばれたままにならないようにする
-    const chosen = this.departmentTarget.selectedOptions[0]
-    if (chosen && chosen.parentElement.disabled) this.departmentTarget.value = ""
   }
 
   // コースは <optgroup label="学科名"> で全部出してあり、選ばれた学科のものだけ残す。学科が決まっていない・
   // 新しい学科・コースの無い学科のときは、コースの欄自体を隠し、値も空に戻す(隠れた欄の値を黙って送らない)。
   filterCourses(newDepartment) {
     const department = this.departmentTarget.value
-    let anyCourse = false
-    for (const group of this.courseTarget.querySelectorAll("optgroup")) {
-      const matches = !newDepartment && department && group.label === department
-      group.hidden = !matches
-      group.disabled = !matches
-      if (matches) anyCourse = true
-    }
+    const anyCourse = this.courses.keep(newDepartment ? null : department) > 0
 
     this.show(this.courseFieldTarget, !newDepartment && department && anyCourse)
-    if (newDepartment || !department || !anyCourse) {
-      this.courseTarget.value = ""
-      return
-    }
-    // 隠れた学科のコースが選ばれたままにならないようにする
-    const chosen = this.courseTarget.selectedOptions[0]
-    if (chosen && chosen.parentElement && chosen.parentElement.disabled) this.courseTarget.value = ""
+    if (newDepartment || !department || !anyCourse) this.courseTarget.value = ""
   }
 
   // 隠れている欄は入力を求めない(隠れた必須欄は、送信を黙って止めてしまう)。
