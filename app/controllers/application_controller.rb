@@ -11,9 +11,14 @@ class ApplicationController < ActionController::Base
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
-  helper_method :local_demo_access?
+  helper_method :local_demo_access?, :google_login_available?
 
   private
+
+  # 資格情報が無いとGoogleへ飛ばしてもエラー画面になるだけなので、ボタンごと出さない。
+  def google_login_available?
+    ENV['GOOGLE_CLIENT_ID'].present? && ENV['GOOGLE_CLIENT_SECRET'].present?
+  end
 
   def local_demo_access?
     return false unless DemoAccount.enabled?

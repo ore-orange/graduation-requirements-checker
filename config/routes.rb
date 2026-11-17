@@ -16,6 +16,12 @@ Rails.application.routes.draw do
   resource :session, only: %i[new create destroy]
   resource :demo_session, only: :create
 
+  # Googleログイン。開始のPOSTはOmniAuthのミドルウェアが先に受けるため、
+  # 下のルートはURLを組み立てるためだけに置いている。
+  post 'auth/:provider', to: 'oauth_sessions#passthru', as: :oauth_request
+  get 'auth/failure', to: 'oauth_sessions#failure'
+  get 'auth/:provider/callback', to: 'oauth_sessions#create'
+
   # 大項目を開いたときだけ小項目を取りに来る（進捗ダッシュボードのドロップダウン）
   get 'dashboard/groups/:id', to: 'dashboard_groups#show', as: :dashboard_group
 

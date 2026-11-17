@@ -21,6 +21,17 @@ class User < ApplicationRecord
   # どちらの手段も持たない行は、作ってもログインできないので作らせない。
   validate :must_have_credential
 
+  # Googleから返ってきた本人情報で、対応する利用者を引き当てる。無ければ作る。
+  # 突き合わせはまず google_uid。メールアドレスは本人が変更できるため、
+  # 同一性の判断には使わない。ただし既にパスワードで登録している人が同じ
+  # メールアドレスでGoogleを使った場合は、別アカウントを作らず同じ行に繋ぐ。
+  def self.from_google!(uid:, email:)
+    find_by(google_uid: uid) || find_or_initialize_by(email: email).tap do |user|
+      user.google_uid = uid
+      user.save!
+    end
+  end
+
   def google_linked?
     google_uid.present?
   end
