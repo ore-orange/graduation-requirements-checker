@@ -63,6 +63,28 @@ class OauthSessionsTest < ActionDispatch::IntegrationTest
     assert_equal UID, user.reload.google_uid
   end
 
+  test '学外のGoogleアカウントではログインできない' do
+    mock_google(email: 'someone@gmail.com')
+
+    assert_no_difference ['User.count', 'Session.count'] do
+      sign_in_with_google
+    end
+
+    assert_redirected_to new_session_path
+  end
+
+  # Googleでは確認していないアドレスも info.email に入ることがある。
+  # 確認済みでなければ、学内ドメインを名乗られても信用しない。
+  test '確認されていないメールアドレスではログインできない' do
+    mock_google(email_verified: false)
+
+    assert_no_difference ['User.count', 'Session.count'] do
+      sign_in_with_google
+    end
+
+    assert_redirected_to new_session_path
+  end
+
   test 'Google側で断られたらログイン画面へ戻す' do
     OmniAuth.config.mock_auth[:google_oauth2] = :access_denied
 
@@ -83,9 +105,10 @@ class OauthSessionsTest < ActionDispatch::IntegrationTest
 
   private
 
-  def mock_google(uid: UID, email: EMAIL)
+  def mock_google(uid: UID, email: EMAIL, email_verified: true)
     OmniAuth.config.mock_auth[:google_oauth2] = OmniAuth::AuthHash.new(
-      provider: 'google_oauth2', uid: uid, info: { email: email, name: 'テスト 学生' }
+      provider: 'google_oauth2', uid: uid,
+      info: { email: email, email_verified: email_verified, name: 'テスト 学生' }
     )
   end
 

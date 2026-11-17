@@ -11,7 +11,10 @@ class OauthSessionsController < ApplicationController
   end
 
   def create
-    user = User.from_google!(uid: auth.uid, email: auth.info.email)
+    identity = GoogleIdentity.from(auth)
+    return redirect_to new_session_path, alert: denied_message unless identity.allowed_domain?
+
+    user = User.from_google!(uid: identity.uid, email: identity.email)
     start_new_session_for user
     redirect_to after_authentication_url
   end
@@ -24,6 +27,12 @@ class OauthSessionsController < ApplicationController
 
   def auth
     request.env.fetch('omniauth.auth')
+  end
+
+  # どのドメインなら通るかは伏せない。学内の利用者が私用のアカウントで
+  # 入ろうとして断られたとき、何をすればよいか分からなくなるため。
+  def denied_message
+    "#{GoogleIdentity.allowed_domains.join('、')} のGoogleアカウントでログインしてください。"
   end
 end
 
