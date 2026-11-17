@@ -101,6 +101,19 @@ module CurriculumImport
 
     def rule_ids = input.rules.pluck('id')
 
+    # 区分の科目番号パターンの候補。既にパターンを持つ区分の除外は CategoryInference#suggestions が行う。
+    def pattern_suggestions_for(category_key) = pattern_suggestions.fetch(category_key, [])
+
+    # 候補を採用したとき、科目表から外れる科目([全体の件数, うち確認済み, うち手で足した])。採用の操作と同じ判定で数える。
+    def adoption_impact(category_key)
+      @adoption_impacts ||= {}
+      @adoption_impacts[category_key] ||= begin
+        dropped = CoursePrune.dropping(adopted_view(category_key), drop_confirmed: true, only: [category_key])
+        [dropped.size, dropped.count { |course| CourseEdit.confirmed?(course) },
+         dropped.count { |course| course['added_by_hand'] == true }]
+      end
+    end
+
     # 決まりが名指ししている出典。2024年度は27個の決まりに2種類しかないので、節に1度だけ出す(設計書 項目4)。
     def source_pages = @source_pages ||= rules.filter_map { |rule| rule['source_page'].presence }.uniq
 
@@ -277,6 +290,19 @@ module CurriculumImport
     end
 
     private
+
+    def pattern_suggestions
+      @pattern_suggestions ||= CategoryInference.new(input.courses).suggestions(input.categories)
+    end
+
+    # その区分に候補を入れた文書(件数を数えるための見せかけ。保存はしない)。
+    def adopted_view(category_key)
+      patterns = pattern_suggestions_for(category_key)
+      adopted = input.categories.map do |category|
+        category['key'] == category_key ? category.merge('number_patterns' => patterns) : category
+      end
+      { 'categories' => adopted, 'courses' => input.courses }
+    end
 
     def input
       @input ||= Validation::Input.new(curriculum.document, curriculum.pages)

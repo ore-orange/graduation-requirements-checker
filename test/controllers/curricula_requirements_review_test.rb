@@ -1099,5 +1099,50 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select 'li[data-page="2"]'
     assert_select 'li[data-reread-warning]', count: 0
   end
+
+  # ---- 科目番号パターンの候補 ----
+
+  # 知能4xx の4科目(1つは人が確認済み)を区分 intel に足した下書き。候補は「知能4」。
+  def draft_with_pattern_candidate
+    document = requirements_document
+    document['categories'] << { 'key' => 'intel', 'label' => '知能系', 'counts_toward_total' => true }
+    document['courses'] += [fixture_course('知能401', 'A', 'intel'), fixture_course('知能402', 'B', 'intel'),
+                            fixture_course('知能403', 'C', 'intel'),
+                            fixture_course('知能404', 'D', 'intel', 'confirmed' => true)]
+    draft(document: document)
+  end
+
+  test '区分の欄に、科目番号パターンの候補が出る' do
+    show(draft_with_pattern_candidate)
+
+    assert_response :success
+    assert_select '#category-intel [data-pattern-suggestion=intel]', text: /知能4/
+    assert_select '#category-intel input[type=checkbox][name=?][value=?]', 'adopt_patterns[intel]', '1'
+    # 押す前に件数を見せる(確認済みの科目も外れることを、ラベルで言う)
+    assert_select '#category-intel [data-pattern-suggestion=intel] label', text: /当たる4件\(うち確認済み1件\)を便覧から外します/
+    # 候補の無い区分には出さない
+    assert_select '#category-english [data-pattern-suggestion]', count: 0
+  end
+
+  test '候補を採用すると、外した件数を知らせる' do
+    draft = draft_with_pattern_candidate
+
+    submit_pairs(draft, browser_pairs(draft) + [['adopt_patterns[intel]', '1']])
+
+    assert_response :see_other
+    assert_match(/科目表から4件を外しました\(うち確認済み1件\)/, flash[:notice])
+    document = draft.reload.document
+    assert_equal ['知能4'], document['categories'].find { |category| category['key'] == 'intel' }['number_patterns']
+    assert_not_includes document['courses'].pluck('number'), '知能404'
+  end
+
+  test '候補を押さずに保存すると、文書は1バイトも変わらない' do
+    draft = draft_with_pattern_candidate
+    before = draft.document.deep_dup
+
+    submit_pairs(draft, browser_pairs(draft))
+
+    assert_equal before, draft.reload.document
+  end
 end
 

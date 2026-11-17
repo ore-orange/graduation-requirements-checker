@@ -26,6 +26,7 @@ module CurriculumImport
     include MirrorWriteback
     include RuleCleanup
     include Additions
+    include PatternAdoption
 
     # どの項目(kind と id)の、どんな問題か。kind が nil なら、項目に結びつかない問題。
     Problem = Struct.new(:message, :kind, :id)
@@ -186,6 +187,8 @@ module CurriculumImport
       drop_unused_roles
       decide_annotations
       remove_approval_note
+      # 候補の採用は、人が直した値がすべて当たったあとに走らせる(科目の絞り込みは、確認済みの科目も外す)。
+      adopt_patterns
     end
 
     # ---- 区分 ----

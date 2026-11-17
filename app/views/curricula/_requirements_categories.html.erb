@@ -44,6 +44,18 @@
                 卒業の総単位に数える
               </label>
             </div>
+            <% suggested = review.pattern_suggestions_for(category['key']) %>
+            <% if suggested.any? %>
+              <% total, confirmed, by_hand = review.adoption_impact(category['key']) %>
+              <% inside = ['うち確認済み' + confirmed.to_s + '件', ("手で足した#{by_hand}件" if by_hand.positive?)].compact.join('・') %>
+              <div class="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-slate-800" data-pattern-suggestion="<%= category['key'] %>">
+                <p>科目番号のパターンの候補: <span class="font-semibold text-slate-900"><%= suggested.join(' ・ ') %></span></p>
+                <label class="mt-1 flex items-start gap-1.5">
+                  <%= rv_check "adopt_patterns[#{category['key']}]", '1', false, id: nil %>
+                  <span>この候補を使う: 当たる<%= total %>件(<%= inside %>)を便覧から外します(保存したときに外れます)</span>
+                </label>
+              </div>
+            <% end %>
           </details>
         </li>
       <% end %>
