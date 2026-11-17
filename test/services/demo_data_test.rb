@@ -173,6 +173,23 @@ class DemoDataTest < ActiveSupport::TestCase
     JSON.parse(Rails.root.join(DemoData::ENROLLMENT_FILES.fetch(year)).read).fetch('enrollments')
   end
 
+  test '同じ科目番号・科目名の Course が複数あるとき、いちばん古い行を使う' do
+    older = Course.create!(course_number: 'TEST001', name: 'テスト科目', credits: 2)
+    newer = Course.create!(course_number: 'TEST001', name: 'テスト科目', credits: 9)
+
+    # 選び方が毎回同じであること(DBが返す順に任せない)。
+    3.times { assert_equal older, DemoData.send(:course_for, 'TEST001', 'テスト科目') }
+    assert_not_equal newer, DemoData.send(:course_for, 'TEST001', 'テスト科目')
+  end
+
+  test '同じ科目番号・科目名の Course が無ければ、保存前の行を返す' do
+    course = DemoData.send(:course_for, 'TEST002', '新しい科目')
+
+    assert_predicate course, :new_record?
+    assert_equal 'TEST002', course.course_number
+    assert_equal '新しい科目', course.name
+  end
+
   def record_counts
     [User, Faculty, Department, Student, Course, StudentCourse, PlannedCourse].to_h do |model|
       [model.name, model.count]

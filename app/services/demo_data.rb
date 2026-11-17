@@ -44,10 +44,19 @@ class DemoData
     # もう片方の便覧が読み込まれた瞬間に値が復活してしまう。
     def import_courses(entries)
       entries.select { |entry| entry['number'].present? }.to_h do |entry|
-        course = Course.find_or_initialize_by(course_number: entry.fetch('number'), name: entry.fetch('name'))
+        course = course_for(entry.fetch('number'), entry.fetch('name'))
         course.update!(credits: entry.fetch('credits')) if course.credits.nil?
         [course.course_number, course]
       end
+    end
+
+    # (科目番号, 科目名)が同じ行が複数あるとき、どれを使うかを毎回同じにする。
+    # find_or_initialize_by は順序を指定しないので、DBが返す行が実行ごとに変わりうる。別の行が返ると、
+    # import_enrollments が「その科目の履修はまだ無い」と見て、同じ履修をもう1件作ってしまう。
+    # いちばん古い行に揃える(Curriculum.slug_for_program と同じ考え方)。
+    def course_for(number, name)
+      Course.where(course_number: number, name: name).order(:id).first ||
+        Course.new(course_number: number, name: name)
     end
 
     def find_or_create_student(definition, curriculum)
