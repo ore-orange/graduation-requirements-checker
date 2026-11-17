@@ -139,5 +139,47 @@ class CategoryPatternsTest < ActiveSupport::TestCase
       assert_equal before, document_after
     end
   end
+
+  class StubReader
+    def initialize(courses) = @courses = courses
+
+    def read_courses(text:, **) = @courses.fetch(text)
+  end
+
+  def course_row(number)
+    { 'number' => number, 'name' => "科目#{number}", 'credits' => 2, 'category' => 'intel', 'required' => false,
+      'requires_approval' => false, 'language' => nil, 'review_reason' => nil, 'roles' => [] }
+  end
+
+  # 採用で外した科目(確認済みを含む)を、同じページの読み直しが連れ戻さない。戻ると科目表が再び膨らむ。
+  test '採用して外した科目は、同じページを読み直しても戻ってこない' do
+    curriculum = Curriculum.create!(
+      slug: 'prune_reread', admission_year: 2025, faculty_name: '工学部', department_name: '工学科',
+      source_filename: 'handbook.pdf',
+      document: { 'categories' => [{ 'key' => 'intel', 'label' => '知能系', 'counts_toward_total' => true }] },
+      pages: [{ 'page' => 9, 'kind' => 'courses', 'status' => 'pending', 'error' => nil, 'text' => '科目' }]
+    )
+    FileUtils.mkdir_p(curriculum.images_dir)
+    File.binwrite(curriculum.images_dir.join('p9.png'), "\x89PNG".b)
+    rows = %w[知能401 知能402 知能403 知能404].map { |number| course_row(number) }
+    reader = StubReader.new('科目' => { 'courses' => rows })
+    assert CurriculumImport::ReadPage.new(curriculum, reader: reader).call(9)
+    assert_equal 4, curriculum.reload.document['courses'].size
+    key = curriculum.document['courses'].find { |course| course['number'] == '知能404' }['key']
+    curriculum.with_lock { assert CurriculumImport::CourseEdit.new(curriculum, key: key, confirmed: true).call.ok? }
+
+    revision = CurriculumImport::RequirementsEdit.revision(curriculum.reload.document)
+    result = curriculum.with_lock do
+      CurriculumImport::RequirementsEdit.new(curriculum, revision: revision, adopt_patterns: { 'intel' => '1' }).call
+    end
+    assert result.ok?, result.errors.join('/')
+    assert_equal [], curriculum.reload.document['courses']
+
+    assert CurriculumImport::ReadPage.new(curriculum, reader: reader).call(9)
+
+    assert_equal [], curriculum.reload.document['courses'].pluck('number')
+  ensure
+    FileUtils.rm_rf(curriculum.images_dir) if curriculum
+  end
 end
 
