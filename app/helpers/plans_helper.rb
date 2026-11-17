@@ -11,6 +11,26 @@ module PlansHelper
   def term_param(term) = "#{term[:grade]}-#{term[:semester]}"
   def term_label(term) = "#{term[:grade]}年 #{term[:semester]}"
 
+  # 学期の単位の内訳。修得＝修得済み、履修中＝登録済み・履修中、予定＝履修予定。total はその合計。
+  def term_credits(enrollments, plans, courses_by_key)
+    completed = enrollments.select { |e| e.enrollment_status == 'completed' }
+    current = enrollments.select { |e| StudentWorkspace::CURRENT_STATUSES.include?(e.enrollment_status) }
+    credits = { earned: sum_credits(completed, &:credits_earned),
+                current: sum_credits(current) { |e| e.course.credits },
+                planned: sum_credits(plans) { |p| plan_credits(p, courses_by_key) } }
+    credits.merge(total: credits.values.sum)
+  end
+
+  def sum_credits(records)
+    records.sum(BigDecimal('0')) { |record| yield(record) || BigDecimal('0') }
+  end
+
+  # 予定カードに出す単位。便覧にも科目にも単位がなければ「未確認」と出す。
+  def plan_credit_label(plan, courses_by_key)
+    catalogue = courses_by_key[plan.course.curriculum_key]
+    credit_label(catalogue ? catalogue['credits'] : plan.course.credits)
+  end
+
   def planner_subtotal_for(row_id) = PLANNER_SUBTOTALS.find { |subtotal| subtotal[:row_ids].include?(row_id) }
 
   # 区分の行で、便覧から選べる科目と、そのうちまだ修得・履修中・追加済みでない科目

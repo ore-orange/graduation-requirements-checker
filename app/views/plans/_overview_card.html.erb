@@ -1,0 +1,29 @@
+<%# 一覧表のカード。列がせまいので科目名・単位・状態だけを出す。予定のカードは右上の×で削除できる %>
+<%
+  if record.is_a?(PlannedCourse)
+    custom = custom_course?(record.course.curriculum_key)
+    credit_text = plan_credit_label(record, @courses_by_key)
+    label = custom ? '要確認' : '予定'
+    tone = custom ? 'border-amber-300 bg-amber-50/70 text-amber-800' : 'border-sky-200 bg-sky-50/70 text-sky-700'
+    data = { plan: record.id }
+  else
+    status = record.enrollment_status
+    credit_text = credit_label(status == 'completed' ? record.credits_earned : record.course.credits)
+    label = StudentWorkspace::CURRENT_STATUSES.include?(status) ? '履修中' : (status == 'completed' ? '修得' : enrollment_status_label(status))
+    tone = if StudentWorkspace::CURRENT_STATUSES.include?(status) then 'border-sky-200 bg-sky-50/60 text-sky-700'
+           elsif status == 'completed' then 'border-slate-200 bg-white text-slate-500'
+           else 'border-amber-200 bg-amber-50/60 text-amber-800'
+           end
+    data = { enrollment: record.id }
+  end
+%>
+<%= tag.div class: "relative px-1.5 py-1 rounded-md border shadow-2xs #{tone}", data: data do %>
+  <% if record.is_a?(PlannedCourse) %>
+    <%= button_to '×', plan_course_path(record), method: :delete, params: { view: 'all' },
+                  class: 'w-5 h-5 flex items-center justify-center rounded text-sm leading-none text-slate-400 hover:bg-rose-50 hover:text-rose-600 cursor-pointer',
+                  form: { class: 'absolute top-0 right-0' },
+                  aria: { label: "#{record.course.name}を今後の履修予定から削除" } %>
+  <% end %>
+  <div class="font-semibold text-slate-800 leading-snug break-words <%= 'pr-3.5' if record.is_a?(PlannedCourse) %>"><%= record.course.name %></div>
+  <div class="mt-0.5 text-[10px]"><%= credit_text %>・<%= label %></div>
+<% end %>
