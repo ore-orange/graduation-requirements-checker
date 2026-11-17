@@ -144,19 +144,22 @@ class CurriculumPageWizardTest < ApplicationSystemTestCase
 
   # 呼ばれたページを覚え、delay 秒かけて答える窓口の代役。fail_on のページ画像のときだけ読み取りに失敗する。
   class StubReader
-    attr_reader :calls
+    attr_reader :calls, :kinds
 
     def initialize(delay: 0, fail_on: nil)
+      @kinds = []
       @delay = delay
       @fail_on = fail_on
       @calls = []
     end
 
     def read_requirements(image_path:, **)
+      @kinds << :requirements
       answer(image_path, REQUIREMENTS)
     end
 
     def read_courses(image_path:, **)
+      @kinds << :courses
       answer(image_path, COURSES)
     end
 
@@ -331,6 +334,36 @@ class CurriculumPageWizardTest < ApplicationSystemTestCase
     assert_equal %w[requirements courses skip skip skip], kinds
     assert_equal %w[read read pending pending pending], statuses
     assert_equal %w[p1.png p2.png], reader.calls
+  end
+
+  test '行の「読む」も、保存してから読む(種別を変えて保存せずに押すと、変えたあとの種別で読まれる)' do
+    # 1ページ目を要件表で読んでおき、要件表(区分)がある状態にする
+    first_page_is_requirements
+    reader = StubReader.new
+    with_reader(reader) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '読まない', '読まない', '読まない', '読まない'
+      click_on 'この指定で読み取る(1ページ)'
+      assert_text '読み取りが終わりました。'
+      reader.kinds.clear
+      reader.calls.clear
+
+      # 1ページ目を、保存しないまま 科目表 に選び直し、その行の「読む(読み直す)」を押す
+      within("#page_1_curriculum_#{@curriculum.id}") { click_on '直す' }
+      choose '科目表'
+      click_on '全ページを一覧で見る'
+      # 種別を替えたので、読み取り結果を外す旨の確認が出る(保存の応答の警告)
+      accept_confirm(/1ページの読み取り結果は外しました/) do
+        within("#page_1_curriculum_#{@curriculum.id}") { click_on '読み直す' }
+      end
+
+      assert_text '読み取りが終わりました。'
+    end
+
+    assert_equal [:courses], reader.kinds # 保存済みの要件表ではなく、選び直した科目表で読まれる
+    assert_equal %w[p1.png], reader.calls
+    assert_equal 'courses', kinds.first
+    assert_equal 'courses', find("input[name='pages[1]']:checked", visible: :all).value # 行の差し替えで、選択が戻らない
   end
 
   test '読み取りが終わったら、進み具合の見出しは「読み取り中」のままにしない' do

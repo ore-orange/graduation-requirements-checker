@@ -43,31 +43,32 @@ export default class extends Controller {
     if (this.hasDoneTarget) this.doneTarget.hidden = true
   }
 
-  readOne(event) {
-    const row = event.currentTarget.closest("[data-read-url]")
-    return this.readRows([row])
-  }
-
-  // 一覧の「この指定で読み取る」と、「全部読む」。保存してから読む(順を逆にしない)。
+  // 一覧の「この指定で読み取る」・「全部読む」・行の「読む」(読み直す)。入口は3つだが、どれもここを通る。
+  // 行のボタンは、その1行だけを読む(保存はフォーム全体: 画面に見えている指定が保存される)。保存してから読む(順を逆にしない)。
   // 1ページ読むたびにその行が差し替わり、そのとき保存していないラジオの選択は保存値に戻る。先に読み始めると、人が選んだ指定が消える。
   // 警告(読み取り結果を外す・人が直したものがあるページを読み直す)は、保存の応答がサーバーの保存済みの内容から作って返す。
   // 保存前の状態から画面で作ると、同じ判断を画面にも持つことになる。
   // 読むのは、読み終わっていない(未読か失敗)、読む種別のページを、要件表 → 科目表の順に、ページ番号順で。
-  async saveAndRead() {
+  async saveAndRead(event) {
     if (this.busy) return
+    const only = event?.currentTarget.closest("[data-page]")?.dataset.page
     this.setBusy(true)
     this.clearDone()
     this.show("ページの指定を保存しています…")
-    const saved = await this.save()
+    const saved = await this.save(only)
     if (!saved) return this.setBusy(false)
 
     // 読む種別のページが無ければ、読み取りを始めない(0ページの読み取りはしない)。
-    const rows = this.rowsToRead()
-    if (this.readableRows().length === 0) {
+    const rows = only ? this.rowFor(only) : this.rowsToRead()
+    if (only && rows.length === 0) {
+      this.show(["ページの指定を保存しました。このページは読まない指定なので、読み取りは始めませんでした。", ...saved.warnings].join("\n"))
+      return this.setBusy(false)
+    }
+    if (!only && this.readableRows().length === 0) {
       this.show(["ページの指定を保存しました。読み取るページ(要件表・科目表)が選ばれていないので、読み取りは始めませんでした。", ...saved.warnings].join("\n"))
       return this.setBusy(false)
     }
-    if (rows.length === 0) {
+    if (!only && rows.length === 0) {
       this.show("ページの指定を保存しました。読むページはすべて読み取り済みです。読み直すときは、行の「読み直す」を押してください。")
       return this.setBusy(false)
     }
@@ -81,13 +82,16 @@ export default class extends Controller {
   }
 
   // フォームの pages[...] を PATCH する。成功したら { warnings } を返す。失敗したら理由を一覧の上に出して false を返す。
-  async save() {
+  // only があれば、そのページだけを読むので、警告もそのページのぶんだけ返してもらう。
+  async save(only) {
     const form = this.element.querySelector("form")
+    const body = new FormData(form)
+    if (only) body.append("only_page", only)
     try {
       const response = await fetch(form.action, {
         method: "PATCH",
         credentials: "same-origin",
-        body: new FormData(form),
+        body,
         headers: { "X-CSRF-Token": this.csrfToken(), Accept: "text/vnd.turbo-stream.html" },
       })
       const type = response.headers.get("Content-Type") || ""
@@ -95,9 +99,9 @@ export default class extends Controller {
         this.show(`ページの指定を保存できませんでした(HTTP ${response.status})。読み取りは始めませんでした。ページを開き直して確認してください。`)
         return false
       }
-      const body = await response.text()
-      const warnings = this.warningsIn(body)
-      await this.render(body)
+      const stream = await response.text()
+      const warnings = this.warningsIn(stream)
+      await this.render(stream)
       if (!response.ok) {
         this.show("ページの指定を保存できませんでした。")
         return false
@@ -132,6 +136,11 @@ export default class extends Controller {
     for (let tries = 0; tries < 100 && document.querySelector("turbo-stream"); tries += 1) {
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
+  }
+
+  // 保存で差し替わった、そのページの行(読めない種別なら無い)
+  rowFor(page) {
+    return [...this.element.querySelectorAll(`[data-read-url][data-page="${page}"]`)]
   }
 
   rows() {

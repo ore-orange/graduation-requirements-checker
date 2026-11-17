@@ -33,10 +33,14 @@ module CurriculaPagesUpdate
     [(saved_notice if @withdrawn_pages.present?), *reread_warnings].compact
   end
 
-  # 画面が読み取りに入るページ(読む種別で、読み終わっていない)の、読み直しの確認。「全部読む」が読むページと同じ。
+  # 画面が読み取りに入るページの、読み直しの確認。「全部読む」・「この指定で読み取る」は、読む種別で読み終わっていないページ。
+  # 行の「読む」(only_page)は、そのページだけ(読み終わっていても読み直すので、状態は問わない)。
   def reread_warnings
+    only = params[:only_page].presence&.to_i
     to_read = @curriculum.pages.select do |page|
-      Curriculum::READABLE_PAGE_KINDS.include?(page['kind']) && page['status'] != 'read'
+      next false unless Curriculum::READABLE_PAGE_KINDS.include?(page['kind'])
+
+      only ? page['page'] == only : page['status'] != 'read'
     end
     to_read.filter_map { |page| CurriculumImport::RereadWarning.for(@curriculum.document, page) }
   end

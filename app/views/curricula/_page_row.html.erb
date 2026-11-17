@@ -55,7 +55,7 @@
           <span class="text-xs font-semibold <%= page['status'] == 'failed' ? 'text-rose-700' : 'text-slate-600' %>"><%= status %></span>
           <% if reader_available %>
             <button type="button" class="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    data-read-pages-target="one" data-action="click->read-pages#readOne">
+                    data-read-pages-target="one" data-action="click->read-pages#saveAndRead">
               <%= page['status'] == 'read' ? '読み直す' : '読む' %>
             </button>
           <% end %>

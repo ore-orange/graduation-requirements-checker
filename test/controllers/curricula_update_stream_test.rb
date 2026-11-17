@@ -22,9 +22,9 @@ class CurriculaUpdateStreamTest < ActionDispatch::IntegrationTest
     @previous_proxy.nil? ? ENV.delete('LOCAL_DEMO_PROXY') : ENV['LOCAL_DEMO_PROXY'] = @previous_proxy
   end
 
-  def save_pages(draft, pages, headers: STREAM)
+  def save_pages(draft, pages, headers: STREAM, **extra)
     CurriculumReader.stub(:available?, true) do
-      patch curriculum_path(draft), params: { pages: pages }, headers: headers, env: ENV_LOCAL
+      patch curriculum_path(draft), params: { pages: pages, **extra }, headers: headers, env: ENV_LOCAL
     end
   end
 
@@ -78,6 +78,17 @@ class CurriculaUpdateStreamTest < ActionDispatch::IntegrationTest
 
     save_pages(draft, { '2' => 'requirements' })
 
+    assert_equal [], warnings
+  end
+
+  test '行の「読む」(only_page)は、読み終わっているそのページの読み直しの警告も返し、他のページの警告は返さない' do
+    draft = draft()
+    save draft, rules: [{ id: 'humanities', required_credits: '5' }]
+
+    save_pages(draft, { '2' => 'requirements' }, only_page: '2')
+    assert_match(/2ページを読み直します/, warnings.first)
+
+    save_pages(draft, { '2' => 'requirements' }, only_page: '1')
     assert_equal [], warnings
   end
 
