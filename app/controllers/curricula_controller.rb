@@ -9,6 +9,7 @@ class CurriculaController < ApplicationController
   include CurriculaCourses
   include CurriculaCourseFilter
   include CurriculumUploadParams
+  include CurriculaPagesUpdate
 
   MAX_PDF_BYTES = 10.megabytes
   # 識別名(slug)は入力させない(Curriculum が学部名・学科コース名から決める)ので、ここに欄の名前は無い。
@@ -102,6 +103,9 @@ class CurriculaController < ApplicationController
     redirect_to curriculum, notice: '下書きを作りました。読むページを選んでください。', status: :see_other
   end
 
+  # ページの指定の保存。画面の「この指定で読み取る」は fetch で Turbo Stream を受け、そのまま読み取りに入る(警告は応答に載せる)。
+  # JavaScript が動かないときの「ページの指定を保存」は html で、いまどおり画面を開き直す。
+  #
   # pages は読み取り(ReadPage)も、数分かかる要求の最後に書く。読み込んだ手元の pages を書き戻すと、その間に
   # 読み終わったページが未読に戻り、読み直しで要件が二重に入る。行を取り直してロックし、その上で替える。
   #
@@ -116,10 +120,10 @@ class CurriculaController < ApplicationController
       notice = params[:page_count].present? ? assign_page_count : assign_page_kinds
       @curriculum.save! unless notice.is_a?(String)
     end
-    return redirect_to requirements_location, alert: published_alert, status: :see_other if notice == published_alert
-    return redirect_to @curriculum, alert: notice, status: :see_other if notice.is_a?(String)
-
-    redirect_to @curriculum, notice: saved_notice, status: :see_other
+    respond_to do |format|
+      format.html { redirect_after_update(notice) }
+      format.turbo_stream { render_update_stream(notice) }
+    end
   end
 
   # 要件表の確認画面(規則・区分・章と行・総単位・注釈の扱い)で人が直した値を、下書きに入れる。

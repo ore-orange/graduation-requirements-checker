@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'application_system_test_case'
+require 'minitest/mock'
 
 # 便覧の下書きの手順①。読むページを、1ページずつ見て 読まない・要件表・科目表 から選び、最後に一覧で確認する。
 # 1枚表示にするのは Stimulus なので、HTML だけを見るコントローラのテストでは確かめられない。ここで実ブラウザで確かめる。
@@ -78,6 +79,7 @@ class CurriculumPageWizardTest < ApplicationSystemTestCase
   end
 
   test '一覧に、要件表・科目表・読まないの件数が出る' do
+    CurriculumReader.stub(:available?, true) { visit curriculum_path(@curriculum) }
     choose '要件表'
     choose '科目表'
     choose '科目表'
@@ -86,8 +88,18 @@ class CurriculumPageWizardTest < ApplicationSystemTestCase
 
     assert_text '指定の確認'
     assert_text '要件表 2 ・ 科目表 2 ・ 読まない 1'
-    assert_button 'この指定で読み取る(4ページ)', disabled: true
+    # 読み取りの窓口が使えるときは押せる。使えないとき(APIキーが無い)は押せないまま。
+    assert_button 'この指定で読み取る(4ページ)', disabled: false
     within("#page_2_curriculum_#{@curriculum.id}") { assert_text '科目表' }
+  end
+
+  test '読み取りの窓口が使えないときは、「この指定で読み取る」を押せないままにする' do
+    CurriculumReader.stub(:available?, false) do
+      visit curriculum_path(@curriculum)
+      click_on '全ページを一覧で見る'
+
+      assert_button 'この指定で読み取る(0ページ)', disabled: true
+    end
   end
 
   test '画像が無いページでは、取り出した文字の冒頭が出る' do
@@ -114,6 +126,224 @@ class CurriculumPageWizardTest < ApplicationSystemTestCase
     assert_equal 'requirements', checked_kind(1)
     assert_equal 'courses', checked_kind(2)
     assert_equal 'skip', checked_kind(3)
+  end
+
+  # ---- 「この指定で読み取る」: 保存から読み取りまで1回の操作で進み、進み具合を見せる ----
+  # 読み取りの窓口は代役に差し替える(外部APIは呼ばない)。画面のサーバーは同じプロセスなので、差し替えはそのまま効く。
+
+  REQUIREMENTS = {
+    'categories' => [{ 'key' => 'course_required', 'label' => 'コース専門必修', 'counts_toward_total' => true }],
+    'roles' => [],
+    'rules' => [{ 'id' => 'common_total', 'type' => 'credit_sum', 'label' => '共通教育のしばり',
+                  'categories' => ['course_required'], 'required_credits' => 30 }],
+    'display' => { 'groups' => [] }
+  }.freeze
+  COURSES = { 'courses' => [{ 'number' => '知能101', 'name' => 'プログラミング演習Ⅰ', 'credits' => 1,
+                              'category' => 'course_required', 'required' => true, 'requires_approval' => false,
+                              'language' => nil, 'review_reason' => nil, 'roles' => [] }] }.freeze
+
+  # 呼ばれたページを覚え、delay 秒かけて答える窓口の代役。fail_on のページ画像のときだけ読み取りに失敗する。
+  class StubReader
+    attr_reader :calls
+
+    def initialize(delay: 0, fail_on: nil)
+      @delay = delay
+      @fail_on = fail_on
+      @calls = []
+    end
+
+    def read_requirements(image_path:, **)
+      answer(image_path, REQUIREMENTS)
+    end
+
+    def read_courses(image_path:, **)
+      answer(image_path, COURSES)
+    end
+
+    private
+
+    def answer(image_path, result)
+      @calls << File.basename(image_path.to_s)
+      sleep @delay
+      raise CurriculumReader::Error, 'テスト用の失敗です。' if @fail_on && File.basename(image_path.to_s) == @fail_on
+
+      result
+    end
+  end
+
+  def with_reader(reader, &)
+    CurriculumReader.stub(:available?, true) do
+      CurriculumReader.stub(:new, reader, &)
+    end
+  end
+
+  # 1ページ目から順に種別を選び、最後の次で出る一覧まで進む。
+  def specify(*labels)
+    labels.each { |label| choose label }
+    assert_text '指定の確認'
+  end
+
+  def statuses = @curriculum.reload.pages.pluck('status')
+
+  def kinds = @curriculum.reload.pages.pluck('kind')
+
+  test '「この指定で読み取る」で、保存から読み取りまで1回の操作で進む' do
+    reader = StubReader.new
+    with_reader(reader) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '科目表', '読まない', '読まない', '読まない'
+      click_on 'この指定で読み取る(2ページ)'
+
+      assert_text '読み取りが終わりました。'
+    end
+
+    assert_equal %w[requirements courses skip skip skip], kinds # 「ページの指定を保存」を押していないのに保存されている
+    assert_equal %w[read read pending pending pending], statuses
+    assert_equal %w[p1.png p2.png], reader.calls # 要件表を先に読む
+    assert_selector "#page_1_curriculum_#{@curriculum.id}", text: '読み取り済み'
+  end
+
+  test '警告があるときは、確認してから読み取りに入る' do
+    hold_a_result_on_first_page
+    reader = StubReader.new
+    with_reader(reader) do
+      visit curriculum_path(@curriculum)
+      specify '読まない', '要件表', '読まない', '読まない', '読まない' # 1ページ目の結果を持つ種別を替える
+      message = accept_confirm { click_on 'この指定で読み取る(1ページ)' }
+
+      assert_match(/1ページの読み取り結果は外しました/, message)
+      assert_text '読み取りが終わりました。'
+    end
+
+    assert_equal %w[p2.png], reader.calls
+  end
+
+  test '警告の確認を断ると、保存はするが読み取りには入らない' do
+    hold_a_result_on_first_page
+    reader = StubReader.new
+    with_reader(reader) do
+      visit curriculum_path(@curriculum)
+      specify '読まない', '要件表', '読まない', '読まない', '読まない'
+      dismiss_confirm { click_on 'この指定で読み取る(1ページ)' }
+
+      assert_text '読み取りは始めませんでした'
+      assert_button 'この指定で読み取る(1ページ)', disabled: false # 押し直せる
+    end
+
+    assert_empty reader.calls
+    assert_equal %w[skip requirements skip skip skip], kinds
+    assert_equal %w[pending pending pending pending pending], statuses
+  end
+
+  test '読み取り中に、進み具合のバーと n / m ページと、経過秒数が出る' do
+    reader = StubReader.new(delay: 2.5)
+    with_reader(reader) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '科目表', '読まない', '読まない', '読まない'
+      click_on 'この指定で読み取る(2ページ)'
+
+      assert_selector 'progress[max="2"][value="0"]'
+      assert_text '0 / 2 ページ'
+      assert_text '1ページを読み取っています…(0:00)'
+      assert_text '1ページを読み取っています…(0:01)' # 秒数が動いている(止まって見えない)
+      assert_text '1 / 2 ページ'
+      assert_selector 'progress[value="1"]'
+      assert_text '読み取りが終わりました。', wait: 10
+      assert_selector 'progress[value="2"]'
+    end
+  end
+
+  test '読み取り中は、②③④の節を触れず、終わると触れる' do
+    with_reader(StubReader.new(delay: 2)) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '読まない', '読まない', '読まない', '読まない'
+      click_on 'この指定で読み取る(1ページ)'
+
+      %w[requirements_review course-review publish].each do |id|
+        assert_selector "##{id}[inert]"
+        assert_selector "##{id} [data-reading-note]", text: '読み取りが終わると出ます'
+      end
+      assert_text '読み取りが終わりました。', wait: 10
+      %w[requirements_review course-review publish].each do |id|
+        assert_no_selector "##{id}[inert]"
+        assert_no_selector "##{id} [data-reading-note]"
+      end
+    end
+  end
+
+  test '読み取りが終わると、②へ進むボタンが出て、押すと読み取った結果が下に出る' do
+    with_reader(StubReader.new) do
+      visit curriculum_path(@curriculum)
+      assert_no_text '共通教育のしばり'
+      specify '要件表', '読まない', '読まない', '読まない', '読まない'
+      assert_no_button '要件表の確認へ'
+      click_on 'この指定で読み取る(1ページ)'
+
+      assert_text '読み取りが終わりました。'
+      click_on '要件表の確認へ'
+
+      within('#requirements_review') { assert_text '共通教育のしばり' } # 開き直したので、読み取った規則が出る
+      assert_equal 'requirements_review', page.evaluate_script('location.hash').delete('#')
+    end
+  end
+
+  test '1ページ失敗しても、残りのページを読み続ける' do
+    reader = StubReader.new(fail_on: 'p2.png')
+    with_reader(reader) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '科目表', '科目表', '読まない', '読まない'
+      click_on 'この指定で読み取る(3ページ)'
+
+      assert_text '1ページは読めませんでした'
+    end
+
+    assert_equal %w[p1.png p2.png p3.png], reader.calls
+    assert_equal %w[read failed read pending pending], statuses
+    assert_button '要件表の確認へ' # 1ページでも読めていれば、結果を見に行ける
+  end
+
+  test '読まないページしか無いときは、読み取りに入らず理由を出す' do
+    reader = StubReader.new
+    with_reader(reader) do
+      visit curriculum_path(@curriculum)
+      click_on '全ページを一覧で見る'
+      click_on 'この指定で読み取る(0ページ)'
+
+      assert_text '読み取るページ(要件表・科目表)が選ばれていないので、読み取りは始めませんでした'
+      assert_no_selector 'progress', visible: :visible
+      assert_no_selector '[inert]'
+    end
+
+    assert_empty reader.calls
+  end
+
+  test '保存できなかったときは、読み取りに進まず、理由を一覧の上に出す' do
+    reader = StubReader.new
+    with_reader(reader) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '読まない', '読まない', '読まない', '読まない'
+      # サーバーが受けない指定を送らせる(画面を開いたあとに、知らない種別が混ざった)
+      page.execute_script("document.querySelector(\"input[name='pages[1]']:checked\").value = 'bogus'")
+      click_on 'この指定で読み取る(1ページ)'
+
+      within('#pages-save-result') { assert_text '保存できなかったので、読み取りは始めませんでした。' }
+      assert_text 'いずれかを、存在するページに指定してください'
+      assert_no_selector 'progress', visible: :visible
+    end
+
+    assert_empty reader.calls
+  end
+
+  # 1ページ目が、読み取りの結果(規則 humanities)を持つ要件表になっている下書き。
+  def hold_a_result_on_first_page
+    rule = { 'id' => 'humanities', 'type' => 'credit_sum', 'label' => '人文系', 'categories' => [],
+             'required_credits' => 4 }
+    pages = @curriculum.pages.map do |page|
+      next page unless page['page'] == 1
+
+      page.merge('kind' => 'requirements', 'status' => 'read', 'contributed' => { 'rules' => ['humanities'] })
+    end
+    @curriculum.update!(pages: pages, document: { 'rules' => [rule] })
   end
 end
 

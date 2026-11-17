@@ -1,0 +1,8 @@
+<%# ページの指定の保存の応答。保存できたときだけ行を差し替える(できなかったときに差し替えると、人が選んだ指定が保存値に戻る)。 %>
+<% if @error.nil? %>
+  <% @curriculum.pages.each do |page| %>
+    <%= turbo_stream.replace dom_id(@curriculum, "page_#{page['page']}"), partial: 'curricula/page_row',
+                             locals: { curriculum: @curriculum, page: page, reader_available: CurriculumReader.available? } %>
+  <% end %>
+<% end %>
+<%= turbo_stream.replace 'pages-save-result', partial: 'curricula/pages_save_result', locals: { warnings: @warnings, error: @error } %>

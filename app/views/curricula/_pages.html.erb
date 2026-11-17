@@ -4,7 +4,7 @@
   遅延読み込みにしないのは、一覧への切り替えをサーバーへの往復なしで即座にするため。1枚表示と一覧の分岐をサーバー側に作らずに済む。
   隠した行は hidden なので、ブラウザのページ内検索には掛からない(行の文字はページ番号と、画像が無いページの冒頭だけで、価値は小さい)。
   必要になれば hidden="until-found" にすれば、検索も届く。
-  種別の選択はラジオの値を書き換えるだけで、送信しない。保存は一覧の「この指定で読み取る」で1回だけ(Task 13)。
+  種別の選択はラジオの値を書き換えるだけで、送信しない。保存は一覧の「この指定で読み取る」で1回だけ(fetch で送り、そのまま読み取りに入る)。
 %>
 <%# 読み取りは1ページずつ、画面から順に呼ぶ(要件表を先に)。バックグラウンドの仕組みは使わない。 %>
 <% reader_available = CurriculumReader.available? %>
@@ -29,6 +29,19 @@
   </div>
   <p class="px-5 pt-3 text-xs font-medium text-slate-700 sm:px-6" role="status" aria-live="polite"
      data-read-pages-target="message"></p>
+  <%# 読み取り中の進み具合。止まって見えないよう、バーと「n / m ページ」と、いまのページの経過秒数(1秒ごと)を出す。 %>
+  <div hidden data-read-pages-target="progressBox" class="px-5 pt-2 sm:px-6">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <span class="text-sm font-bold text-slate-900">読み取り中</span>
+      <progress value="0" max="1" data-read-pages-target="bar" class="h-3 w-full max-w-md flex-1 accent-slate-800" aria-label="読み取りの進み具合"></progress>
+      <span class="text-sm font-semibold tabular-nums text-slate-800" data-read-pages-target="count"></span>
+    </div>
+    <p class="mt-1 text-sm text-slate-700" data-read-pages-target="elapsed"></p>
+  </div>
+  <%= render 'pages_save_result', warnings: [], error: nil %>
+  <div hidden data-read-pages-target="done" class="px-5 pt-2 sm:px-6">
+    <button type="button" class="demo-button" data-action="click->read-pages#openReview">要件表の確認へ</button>
+  </div>
 
   <% if curriculum.pages.empty? %>
     <%# ページ数を数えられなかった下書きは、ページ数を手で指定して始める %>
@@ -74,9 +87,11 @@
         <button type="button" class="text-sm font-semibold text-slate-800 underline underline-offset-2"
                 data-action="click->page-wizard#showList">▸ 全ページを一覧で見る</button>
       </div>
-      <%# 一覧の足。「この指定で読み取る」の送信は Task 13 が作る(いまは置くだけ)。保存は、それまで下の「ページの指定を保存」で行う。 %>
+      <%# 一覧の足。「この指定で読み取る」は保存して読み取りに入る。JavaScript が動かないときは、「ページの指定を保存」で保存する。 %>
       <div data-show="list nojs" class="mt-4 flex flex-wrap items-center justify-end gap-3">
-        <button type="button" disabled data-show="list" data-page-wizard-target="commit"
+        <%# 保存してから読み取りに入る(read-pages#saveAndRead)。APIキーが無ければ読み取れないので、使えないまま。 %>
+        <button type="button" <%= 'disabled' unless reader_available %> data-show="list" data-page-wizard-target="commit"
+                data-action="click->read-pages#saveAndRead" data-read-pages-target="commit"
                 class="demo-button disabled:cursor-not-allowed disabled:opacity-50">この指定で読み取る(<span data-page-wizard-target="readCount"></span>ページ)</button>
         <%= form.submit 'ページの指定を保存', class: 'demo-button' %>
       </div>

@@ -6,9 +6,11 @@ import { Controller } from "@hotwired/stimulus"
 // 1ページの読み取りは、窓口の再試行(3回、待ちは最大60秒)を含めて数分かかりうる。それより長く待って止まっているなら、
 // 画面を「読み取っています」のまま、ボタンを使えないままにしないため、こちらから切る(サーバー側の読み取りは続き、結果は行に残る)。
 const READ_TIMEOUT_MS = 10 * 60 * 1000
+// 読み取りの間、触れなくする節。古い内容のまま触れると、保存で弾かれる。
+const LOCKED_SECTIONS = ["requirements_review", "course-review", "publish"]
 
 export default class extends Controller {
-  static targets = ["all", "one", "message"]
+  static targets = ["all", "one", "commit", "message", "progressBox", "bar", "count", "elapsed", "done"]
 
   readOne(event) {
     const row = event.currentTarget.closest("[data-read-url]")
@@ -17,31 +19,188 @@ export default class extends Controller {
 
   // 読み終わっていない(未読か失敗)、読む種別のページを、要件表 → 科目表の順に、ページ番号順で読む。
   readAll() {
+    return this.readRows(this.rowsToRead())
+  }
+
+  // 一覧の「この指定で読み取る」。保存してから読む(順を逆にしない)。
+  // 1ページ読むたびにその行が差し替わり、そのとき保存していないラジオの選択は保存値に戻る。先に読み始めると、人が選んだ指定が消える。
+  // 警告(読み取り結果を外す・人が直したものがあるページを読み直す)は、保存の応答がサーバーの保存済みの内容から作って返す。
+  // 保存前の状態から画面で作ると、同じ判断を画面にも持つことになる。
+  async saveAndRead() {
+    if (this.busy) return
+    this.setBusy(true)
+    this.clearDone()
+    this.show("ページの指定を保存しています…")
+    const saved = await this.save()
+    if (!saved) return this.setBusy(false)
+
+    // 読む種別のページが無ければ、読み取りを始めない(0ページの読み取りはしない)。
+    const rows = this.rowsToRead()
+    if (this.readableRows().length === 0) {
+      this.show(["ページの指定を保存しました。読み取るページ(要件表・科目表)が選ばれていないので、読み取りは始めませんでした。", ...saved.warnings].join("\n"))
+      return this.setBusy(false)
+    }
+    if (saved.warnings.length > 0 && !window.confirm(saved.warnings.join("\n\n"))) {
+      this.show("ページの指定は保存しました。読み取りは始めませんでした。")
+      return this.setBusy(false)
+    }
+    if (rows.length === 0) {
+      this.show("ページの指定を保存しました。読むページはすべて読み取り済みです。読み直すときは、行の「読み直す」を押してください。")
+      return this.setBusy(false)
+    }
+    this.setBusy(false)
+    // 確認は済んでいるので、行ごとの確認は出さない。
+    return this.readRows(rows, { confirmed: true })
+  }
+
+  // フォームの pages[...] を PATCH する。成功したら { warnings } を返す。失敗したら理由を一覧の上に出して false を返す。
+  async save() {
+    const form = this.element.querySelector("form")
+    try {
+      const response = await fetch(form.action, {
+        method: "PATCH",
+        credentials: "same-origin",
+        body: new FormData(form),
+        headers: { "X-CSRF-Token": this.csrfToken(), Accept: "text/vnd.turbo-stream.html" },
+      })
+      const type = response.headers.get("Content-Type") || ""
+      if (!type.includes("turbo-stream")) {
+        this.show(`ページの指定を保存できませんでした(HTTP ${response.status})。読み取りは始めませんでした。ページを開き直して確認してください。`)
+        return false
+      }
+      const body = await response.text()
+      const warnings = this.warningsIn(body)
+      await this.render(body)
+      if (!response.ok) {
+        this.show("ページの指定を保存できませんでした。")
+        return false
+      }
+      this.show("")
+      return { warnings }
+    } catch (error) {
+      this.show("ページの指定を保存できませんでした(通信に失敗しました)。読み取りは始めませんでした。")
+      return false
+    }
+  }
+
+  // 応答の Turbo Stream が持つ、保存結果の警告(JSON の配列)。
+  warningsIn(body) {
+    const template = document.createElement("template")
+    template.innerHTML = body
+    // 中身は <turbo-stream> の中の <template> にあり、その content は別の断片なので、そちらを探す。
+    const holder = [...template.content.querySelectorAll("template")]
+      .map((inner) => inner.content.querySelector("[data-save-warnings]"))
+      .find(Boolean)
+    try {
+      const list = JSON.parse(holder?.dataset.saveWarnings || "[]")
+      return Array.isArray(list) ? list.filter(Boolean) : []
+    } catch (error) {
+      return []
+    }
+  }
+
+  // Turbo Stream を当て、行が差し替わるまで待つ(Turbo は次の描画で当て、終わると turbo-stream 要素を取り除く)。
+  async render(body) {
+    window.Turbo.renderStreamMessage(body)
+    for (let tries = 0; tries < 100 && document.querySelector("turbo-stream"); tries += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+  }
+
+  rows() {
+    return [...this.element.querySelectorAll("[data-page]")]
+  }
+
+  // 読む種別の行(要件表・科目表)
+  readableRows() {
+    return this.rows().filter((row) => row.dataset.kind !== "skip")
+  }
+
+  // 読み終わっていない、読む種別の行を、要件表 → 科目表の順に、ページ番号順で。
+  rowsToRead() {
     const rows = [...this.element.querySelectorAll("[data-read-url]")].filter((row) => row.dataset.status !== "read")
     const requirements = rows.filter((row) => row.dataset.kind === "requirements")
     const others = rows.filter((row) => row.dataset.kind !== "requirements")
-    return this.readRows([...requirements, ...others])
+    return [...requirements, ...others]
   }
 
-  async readRows(rows) {
+  async readRows(rows, { confirmed = false } = {}) {
     if (this.busy || rows.length === 0) return
     // 人が直した規則・章・行があるページは、読み直す前に、何が残り何が入れ替わるかを見せる(サーバーが文を作る)。
-    const warnings = rows.map((row) => row.dataset.rereadWarning).filter(Boolean)
+    // 「この指定で読み取る」は、保存の応答で見せ終わっている。
+    const warnings = confirmed ? [] : rows.map((row) => row.dataset.rereadWarning).filter(Boolean)
     if (warnings.length > 0 && !window.confirm(warnings.join("\n\n"))) return
     // 行は読むたびに差し替わるので、先に必要なものを取っておく。
     const jobs = rows.map((row) => ({ page: row.dataset.page, url: row.dataset.readUrl }))
     this.setBusy(true)
+    this.clearDone()
+    this.lockSections(true)
+    this.progressBoxTarget.hidden = false
     let failed = 0
-    for (const [index, job] of jobs.entries()) {
-      this.show(`${job.page}ページを読み取っています(${index + 1}/${jobs.length})。このまましばらくお待ちください。`)
-      if (!(await this.read(job))) failed += 1
+    try {
+      for (const [index, job] of jobs.entries()) {
+        this.progress(index, jobs.length, job.page)
+        if (!(await this.read(job))) failed += 1
+      }
+    } finally {
+      this.stopTimer()
+      this.progress(jobs.length, jobs.length)
+      this.lockSections(false)
+      this.setBusy(false)
     }
-    this.setBusy(false)
+    this.elapsedTarget.textContent = ""
     let message = failed === 0 ? "読み取りが終わりました。" : `読み取りが終わりました(${failed}ページは読めませんでした。行の表示を確認してください)。`
+    if (failed < jobs.length) message += "読み取った結果は、画面を開き直すと下の節に出ます。"
+    this.show(message)
     // 下の要件表と注釈は、このページを開いたときの内容のまま。読み取った結果を見るには、開き直す必要がある。
     // (古い表のまま直しても、保存のときに弾かれる。中身を取り違えて書き込むことはない)
-    if (failed < jobs.length) message += "要件表と注釈の表示は古いままです。ページを開き直すと、読み取った結果が出ます。"
-    this.show(message)
+    if (failed < jobs.length) this.doneTarget.hidden = false
+  }
+
+  // 「要件表の確認へ」: 画面を開き直して②へ飛ぶ。
+  openReview() {
+    window.location.hash = "requirements_review"
+    window.location.reload()
+  }
+
+  clearDone() {
+    this.doneTarget.hidden = true
+  }
+
+  // 進み具合: バーと「n / m ページ」。page があれば、そのページの経過秒数を1秒ごとに更新する(1ページで数十秒かかっても止まって見えない)。
+  progress(done, total, page = null) {
+    this.stopTimer()
+    this.barTarget.max = total
+    this.barTarget.value = done
+    this.countTarget.textContent = `${done} / ${total} ページ`
+    if (page === null) return
+    const startedAt = Date.now()
+    const tick = () => {
+      const seconds = Math.floor((Date.now() - startedAt) / 1000)
+      this.elapsedTarget.textContent = `${page}ページを読み取っています…(${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")})`
+    }
+    tick()
+    this.timer = setInterval(tick, 1000)
+  }
+
+  stopTimer() {
+    clearInterval(this.timer)
+    this.timer = null
+  }
+
+  // 読み取り中は、②③④の節を触れなくして薄くし、理由を添える。終われば外す。
+  lockSections(locked) {
+    LOCKED_SECTIONS.map((id) => document.getElementById(id)).filter(Boolean).forEach((section) => {
+      section.toggleAttribute("inert", locked)
+      section.classList.toggle("opacity-50", locked)
+      section.querySelector(":scope > [data-reading-note]")?.remove()
+      if (!locked) return
+      const note = document.createElement("p")
+      note.dataset.readingNote = ""
+      note.className = "px-5 pt-3 text-sm font-semibold text-slate-800 sm:px-6"
+      note.textContent = "読み取りが終わると出ます。"
+      section.prepend(note)
+    })
   }
 
   // 1ページ読む。行の差し替えは返ってきた Turbo Stream に任せる。
@@ -74,8 +233,10 @@ export default class extends Controller {
 
   setBusy(busy) {
     this.busy = busy
-    const buttons = [...this.oneTargets, ...this.allTargets]
-    buttons.forEach((button) => { button.disabled = busy })
+    const buttons = [...this.oneTargets, ...this.allTargets, ...this.commitTargets]
+    // 読み取りができないとき(APIキーが無い)に使えないままのボタンを、読み取りが終わっても使えるようにしない。
+    if (busy) this.disabledBefore = new Map(buttons.map((button) => [button, button.disabled]))
+    buttons.forEach((button) => { button.disabled = busy || Boolean(this.disabledBefore?.get(button)) })
   }
 
   show(message) {
