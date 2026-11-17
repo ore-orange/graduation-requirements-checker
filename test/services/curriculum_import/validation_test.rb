@@ -530,6 +530,21 @@ module CurriculumImport
       assert_blocking '科目が1つもありません', document, scope: :course
     end
 
+    test 'パターンを持つ区分を指す credit_sum は、残った科目の単位が必要単位に届かなくても警告しない' do
+      document = broken do |d|
+        rule_in(d, 'humanities')['required_credits'] = 20
+        with_patterns(d, 'humanities')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:reason].include?('に届きません') })
+    end
+
+    test 'パターンを持たない区分では、科目の単位が必要単位に届かなければ、いまどおり警告する' do
+      document = broken { |d| rule_in(d, 'humanities')['required_credits'] = 20 }
+
+      assert_warning '必要な20単位に届きません', document, scope: :rule
+    end
+
     test '総単位に数えない区分に、丸ごと算入から外す exclude 規則が無ければ公開を止める' do
       assert_blocking('exclude 規則がありません', broken { |d| d['rules'].reject! { |r| r['id'] == 'excluded_category' } })
       # 接頭辞つき・科目番号つきの exclude は区分の一部しか外さないので、覆ったことにしない。

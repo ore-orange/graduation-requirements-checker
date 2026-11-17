@@ -81,10 +81,12 @@ module CurriculumImport
 
       # 科目表のすべての科目を修得しても必要単位に届かない credit_sum。要件表の数字が正しいなら、科目表に読み落としがある。
       # 区分に科目が無いもの(学生が自由に入れる区分)を含む規則は、届くかどうかが科目表では決まらないので見ない。
+      # 番号パターンを持つ区分を含む規則も見ない。その区分の科目は科目番号で決まり、便覧には一部しか載らないので、
+      # 「科目表の該当科目をすべて修得しても」という前提が成り立たない。
       def unreachable_requirements
         input.well_formed_nodes_of('credit_sum').each do |node|
           rule = node.rule
-          next if rule['categories'].empty?
+          next if rule['categories'].empty? || rule['categories'].any? { |category| input.patterned?(category) }
 
           reachable = reachable_credits(rule['categories'])
           next if reachable.nil? || reachable >= rule['required_credits']
