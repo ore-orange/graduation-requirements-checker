@@ -53,6 +53,10 @@ module CurriculumImport
       assert filter.keep?(course('人01', 'humanities', selectable: false))
     end
 
+    test 'selectable の欄が無い科目は、パターンで決まっても残す' do
+      assert filter.keep?(course('人01', 'humanities').except('selectable'))
+    end
+
     test 'AIが要確認とした科目は、パターンで決まっても残す' do
       assert filter.keep?(course('人01', 'humanities', review_reason: '単位が読めません'))
     end
