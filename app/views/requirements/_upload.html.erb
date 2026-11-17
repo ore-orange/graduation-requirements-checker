@@ -14,7 +14,7 @@
       PDFを上げると下書きができます。どのページを読むかは、便覧ごとに人が決めます。
     </p>
     <p data-import-prerequisite class="mt-0.5 text-xs text-slate-500">
-      先にその年度の時間割PDFを取り込んでおくと、学生が科目を選べるようになります。便覧には、科目番号から区分が決まらない科目だけを登録します。
+      先に「講義登録」タブで、その年度の時間割PDFを取り込んでおくと、学生が科目を選べるようになります。便覧に残すのは、科目番号から区分が決まらない科目です。区分が決まる科目を便覧から省くかどうかは、番号パターンの候補を見て、人が採用して決めます。
     </p>
   </div>
   <%= form_with model: Curriculum.new, scope: :curriculum, url: curricula_path, multipart: true,

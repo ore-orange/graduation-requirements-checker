@@ -345,8 +345,11 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   test '取り込みのフォームに、時間割を先に取り込む案内と、便覧には例外だけを登録する案内が出る' do
     show_selected(admission_year: 2030)
 
-    assert_select 'section[data-curriculum-import] [data-import-prerequisite]', text: /先にその年度の時間割PDFを取り込/
-    assert_select 'section[data-curriculum-import] [data-import-prerequisite]', text: /科目番号から区分が決まらない科目だけ/
+    sel = 'section[data-curriculum-import] [data-import-prerequisite]'
+    assert_select sel, text: /先に「講義登録」タブで、その年度の時間割PDFを取り込/
+    assert_select sel, text: /番号パターンの候補を.*人が採用/
+    assert_select sel, text: /科目番号から区分が決まらない科目/
+    assert_select sel, text: /だけを登録します/, count: 0
   end
 
   test '何も選んでいないときも、選択肢にない年度の便覧を作り始める入口がある' do
