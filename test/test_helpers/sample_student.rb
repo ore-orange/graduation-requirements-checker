@@ -12,6 +12,8 @@ class SampleStudent
   EMAIL = 'sample@graduation-checker.example.test'
   ADMISSION_YEAR = 2024
   CURRICULUM = 'intelligent_informatics'
+  # システムテストは本物のログイン画面を通るため、決め打ちのパスワードが要る。
+  PASSWORD = 'sample-student-password'
   ENROLLMENTS_PATH = 'test/fixtures/files/sample_enrollments.json'
 
   def self.student
@@ -46,7 +48,7 @@ class SampleStudent
       # 学生が既にいてもコースは毎回ならす。カリキュラムの指し先が欠けていると画面が出せない。
       program = sample_program
 
-      user = User.find_or_create_by!(email: EMAIL) { |new_user| new_user.password = SecureRandom.hex(32) }
+      user = User.find_or_create_by!(email: EMAIL) { |new_user| new_user.password = PASSWORD }
       if user.student
         return user.student if user.student.admission_year == ADMISSION_YEAR
 
