@@ -22,7 +22,8 @@ module StudentWorkspace
   # 全画面で必要になる最小限。履修履歴は使う画面だけが enrollments で読む。
   def load_workspace
     @student = Current.user.student
-    raise SetupIncomplete, '学籍情報が登録されていません。' if @student.nil?
+    # 初回ログインの人。コースと入学年度を聞いてから本来の画面へ戻す。
+    return redirect_to new_student_path if @student.nil?
 
     @curriculum = @student.curriculum
     @courses_by_key = @curriculum.fetch('courses').index_by { |course| course.fetch('key') }

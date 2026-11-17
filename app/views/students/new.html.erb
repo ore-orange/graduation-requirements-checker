@@ -1,0 +1,57 @@
+<% content_for :title, "学籍情報の登録 | #{app_name}" %>
+<%# 登録が終わるまでどの画面にも行けないので、タブは出さない %>
+<% content_for :full_bleed, true %>
+
+<%= render 'shared/toast' %>
+<div class="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-12 font-sans text-slate-800">
+  <div class="w-full max-w-md space-y-5">
+    <div class="text-center">
+      <h1 class="text-xl font-bold text-slate-900">学籍情報の登録</h1>
+      <p class="mt-1 text-xs text-slate-500">卒業要件はコースと入学年度で決まります。</p>
+    </div>
+
+    <div class="demo-panel">
+      <%= form_with model: @student, url: student_path, class: 'space-y-4',
+                    data: { controller: 'dependent-select' } do |form| %>
+        <% if @student.errors.any? %>
+          <ul class="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <% @student.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        <% end %>
+
+        <div>
+          <%= form.label :program_id, 'コース', class: 'demo-label' %>
+          <%= form.collection_select :program_id, @programs, :id, :full_name,
+                                     { include_blank: '選択してください' },
+                                     class: 'demo-input',
+                                     data: { dependent_select_target: 'parent',
+                                             action: 'change->dependent-select#filter' } %>
+        </div>
+
+        <div>
+          <%= form.label :admission_year, '入学年度', class: 'demo-label' %>
+          <%# 年度はコースごとに違う。カリキュラムを用意している年度だけを出し、
+              選ばれたコースの optgroup だけを dependent-select が残す。 %>
+          <%= form.select :admission_year,
+                          @programs.to_h { |program|
+                            [program.full_name,
+                             CurriculumRepository.available_years(curriculum: program.curriculum_slug)
+                                                 .reverse.map { |year| ["#{year}年度", year] }]
+                          },
+                          { include_blank: '選択してください' },
+                          class: 'demo-input',
+                          data: { dependent_select_target: 'child' } %>
+        </div>
+
+        <%= form.submit '登録する', class: 'demo-button w-full' %>
+      <% end %>
+
+      <div class="mt-5 text-center">
+        <%= button_to 'ログアウト', session_path, method: :delete,
+                      class: 'text-xs text-slate-500 underline' %>
+      </div>
+    </div>
+  </div>
+</div>

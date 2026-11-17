@@ -3,38 +3,9 @@
 require 'test_helper'
 require 'minitest/mock'
 
-class DemoDataTest < ActiveSupport::TestCase
-  test 'demo is available only in development and test' do
-    { 'development' => true, 'test' => true, 'production' => false, 'staging' => false }.each do |environment, enabled|
-      Rails.stub(:env, ActiveSupport::EnvironmentInquirer.new(environment)) do
-        assert_equal enabled, DemoAccount.enabled?
-      end
-    end
-  end
-
-  test 'missing demo data raises without creating records' do
-    before = record_counts
-    assert_raises(DemoAccount::Unavailable) { DemoAccount.student }
-    assert_equal before, record_counts
-  end
-
-  test 'disabled environments neither expose nor seed the demo account' do
-    # 学部・学科のマスタは環境を問わず作られるので、先にseed全体を流しておく。
-    # そのうえで、無効な環境で流してもレコードが1件も増えないことを確かめる。
-    load Rails.root.join('db/seeds.rb')
-    before = record_counts
-    %w[production staging].each do |environment|
-      Rails.stub(:env, ActiveSupport::EnvironmentInquirer.new(environment)) do
-        assert_raises(DemoAccount::Unavailable) { DemoAccount.student }
-        assert_raises(DemoAccount::Unavailable) { DemoData.load! }
-        load Rails.root.join('db/seeds.rb')
-      end
-    end
-    assert_equal before, record_counts
-  end
-
+class SampleStudentTest < ActiveSupport::TestCase
   test 'loading repeatedly preserves plans unrelated data and non-seeded history' do
-    student = DemoData.load!
+    student = SampleStudent.load!
     course = student.student_courses.first.course
     plan = student.planned_courses.create!(course: course, academic_year: 2026, semester: '後期')
     history = student.student_courses.create!(course: course, academic_year: 2023, semester: 'manual-test',
@@ -49,7 +20,7 @@ class DemoDataTest < ActiveSupport::TestCase
     before_history = history.attributes
     before_course = unrelated_course.attributes
 
-    2.times { assert_equal student, DemoData.load! }
+    2.times { assert_equal student, SampleStudent.load! }
 
     assert_equal before_counts, record_counts
     assert_equal plan, student.planned_courses.find(plan.id)
@@ -61,11 +32,11 @@ class DemoDataTest < ActiveSupport::TestCase
 
   test 'unverified source credits and numbers stay unknown rather than being fabricated' do
     document = curriculum
-    key = demo_enrollments.first.fetch('course_key')
+    key = sample_enrollments.first.fetch('course_key')
     entry = document.fetch('courses').find { |course| course.fetch('key') == key }
     entry['number'] = nil
     entry['credits'] = nil
-    student = CurriculumRepository.stub(:find, document) { DemoData.load! }
+    student = CurriculumRepository.stub(:find, document) { SampleStudent.load! }
 
     course = Course.find_by!(curriculum_key: key)
     assert_nil course.course_number
@@ -79,17 +50,16 @@ class DemoDataTest < ActiveSupport::TestCase
     faculty = Faculty.create!(name: '既存学部')
     department = faculty.departments.create!(name: '既存学科')
     program = department.programs.create!(name: '既存コース')
-    user = User.create!(email: DemoAccount::EMAIL, password: 'a-test-password')
+    user = User.create!(email: SampleStudent::EMAIL, password: 'a-test-password')
     student = user.create_student!(program: program, admission_year: 2025)
     before = record_counts
 
-    assert_raises(DemoAccount::Unavailable) { DemoData.load! }
+    assert_raises(SampleStudent::Conflict) { SampleStudent.load! }
 
     assert_equal before, record_counts
     assert_equal 2025, student.reload.admission_year
     assert_equal program, student.program
     assert_equal department, student.department
-    assert_raises(DemoAccount::Unavailable) { DemoAccount.student }
   end
 
   private
@@ -98,8 +68,8 @@ class DemoDataTest < ActiveSupport::TestCase
     CurriculumRepository.find(curriculum: 'intelligent_informatics', admission_year: 2024)
   end
 
-  def demo_enrollments
-    JSON.parse(Rails.root.join('db/demo_enrollments.json').read).fetch('enrollments')
+  def sample_enrollments
+    JSON.parse(Rails.root.join(SampleStudent::ENROLLMENTS_PATH).read).fetch('enrollments')
   end
 
   def record_counts

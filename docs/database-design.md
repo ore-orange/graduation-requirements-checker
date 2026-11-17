@@ -78,7 +78,7 @@ statusは文字列（enum未導入）。実際の入力画面を実装する際�
 
 年度別分類テーブルは追加しない。CurriculumRepositoryがJSONオブジェクトを返す。
 データ形式・エラー契約は[config/curricula/README.md](../config/curricula/README.md)。
-2024年度の一次資料で確認した科目をJSONに保存し、明示的なseedでCourseへ登録する。学生の履修データはdb/demo_enrollments.jsonの人工データで、固定デモアカウントにのみ投入する。未確認の数値はNULLと確認理由を保持し、架空の要件を作らない。
+2024年度の一次資料で確認した科目をJSONに保存し、明示的なseedでCourseへ登録する。学生の履修データは利用者ごとに登録する。判定テスト用の人工データはtest/fixtures/files/sample_enrollments.jsonに置く。未確認の数値はNULLと確認理由を保持し、架空の要件を作らない。
 GraduationAssessmentが実績・見込みの両方を副作用なしで評価する。要件のJSON Schema、JSONB保存、他年度・コースへの合成は導入していない。
 
 ## 安全性
@@ -90,7 +90,7 @@ Dockerのdb、localhost、127.0.0.1、::1以外のDBは開発/テストでは使
 本番は4つの接続URLを必須とし、SSLを必須とする。構成集約は承認待ち。
 
 ログのパラメータフィルターに成績・修得単位・履修情報・DB URLを追加した。
-ローカルデモのControllerを追加し、固定デモ学生の履修読出しと、その学生に属する将来計画だけの追加・削除を提供する。利用者指定のstudent_idでは切り替えず、他学生の計画IDによる削除も拒否する。
-実アカウントの認証は未実装。デモは開発・テストとローカルホストに限定し、本番・外部からの利用を拒否する。ComposeはWebポートをloopbackへ公開し、明示的なLOCAL_DEMO_PROXY設定時のみプライベートIPのDockerプロキシを許可する。実学生データを扱う前に認証・本人所有チェックを実装する。
+ログイン中の利用者に紐づく学生の履修読出しと、その学生に属する将来計画だけの追加・削除を提供する。利用者指定のstudent_idでは切り替えず、他学生の計画IDによる削除も拒否する。
+認証は学内のGoogleアカウント（既定は@ie.u-ryukyu.ac.jp）によるログイン。確認済みのメールアドレスのドメインだけを根拠に判定し、hdパラメータは信用しない。ComposeはWebポートをloopbackへ公開する。
 SQL debugログ、バックアップ、エラー監視にも機密情報が含まれ得る。
 Supabase Data APIの公開対策は[接続手順](supabase.md)を参照。

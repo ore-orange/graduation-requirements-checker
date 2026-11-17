@@ -8,14 +8,8 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
   ENV_LOCAL = { 'REMOTE_ADDR' => '127.0.0.1' }.freeze
 
   setup do
-    @previous_proxy = ENV.delete('LOCAL_DEMO_PROXY')
     host! 'localhost'
-    # 講義登録はローカル限定のままだが、画面を開くにはログインが要る。
     sign_in_as(User.create!(email: 'course-registrar@example.test', password: 'a-test-password'))
-  end
-
-  teardown do
-    @previous_proxy.nil? ? ENV.delete('LOCAL_DEMO_PROXY') : ENV['LOCAL_DEMO_PROXY'] = @previous_proxy
   end
 
   # gsの出力と同じ形の座標付きXML。1科目ぶん。
@@ -751,24 +745,24 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'all screens are hidden outside local access' do
+  test 'all screens require a login' do
     upload = create_upload
-    remote = { 'REMOTE_ADDR' => '203.0.113.9' }
+    sign_out
 
-    get course_registrations_path, env: remote
-    assert_response :not_found
-    get timetable_upload_path(upload), env: remote
-    assert_response :not_found
+    get course_registrations_path
+    assert_redirected_to new_session_path
+    get timetable_upload_path(upload)
+    assert_redirected_to new_session_path
     assert_no_difference 'TimetableUpload.count' do
-      post timetable_uploads_path, params: { semester: '前期' }, env: remote
+      post timetable_uploads_path, params: { semester: '前期' }
     end
-    assert_response :not_found
-    patch update_rows_timetable_upload_path(upload), env: remote
-    assert_response :not_found
-    post commit_timetable_upload_path(upload), env: remote
-    assert_response :not_found
-    get page_image_timetable_upload_path(upload, 1), env: remote
-    assert_response :not_found
+    assert_redirected_to new_session_path
+    patch update_rows_timetable_upload_path(upload)
+    assert_redirected_to new_session_path
+    post commit_timetable_upload_path(upload)
+    assert_redirected_to new_session_path
+    get page_image_timetable_upload_path(upload, 1)
+    assert_redirected_to new_session_path
   end
 end
 
