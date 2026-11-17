@@ -463,28 +463,54 @@ class RequirementsHelperTest < ActionView::TestCase
 
   # ---- 科目表 ----
 
-  test '科目は便覧の区分の並びで、和名の区分ごとにまとめる' do
-    handbook = @handbook.merge('courses' => [{ 'key' => 'k1', 'category' => 'b' }, { 'key' => 'k2', 'category' => 'a' },
-                                             { 'key' => 'k3', 'category' => 'b' }])
-
-    groups = courses_by_category(handbook)
-
-    assert_equal([['a', '甲群', %w[k2]], ['b', '乙群', %w[k1 k3]]],
-                 groups.map { |group| [group.key, group.label, group.courses.pluck('key')] })
+  def registered_course(number, category, **attrs)
+    { 'number' => number, 'name' => "科目#{number}", 'credits' => 2, 'category' => category }.merge(attrs)
   end
 
-  test '科目の無い区分は出さない。便覧に無い区分の科目は、落とさずキーのまま最後に出す' do
-    handbook = @handbook.merge('courses' => [{ 'key' => 'k1', 'category' => 'a' },
-                                             { 'key' => 'k2', 'category' => 'zzz' }, { 'key' => 'k3' }])
+  test '学生の科目表が、名簿の区分ごとにまとまる。便覧の区分の並びで、和名で出す' do
+    handbook = @handbook.merge('courses' => [registered_course('b1', 'b'), registered_course('a1', 'a'),
+                                             registered_course('b2', 'b')])
 
-    groups = courses_by_category(handbook)
+    groups = courses_by_category(CourseDirectory.new(handbook), handbook)
 
-    assert_equal %w[甲群 zzz (区分なし)], groups.map(&:label)
-    assert_equal(3, groups.sum { |group| group.courses.size })
+    assert_equal([['a', '甲群', %w[a1]], ['b', '乙群', %w[b1 b2]]],
+                 groups.map { |group| [group.key, group.label, group.courses.map(&:number)] })
   end
 
-  test '実物の科目は484件、1件も落とさず区分に入る' do
-    assert_equal(484, courses_by_category(@real).sum { |group| group.courses.size })
+  test '番号パターンで区分が決まる Course も、便覧に登録が無くても科目表に出る' do
+    Course.create!(course_number: '甲5', name: 'パターンだけの科目', credits: 1)
+    handbook = @handbook.merge('categories' => [{ 'key' => 'a', 'label' => '甲群', 'number_patterns' => ['甲'] }],
+                               'courses' => [])
+
+    groups = courses_by_category(CourseDirectory.new(handbook), handbook)
+
+    assert_equal([['a', ['パターンだけの科目']]], groups.map { |group| [group.key, group.courses.map(&:name)] })
+  end
+
+  test '科目が1件もない区分は出さない。便覧に無い区分の科目は、落とさずキーのまま最後に出す' do
+    handbook = @handbook.merge('courses' => [registered_course('a1', 'a'), registered_course('z1', 'zzz')])
+
+    groups = courses_by_category(CourseDirectory.new(handbook), handbook)
+
+    assert_equal %w[甲群 zzz], groups.map(&:label)
+    assert_equal(2, groups.sum { |group| group.courses.size })
+  end
+
+  test '科目表は、Course の行が無い登録科目も出す(course_id が nil の科目から必修が消えない)' do
+    handbook = @handbook.merge('courses' => [registered_course('a1', 'a', 'required' => true)])
+
+    entry = courses_by_category(CourseDirectory.new(handbook), handbook).sole.courses.sole
+
+    assert_nil entry.course_id
+    assert_equal true, entry.required
+  end
+
+  test '実物の登録科目は、Course の行が無くても1件も落とさず区分に入る' do
+    registered = @real.fetch('courses').pluck('number').compact_blank.uniq
+
+    groups = courses_by_category(CourseDirectory.new(@real), @real)
+
+    assert_equal registered.sort, groups.flat_map { |group| group.courses.map(&:number) }.uniq.sort
   end
 end
 

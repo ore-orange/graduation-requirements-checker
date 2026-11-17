@@ -1,9 +1,9 @@
 <%# 区分の行から、表示中の学期に予定を追加する（便覧から選択 / 自由入力） %>
 <%
   box_id = row[:id]
-  selectable_in_row = @curriculum.fetch('courses').select do |c|
-    row[:categories].include?(c['category']) && c['selectable'] == true && c['number'].present? &&
-      @unavailable_numbers.exclude?(c['number'])
+  # 名簿から、この行の区分の選べる科目。Course の行が無い科目(course_id が nil)は、計画に入れられないので出さない。
+  selectable_in_row = row[:categories].flat_map { |category| @directory.in_category(category) }.select do |entry|
+    entry.selectable == true && entry.course_id && @unavailable_numbers.exclude?(entry.number)
   end
 %>
 <div class="mt-2" data-add-course="<%= box_id %>">
@@ -35,11 +35,11 @@
       <% if selectable_in_row.any? %>
         <%= form_with url: plan_courses_path, class: 'space-y-2' do |f| %>
           <%= hidden_field_tag :term, term_param(@term), id: nil %>
-          <select name="course_number" aria-label="<%= row[:name] %>の科目を選択"
+          <select name="course_id" aria-label="<%= row[:name] %>の科目を選択"
                   class="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
-            <% selectable_in_row.each do |c| %>
-              <option value="<%= c.fetch('number') %>">
-                <%= [c['number'], c.fetch('name'), "(#{credit_label(c['credits'])})"].compact.join(' ') %>
+            <% selectable_in_row.each do |entry| %>
+              <option value="<%= entry.course_id %>">
+                <%= [entry.number, entry.name, "(#{credit_label(entry.credits)})"].compact.join(' ') %>
               </option>
             <% end %>
           </select>

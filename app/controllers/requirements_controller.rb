@@ -24,6 +24,8 @@ class RequirementsController < ApplicationController
     # 他の画面と同じく例外にする。弾かれる便覧のまま描くと、読めない要件を読めるかのように見せてしまう。
     # 便覧が決まったときだけ作る（選んでいない・便覧が無いときに、何も無い文書で呼ばない）。
     @catalogue = GraduationAssessment::Catalogue.new(@curriculum)
+    # 科目表は、便覧の文書ではなく科目の名簿から描く。
+    @directory = CourseDirectory.new(@curriculum)
   end
 end
 

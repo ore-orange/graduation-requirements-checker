@@ -7,13 +7,13 @@
   <div class="space-y-1">
     <h3 id="course-table-heading" class="text-base font-bold text-slate-900">科目表</h3>
     <p class="text-xs text-slate-500">
-      この便覧に載っている科目です。区分を開くと、科目番号・科目名・単位数・必修かどうかを確認できます。
+      あなたのコースで履修できる科目です。科目番号のパターンで数える科目を含みます。区分を開くと、科目番号・科目名・単位数・必修かどうかを確認できます。
       閉じている区分の中の科目も、ブラウザのページ内検索で探せます。
     </p>
   </div>
 
-  <% courses_by_category(curriculum).each do |group| %>
-    <% required_count = group.courses.count { |course| course['required'] == true } %>
+  <% courses_by_category(directory, curriculum).each do |group| %>
+    <% required_count = group.courses.count { |course| course.required == true } %>
     <details class="group/card rounded-2xl border border-slate-200 bg-white shadow-xs transition hover:border-indigo-300 hover:shadow-md open:border-indigo-400 open:shadow-md open:ring-1 open:ring-indigo-300"
              data-course-category="<%= group.key %>">
       <summary class="grid cursor-pointer list-none gap-4 p-5 sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-5 sm:p-6">
@@ -47,7 +47,7 @@
           </thead>
           <tbody>
             <% group.courses.each do |course| %>
-              <tr data-course><td data-course-number><%= course['number'] %></td><td><%= course['name'] %></td><td class="text-right"><%= course['credits'].is_a?(Numeric) ? credit_number(course['credits']) : '' %></td><% if course['required'] == true %><td data-required>必修</td><% else %><td>—</td><% end %></tr>
+              <tr data-course><td data-course-number><%= course.number %></td><td><%= course.name %></td><td class="text-right"><%= course.credits.is_a?(Numeric) ? credit_number(course.credits) : '' %></td><% if course.required == true %><td data-required>必修</td><% else %><td>—</td><% end %></tr>
             <% end %>
           </tbody>
         </table>

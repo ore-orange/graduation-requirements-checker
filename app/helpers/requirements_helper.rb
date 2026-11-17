@@ -21,17 +21,14 @@ module RequirementsHelper
   # 科目表の1区分。key は便覧の区分キー、label はその和名（画面にはこちらを出す）。
   CourseGroup = Struct.new(:key, :label, :courses)
 
-  # 科目表。便覧の区分の並びで、区分ごとにまとめる。科目の無い区分は出さない。
-  # 便覧に無い区分の科目も、落とさずに最後へ出す（科目表は全科目が見える場であるべきなので）。
-  def courses_by_category(curriculum)
-    by_key = Array(curriculum['courses']).group_by { |course| course['category'] }
-    known = Array(curriculum['categories']).filter_map do |category|
-      key = category['key']
-      next unless by_key.key?(key)
-
-      CourseGroup.new(key, category['label'].presence || key, by_key.delete(key))
+  # 科目表。名簿(CourseDirectory)の区分ごとにまとめる。区分の並びは名簿が決め(便覧の区分の順が先、便覧に無い区分は最後)、
+  # 科目の無い区分は名簿が出さない。courses は CourseDirectory::Entry。Course の行が無い登録科目(course_id が nil)も含む。
+  # curriculum は区分の和名を引くためだけに使う。
+  def courses_by_category(directory, curriculum)
+    labels = Array(curriculum['categories']).to_h { |category| [category['key'], category['label'].presence] }
+    directory.categories.map do |key|
+      CourseGroup.new(key, labels[key] || key, directory.in_category(key))
     end
-    known + by_key.map { |key, courses| CourseGroup.new(key, key.presence || '(区分なし)', courses) }
   end
 
   # 規則1つぶんの <li>。解釈できない規則は、飛ばさずに赤く出す。

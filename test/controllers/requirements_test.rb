@@ -860,10 +860,11 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   test '科目表は区分ごとに畳んである。畳んでも行は DOM に残り、ブラウザの検索で届く' do
     show_selected
 
-    document_courses = @curriculum.document.fetch('courses')
-    assert_equal 484, document_courses.size
+    # 科目表は名簿から描く。名簿は科目番号で科目を引くので、番号の無い便覧の科目(知能情報特別講義Ⅴ・Ⅵ)は載らない
+    document_courses = @curriculum.document.fetch('courses').select { |course| course['number'].present? }
+    assert_equal 482, document_courses.size
     assert_select '#course-table details[open]', count: 0
-    assert_select '#course-table tr[data-course]', count: 484
+    assert_select '#course-table tr[data-course]', count: 482
     # 遅延読み込みにしない。行は初めから HTML に入っている
     assert_select '#course-table turbo-frame, #course-table [src], #course-table [loading]', count: 0
     # 区分の科目数は、便覧の科目を数えたものと一致する
@@ -892,6 +893,22 @@ class RequirementsTest < ActionDispatch::IntegrationTest
     assert_not_nil optional_row
     assert_no_match(/必修/, optional_row.text)
     assert_equal 4, optional_row.css('td').size
+  end
+
+  test '科目表の説明は、あなたのコースで履修できる科目で、番号パターンで数える科目を含むと伝える' do
+    show_selected
+
+    assert_select '#course-table p', text: /あなたのコースで履修できる科目です。科目番号のパターンで数える科目を含みます/
+    assert_select '#course-table p', text: /この便覧に載っている科目/, count: 0
+  end
+
+  test '科目表に、便覧に登録の無い Course も番号パターンで区分が決まれば出る' do
+    Course.create!(course_number: '人999', name: '番号パターンだけの人文科目', credits: 2)
+
+    show_selected
+
+    assert_select 'details[data-course-category=humanities] [data-course-number]', text: '人999', count: 1
+    assert_select '#course-table tr[data-course]', count: 483
   end
 
   test '科目表の節は、この画面から編集できる部品を持たない' do

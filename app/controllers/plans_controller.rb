@@ -4,6 +4,9 @@
 class PlansController < ApplicationController
   include StudentWorkspace
 
+  # 検索・一覧は、画面に描ける数で打ち切る。courses テーブルは時間割を取り込むほど増え、ページ送りが無いため。
+  CATALOGUE_LIMIT = 200
+
   def show
     load_history
     load_plans
@@ -30,22 +33,22 @@ class PlansController < ApplicationController
   end
 
   def load_catalogue
+    @directory = directory
     @unavailable_numbers = ((@completed + @current).map { |enrollment| enrollment.course.course_number } +
                             @plans.map { |plan| plan.course.course_number }).compact
     @query = params[:q].to_s.strip
     @category = params[:category].to_s
     query = @query.downcase
-    @catalogue = @curriculum.fetch('courses').select do |course|
-      (@category.blank? || course['category'] == @category) && matches_query?(course, query)
-    end
-    numbers = @catalogue.filter_map { |course| course['number'] }
-    @persisted_numbers = Course.where(course_number: numbers).pluck(:course_number)
+    categories = @category.blank? ? @directory.categories : [@category]
+    matched = categories.flat_map { |category| @directory.in_category(category) }
+                        .select { |entry| matches_query?(entry, query) }
+    @catalogue_total = matched.size
+    @catalogue = matched.first(CATALOGUE_LIMIT)
+    @catalogue_limit = CATALOGUE_LIMIT
   end
 
-  def matches_query?(course, query)
-    query.blank? || [course['name'], course['number'], course['key']].compact.any? do |value|
-      value.downcase.include?(query)
-    end
+  def matches_query?(entry, query)
+    query.blank? || [entry.name, entry.number].compact.any? { |value| value.downcase.include?(query) }
   end
 end
 

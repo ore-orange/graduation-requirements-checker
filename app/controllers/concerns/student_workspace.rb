@@ -44,6 +44,10 @@ module StudentWorkspace
     raise DemoAccount::Unavailable, '公開済みの便覧がありません。bin/rails db:seed を実行してください。'
   end
 
+  # 学生に見せる科目の名簿。1リクエストに1つだけ作り、区分ごとに何度呼ばれても courses テーブルは1回しか読まない。
+  # 判定(@courses_by_number と catalogue_entries の経路)は名簿を使わない。
+  def directory = @directory ||= CourseDirectory.new(@curriculum)
+
   def enrollments
     @enrollments ||= @student.student_courses.includes(:course).order(:academic_year, :id).to_a
   end

@@ -6,9 +6,6 @@ class PlanCoursesController < ApplicationController
 
   BLOCKED_STATUSES = %w[completed registered in_progress].freeze
 
-  # 同じ科目番号の Course が複数あり、便覧の科目に当たる行を1つに決められない。
-  class AmbiguousCourse < StandardError; end
-
   # term（"3-後期" など）の学期の予定として追加する。追加できるのは今の学期以降。
   def create
     @term = parse_term(params[:term])
@@ -20,8 +17,6 @@ class PlanCoursesController < ApplicationController
 
     @student.planned_courses.create!(course: course, academic_year: term_year(@term), semester: @term[:semester])
     back_to_plan(notice: '今後の履修予定に追加しました。判定を更新しました。')
-  rescue AmbiguousCourse
-    back_to_plan(alert: '同じ科目番号の科目が複数登録されているため、この科目は追加できません。管理者に確認してください。')
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
     back_to_plan(alert: '科目を追加できませんでした。既に追加されていないか確認してください。')
   end
@@ -47,25 +42,37 @@ class PlanCoursesController < ApplicationController
   def selectable_course
     return build_custom_course if params[:custom_course].present?
 
-    number = params.permit(:course_number)[:course_number]
-    find_catalogue_course(number) if number.is_a?(String)
+    course_id = params.permit(:course_id)[:course_id]
+    find_directory_course(course_id) if course_id.is_a?(String)
   end
 
-  # 便覧の科目は (科目番号, 科目名) で Course に当たる(科目の作られ方=DemoData・時間割の取り込みと揃える)。
-  # 番号だけで探すと、別の入学年度の便覧に同じ番号で名前だけ違う行があるとき(ローマ数字の全角・半角など、
-  # 2024年度と2025年度の便覧の知能212のような実例がある)に、今の学生の便覧が指す行をはっきり特定できるのに
-  # 「複数ある」と取り違えて追加できなくしてしまう。そこで便覧の名前まで条件にする。
-  # 一致する行が無ければ(bin/rails db:seed をやり直すべき状態なので) Unavailable、
-  # 2行以上あれば(名前も一致する重複行で、どちらを使うべきか決められない)AmbiguousCourse。
-  def find_catalogue_course(number)
-    catalogue_course = @courses_by_number[number]
-    return unless catalogue_course && catalogue_course['selectable'] == true
+  # 「便覧から選択」が送るのは Course の id。同じ番号で名前の違う行があっても、どの行かが決まる。
+  # 追加できるのは、名簿にあり、選べる科目だけ。名簿は自由入力の科目と、番号から区分が決まらない科目を載せない。
+  def find_directory_course(course_id)
+    id = Integer(course_id, 10, exception: false)
+    entry = directory.find(id) if id
+    return unless entry&.selectable == true
 
-    courses = Course.where(course_number: number, name: catalogue_course.fetch('name')).limit(2).to_a
-    raise(DemoAccount::Unavailable, '便覧の科目が登録されていません。bin/rails db:seed を実行してください。') if courses.empty?
-    raise AmbiguousCourse if courses.size > 1
+    Course.find_by(id: entry.course_id)
+  end
 
-    courses.first
+  # 自由入力が便覧の科目と同じ名前・番号のとき、その科目の Course に結びつける。
+  # 便覧の名前の行を優先し、無ければ同じ番号の行を使う。Course の行がまだ無ければ、時間割の取り込みが先。
+  def matched_directory_course(matched)
+    return unless matched['selectable'] == true
+
+    entry = directory_entry_for(matched)
+    raise(DemoAccount::Unavailable, '便覧の科目が登録されていません。bin/rails db:seed を実行してください。') unless entry
+
+    find_directory_course(entry.course_id.to_s)
+  end
+
+  def directory_entry_for(matched)
+    number = matched.fetch('number')
+    entries = directory.in_category(directory.category_for(number)).select do |entry|
+      entry.number == number && entry.course_id
+    end
+    entries.find { |entry| entry.name == matched['name'] } || entries.first
   end
 
   def build_custom_course
@@ -73,7 +80,7 @@ class PlanCoursesController < ApplicationController
     return unless attrs
 
     matched = match_catalogue_course(attrs[:name], attrs[:number])
-    return find_catalogue_course(matched.fetch('number')) if matched
+    return matched_directory_course(matched) if matched
 
     Course.create!(custom_category: attrs[:category], course_number: attrs[:number], name: attrs[:name],
                    credits: attrs[:credits])

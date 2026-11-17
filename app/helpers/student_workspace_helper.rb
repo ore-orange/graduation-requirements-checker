@@ -27,13 +27,13 @@ module StudentWorkspaceHelper
 
   def credit_number(val) = val.nil? ? '0' : number_with_precision(val, precision: 2, strip_insignificant_zeros: true)
 
-  def catalogue_availability(course, unavailable_numbers:, persisted_numbers:)
-    return '追加済み・修得済み・履修中' if unavailable_numbers.include?(course['number'])
-    return '選択対象外' unless course['selectable'] == true
-    # 科目番号で Course に当てるので、番号の無い科目は選べない。
-    return '科目番号が未掲載のため選択できません' if course['number'].blank?
+  # 検索の一覧で、追加できない科目に添える理由。追加できるなら nil。entry は CourseDirectory::Entry。
+  def catalogue_availability(entry, unavailable_numbers:)
+    return '追加済み・修得済み・履修中' if unavailable_numbers.include?(entry.number)
+    return '選択対象外' unless entry.selectable == true
 
-    '初期データ未登録' unless persisted_numbers.include?(course['number'])
+    # 計画は Course の行を指す。その年度の時間割をまだ取り込んでいない科目は、行が無いので追加できない。
+    '初期データ未登録' if entry.course_id.nil?
   end
 
   # 便覧の科目表に科目番号で当たればその区分。当たらなければ、自由入力計画科目はその科目が持つ区分、それ以外は算入対象外。
