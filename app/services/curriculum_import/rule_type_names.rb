@@ -9,6 +9,14 @@ module CurriculumImport
 
     # 知らない型は nil(呼び手が、型なしの言い方を決める)。
     def self.for(type) = NAMES[type]
+
+    # 画面の知らせで規則を呼ぶ名前。label があればそれ、無ければ型の和名。内部の id は出さない。
+    def self.name_of(rule)
+      label = rule['label']
+      return label.strip if label.is_a?(String) && !label.strip.empty?
+
+      self.for(rule['type']) || '名前のない規則'
+    end
   end
 end
 

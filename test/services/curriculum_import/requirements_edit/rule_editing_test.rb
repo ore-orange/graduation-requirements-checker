@@ -194,6 +194,30 @@ class RuleEditingTest < ActiveSupport::TestCase
     assert_equal 'credit_sum', rule_after('humanities_c1')['type']
   end
 
+  # 知らせは人が読む。内部の id(humanities_c1・total)ではなく、規則の名前で言う。
+  test '規則を足した知らせは、規則の名前で言い、id を出さない' do
+    result = edit(new_rule: { type: 'credit_sum', label: '追加分', link: 'row:humanities',
+                              categories: %w[humanities], required_credits: '2' })
+
+    assert_includes result.notes, '規則「追加分」を足しました。'
+    assert_includes result.notes, '規則「追加分」を結びつけました。' if result.notes.grep(/結びつけました/).any?
+    assert_empty(result.notes.grep(/humanities_c1/))
+  end
+
+  test '規則を結びつけた知らせは、規則の名前で言い、id を出さない' do
+    result = edit(rules: [{ id: 'total', link: 'group:common' }])
+
+    assert result.ok?, result.errors.join('/')
+    assert_includes result.notes, '規則「規則total」を結びつけました。'
+    assert_empty(result.notes.grep(/「total」/))
+  end
+
+  test '名前の無い規則の知らせは、型の和名で言う' do
+    result = edit(new_rule: { type: 'exclude', reason: '対象外', category: 'excluded' })
+
+    assert_includes result.notes, '規則「算入しない」を足しました。'
+  end
+
   # 自動で振る id が既にあるときは、重ならない番号まで進める。
   test '規則を続けて足すと、id の番号が進む' do
     edit(new_rule: { type: 'credit_sum', label: 'さき', categories: %w[english], required_credits: '2' })

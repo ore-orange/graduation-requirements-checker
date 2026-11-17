@@ -23,7 +23,7 @@ module CurriculumImport
       end
 
       def call(document, card, disposition, category)
-        error = conflict(card)
+        error = conflict(document, card)
         return error if error
 
         case disposition
@@ -35,7 +35,7 @@ module CurriculumImport
 
       # 決めたあとに変えると、副作用が取り消せないもの(承認の注記・足した規則)がある。取り消せない変更は断る。
       # 「判定に反映しない」は何も足していないので、あとから別の扱いに変えられる。
-      def conflict(card)
+      def conflict(document, card)
         decision = card.decision
         return if decision.blank? || !card.settled || decision['disposition'] == IGNORE
 
@@ -43,7 +43,9 @@ module CurriculumImport
           return "すでに区分「#{decision['category']}」の承認の注記にしてあります。承認の注記は、注記の一覧から外してください。"
         end
 
-        "すでに規則「#{decision['rule_id']}」を作ってあります。下の規則の表で直すか、消してください。"
+        rule = Array(document['rules']).grep(Hash).find { |entry| entry['id'] == decision['rule_id'] }
+        name = rule ? RuleTypeNames.name_of(rule) : '足した決まり'
+        "すでに規則「#{name}」を作ってあります。下の規則の表で直すか、消してください。"
       end
 
       # 注記から決めた承認の扱いを白紙に戻す(注記を外したので、もう一度決められる)。

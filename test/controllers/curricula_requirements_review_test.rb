@@ -953,7 +953,8 @@ class CurriculaRequirementsReviewTest < ActionDispatch::IntegrationTest
     assert_select '#requirements_findings [data-blocking=true]', text: /必要な欄が無いか、形が違います: required_credits/
 
     save draft, annotations: { id => { disposition: 'ignore' } }
-    assert_match(/すでに規則「annotation_#{id}」を作ってあります/, response.body)
+    assert_match(/すでに規則「備考 外国人留学生の特例は別に定める。」を作ってあります/, response.body)
+    assert_no_match(/すでに規則「annotation_/, response.body)
   end
 
   test '7つの型のどれでもない割り当てと、見つからない注釈は断る' do

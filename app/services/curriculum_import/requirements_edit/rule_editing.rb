@@ -35,7 +35,7 @@ module CurriculumImport
         problem = link_rule(link, rule['id'])
         return error(problem, 'rule', rule['id']) if problem
 
-        @notes << "規則「#{rule['id']}」を結びつけました。"
+        @notes << "規則「#{RuleTypeNames.name_of(rule)}」を結びつけました。"
       end
 
       # 欄ごとの値を当てる。id と型は変えられない(型を変えると持てる欄が変わり、別の規則になる)。
@@ -147,7 +147,7 @@ module CurriculumImport
       def append_new_rule(rule)
         list_of(@document, 'rules')&.push(rule.merge(DraftMerge::CONFIRMED => true))
         @edited += 1
-        @notes << "規則「#{rule['id']}」を足しました。"
+        @notes << "規則「#{RuleTypeNames.name_of(rule)}」を足しました。"
       end
 
       def new_rule_type_message
