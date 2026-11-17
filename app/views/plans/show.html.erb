@@ -11,8 +11,8 @@
 
     <%
       mapped_categories = planner_groups(@curriculum).flat_map { |g| g[:rows].flat_map { |r| r[:categories] } }
-      unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course, @courses_by_number)) }
-      unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course, @courses_by_number)) }
+      unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course, @courses_by_number, @number_patterns)) }
+      unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course, @courses_by_number, @number_patterns)) }
       term_earned = @term_enrollments.select { |e| e.enrollment_status == 'completed' }.sum(BigDecimal('0')) { |e| e.credits_earned || BigDecimal('0') }
       term_current = @term_enrollments.select { |e| StudentWorkspace::CURRENT_STATUSES.include?(e.enrollment_status) }.sum(BigDecimal('0')) { |e| e.course.credits || BigDecimal('0') }
       term_planned = @term_plans.sum(BigDecimal('0')) { |p| plan_credits(p, @courses_by_number) }
@@ -99,10 +99,10 @@
 
               <% group[:rows].each do |row| %>
                 <%
-                  cell_enrollments = @term_enrollments.select { |e| row[:categories].include?(course_category(e.course, @courses_by_number)) }
-                  cell_plans = @term_plans.select { |p| row[:categories].include?(course_category(p.course, @courses_by_number)) }
-                  row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course, @courses_by_number)) }
-                  row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_number)
+                  cell_enrollments = @term_enrollments.select { |e| row[:categories].include?(course_category(e.course, @courses_by_number, @number_patterns)) }
+                  cell_plans = @term_plans.select { |p| row[:categories].include?(course_category(p.course, @courses_by_number, @number_patterns)) }
+                  row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course, @courses_by_number, @number_patterns)) }
+                  row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_number, @number_patterns)
                   row_has_custom = row_plans.any? { |p| p.course.custom? }
                   row_status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_has_custom)
                   subtotal = planner_subtotal_for(row[:id], @curriculum)
@@ -110,7 +110,7 @@
                 <% if subtotal && subtotal[:row_ids].first == row[:id] %>
                   <%
                     subtotal_categories = group[:rows].select { |r| subtotal[:row_ids].include?(r[:id]) }.flat_map { |r| r[:categories] }
-                    subtotal_plans = @plans.select { |p| subtotal_categories.include?(course_category(p.course, @courses_by_number)) }
+                    subtotal_plans = @plans.select { |p| subtotal_categories.include?(course_category(p.course, @courses_by_number, @number_patterns)) }
                     subtotal_status = row_check_status(@assessment, subtotal[:check_ids],
                                                        has_custom_plan: subtotal_plans.any? { |p| p.course.custom? })
                   %>
@@ -118,7 +118,7 @@
                   <tr class="align-top bg-indigo-50/30" data-planner-subtotal="<%= subtotal[:id] %>">
                     <th class="p-3.5 border-r border-slate-200">
                       <div class="font-bold text-slate-800 text-sm leading-snug"><%= subtotal[:name] %></div>
-                      <%= render 'plans/credit_badge', credits: category_credits(@enrollments, @plans, subtotal_categories, @courses_by_number),
+                      <%= render 'plans/credit_badge', credits: category_credits(@enrollments, @plans, subtotal_categories, @courses_by_number, @number_patterns),
                                                        req: subtotal[:req], status: subtotal_status %>
                     </th>
                     <td class="p-3.5 text-[11px] text-slate-500 leading-relaxed">

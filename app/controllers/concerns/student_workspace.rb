@@ -32,6 +32,8 @@ module StudentWorkspace
     # 履修・予定の Course は、科目番号で便覧の科目に当たる。番号の無い科目は当たりようがないので入れない。
     @courses_by_number = @curriculum.fetch('courses').select { |course| course['number'].present? }
                                     .index_by { |course| course.fetch('number') }
+    # 画面の区分計算だけが見る。判定へ渡す key の振り替え(catalogue_entries)は @courses_by_number のまま。
+    @number_patterns = CurriculumImport::NumberPatterns.new(@curriculum['categories'])
   end
 
   # 学生が持つ便覧。無い、または公開済みでなければ、判定せずに初期設定の案内を出す。

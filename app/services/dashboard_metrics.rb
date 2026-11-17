@@ -5,7 +5,7 @@
 class DashboardMetrics
   include StudentWorkspaceHelper
 
-  attr_reader :assessment, :enrollments, :plans, :courses_by_number, :curriculum
+  attr_reader :assessment, :enrollments, :plans, :courses_by_number, :number_patterns, :curriculum
 
   # curriculum は便覧の文書（Hash）。卒業総単位を display から読む。
   def initialize(assessment:, enrollments:, plans:, courses_by_number:, curriculum:)
@@ -14,6 +14,8 @@ class DashboardMetrics
     @plans = plans
     @courses_by_number = courses_by_number
     @curriculum = curriculum
+    # 画面の区分は番号パターンも見る(便覧を絞ると、番号で決まる科目は courses_by_number から消える)。
+    @number_patterns = CurriculumImport::NumberPatterns.new(curriculum['categories'])
   end
 
   def custom_plans
@@ -21,7 +23,7 @@ class DashboardMetrics
   end
 
   def custom_credits(categories)
-    custom_plans.select { |plan| categories.include?(course_category(plan.course, courses_by_number)) }
+    custom_plans.select { |plan| categories.include?(course_category(plan.course, courses_by_number, number_patterns)) }
                 .sum(BigDecimal('0')) { |plan| plan_credits(plan, courses_by_number) }
   end
 
@@ -64,7 +66,7 @@ class DashboardMetrics
     if definition[:credits_from_check] && actual&.counted_credits && projected&.counted_credits
       [actual.counted_credits, (projected.counted_credits - actual.counted_credits) + extra]
     else
-      credits = category_credits(enrollments, plans, definition[:categories], courses_by_number)
+      credits = category_credits(enrollments, plans, definition[:categories], courses_by_number, number_patterns)
       [credits[:earned], credits[:planned]]
     end
   end

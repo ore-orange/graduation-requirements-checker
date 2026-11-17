@@ -40,26 +40,33 @@ module StudentWorkspaceHelper
     '初期データ未登録' if entry.course_id.nil?
   end
 
-  # 便覧の科目表に科目番号で当たればその区分。当たらなければ、自由入力計画科目はその科目が持つ区分、それ以外は算入対象外。
-  def course_category(course, courses_by_number)
+  # 画面の区分。便覧の科目表に科目番号で当たればその区分。当たらなければ、番号パターンで決まる区分(名簿と同じ規則)。
+  # 便覧を絞り込むと、番号で区分が決まる科目は科目表から消えるので、パターンも見ないと修得済みの科目が算入対象外に落ちる。
+  # どちらでも決まらなければ、自由入力計画科目はその科目が持つ区分、それ以外は算入対象外。
+  # 判定へ渡す catalogue_entries は従来どおり科目表の key だけを見る(ここはその対象ではない)。
+  # number_patterns は CurriculumImport::NumberPatterns。
+  def course_category(course, courses_by_number, number_patterns)
     entry = courses_by_number[course.course_number]
     return entry['category'] if entry
+
+    category = number_patterns.category_for(course.course_number)
+    return category if category
 
     course.custom? ? course.custom_category : 'excluded'
   end
 
-  def category_credits(enrollments, plans, categories, courses_by_number)
-    in_cat = filter_by_categories(enrollments, categories, courses_by_number)
+  def category_credits(enrollments, plans, categories, courses_by_number, number_patterns)
+    in_cat = filter_by_categories(enrollments, categories, courses_by_number, number_patterns)
     earned = in_cat.select { |i| i.enrollment_status == 'completed' }.sum(BigDecimal('0')) { |i| i.credits_earned.to_d }
     current = in_cat.select { |i| StudentWorkspace::CURRENT_STATUSES.include?(i.enrollment_status) }
                     .sum(BigDecimal('0')) { |i| i.course.credits.to_d }
-    planned = filter_by_categories(plans, categories, courses_by_number)
+    planned = filter_by_categories(plans, categories, courses_by_number, number_patterns)
               .sum(BigDecimal('0')) { |p| plan_credits(p, courses_by_number) }
     { earned: earned, planned: current + planned }
   end
 
-  def filter_by_categories(records, categories, courses_by_number)
-    records.select { |item| categories.include?(course_category(item.course, courses_by_number)) }
+  def filter_by_categories(records, categories, courses_by_number, number_patterns)
+    records.select { |item| categories.include?(course_category(item.course, courses_by_number, number_patterns)) }
   end
 
   def plan_credits(plan, courses_by_number)
