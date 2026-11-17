@@ -4,7 +4,9 @@ import { Controller } from "@hotwired/stimulus"
 // 最後に一覧で確認させる(設計書 §6-1・§6-2)。
 //
 // サーバーは全ページぶんの行を HTML に出す。ここがするのは、1枚表示のときに、いまのページ以外を隠すことだけ。
-// (遅延読み込みにしないのは、ブラウザのページ内検索が隠れた行にも届くように。科目表の確認画面と同じ判断)
+// (遅延読み込みにしないのは、一覧への切り替えをサーバーへの往復なしで即座にするため。1枚表示と一覧の分岐をサーバー側に作らずに済む。
+// 隠した行は hidden なので、ブラウザのページ内検索には掛からない。行の文字はページ番号と、画像が無いページの冒頭だけで、
+// 検索の価値は小さいと見て、このままにしてある。必要になれば hidden="until-found" にすれば、検索も届く。)
 //
 // 種別の選択は、ラジオの値を書き換えるだけで、送信しない。保存は一覧の「この指定で読み取る」で1回だけ(Task 13 が作る)。
 // そのため、選んだ結果は DOM のラジオが持つ。別に状態を持つと、保存される値と食い違う。
@@ -13,7 +15,6 @@ import { Controller } from "@hotwired/stimulus"
 // 行は読み取りのたびに Turbo Stream で差し替わるので、差し替わった行にも同じ表示を当て直す(pageTargetConnected)。
 export default class extends Controller {
   static targets = ["page", "counter", "summary", "list", "prev", "progress", "commit", "readCount"]
-  static values = { total: Number }
 
   // 左右で前後、1・2・3 で 読まない・要件表・科目表(PAGE_KINDS の並びと同じ)
   static KINDS = ["skip", "requirements", "courses"]
