@@ -55,6 +55,6 @@ result = GraduationAssessment.new(curriculum: curriculum).call(
 
 ## デモ履修データとの分離
 
-`db/demo_enrollments.json`は人工的な学生の修得・登録済み・履修中の記録であり、要件文書とは分ける。`DemoData.load!`が明示的なseed実行時に、一次資料由来の科目マスタと人工履修データを開発・テストDBへ登録する。保存済み将来計画、無関係な学生・科目・履修行は削除しない。
+`test/fixtures/files/sample_enrollments.json`は判定テスト用の人工的な履修記録であり、要件文書とは分ける。`SampleStudent.load!`がテスト実行時に、一次資料由来の科目マスタと人工履修データをテストDBへ登録する。
 
 将来計画は`PlannedCourse`へ保存する。履修履歴の年度必須制約を迂回するための架空の年度は使わない。デモの起動・操作は[README](../../README.md#ローカルデモ)を参照。

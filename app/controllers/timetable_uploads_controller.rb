@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 class TimetableUploadsController < ApplicationController
-  include LocalAccessOnly
-
   MAX_PDF_BYTES = 10.megabytes
 
   before_action :load_upload, only: %i[show destroy commit update_rows page_image]

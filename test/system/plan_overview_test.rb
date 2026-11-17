@@ -11,7 +11,7 @@ class PlanOverviewTest < ApplicationSystemTestCase
     click_on 'デモアカウントで見る'
     assert_no_current_path new_session_path
 
-    student = DemoAccount.student
+    student = SampleStudent.student
     student.planned_courses.delete_all
 
     visit plan_path(view: 'all')

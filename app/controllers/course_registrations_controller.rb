@@ -2,8 +2,6 @@
 
 # 「講義登録」タブ。取り込み済みの講義と、確認中のPDFを一覧し、PDFのアップロードを受け付ける。
 class CourseRegistrationsController < ApplicationController
-  include LocalAccessOnly
-
   # 取り込みで選べる年度。今年度を中心に前後2年。
   YEAR_RANGE = -2..2
 

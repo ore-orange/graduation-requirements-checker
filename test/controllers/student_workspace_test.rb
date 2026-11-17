@@ -11,8 +11,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   setup do
     travel_to Date.new(2026, 10, 26)
     host! 'localhost'
-    DemoData.load!
-    @student = DemoAccount.student
+    SampleStudent.load!
+    @student = SampleStudent.student
     @student.planned_courses.delete_all
     sign_in_as(@student.user)
     @curriculum = CurriculumRepository.find(curriculum: 'intelligent_informatics', admission_year: 2024)

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'ipaddr'
-
 class ApplicationController < ActionController::Base
   include Authentication
 
@@ -11,30 +9,13 @@ class ApplicationController < ActionController::Base
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
-  helper_method :local_demo_access?, :google_login_available?
+  helper_method :google_login_available?
 
   private
 
   # 資格情報が無いとGoogleへ飛ばしてもエラー画面になるだけなので、ボタンごと出さない。
   def google_login_available?
     ENV['GOOGLE_CLIENT_ID'].present? && ENV['GOOGLE_CLIENT_SECRET'].present?
-  end
-
-  def local_demo_access?
-    return false unless DemoAccount.enabled?
-
-    DemoAccount.public_demo? || local_request?
-  end
-
-  def local_request?
-    return false unless %w[localhost 127.0.0.1 ::1 [::1]].include?(request.host)
-    return true if request.local?
-    return false unless ENV['LOCAL_DEMO_PROXY'] == '1'
-
-    remote_address = IPAddr.new(request.get_header('REMOTE_ADDR').to_s)
-    remote_address.ipv4? && remote_address.private?
-  rescue IPAddr::InvalidAddressError
-    false
   end
 end
 

@@ -48,14 +48,6 @@
           <span>Google でログイン</span>
         <% end %>
       <% end %>
-
-      <% if local_demo_access? %>
-        <div class="my-5 flex items-center gap-3 text-xs text-slate-400">
-          <span class="h-px flex-1 bg-slate-200"></span>または<span class="h-px flex-1 bg-slate-200"></span>
-        </div>
-        <%# 認証が入る前から公開しているデモ。固定の架空データを誰でも見られる。 %>
-        <%= button_to 'デモアカウントで見る', demo_session_path, class: 'demo-button-secondary w-full' %>
-      <% end %>
     </div>
   </div>
 </div>

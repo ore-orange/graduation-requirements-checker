@@ -226,7 +226,7 @@ sudo ls -l /opt/grc/.env       # -rw------- root root
 ```
 
 `.env` に入っている項目は `.env.example` の「学科サーバーVM」の欄を参照:
-`RAILS_ENV` / `PORT` / `SECRET_KEY_BASE` / `DB_PASSWORD` / `ALLOWED_HOSTS` / `PUBLIC_DEMO`。
+`RAILS_ENV` / `PORT` / `SECRET_KEY_BASE` / `DB_PASSWORD` / `ALLOWED_HOSTS` / `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。
 
 - `ALLOWED_HOSTS` に、**新しい接続先のホスト名**が含まれているか確認する。
 - `DB_PASSWORD` は英数字のみ(URLに埋め込むため)。

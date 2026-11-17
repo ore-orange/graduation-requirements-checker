@@ -9,8 +9,8 @@ class DashboardTest < ActionDispatch::IntegrationTest
 
   setup do
     host! 'localhost'
-    DemoData.load!
-    @student = DemoAccount.student
+    SampleStudent.load!
+    @student = SampleStudent.student
     @student.planned_courses.delete_all
     sign_in_as(@student.user)
   end

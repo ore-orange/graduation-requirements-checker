@@ -12,9 +12,7 @@ Rails.application.routes.draw do
   # ルートは進捗ダッシュボード
   root 'dashboard#show'
 
-  # ログイン。デモは固定の学生としてログインするだけの入口。
   resource :session, only: %i[new create destroy]
-  resource :demo_session, only: :create
 
   # 初回ログイン後にコースと入学年度を登録する。
   resource :student, only: %i[new create]
