@@ -122,6 +122,24 @@ class CourseDirectoryTest < ActiveSupport::TestCase
     assert_nil directory.find(0)
   end
 
+  test '登録があって Course 行が無い科目は、名簿に出て course_id が nil になる' do
+    entry = CourseDirectory.new(document(courses: [registered('知能101')])).in_category('special').sole
+
+    assert_nil entry.course_id
+    assert_equal '知能101', entry.number
+    assert_equal true, entry.required
+    assert_equal ['special'], CourseDirectory.new(document(courses: [registered('知能101')])).categories
+  end
+
+  test 'Course 行が無い登録科目の名前と単位は、登録の値から来る' do
+    directory = CourseDirectory.new(document(courses: [registered('知能101', 'name' => '知能入門', 'credits' => 3)]))
+    entry = directory.in_category('special').sole
+
+    assert_equal '知能入門', entry.name
+    assert_equal 3, entry.credits
+    assert_nil directory.find(nil)
+  end
+
   test 'Course は1つのインスタンスの中で1回しか引かない' do
     Course.create!(course_number: '人文101', name: '哲学')
     directory = CourseDirectory.new(document)
