@@ -1,0 +1,138 @@
+<%# 学期の画面の表（/plan?term=3-後期 など）。行＝卒業要件の区分、列＝この学期の科目。今の学期以降なら科目を追加できる %>
+<%
+  is_current_term = @term == @current_term
+  unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course.curriculum_key, @courses_by_key)) }
+  unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+%>
+<div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden" data-term="<%= term_param(@term) %>">
+  <!-- 表示中の学期と、その学期の単位の内訳 -->
+  <div class="px-4 sm:px-6 py-4 border-b border-slate-100">
+    <h2 class="text-base font-bold text-slate-900">
+      <%= term_label(@term) %>（<%= @term_year %>年度）
+      <% if is_current_term %>
+        <span class="ml-1 align-middle text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">現在</span>
+      <% end %>
+    </h2>
+    <p class="text-xs text-slate-500 mt-0.5" data-term-credits>
+      修得 <%= credit_number(term_credit[:earned]) %>単位
+      <% if term_credit[:current].positive? %> ・ 履修中 <%= credit_number(term_credit[:current]) %>単位<% end %>
+      <% if term_credit[:planned].positive? %> ・ 予定 <%= credit_number(term_credit[:planned]) %>単位<% end %>
+    </p>
+  </div>
+
+  <!-- 区分バッジの凡例 -->
+  <p class="px-4 sm:px-6 py-2 border-b border-slate-100 text-[11px] text-slate-500" data-credit-legend>
+    区分の単位は全学期の合計です。
+    <span class="font-semibold text-slate-600">修得</span>＝修得済みの単位、
+    <span class="font-semibold text-slate-600">予定</span>＝履修中と履修予定の単位、
+    <span class="font-semibold text-slate-600">必要</span>＝卒業に必要な単位。
+  </p>
+
+  <!-- 区分 × この学期の科目 -->
+  <div class="overflow-x-auto">
+    <table class="w-full border-collapse text-left table-fixed min-w-[640px]">
+      <thead>
+        <tr class="bg-slate-50/90 border-b border-slate-200 text-xs font-bold text-slate-600">
+          <th class="w-64 py-3.5 px-4 border-r border-slate-200">卒業要件区分</th>
+          <th class="py-3.5 px-3">この学期の科目</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200 text-xs">
+        <% StudentWorkspaceHelper::PLANNER_GROUPS.each do |group| %>
+          <% group_check = find_check(@assessment.projected, group[:check_id]) %>
+          <!-- 親グループ見出し行 -->
+          <tr class="bg-slate-100/80 border-y border-slate-200" data-planner-group="<%= group[:id] %>">
+            <td colspan="2" class="py-2 px-4">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-bold text-slate-800 text-xs uppercase tracking-wider" data-sync-group-title="<%= group[:id] %>"><%= group[:title] %></span>
+                <span class="text-[11px] font-semibold text-slate-600">
+                  領域要件: <strong data-sync-group-req="<%= group[:id] %>"><%= group[:req] %></strong>単位以上
+                  <% if group_check %>
+                    （見込み算入: <%= credit_label(group_check.counted_credits) %> / <%= assessment_status_label(group_check.status) %>）
+                  <% end %>
+                </span>
+              </div>
+            </td>
+          </tr>
+
+          <% group[:rows].each do |row| %>
+            <%
+              cell_enrollments = @term_enrollments.select { |e| row[:categories].include?(course_category(e.course.curriculum_key, @courses_by_key)) }
+              cell_plans = @term_plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+              subtotal = planner_subtotal_for(row[:id])
+            %>
+            <% if subtotal && subtotal[:row_ids].first == row[:id] %>
+              <!-- 合計で数える区分のまとまり（必要単位はここにだけ出す） -->
+              <tr class="align-top bg-indigo-50/30" data-planner-subtotal="<%= subtotal[:id] %>">
+                <th class="p-3.5 border-r border-slate-200">
+                  <%= render 'plans/subtotal_heading', group: group, subtotal: subtotal %>
+                </th>
+                <td class="p-3.5 text-[11px] text-slate-500 leading-relaxed">
+                  下の<%= subtotal[:row_ids].size %>区分の単位を合計して判定します。区分ごとの必要単位はありません。
+                </td>
+              </tr>
+            <% end %>
+            <tr class="align-top hover:bg-slate-50/40" data-planner-row="<%= row[:id] %>">
+              <!-- 区分名セル（単位は全学期の累計） -->
+              <th class="p-3.5 border-r border-slate-200 bg-slate-50/30 <%= 'pl-8' if subtotal %>">
+                <%= render 'plans/row_heading', row: row, subtotal: subtotal %>
+              </th>
+
+              <!-- この学期の科目。追加できる行は、カードの並びの最後に追加の枠を置く -->
+              <%
+                catalogue_in_row, selectable_in_row = row_catalogue_courses(row, @curriculum.fetch('courses'), @unavailable_keys)
+                can_add = @term_open && selectable_in_row.any?
+              %>
+              <td class="p-2.5">
+                <% if cell_enrollments.any? || cell_plans.any? || can_add %>
+                  <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    <% cell_enrollments.each do |enrollment| %>
+                      <%= render 'plans/enrollment_card', enrollment: enrollment %>
+                    <% end %>
+                    <% cell_plans.each do |plan| %>
+                      <%= render 'plans/plan_card', plan: plan %>
+                    <% end %>
+                    <% if can_add %>
+                      <button type="button" onclick="toggleRowAddBox('<%= row[:id] %>')" id="add-trigger-<%= row[:id] %>"
+                              aria-label="<%= row[:name] %>の科目を<%= term_label(@term) %>に追加"
+                              class="min-h-14 flex items-center justify-center rounded-lg border border-dashed border-slate-300 text-xs font-medium text-slate-500 hover:border-indigo-300 hover:bg-indigo-50/40 hover:text-indigo-600 transition cursor-pointer">
+                        ＋ 科目を追加
+                      </button>
+                    <% end %>
+                  </div>
+                <% elsif !@term_open %>
+                  <div class="text-slate-300 py-2">—</div>
+                <% end %>
+                <% if @term_open %>
+                  <%= render 'plans/add_course_box', row: row, catalogue_in_row: catalogue_in_row, selectable_in_row: selectable_in_row %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        <% end %>
+
+        <% if unmapped_enrollments.any? || unmapped_term_plans.any? %>
+          <tr class="bg-slate-100/80 border-y border-slate-200">
+            <td colspan="2" class="py-2 px-4 font-bold text-slate-700 text-xs">その他・卒業算入対象外</td>
+          </tr>
+          <tr class="align-top">
+            <th class="p-3.5 border-r border-slate-200 bg-slate-50/30">
+              <div class="font-bold text-slate-700 text-sm">算入対象外・未分類</div>
+              <p class="mt-1 text-[11px] text-slate-400 font-normal">情報科学演習など卒業単位に含めない科目</p>
+            </th>
+            <td class="p-2.5">
+              <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <% unmapped_enrollments.each do |enrollment| %>
+                  <%= render 'plans/enrollment_card', enrollment: enrollment %>
+                <% end %>
+                <% unmapped_term_plans.each do |plan| %>
+                  <%= render 'plans/plan_card', plan: plan %>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -19,7 +19,7 @@
 %>
 <%= tag.div class: "relative px-1.5 py-1 rounded-md border shadow-2xs #{tone}", data: data do %>
   <% if record.is_a?(PlannedCourse) %>
-    <%= button_to '×', plan_course_path(record), method: :delete, params: { view: 'all' },
+    <%= button_to '×', plan_course_path(record), method: :delete, params: { view: 'all', **@catalogue_pane_params },
                   class: 'w-5 h-5 flex items-center justify-center rounded text-sm leading-none text-slate-400 hover:bg-rose-50 hover:text-rose-600 cursor-pointer',
                   form: { class: 'absolute top-0 right-0' },
                   aria: { label: "#{record.course.name}を今後の履修予定から削除" } %>

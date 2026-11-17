@@ -3,6 +3,10 @@
 <%= form_with url: plan_courses_path, class: 'space-y-2', data: { controller: 'course-filter' } do |f| %>
   <%= hidden_field_tag :term, term, id: nil, data: { term_field: true } %>
   <%= hidden_field_tag :view, 'all', id: nil if overview %>
+  <%# 便覧のパネルを開いているときは、追加のあとも開いたままにする %>
+  <% @catalogue_pane_params.each do |name, value| %>
+    <%= hidden_field_tag name, value, id: nil %>
+  <% end %>
   <input type="search" <%= 'autofocus' if overview %> placeholder="科目名・科目番号で絞り込み" autocomplete="off"
          aria-label="<%= row[:name] %>の科目を絞り込み"
          data-course-filter-target="query" data-action="input->course-filter#filter"
