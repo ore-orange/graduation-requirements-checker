@@ -1,13 +1,16 @@
 <%# 番号で区分が決まる科目を、下書きからまとめて外す。外せる科目が無いときは出さない(0科目を外すボタンは置かない)。 %>
 <%# PDFと見比べずに押せてしまう操作なので、ラベルと説明と確認の文で、何科目に効くか・うち何科目が確認済みかを隠さない。 %>
+<%# Turbo が科目の保存のたびに差し替えるので、外せる科目が無いときも枠(空の div)は残す。 %>
+<div id="courses_filter">
 <% if review.droppable_count.positive? %>
   <%# 外した行はあとから戻せない(読み直しの元のPDFが無い下書きもある)。件数を見せてから押させる。 %>
-  <div id="courses_filter" class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-3 text-xs text-slate-700 sm:px-6">
+  <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-3 text-xs text-slate-700 sm:px-6">
     <%= button_to "番号で決まる科目を外す(#{review.droppable_count}科目)", filter_courses_curriculum_path(review.curriculum),
-                  method: :post, class: 'cr-btn',
+                  method: :post, class: 'cr-btn', params: { rev: review.droppable_revision },
                   form: { data: { turbo: false } },
                   data: { turbo_confirm: "番号から区分が決まり、読みとも一致する#{review.droppable_count}科目を、科目表から外します" \
                                          "(うち#{review.droppable_confirmed_count}科目は確認済みです)。外した科目は戻せません。よろしいですか。" } %>
     <span>番号から区分が決まり、読みとも一致する科目です。うち<%= review.droppable_confirmed_count %>科目は確認済みです。</span>
   </div>
 <% end %>
+</div>

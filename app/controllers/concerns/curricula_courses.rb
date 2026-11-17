@@ -118,7 +118,8 @@ module CurriculaCourses
 
   def course_streams(review, result)
     key = result.key || params[:key].to_s
-    [course_row_stream(review, key), course_stream('courses_summary', review), course_stream('courses_errors', review),
+    [course_row_stream(review, key), course_stream('courses_summary', review), course_stream('courses_filter', review),
+     course_stream('courses_errors', review),
      turbo_stream.update('courses_notice', result.ok? ? result.notes.first.to_s : '')]
   end
 

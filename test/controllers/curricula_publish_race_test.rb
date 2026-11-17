@@ -122,7 +122,7 @@ class CurriculaPublishRaceTest < ActionDispatch::IntegrationTest
     record = draft(document: document)
     before = record.reload.document
 
-    simulate_race_after_load_draft { post filter_courses_curriculum_path(record), env: ENV_LOCAL }
+    simulate_race_after_load_draft { post filter_courses_curriculum_path(record), params: { rev: 'x' }, env: ENV_LOCAL }
 
     assert_redirected_to requirements_path_for(record)
     assert_equal PUBLISHED_ALERT, flash[:alert]

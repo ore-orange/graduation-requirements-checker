@@ -626,8 +626,9 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal 'text/vnd.turbo-stream.html', response.media_type
     streams = streams_of(response)
-    assert_equal %w[replace replace replace update], streams.pluck('action')
-    assert_equal %w[course-course_人101 courses_summary courses_errors courses_notice], streams.pluck('target')
+    assert_equal %w[replace replace replace replace update], streams.pluck('action')
+    assert_equal %w[course-course_人101 courses_summary courses_filter courses_errors courses_notice],
+                 streams.pluck('target')
     assert_includes streams.first.text.squish, '✓ 確認した'
     assert_includes streams.last.text, '人101「哲学」を直しました(単位)'
     assert_includes streams[1].text.squish, '確認済み 1件'
@@ -643,7 +644,7 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     assert_equal 'course-course_人101', streams.first['target']
     row = Nokogiri::HTML5.fragment("<table>#{streams.first.at_css('template').inner_html}</table>")
     assert_equal '4単位', row.at_css('#course-edit-course_人101 input[name=credits]')['value']
-    assert_includes streams[2].text, '4単位'
+    assert_includes streams[3].text, '4単位'
   end
 
   test 'Turbo: 消した科目は、行ごと外す' do
@@ -725,7 +726,15 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     document
   end
 
-  def filter_courses(record) = post(filter_courses_curriculum_path(record), env: ENV_LOCAL)
+  # 画面が見せた指紋(押した時点の外せる科目)。何も指定しなければ、いまの文書のものを送る。
+  def droppable_rev(record)
+    dropping = CurriculumImport::CoursePrune.dropping(record.reload.document, drop_confirmed: true)
+    CurriculumImport::CourseEdit.fingerprint(dropping)
+  end
+
+  def filter_courses(record, rev: droppable_rev(record))
+    post filter_courses_curriculum_path(record), params: { rev: rev }, env: ENV_LOCAL
+  end
 
   def numbers_of(record) = record.reload.document['courses'].pluck('number')
 
@@ -782,6 +791,51 @@ class CurriculaCoursesReviewTest < ActionDispatch::IntegrationTest
     filter_courses(duplicate)
 
     assert_equal 484 - expected, duplicate.reload.document['courses'].size
+  end
+
+  test '画面が見せた指紋と、いまの外せる科目が違うとき(開いたあとに科目が変わった)、何も外さず、見直しを促す' do
+    record = course_draft(document: prunable_document)
+    stale = droppable_rev(record)
+    update_course(record, number: '外101', confirmed: true) # 別のタブ・別の人が確認した
+
+    assert_no_changes -> { numbers_of(record) } do
+      filter_courses(record, rev: stale)
+    end
+    assert_redirected_to curriculum_path(record, anchor: 'course-review')
+    assert_match(/科目が変わった/, flash[:alert])
+  end
+
+  test '指紋が無い(古い画面からの送信)ときも、何も外さない' do
+    record = course_draft(document: prunable_document)
+
+    assert_no_changes -> { numbers_of(record) } do
+      post filter_courses_curriculum_path(record), env: ENV_LOCAL
+    end
+    assert_match(/科目が変わった/, flash[:alert])
+  end
+
+  test '科目を1つ確認すると、Turbo が外す科目の件数も差し替える(古い件数のまま押させない)' do
+    record = course_draft(document: prunable_document)
+
+    update_course(record, headers: STREAM, number: '外101', confirmed: true)
+
+    stream = streams_of(response).find { |element| element['target'] == 'courses_filter' }
+    assert_not_nil stream
+    assert_includes stream.text, 'うち1科目は確認済みです'
+    assert_equal droppable_rev(record), stream.at_css('input[name=rev]')['value']
+  end
+
+  test '外せる科目が無くなっても、差し替え先(枠)は残る' do
+    record = course_draft(document: prunable_document)
+    show(record)
+    assert_select '#courses_filter'
+    CurriculumImport::CoursePrune.dropping(record.document, drop_confirmed: true).each do |course|
+      update_course(record, number: course['number'], category: 'excluded') # 読みが番号と食い違えば、外せない
+    end
+    show(record)
+
+    assert_select '#courses_filter'
+    assert_select '#courses_filter form', false
   end
 
   test 'ローカル以外からは外せない' do

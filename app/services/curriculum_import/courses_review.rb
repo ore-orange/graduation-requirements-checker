@@ -55,6 +55,10 @@ module CurriculumImport
 
     def droppable_count = droppable.size
 
+    # 外せる科目の指紋。画面を開いたときの値を、押したときの値と比べる(外す操作は戻せないので、見せた科目だけを外す)。
+    # 件数2つではなく、科目の中身から作る。別の科目に入れ替わっても、確認の有無が変わっても、変われば食い違う。
+    def droppable_revision = CourseEdit.fingerprint(droppable)
+
     # 外せる科目のうち、人が確認した科目の数(押す前に見せる。確認を捨てることになるので)。
     def droppable_confirmed_count = droppable.count { |course| CourseEdit.confirmed?(course) }
 
