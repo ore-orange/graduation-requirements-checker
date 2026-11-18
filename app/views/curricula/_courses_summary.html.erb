@@ -1,0 +1,15 @@
+<%# 件数のまとめ。科目を1つ保存するたびに、Turbo がここだけ差し替える。 %>
+<div id="courses_summary" class="border-b border-slate-100 px-5 py-3 text-sm text-slate-800 sm:px-6">
+  <p>
+    科目 <strong><%= review.total %></strong>件 ・ 確認済み <strong><%= review.confirmed_count %></strong>件 ・
+    未確認 <strong><%= review.total - review.confirmed_count %></strong>件
+  </p>
+  <% if review.blocking_count.positive? %>
+    <p class="mt-1 font-bold text-rose-800">公開を止める指摘が付いた科目が<%= review.blocking_count %>件あります。直すまで、この下書きは公開できません。</p>
+  <% end %>
+  <% if review.look_first_count.positive? %>
+    <p class="mt-1 text-amber-900">最初に見る科目が<%= review.look_first_count %>件あります(下の先頭の節)。</p>
+  <% else %>
+    <p class="mt-1 text-slate-600">最初に見る科目はありません。それでも、PDFと見比べる確認の代わりにはなりません。</p>
+  <% end %>
+</div>

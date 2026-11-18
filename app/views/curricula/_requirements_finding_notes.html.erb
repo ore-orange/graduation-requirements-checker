@@ -1,0 +1,6 @@
+<%# 表の項目に結びつく突き合わせの結果。項目の下に、同じ色で出す。 %>
+<% findings.each do |finding| %>
+  <p class="mt-1 rounded border px-2 py-1 text-xs font-medium <%= finding[:blocking] ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-amber-200 bg-amber-50 text-amber-900' %>">
+    <%= finding[:blocking] ? '公開を止める: ' : '確認: ' %><%= finding[:reason] %>
+  </p>
+<% end %>

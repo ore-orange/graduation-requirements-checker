@@ -1,0 +1,8 @@
+<%# 並び替えの矢印(設計書 項目8)。「並び(小さい順)」の数字の欄の代わり。 %>
+<%# 並びは送信順で伝わるので、押すと DOM の要素が入れ替わるだけ(reorder コントローラ)。 %>
+<span class="flex shrink-0 flex-col leading-none">
+  <button type="button" data-action="click->reorder#up" title="1つ上へ"
+          class="px-1 text-[10px] text-slate-400 hover:text-indigo-700"><span class="sr-only"><%= noun %>を1つ上へ</span>▲</button>
+  <button type="button" data-action="click->reorder#down" title="1つ下へ"
+          class="px-1 text-[10px] text-slate-400 hover:text-indigo-700"><span class="sr-only"><%= noun %>を1つ下へ</span>▼</button>
+</span>

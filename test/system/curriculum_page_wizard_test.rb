@@ -257,6 +257,40 @@ class CurriculumPageWizardTest < ApplicationSystemTestCase
     end
   end
 
+  test '読み取り中は、②③④の節を触れず、終わると触れる' do
+    with_reader(StubReader.new(delay: 2)) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '読まない', '読まない', '読まない', '読まない'
+      click_on 'この指定で読み取る(1ページ)'
+
+      %w[requirements_review course-review publish].each do |id|
+        assert_selector "##{id}[inert]"
+        assert_selector "##{id} [data-reading-note]", text: '読み取りが終わると出ます'
+      end
+      assert_text '読み取りが終わりました。', wait: 10
+      %w[requirements_review course-review publish].each do |id|
+        assert_no_selector "##{id}[inert]"
+        assert_no_selector "##{id} [data-reading-note]"
+      end
+    end
+  end
+
+  test '読み取りが終わると、②へ進むボタンが出て、押すと読み取った結果が下に出る' do
+    with_reader(StubReader.new) do
+      visit curriculum_path(@curriculum)
+      assert_no_text '共通教育のしばり'
+      specify '要件表', '読まない', '読まない', '読まない', '読まない'
+      assert_no_button '要件表の確認へ'
+      click_on 'この指定で読み取る(1ページ)'
+
+      assert_text '読み取りが終わりました。'
+      click_on '要件表の確認へ'
+
+      within('#requirements_review') { assert_text '共通教育のしばり' } # 開き直したので、読み取った規則が出る
+      assert_equal 'requirements_review', page.evaluate_script('location.hash').delete('#')
+    end
+  end
+
   test '1ページ失敗しても、残りのページを読み続ける' do
     reader = StubReader.new(fail_on: 'p2.png')
     with_reader(reader) do
@@ -347,6 +381,35 @@ class CurriculumPageWizardTest < ApplicationSystemTestCase
   end
 
   # 読み取り中に画面を離れて戻る。離れ方は、Turbo の遷移(画面のキャッシュを復元)と、Turbo を通らない遷移(ブラウザの復元)の2通り。
+  def assert_sections_touchable
+    assert_selector '#requirements_review'
+    assert_no_selector '[inert]'
+    assert_no_selector '[data-reading-note]'
+    assert_no_selector 'progress', visible: :visible
+  end
+
+  def leave_while_reading
+    with_reader(StubReader.new(delay: 3)) do
+      visit curriculum_path(@curriculum)
+      specify '要件表', '読まない', '読まない', '読まない', '読まない'
+      click_on 'この指定で読み取る(1ページ)'
+      assert_selector '#requirements_review[inert]'
+      yield
+      go_back
+      assert_sections_touchable
+    end
+  end
+
+  test '読み取り中に Turbo の遷移で別の画面へ移って戻っても、②③④の節は触れる状態に戻る' do
+    leave_while_reading do
+      click_on '卒業要件の確認'
+      assert_current_path(%r{/requirements})
+    end
+  end
+
+  test '読み取り中にブラウザの遷移で別の画面へ移って戻っても、②③④の節は触れる状態に戻る' do
+    leave_while_reading { visit requirements_path }
+  end
 
   test '保存できなかったときは、読み取りに進まず、理由を一覧の上に出す' do
     reader = StubReader.new

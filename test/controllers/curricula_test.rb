@@ -578,6 +578,9 @@ class CurriculaTest < ActionDispatch::IntegrationTest
     get curriculum_path(draft), env: ENV_LOCAL
 
     assert_select 'h3', text: /①\s*PDFを読み取る/
+    assert_select 'h3', text: /②\s*要件表を確認する/
+    assert_select 'h3', text: /③\s*科目表を確認する/
+    assert_select 'h3', text: /④\s*公開する/
   end
 
   # どのページが要件表かは、ページ番号だけでは画面から分からない(別のPDFビューアで数えるしかなかった)。
@@ -816,8 +819,14 @@ class CurriculaTest < ActionDispatch::IntegrationTest
   end
 
   test 'ルートの形が決まっている' do
+    assert_routing({ method: 'post', path: '/curricula/1/publish' }, controller: 'curricula', action: 'publish',
+                                                                     id: '1')
     assert_routing({ method: 'post', path: '/curricula/1/pages/2/read' },
                    controller: 'curricula', action: 'read_page', id: '1', page: '2')
+    assert_routing({ method: 'patch', path: '/curricula/1/update_courses' },
+                   controller: 'curricula', action: 'update_courses', id: '1')
+    assert_routing({ method: 'patch', path: '/curricula/1/update_rules' },
+                   controller: 'curricula', action: 'update_rules', id: '1')
     assert_routing({ method: 'get', path: '/curricula/1/page_image/2' },
                    controller: 'curricula', action: 'page_image', id: '1', page: '2')
   end

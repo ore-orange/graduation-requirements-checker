@@ -168,6 +168,96 @@ class CurriculumTest < ActiveSupport::TestCase
     end
   end
 
+  test '学部名とコース名は、画面から上げるとき(upload)だけ必須' do
+    draft = Curriculum.new(slug: 'x', admission_year: 2025)
+    assert draft.valid?
+    assert_not draft.valid?(:upload)
+    assert_equal %i[faculty_name department_name], draft.errors.attribute_names
+  end
+
+  # ---- 識別名(slug)は人に入力させず、学部名・学科コース名から決める ----
+
+  def upload_draft(faculty: '工学部', department: '工学科 知能情報コース', year: 2026, slug: nil)
+    draft = Curriculum.new(slug: slug, admission_year: year, faculty_name: faculty, department_name: department,
+                           source_filename: 'handbook.pdf', pages: [])
+    draft.save_upload!
+    draft
+  end
+
+  test '同じ学部名・学科コース名の便覧が既にあれば、その識別名を引き継ぐ(同じ課程の別の年度になる)' do
+    assert_equal 'intelligent_informatics', upload_draft.slug
+  end
+
+  test '学部名・学科コース名が無い組み合わせには、形の正しい新しい識別名ができる' do
+    draft = upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科')
+
+    assert_match Curriculum::SLUG_FORMAT, draft.slug
+    assert_not_equal 'intelligent_informatics', draft.slug
+    assert_equal 1, Curriculum.where(slug: draft.slug).count
+  end
+
+  test '違う課程には違う識別名が付き、同じ新しい課程を続けて上げると同じ識別名になる' do
+    first = upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科')
+    other = upload_draft(faculty: '農学部', department: '亜熱帯地域農学科')
+    again = upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科', year: 2027)
+
+    assert_not_equal first.slug, other.slug
+    assert_equal first.slug, again.slug
+  end
+
+  test '名前の前後や途中の余分な空白(全角を含む)は揃えるので、同じ課程として識別名を引き継ぐ' do
+    draft = upload_draft(faculty: " 工学部\u3000", department: "工学科\u3000 知能情報コース ")
+
+    assert_equal 'intelligent_informatics', draft.slug
+    assert_equal ['工学部', '工学科 知能情報コース'], [draft.faculty_name, draft.department_name]
+  end
+
+  test '識別名は渡されても信用しない(画面に欄が無いので、決めるのは学部名・学科コース名だけ)' do
+    assert_equal 'intelligent_informatics', upload_draft(slug: 'forged').slug
+  end
+
+  test 'アップロードできる年度は2016年度から来年度まで' do
+    range = Curriculum.upload_year_range
+
+    assert_equal 2016, range.begin
+    assert_equal Time.zone.today.year + 1, range.end
+  end
+
+  # 保存の間に発行されたSQLを集める。
+  def sql_during(&)
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') { |*, payload| statements << payload[:sql] }
+    yield
+    statements
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+  end
+
+  test '識別名を決めるあいだ、同じ課程の取り込みは1つずつにする(同じ新課程の識別名が割れないように)' do
+    statements = sql_during { upload_draft(faculty: '農学部', department: '亜熱帯農林環境科学科') }
+
+    lock = statements.index { |sql| sql.include?('pg_advisory_xact_lock') }
+    insert = statements.index { |sql| sql.start_with?('INSERT INTO "curricula"') }
+    assert lock && insert && lock < insert, 'ロックを取ってから保存していない'
+  end
+
+  # 鍵が定数だと、別の課程の取り込みまで1つずつになる。鍵は学部名・学科コース名から取る。
+  test 'ロックの鍵は学部名・学科コース名ごとに違い、同じ課程なら同じ(別の課程の取り込みを待たせない)' do
+    lock_sql = ->(faculty, department) do
+      sql_during { upload_draft(faculty: faculty, department: department) }.grep(/pg_advisory_xact_lock/)
+    end
+
+    first = lock_sql.call('農学部', '亜熱帯農林環境科学科')
+    other_department = lock_sql.call('農学部', '亜熱帯地域農学科')
+    other_faculty = lock_sql.call('理学部', '亜熱帯農林環境科学科')
+    # 区切りがあるので、名前のつなぎ目をずらしても同じ鍵にならない
+    shifted = lock_sql.call('農学部亜熱帯', '農林環境科学科')
+
+    assert_equal 1, first.size
+    assert_equal 4, [first, other_department, other_faculty, shifted].uniq.size
+    assert_equal first, lock_sql.call('農学部', '亜熱帯農林環境科学科')
+  end
+
   test '画像の置き場は環境ごとに分かれ、テストでは並列のワーカーごとに差し替わる' do
     curriculum = Curriculum.create!(slug: 'x', admission_year: 2025)
 
@@ -192,6 +282,44 @@ class CurriculumTest < ActiveSupport::TestCase
 
   test '画像が無い下書きを消しても落ちない' do
     assert_nothing_raised { Curriculum.create!(slug: 'x', admission_year: 2025).destroy! }
+  end
+
+  test 'page_image_path は、あるページ画像だけを返し、ページ番号以外では引かない' do
+    curriculum = Curriculum.create!(slug: 'x', admission_year: 2025)
+    FileUtils.mkdir_p(curriculum.images_dir)
+    curriculum.images_dir.join('p2.png').write('png')
+    FileUtils.mkdir_p(Curriculum.images_root.join('secret'))
+    Curriculum.images_root.join('secret/p1.png').write('secret')
+
+    assert_equal curriculum.images_dir.join('p2.png'), curriculum.page_image_path('2')
+    assert_nil curriculum.page_image_path('1')
+    ['0', '-1', 'abc', '', nil, '2.5', '1e1', '../secret/p1', '../x/p2', "2\n", '00002x', '9' * 14].each do |bad|
+      assert_nil curriculum.page_image_path(bad), "#{bad.inspect} を受けてしまった"
+    end
+  end
+
+  test 'blank_pages は全ページを skip・pending で並べる' do
+    assert_equal [{ 'page' => 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => nil },
+                  { 'page' => 2, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => nil }],
+                 Curriculum.blank_pages(2)
+    assert_empty Curriculum.blank_pages(0)
+  end
+
+  test 'blank_pages は、取り出したテキストをページの順に入れる' do
+    pages = Curriculum.blank_pages(3, texts: %w[一 二])
+
+    assert_equal ['一', '二', nil], pages.pluck('text')
+  end
+
+  test 'assign_page_kinds は送られたページだけ替え、不正なら何も変えない' do
+    draft = Curriculum.new(slug: 'x', admission_year: 2025, pages: Curriculum.blank_pages(3))
+
+    draft.assign_page_kinds('2' => 'courses')
+    assert_equal %w[skip courses skip], draft.pages.pluck('kind')
+    assert_not draft.page_kinds_assignable?('1' => 'requirements', '3' => 'bogus')
+    assert_not draft.page_kinds_assignable?('4' => 'courses')
+    assert_raises(ArgumentError) { draft.assign_page_kinds('1' => 'requirements', '3' => 'bogus') }
+    assert_equal %w[skip courses skip], draft.pages.pluck('kind')
   end
 end
 

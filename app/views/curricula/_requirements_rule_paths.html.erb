@@ -1,0 +1,36 @@
+<%# one_of_paths の中身。「次のどれか1組を、すべて修得」(設計書 項目3-1)。 %>
+<%#
+  役割キーを画面から消し、科目の「番号 名前」で選ぶ。「経路」という言葉も使わない。
+  1つの組は「そろって要る科目」の集まりで、組どうしは「どれか1つ」。
+  組を足す・消すのは repeater。__INDEX__ は足すときに一意な値へ置き換わる(添字は振り直さない)。
+%>
+<% paths = Array(rule['paths']) %>
+<div data-controller="repeater" data-rule-paths="<%= rule['id'] %>">
+  <p class="text-sm font-bold text-slate-700">
+    <%= paths.size > 1 ? '次のどれか1組を、すべて修得' : '次の科目をすべて修得' %>
+  </p>
+  <div data-repeater-target="list" class="mt-1 space-y-2">
+    <% paths.each_with_index do |path, index| %>
+      <div data-repeater-target="row" class="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+        <div class="flex items-start justify-between gap-2">
+          <%= course_chips "#{key}[paths][#{index}][roles]", path, review, rule %>
+          <button type="button" data-action="click->repeater#remove"
+                  class="mt-1 shrink-0 text-xs text-slate-400 hover:text-rose-600">この組を消す</button>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <template data-repeater-target="template">
+    <div data-repeater-target="row" class="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+      <div class="flex items-start justify-between gap-2">
+        <%= course_chips "#{key}[paths][__INDEX__][roles]", [], review, rule %>
+        <button type="button" data-action="click->repeater#remove"
+                class="mt-1 shrink-0 text-xs text-slate-400 hover:text-rose-600">この組を消す</button>
+      </div>
+    </div>
+  </template>
+
+  <button type="button" data-action="click->repeater#add"
+          class="mt-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800">＋ 別の組を足す(どれか1つを満たせばよい)</button>
+</div>

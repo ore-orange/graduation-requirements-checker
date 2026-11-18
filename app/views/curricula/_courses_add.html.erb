@@ -1,0 +1,27 @@
+<%# 読み落とした科目を手で足す。足した科目は確認済みで、読み直しでは消えない。 %>
+<details id="courses_add" class="mt-6 rounded-lg border border-slate-300 p-3" <%= 'open' if review.open?(:add) %>>
+  <summary class="cursor-pointer text-sm font-bold text-slate-900">読み落とした科目を足す</summary>
+  <% review.problems_for(:add).each do |problem| %>
+    <p role="alert" class="cr-note border-rose-300 bg-rose-100 font-bold text-rose-900">入力を直してください: <%= problem.message %></p>
+  <% end %>
+  <%= form_with url: update_courses_curriculum_path(review.curriculum), method: :patch, data: { turbo: false },
+                class: 'mt-3 space-y-2' do %>
+    <%= hidden_field_tag :added_by_hand, '1', id: nil %>
+    <div class="flex flex-wrap items-end gap-3">
+      <label class="block"><span class="text-xs font-semibold text-slate-700">科目番号</span>
+        <%= cf_text review, :add, 'number', nil, class: 'cr-field mt-1 block w-28' %></label>
+      <label class="block"><span class="text-xs font-semibold text-slate-700">科目名</span>
+        <%= cf_text review, :add, 'name', nil, class: 'cr-field mt-1 block w-64' %></label>
+      <label class="block"><span class="text-xs font-semibold text-slate-700">単位</span>
+        <%= cf_number review, :add, 'credits', nil, class: 'cr-field mt-1 block w-20' %></label>
+      <label class="block"><span class="text-xs font-semibold text-slate-700">区分</span>
+        <%= cf_select review, :add, 'category', nil, class: 'cr-field mt-1 block' %></label>
+    </div>
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-800">
+      <label class="flex items-center gap-1.5"><%= cf_check review, :add, 'selectable', true %>学生が履修に選べる</label>
+      <label class="flex items-center gap-1.5"><%= cf_check review, :add, 'requires_approval', false %>指導教員の承認が要る</label>
+      <label class="flex items-center gap-1.5"><%= cf_check review, :add, 'required', false %>必修</label>
+    </div>
+    <%= submit_tag '科目を足す', class: 'demo-button' %>
+  <% end %>
+</details>

@@ -55,6 +55,39 @@ class CurriculaUpdateStreamTest < ActionDispatch::IntegrationTest
     assert_match(/2ページの読み取り結果は外しました/, warnings.first)
   end
 
+  test '人が直した規則があるページを読み直すとき、警告が応答に入る' do
+    draft = draft()
+    save draft, rules: [{ id: 'humanities', required_credits: '5' }]
+    draft.update!(pages: draft.reload.pages.map { |page| page['page'] == 2 ? page.merge('status' => 'failed') : page })
+
+    save_pages(draft, { '2' => 'requirements' })
+
+    assert_response :success
+    assert_equal 1, warnings.size
+    assert_match(/2ページを読み直します/, warnings.first)
+    assert_match(/規則: 規則humanities\(humanities\)/, warnings.first)
+  end
+
+  test '読み終わっているページは読み直さないので、人が直したものがあっても警告に入れない' do
+    draft = draft()
+    save draft, rules: [{ id: 'humanities', required_credits: '5' }]
+
+    save_pages(draft, { '2' => 'requirements' })
+
+    assert_equal [], warnings
+  end
+
+  test '行の「読む」(only_page)は、読み終わっているそのページの読み直しの警告も返し、他のページの警告は返さない' do
+    draft = draft()
+    save draft, rules: [{ id: 'humanities', required_credits: '5' }]
+
+    save_pages(draft, { '2' => 'requirements' }, only_page: '2')
+    assert_match(/2ページを読み直します/, warnings.first)
+
+    save_pages(draft, { '2' => 'requirements' }, only_page: '1')
+    assert_equal [], warnings
+  end
+
   test '警告が無いときは、警告の欄が空で返る' do
     draft = draft()
 
