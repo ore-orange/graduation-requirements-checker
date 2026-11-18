@@ -12,9 +12,29 @@ class Curriculum < ApplicationRecord
 
   validates :slug, presence: true, format: { with: SLUG_FORMAT }
   validates :admission_year, numericality: { only_integer: true, in: 1..9999 }
+  # 画面から上げる下書きは、学部とコースも必須。年度のない・学部のない下書きは便覧にならない。
+  # 種まきや既存の行は学部名を持たないので、save(context: :upload) のときだけ求める。
+  validates :faculty_name, :department_name, presence: true, on: :upload
+  # 入学年度は現実的な範囲に絞る(5年度のような下書きを作らせない)。アップロードの入力欄の min・max と同じ範囲。
+  validates :admission_year, inclusion: { in: ->(_) { Curriculum.upload_year_range } }, on: :upload
+
   # 学部名・コース名は人が選ぶ・打つ値なので、前後の空白や全角空白の揺れで「別の課程」にならないよう揃える。
   # 識別名を引き継ぐ照合(slug_for_program)も同じ形で比べる(where にも効く)。
   normalizes :faculty_name, :department_name, with: ->(name) { name.squish }
+
+  # 識別名(slug)は人に入力させない(DBの内部キーで、読む必要がない)。画面から上げるときは、学部名・学科コース名から決める。
+  # 新規の行だけ。公開済みや既存の下書きの識別名を、あとから書き換えない。
+  before_validation :assign_program_slug, on: :upload, if: :new_record?
+
+  # 読むページの種別。取り込み直後はすべて skip で、どのページを読むかは人が決める。
+  PAGE_KINDS = %w[skip courses requirements].freeze
+  PAGE_KIND_LABELS = { 'courses' => '科目表', 'requirements' => '要件表', 'skip' => '読まない' }.freeze
+  # AIに読ませるページの種別(skip は読まない)。
+  READABLE_PAGE_KINDS = %w[requirements courses].freeze
+  # pages[n]['status'] の画面での呼び方。pending は取り込み直後で、まだ読んでいない。
+  PAGE_STATUS_LABELS = { 'pending' => '未読', 'read' => '読み取り済み', 'failed' => '読み取りに失敗' }.freeze
+  # 1つのPDFとして現実的な上限。手でページ数を指定するときに、桁違いの値で表を膨らませないため。
+  MAX_PAGES = 500
 
   # 下書きを消すときに、取り出したページ画像もここごと消す。
   after_destroy { FileUtils.rm_rf(images_dir) }
@@ -73,17 +93,134 @@ class Curriculum < ApplicationRecord
   end
   private_class_method :admission_year_of, :parse_document
 
+  # 学生便覧が載っている最古の年度。これより古い便覧を作る場面は無い。
+  UPLOAD_MIN_YEAR = 2016
+
+  # 画面から上げる下書きの入学年度の範囲。上限は、来年度入学の便覧を先に作れるよう今年+1。
+  def self.upload_year_range
+    UPLOAD_MIN_YEAR..(Time.zone.today.year + 1)
+  end
+
+  # 同じ学部名・学科コース名の便覧があれば、その識別名を使う(同じ課程の別の年度として並ぶ)。無ければ新しく作る。
+  # 古い行どうしで同じ課程の識別名が割れていても、いちばん古い行に揃える(選び方が毎回同じになるように)。
+  def self.slug_for_program(faculty_name, department_name)
+    where(faculty_name: faculty_name, department_name: department_name).order(:id).pick(:slug) || mint_program_slug
+  end
+
+  # 日本語を読みやすい英字に直す手立てはなく(gem は足さない)、人が読む必要もないので、機械的な値にする。
+  # 乱数は 36^8 通りで、他の課程と重なることはまず無いが、使われていないことも確かめてから返す。
+  # 同じ課程を2人が同時に初めて上げたときに識別名が割れるのは、乱数ではなく save_upload! のロックで防ぐ。
+  def self.mint_program_slug
+    loop do
+      slug = "program_#{SecureRandom.alphanumeric(8).downcase}"
+      return slug unless exists?(slug: slug)
+    end
+  end
+  private_class_method :mint_program_slug
+
+  # 取り込みフォームの入学年度のプルダウンに出す年度(新しい順)。検証が受ける範囲(upload_year_range)をそのまま使う。
+  # including には、画面で選ばれていた年度を渡す(選んだ年度がフォームから消えて、別の年度で取り込まれないように)。
+  # ただし検証が受けない年度は足さない(選べるのに、送ると断られる選択肢を作らない)。
+  def self.upload_year_choices(including: nil)
+    years = upload_year_range.to_a
+    years << including if including && upload_year_range.cover?(including)
+    years.uniq.sort.reverse
+  end
+
+  # 取り込み直後のページ一覧。text はアップロードのときに PDF から取り出したそのページの文字(取り出せなければ nil か空)。
+  # PDFは残らないので、あとから取り直せない。
+  def self.blank_pages(count, texts: [])
+    Array.new(count) do |index|
+      { 'page' => index + 1, 'kind' => 'skip', 'status' => 'pending', 'error' => nil, 'text' => texts[index] }
+    end
+  end
+
+  # 画面から上げた下書きを保存する。同じ課程(学部名・学科コース名)の保存は、トランザクションの終わりまで1つずつにする。
+  # 識別名を決める(既存を探す→無ければ作る)から保存までに別の人が同じ新しい課程を保存すると、同じ課程が別々の
+  # 識別名になり、来年度の便覧が別の課程として並んでしまう。公開の一意索引は下書きに効かないので、DBは止めてくれない。
+  # ロックの鍵は名前から取る。別の課程どうしは待たせない(鍵が偶然重なっても待つだけで、結果は変わらない)。
+  def save_upload!
+    self.class.transaction do
+      if faculty_name.present? && department_name.present?
+        key = "program:#{faculty_name}\u001F#{department_name}"
+        lock = self.class.sanitize_sql_array(['SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', key])
+        self.class.connection.execute(lock)
+      end
+      save!(context: :upload)
+    end
+  end
+
   def images_dir
     self.class.images_root.join(id.to_s)
+  end
+
+  # 画面に出すページ画像。1始まりのページ番号で引く。無ければ nil。
+  # パスはこの下書きの id とページ番号からだけ組み立て、リクエストの文字列は混ぜない。
+  def page_image_path(page)
+    return unless page.to_s.match?(/\A[1-9]\d{0,3}\z/)
+
+    path = images_dir.join("p#{page.to_i}.png")
+    path if path.file?
+  end
+
+  # ページ画像の実寸(横幅px)。PDFペインの倍率は、これをもとに決める。無ければ nil。
+  def page_image_width(page)
+    path = page_image_path(page)
+    TimetableImport::PageImages.width(path) if path
+  end
+
+  # ページ画像の中身。無ければ nil。
+  def page_image_data(page)
+    path = page_image_path(page)
+    path&.binread
   end
 
   def published?
     published_at.present?
   end
 
+  # kinds は { ページ番号 => 種別 }。知らない種別や、存在しないページが混ざっていないか。
+  def page_kinds_assignable?(kinds)
+    numbers = pages.map { |page| page['page'].to_s }
+    kinds.values.all? { |kind| PAGE_KINDS.include?(kind) } && (kinds.keys.map(&:to_s) - numbers).empty?
+  end
+
+  # 送られたページだけ種別を替え、他はそのまま残す。page_kinds_assignable? を満たさないときは ArgumentError。
+  # 種別が変わるページは、読み取りの結果を document から外し、未読に戻す。種別を替えると、その行はもう
+  # 前の種別の結果を読み直せないので、残すと公開する文書に出所の分からない規則・科目が残る(確認済みの科目だけは残す)。
+  def assign_page_kinds(kinds)
+    raise ArgumentError, "ページの種別を指定できません: #{kinds.inspect}" unless page_kinds_assignable?(kinds)
+
+    kinds = kinds.transform_keys(&:to_s)
+    new_document = document.deep_dup
+    self.pages = pages.map do |page|
+      kind = kinds[page['page'].to_s]
+      next page if kind.nil?
+
+      kind == page['kind'] ? page : reset_page(new_document, page, kind)
+    end
+    self.document = new_document
+  end
+
   # 便覧の規則。壊れた便覧は Catalogue が ArgumentError にするので、ここでは握りつぶさない。
   def catalogue
     GraduationAssessment::Catalogue.new(document)
+  end
+
+  private
+
+  def assign_program_slug
+    return if faculty_name.blank? || department_name.blank?
+
+    self.slug = self.class.slug_for_program(faculty_name, department_name)
+  end
+
+  def reset_page(document, page, kind)
+    kept = CurriculumImport::DraftMerge.withdraw(document, page['contributed'], page['page'])
+    # 残した確認済みの科目と、人が直した規則・章・行は、このページの記録に残す。
+    # 手放すと、読み直したときに同じものが二重に入る(総単位の印は、読み取りの結果と一緒に外れる)。
+    page.except('warnings').merge('kind' => kind, 'status' => 'pending', 'error' => nil,
+                                  'contributed' => kept.presence)
   end
 end
 

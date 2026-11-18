@@ -1,0 +1,100 @@
+<%# どのページを読むかは、便覧ごとに人が決める。初めはすべて「読まない」にしてあり、推測では決めない。 %>
+<%#
+  サーバーは全ページぶんの行を出す。1枚表示にするのは page-wizard(Stimulus)で、いまのページ以外を隠すだけ。
+  遅延読み込みにしないのは、一覧への切り替えをサーバーへの往復なしで即座にするため。1枚表示と一覧の分岐をサーバー側に作らずに済む。
+  隠した行は hidden なので、ブラウザのページ内検索には掛からない(行の文字はページ番号と、画像が無いページの冒頭だけで、価値は小さい)。
+  必要になれば hidden="until-found" にすれば、検索も届く。
+  種別の選択はラジオの値を書き換えるだけで、送信しない。保存は一覧の「この指定で読み取る」で1回だけ(fetch で送り、そのまま読み取りに入る)。
+%>
+<%# 読み取りは1ページずつ、画面から順に呼ぶ(要件表を先に)。バックグラウンドの仕組みは使わない。 %>
+<% reader_available = CurriculumReader.available? %>
+<section id="pages-section" aria-labelledby="pages-heading" class="rounded-2xl border border-slate-200 bg-white shadow-xs"
+         data-controller="read-pages<%= ' page-wizard' unless curriculum.pages.empty? %>">
+  <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+    <div class="min-w-0">
+      <h3 id="pages-heading" class="text-base font-bold text-slate-900">① PDFを読み取る</h3>
+      <p class="mt-0.5 text-sm text-slate-600">
+        便覧PDFのページを1枚ずつAIに読ませます。どのページが要件表で、どのページが科目表かは便覧ごとに違うので、
+        1ページずつ見て、読まない・要件表・科目表のどれかを選んでください。最後に一覧で確認できます。
+      </p>
+      <% unless reader_available %>
+        <p class="mt-1 text-sm text-slate-600">
+          読み取りに使うAPIキー(CURRICULUM_READER_API_KEY)が設定されていないので、自動で読む機能は使えません。
+        </p>
+      <% end %>
+    </div>
+    <% if reader_available && curriculum.pages.any? { |page| Curriculum::READABLE_PAGE_KINDS.include?(page['kind']) } %>
+      <button type="button" class="demo-button" data-read-pages-target="all" data-action="click->read-pages#saveAndRead">全部読む</button>
+    <% end %>
+  </div>
+  <p class="px-5 pt-3 text-xs font-medium text-slate-700 sm:px-6" role="status" aria-live="polite"
+     data-read-pages-target="message"></p>
+  <%# 読み取り中の進み具合。止まって見えないよう、バーと「n / m ページ」と、いまのページの経過秒数(1秒ごと)を出す。 %>
+  <div hidden data-read-pages-target="progressBox" class="px-5 pt-2 sm:px-6">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <span class="text-sm font-bold text-slate-900" data-read-pages-target="heading">読み取り中</span>
+      <progress value="0" max="1" data-read-pages-target="bar" class="h-3 w-full max-w-md flex-1 accent-slate-800" aria-label="読み取りの進み具合"></progress>
+      <span class="text-sm font-semibold tabular-nums text-slate-800" data-read-pages-target="count"></span>
+    </div>
+    <p class="mt-1 text-sm text-slate-700" data-read-pages-target="elapsed"></p>
+  </div>
+  <%= render 'pages_save_result', warnings: [], error: nil %>
+  <div hidden data-read-pages-target="done" class="px-5 pt-2 sm:px-6">
+    <button type="button" class="demo-button" data-action="click->read-pages#openReview">要件表の確認へ</button>
+  </div>
+
+  <% if curriculum.pages.empty? %>
+    <%# ページ数を数えられなかった下書きは、ページ数を手で指定して始める %>
+    <%= form_with url: curriculum_path(curriculum), method: :patch, class: 'space-y-3 p-5 sm:p-6', data: { turbo: false } do |form| %>
+      <p class="text-sm text-slate-700">この下書きにはページがありません。PDFのページ数を指定してください。</p>
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="block">
+          <span class="text-sm font-semibold text-slate-700">ページ数</span>
+          <%= form.number_field :page_count, required: true, min: 1, max: Curriculum::MAX_PAGES,
+                                class: 'mt-1 w-28 rounded border border-slate-300 bg-white px-2 py-1.5' %>
+        </label>
+        <%= form.submit 'ページを作る', class: 'demo-button' %>
+      </div>
+    <% end %>
+  <% else %>
+    <%# JavaScript が動かないと1枚表示も一覧への切り替えもできない。そのときは一覧だけを出す(いまの画面と同じ形)。 %>
+    <noscript><style>#pages-section [data-show]:not([data-show~="nojs"]) { display: none !important; }</style></noscript>
+    <%= form_with url: curriculum_path(curriculum), method: :patch, class: 'p-5 sm:p-6', data: { turbo: false } do |form| %>
+      <%# 1枚表示の頭: 何ページ目か %>
+      <p data-show="wizard" class="mb-3 text-sm font-semibold text-slate-900" role="status" aria-live="polite">
+        <span data-page-wizard-target="counter"></span>
+      </p>
+      <%# 一覧の頭: 指定の確認と件数 %>
+      <div data-show="list" class="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h4 class="text-sm font-bold text-slate-900">指定の確認</h4>
+        <p class="text-sm font-semibold text-slate-800" data-page-wizard-target="summary"></p>
+      </div>
+      <ul class="divide-y divide-slate-100" data-page-wizard-target="list">
+        <% curriculum.pages.each do |page| %>
+          <%= render 'page_row', curriculum: curriculum, page: page, reader_available: reader_available %>
+        <% end %>
+      </ul>
+      <%# 1枚表示の足: 前へ・次へ・進み具合 %>
+      <div data-show="wizard" class="mt-4 space-y-3">
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  data-page-wizard-target="prev" data-action="click->page-wizard#prev">← 前へ</button>
+          <button type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  data-action="click->page-wizard#next">次へ →</button>
+          <p class="text-sm text-slate-700">指定済み <span data-page-wizard-target="progress"></span></p>
+        </div>
+        <p class="text-xs text-slate-600">キーボードの ← → で前後、1・2・3 で 読まない・要件表・科目表 を選べます。</p>
+        <button type="button" class="text-sm font-semibold text-slate-800 underline underline-offset-2"
+                data-action="click->page-wizard#showList">▸ 全ページを一覧で見る</button>
+      </div>
+      <%# 一覧の足。「この指定で読み取る」は保存して読み取りに入る。JavaScript が動かないときは、「ページの指定を保存」で保存する。 %>
+      <div data-show="list nojs" class="mt-4 flex flex-wrap items-center justify-end gap-3">
+        <%# 保存してから読み取りに入る(read-pages#saveAndRead)。APIキーが無ければ読み取れないので、使えないまま。 %>
+        <button type="button" <%= 'disabled' unless reader_available %> data-show="list"
+                data-action="click->read-pages#saveAndRead" data-read-pages-target="commit"
+                class="demo-button disabled:cursor-not-allowed disabled:opacity-50">この指定で読み取る(<span data-page-wizard-target="readCount"></span>ページ)</button>
+        <%= form.submit 'ページの指定を保存', class: 'demo-button' %>
+      </div>
+    <% end %>
+  <% end %>
+</section>

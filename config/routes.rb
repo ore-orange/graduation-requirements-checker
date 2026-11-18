@@ -36,6 +36,15 @@ Rails.application.routes.draw do
   patch 'approvals', to: 'approvals#update'
 
   resources :course_registrations, only: :index
+  # 便覧PDFのアップロードと下書きの確認。確認画面は「卒業要件の確認」タブの中にいる扱い。
+  # read_page は1ページずつの読み取り、page_image は取り込み時に作ったページ画像。
+  resources :curricula, only: %i[create show update destroy] do
+    member do
+      post 'pages/:page/read', action: :read_page, as: :read_page
+      get 'page_image/:page', action: :page_image, as: :page_image
+    end
+  end
+
   resources :timetable_uploads, only: %i[create show destroy] do
     member do
       post :commit

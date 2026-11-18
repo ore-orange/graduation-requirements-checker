@@ -1,0 +1,8 @@
+<%# 保存の結果の置き場。warnings は、読み取りの前に見せる文の配列(JSON)。read-pages コントローラが読む。error は、保存できなかった理由。 %>
+<%= tag.div id: 'pages-save-result', class: 'px-5 sm:px-6', data: { save_warnings: warnings.to_json } do %>
+  <% if error %>
+    <p role="alert" class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-900">
+      保存できなかったので、読み取りは始めませんでした。<%= error %>
+    </p>
+  <% end %>
+<% end %>
