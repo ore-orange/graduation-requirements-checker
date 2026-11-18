@@ -63,16 +63,17 @@ class PlansController < ApplicationController
   end
 
   # 便覧カタログに出す科目を、検索語（q）で絞り込む。区分がわからない科目を調べるための検索なので、区分では絞り込まない。
+  # 検索語が空のうちは科目を出さない（パネルを開いた直後に全科目が並ぶと、かえって探しにくいため）。
   def load_catalogue
     @query = params[:q].to_s.strip
     query = @query.downcase
-    @catalogue = @curriculum.fetch('courses').select { |course| matches_query?(course, query) }
+    @catalogue = query.empty? ? [] : @curriculum.fetch('courses').select { |course| matches_query?(course, query) }
     keys = @catalogue.map { |course| course.fetch('key') }
     @persisted_keys = Course.where(curriculum_key: keys).pluck(:curriculum_key)
   end
 
   def matches_query?(course, query)
-    query.blank? || [course['name'], course['number'], course['key']].compact.any? do |value|
+    [course['name'], course['number'], course['key']].compact.any? do |value|
       value.downcase.include?(query)
     end
   end

@@ -49,10 +49,16 @@
         <%= term_label(@term) %> は過去の学期のため追加できません。今の学期以降を表示すると追加できます。
       <% end %>
     </p>
-    <span class="font-semibold text-slate-500"><%= @catalogue.size %> 科目</span>
+    <%# 検索する前は件数を出さない（「0 科目」だと、見つからなかったように見えるため） %>
+    <% if @query.present? %>
+      <span class="font-semibold text-slate-500"><%= @catalogue.size %> 科目</span>
+    <% end %>
   </div>
 
-  <% if @catalogue.empty? %>
+  <% if @query.blank? %>
+    <%# 開いた直後（検索語が空）は科目を並べず、検索の仕方を案内する %>
+    <p class="mt-3 rounded-xl bg-slate-50 p-4 text-xs text-slate-600" data-catalogue-prompt>科目名や科目番号を入れて検索すると、ここに結果が出ます。</p>
+  <% elsif @catalogue.empty? %>
     <p class="mt-3 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語を変更してください。</p>
   <% else %>
     <%# パネルの残りの高さを使い、リストの中でスクロールする %>
