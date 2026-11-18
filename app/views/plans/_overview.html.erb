@@ -1,11 +1,11 @@
 <%# 全学期の一覧（/plan?view=all）。行＝卒業要件の区分、列＝8学期。今の学期以降のマスから科目を追加でき、列の見出しから学期の画面へ移れる %>
 <%
   term_records = ->(term) { @enrollments_by_term.fetch(term, []) + @plans_by_term.fetch(term, []) }
-  category_of = ->(record) { course_category(record.course.curriculum_key, @courses_by_key) }
-  cell_records = ->(term, categories) { filter_by_categories(term_records.call(term), categories, @courses_by_key) }
+  category_of = ->(record) { course_category(record.course, @courses_by_number, @number_patterns) }
+  cell_records = ->(term, categories) { filter_by_categories(term_records.call(term), categories, @courses_by_number, @number_patterns) }
   unmapped_records = ->(term) { term_records.call(term).reject { |record| mapped_categories.include?(category_of.call(record)) } }
-  selectable_by_row = StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |group| group[:rows] }.to_h do |row|
-    [row[:id], row_catalogue_courses(row, @curriculum.fetch('courses'), @unavailable_keys).last]
+  selectable_by_row = planner_groups(@curriculum).flat_map { |group| group[:rows] }.to_h do |row|
+    [row[:id], row_catalogue_courses(row, @directory, @unavailable_numbers).last]
   end
   current_column = 'bg-indigo-50/50'
 %>
@@ -43,7 +43,7 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-200 text-[11px]">
-        <% StudentWorkspaceHelper::PLANNER_GROUPS.each do |group| %>
+        <% planner_groups(@curriculum).each do |group| %>
           <tr class="bg-slate-100/80 border-y border-slate-200" data-planner-group="<%= group[:id] %>">
             <td colspan="<%= @terms.size + 1 %>" class="py-2 px-3 font-bold text-slate-800 text-xs uppercase tracking-wider">
               <%= group[:title] %>
@@ -52,7 +52,7 @@
           </tr>
           <% group[:rows].each do |row| %>
             <%
-              subtotal = planner_subtotal_for(row[:id])
+              subtotal = planner_subtotal_for(row[:id], @curriculum)
               selectable_in_row = selectable_by_row.fetch(row[:id])
             %>
             <% if subtotal && subtotal[:row_ids].first == row[:id] %>
@@ -118,7 +118,7 @@
   </div>
 
   <!-- 科目を追加する小窓。区分ごとに1つ置き、押したマスの学期を開くときに差し込む -->
-  <% StudentWorkspaceHelper::PLANNER_GROUPS.flat_map { |group| group[:rows] }.each do |row| %>
+  <% planner_groups(@curriculum).flat_map { |group| group[:rows] }.each do |row| %>
     <% selectable_in_row = selectable_by_row.fetch(row[:id]) %>
     <% next if selectable_in_row.empty? %>
     <dialog data-overview-add-target="dialog" data-row="<%= row[:id] %>" data-action="click->overview-add#closeOnBackdrop"

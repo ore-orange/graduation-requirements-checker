@@ -1,0 +1,44 @@
+<%# locals: (card:) %>
+<%# 行の下に出す決まり1つ（RequirementCardsHelper::RuleCard）。
+    「いずれかを満たす」「すべて満たす」「いずれかの系列」は入れ物なので、数字は持たず、中の選択肢が出す。
+    入れ物の中身は、要件表の確認画面のAND/ORの枠と同じ琥珀色の縦線で括る。 %>
+<li class="rounded-xl border border-slate-200 bg-slate-50/80 p-3" <%= tag.attributes(data: { rule_card: card.id }) %>>
+  <div class="grid gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,13rem)_1fr]">
+    <div>
+      <% if card.name.present? %>
+        <p class="text-xs font-semibold text-slate-500"><%= card.name %></p>
+      <% end %>
+      <% unless card.container? %>
+        <p class="mt-0.5 flex flex-wrap items-baseline gap-x-1" data-rule-credits>
+          <% if card.limit %>
+            <span class="text-xl font-bold tracking-tight text-slate-900 tabular-nums"><%= credit_number(card.limit) %></span>
+            <span class="text-xs font-medium text-slate-500">単位まで</span>
+          <% elsif card.credits %>
+            <span class="text-xl font-bold tracking-tight text-slate-900 tabular-nums"><%= credit_number(card.credits) %></span>
+            <span class="text-xs font-medium text-slate-500">単位</span>
+          <% else %>
+            <span class="text-xl font-bold tracking-tight text-slate-400 tabular-nums"
+                  title="単位数の制限はありません">-</span>
+            <span class="text-xs font-medium text-slate-500">単位</span>
+          <% end %>
+        </p>
+      <% end %>
+    </div>
+    <div class="min-w-0 space-y-1">
+      <% if card.badge %>
+        <p><span class="inline-flex rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-900"><%= card.badge %></span></p>
+      <% end %>
+      <% if card.note.present? %>
+        <p class="text-xs text-slate-600"><%= card.note %></p>
+      <% end %>
+    </div>
+  </div>
+
+  <% if card.container? %>
+    <ul class="mt-2 space-y-2 border-l-2 border-amber-300 pl-3">
+      <% card.children.each do |child| %>
+        <%= render 'requirement_rule_card', card: child %>
+      <% end %>
+    </ul>
+  <% end %>
+</li>

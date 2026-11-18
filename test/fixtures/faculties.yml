@@ -1,0 +1,7 @@
+# 実在する学部・学科・コースの最小セット(db/seeds/academic_organizations.rb・db/seeds/programs.rb と同じ値)。
+# 卒業要件の対象選択・取り込みフォームのテストが、本番と同じ組み合わせを使えるようにする。
+# 学部ごとの絞り込みを見るため、学部は2つ置く(1つだけだと「他の学部の学科が消えること」を確かめられない)。
+engineering:
+  name: 工学部
+science:
+  name: 理学部

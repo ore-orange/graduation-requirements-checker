@@ -1,8 +1,8 @@
 <%# 区分の行の見出し（区分名と、全学期の累計単位）。学期の画面と一覧で使う %>
 <%
-  row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-  row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_key)
-  row_status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_plans.any? { |p| custom_course?(p.course.curriculum_key) })
+  row_plans = @plans.select { |p| row[:categories].include?(course_category(p.course, @courses_by_number, @number_patterns)) }
+  row_credits = category_credits(@enrollments, @plans, row[:categories], @courses_by_number, @number_patterns)
+  row_status = row_check_status(@assessment, row[:check_ids], has_custom_plan: row_plans.any? { |p| p.course.custom? })
 %>
 <div class="font-bold text-slate-800 text-sm leading-snug" data-sync-row-title="<%= row[:id] %>"><%= row[:name] %></div>
 <% if subtotal %>

@@ -1,0 +1,8 @@
+<%# 選んだ組み合わせに、公開済みが無いとき。無いことを言い切る %>
+<section aria-labelledby="empty-heading" data-no-curriculum
+         class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+  <h3 id="empty-heading" class="text-base font-bold text-slate-900">この年度の便覧はまだありません</h3>
+  <p class="mt-1 text-sm text-slate-600">
+    <%= [@selection.faculty, @selection.department, @selection.course].compact_blank.join(' / ') %> / <%= @selection.admission_year %>年度入学 の便覧は登録されていません。
+  </p>
+</section>

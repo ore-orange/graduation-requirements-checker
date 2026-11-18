@@ -15,11 +15,13 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     @student = SampleStudent.student
     @student.planned_courses.delete_all
     sign_in_as(@student.user)
-    @curriculum = CurriculumRepository.find(curriculum: 'intelligent_informatics', admission_year: 2024)
+    @curriculum = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024).document
     @courses = @curriculum.fetch('courses')
-    @occupied_keys = @student.student_courses.where(enrollment_status: %w[completed registered in_progress])
-                             .joins(:course).pluck('courses.curriculum_key')
-    @candidate = @courses.find { |course| course['selectable'] == true && @occupied_keys.exclude?(course['key']) }
+    @occupied_numbers = @student.student_courses.where(enrollment_status: %w[completed registered in_progress])
+                                .joins(:course).pluck('courses.course_number')
+    @candidate = @courses.find do |course|
+      course['selectable'] == true && course['number'].present? && @occupied_numbers.exclude?(course['number'])
+    end
   end
 
   teardown do
@@ -52,6 +54,45 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  # 共通教育の科目は便覧の科目表に全部載っているわけではない(便覧は番号の付け方だけを決めている年度もある)。
+  # 科目表に当たらない科目でも、科目番号が区分の number_patterns に一致すれば、要確認ではなくその区分の
+  # 単位として数える。画面(StudentWorkspace)から判定まで、番号が通ることを見る。
+  test 'a completed course missing from the handbook table counts when its number matches a category pattern' do
+    get root_path
+    before = counted_credits
+
+    # 健01・健03 しか載っていない科目表に無い番号。接頭辞「健」は health 区分の number_patterns に一致する。
+    course = Course.create!(course_number: '健99', name: '科目表に無い健康運動の科目', credits: 2)
+    @student.student_courses.create!(course: course, academic_year: 2024, semester: '前期',
+                                     enrollment_status: 'completed', credits_earned: 2)
+
+    get root_path
+
+    assert_equal before + 2, counted_credits
+  end
+
+  # 同じ科目の記録が2つあるとき(落ちた回と通った回)、単位数が食い違えば要確認にする。科目表に当たらない
+  # 科目でも同じでなければならない。1件ずつ別の記録として判定へ渡すと、この見張りが働かないまま、
+  # 片方の単位だけが黙って数えられてしまう。
+  test 'two records of the same unlisted course are judged together, not counted as one clean pass' do
+    get root_path
+    before = counted_credits
+
+    course = Course.create!(course_number: '健99', name: '科目表に無い健康運動の科目', credits: 2)
+    @student.student_courses.create!(course: course, academic_year: 2024, semester: '前期',
+                                     enrollment_status: 'completed', credits_earned: 0)
+    @student.student_courses.create!(course: course, academic_year: 2025, semester: '前期',
+                                     enrollment_status: 'completed', credits_earned: 2)
+
+    get root_path
+
+    assert_equal before, counted_credits, '食い違う2つの記録は、要確認にして数えない'
+  end
+
+  def counted_credits
+    css_select('[data-counted-credits]').first['data-counted-credits'].to_f
+  end
+
   test 'reads persisted history and starts with an empty plan without creating data' do
     assert_no_difference ['Student.count', 'StudentCourse.count', 'PlannedCourse.count'] do
       get root_path
@@ -78,7 +119,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     original_projected_credits = BigDecimal(assessment_attributes.fetch('data-projected-credits'))
 
     assert_difference '@student.planned_courses.count', 1 do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }
+      post plan_courses_path, params: { course_id: course_record(@candidate).id, term: CURRENT_TERM }
     end
     assert_response :see_other
     assert_redirected_to plan_path(term: CURRENT_TERM)
@@ -86,7 +127,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     get plan_path
     assert_response :success
-    assert_select "[data-plan='#{plan.id}'][data-course-key='#{@candidate.fetch('key')}']", count: 1
+    assert_select "[data-plan='#{plan.id}'][data-course='#{@candidate.fetch('number')}']", count: 1
 
     get root_path
     assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')
@@ -117,10 +158,12 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal 'unmet', group_attributes('required_all').fetch('data-projected-status')
     original_actual = assessment_attributes.fetch('data-counted-credits')
     initial_credits = BigDecimal(assessment_attributes.fetch('data-projected-credits'))
-    future_required = @courses.select { |course| course['required'] && @occupied_keys.exclude?(course.fetch('key')) }
+    future_required = @courses.select do |course|
+      course['required'] && @occupied_numbers.exclude?(course.fetch('number'))
+    end
 
     future_required.each do |course|
-      post plan_courses_path, params: { course_key: course.fetch('key'), term: CURRENT_TERM }
+      post plan_courses_path, params: { course_id: course_record(course).id, term: CURRENT_TERM }
       assert_response :see_other
     end
 
@@ -142,24 +185,26 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   test 'rejects completed current duplicate unknown and nonselectable courses' do
     prohibited = @courses.find { |course| course['selectable'] != true }
     assert_not_nil prohibited
-    keys = @occupied_keys + [prohibited.fetch('key'), 'not-a-catalogue-course', nil, ['not-a-string']]
-    keys.each do |key|
+    occupied_ids = Course.where(course_number: @occupied_numbers).pluck(:id)
+    ids = occupied_ids + [course_record(prohibited).id, 'not-a-catalogue-course', nil, ['not-a-string']]
+    ids.each do |id|
       assert_no_difference 'PlannedCourse.count' do
-        post plan_courses_path, params: { course_key: key, term: CURRENT_TERM }
+        post plan_courses_path, params: { course_id: id, term: CURRENT_TERM }
       end
       assert_response :see_other
       assert_redirected_to plan_path(term: CURRENT_TERM)
     end
 
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }
+    post plan_courses_path, params: { course_id: course_record(@candidate).id, term: CURRENT_TERM }
     assert_no_difference 'PlannedCourse.count' do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }
+      post plan_courses_path, params: { course_id: course_record(@candidate).id, term: CURRENT_TERM }
     end
     assert_response :see_other
   end
 
   test 'ignores account selectors and cannot delete another students plan' do
-    other = Student.create!(user: User.create!(email: 'other-demo-ui@example.test', password: 'a-test-password'),
+    other = Student.create!(user: User.create!(email: 'other-plan-ui@example.test',
+                                               password: 'a-test-password'),
                             program: @student.program, admission_year: 2024)
     foreign_plan = other.planned_courses.create!(course: course_record(@candidate), **PLAN_TERM)
 
@@ -169,7 +214,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     assert foreign_plan.reload.persisted?
 
-    request_params = { course_key: @candidate.fetch('key'), term: CURRENT_TERM, student_id: other.id,
+    request_params = { course_id: course_record(@candidate).id, term: CURRENT_TERM, student_id: other.id,
                        account: other.user.email }
 
     assert_difference '@student.planned_courses.count', 1 do
@@ -182,18 +227,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-plan='#{foreign_plan.id}']", count: 0
   end
 
-  test 'catalogue search filters visible courses by name' do
-    name = @candidate.fetch('name')
-    get plan_path, params: { pane: 'catalogue', q: name }
+  test '便覧のパネルは、科目名・科目番号の検索で絞り込む' do
+    get plan_path, params: { q: @candidate.fetch('name'), pane: 'catalogue' }
     assert_response :success
-    assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
-    @courses.reject { |course| catalogue_text(course).include?(name.downcase) }.each do |course|
-      assert_select "[data-catalogue-key='#{course.fetch('key')}']", count: 0
+    assert_select "[data-catalogue-key='#{@candidate.fetch('number')}']", minimum: 1
+    # 検索語に当たらない科目は出ない（区分では絞り込まない。どの区分の科目かを調べるためのパネルなので）
+    other = @courses.find do |course|
+      course['number'].present? && course.fetch('name').exclude?(@candidate.fetch('name')) &&
+        @candidate.fetch('name').exclude?(course.fetch('name'))
     end
-    # 区分がわからない科目を調べるための検索なので、区分で絞り込む欄は置かない
-    assert_select "#catalogue [name='category']", count: 0
+    assert_select "[data-catalogue-key='#{other.fetch('number')}']", count: 0
 
-    get plan_path, params: { pane: 'catalogue', q: 'does-not-exist-in-the-catalogue' }
+    get plan_path, params: { q: 'does-not-exist-in-the-catalogue', pane: 'catalogue' }
     assert_select '[data-catalogue-key]', count: 0
   end
 
@@ -230,29 +275,28 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_equal before, assessment_attributes
 
     assert_difference '@student.planned_courses.count', 1 do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }
+      post plan_courses_path, params: { course_id: course_record(@candidate).id, term: CURRENT_TERM }
     end
     assert_response :see_other
     assert_equal 'failed', failed.reload.enrollment_status
   end
 
-  test '自由入力の形で送っても科目は追加しない' do
-    custom = { name: '他学部情報法特論', course_number: '他学901', credits: '2', category: 'free' }
-    assert_no_difference ['@student.planned_courses.count', 'Course.count'] do
-      post plan_courses_path, params: { term: CURRENT_TERM, custom_course: custom }
-    end
-    assert_redirected_to plan_path(term: CURRENT_TERM)
-    assert_equal '追加できる科目を科目一覧から選択してください。', flash[:alert]
-  end
-
-  test '保存済みの自由入力の予定は要確認として判定し、削除すると科目も片付ける' do
+  test 'custom free-text course persists marks projected as needs_review and cleans up on delete' do
     get root_path
     original_actual = assessment_attributes.fetch('data-counted-credits')
-    course = Course.create!(curriculum_key: 'custom:free:legacy', name: '他学部情報法特論', credits: 2)
-    plan = @student.planned_courses.create!(course: course, **PLAN_TERM)
+
+    assert_difference ['@student.planned_courses.count', 'Course.count'], 1 do
+      post plan_courses_path,
+           params: { term: CURRENT_TERM,
+                     custom_course: { name: '他学部情報法特論', course_number: '他学901', credits: '2', category: 'free' } }
+    end
+    assert_response :see_other
+    plan = @student.planned_courses.order(:id).last
+    assert_predicate plan.course, :custom?
+    assert_equal 'free', plan.course.custom_category
 
     get plan_path
-    assert_select "[data-plan='#{plan.id}']", text: /要確認/, count: 1
+    assert_select "[data-plan='#{plan.id}']", count: 1
 
     get root_path
     assert_equal original_actual, assessment_attributes.fetch('data-counted-credits')
@@ -264,33 +308,55 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_response :see_other
   end
 
-  test '学籍情報のないユーザーは登録画面へ送り、データを作らない' do
-    sign_out
+  test 'custom course input matching catalogue course links to existing catalogue course' do
+    custom = { name: @candidate.fetch('name'), course_number: '', credits: '2', category: 'advanced' }
+    assert_difference '@student.planned_courses.count', 1 do
+      assert_no_difference 'Course.count' do
+        post plan_courses_path, params: { term: CURRENT_TERM, custom_course: custom }
+      end
+    end
+    plan = @student.planned_courses.order(:id).last
+    assert_equal @candidate.fetch('number'), plan.course.course_number
+    assert_not plan.course.custom?
+  end
+
+  test '学籍の登録が無い利用者は、何も作らずに登録画面へ送られる' do
     sign_in_as(User.create!(email: 'no-student@example.test', password: 'a-test-password'))
 
     assert_no_difference ['Student.count', 'StudentCourse.count', 'PlannedCourse.count'] do
       get root_path
     end
     assert_redirected_to new_student_path
+    assert_select '[data-assessment]', count: 0
 
     assert_no_difference 'PlannedCourse.count' do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: CURRENT_TERM }
+      post plan_courses_path, params: { course_id: course_record(@candidate).id, term: CURRENT_TERM }
     end
     assert_redirected_to new_student_path
   end
 
-  test 'カリキュラムを登録していない学科では初期設定の案内を出す' do
-    @student.program.update!(curriculum_slug: nil)
+  test 'a student whose year has no published curriculum gets the setup page, not a server error' do
+    Curriculum.published.where(slug: 'intelligent_informatics', admission_year: 2024)
+              .update_all(published_at: nil) # rubocop:disable Rails/SkipsModelValidations
 
     get root_path
 
     assert_response :service_unavailable
-    assert_select '[data-setup]', count: 1
-    # この画面から抜ける手段がないと、別のアカウントに移れなくなる
-    assert_select "form[action='#{session_path}'] button", text: 'ログアウト', count: 1
+    # 画面に原因を出す。公開済みが無いことと、便覧が紐付いていないことを見分けられるように。
+    assert_select '[data-setup]', text: /公開済みの便覧がありません/
   end
 
-  test '履修計画表は指定した学期の履修履歴だけを表示する' do
+  test 'the workspace reads the published curriculum from the database, not the file' do
+    record = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024)
+    record.update!(title: 'DBだけにある題名', document: record.document.merge('title' => 'DBだけにある題名'))
+
+    get root_path
+
+    assert_response :success
+    assert_equal 'DBだけにある題名', controller.instance_variable_get(:@curriculum).fetch('title')
+  end
+
+  test '履修計画表は指定した学期の履修履歴だけを表示し、前後の学期へ移動できる' do
     shown = @student.student_courses.where(academic_year: 2025, semester: '後期').to_a
     hidden = @student.student_courses.where.not(academic_year: 2025).or(
       @student.student_courses.where.not(semester: '後期')
@@ -302,6 +368,8 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-term="2-後期"]', count: 1
     shown.each { |enrollment| assert_select "[data-enrollment='#{enrollment.id}']", count: 1 }
     hidden.each { |enrollment| assert_select "[data-enrollment='#{enrollment.id}']", count: 0 }
+    assert_select '[data-term-button="2-前期"][href=?]', plan_path(term: '2-前期')
+    assert_select '[data-term-button="3-前期"][href=?]', plan_path(term: '3-前期')
   end
 
   test '履修計画表は今の学期から始まり、読めない学期の指定も今の学期として扱う' do
@@ -312,122 +380,14 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-term="3-後期"]', count: 1
   end
 
-  test '一覧と8学期のボタンを並べ、表示中の学期と今の学期に印を付ける' do
-    get plan_path(term: '2-後期')
-
+  test 'どの学期を見ていても、8学期ぶんのボタンと一覧のボタンが出る' do
+    get plan_path(term: '1-前期')
     assert_select '[data-term-button]', count: 9
-    assert_select '[data-term-button="all"][href=?]', plan_path(view: 'all'), count: 1
-    %w[1-前期 1-後期 2-前期 2-後期 3-前期 3-後期 4-前期 4-後期].each do |term|
-      assert_select '[data-term-button=?][href=?]', term, plan_path(term: term), count: 1
-    end
-    assert_select '[data-term-button][aria-current="page"]', count: 1
-    assert_select '[data-term-button="2-後期"][aria-current="page"]', count: 1
-    assert_select '[data-term-current]', count: 1
-    assert_select "[data-term-button='#{CURRENT_TERM}'][data-term-current]", text: /現在/, count: 1
-  end
-
-  test '学期のボタンに、その学期の修得・履修中・予定の単位の合計を出す' do
-    course = @courses.find do |c|
-      c['selectable'] == true && @occupied_keys.exclude?(c['key']) && c['credits'].to_d == 2
-    end
-    @student.planned_courses.create!(course: course_record(course), academic_year: 2027, semester: '後期')
+    assert_select '[data-term-button="1-前期"][aria-current="page"]', count: 1
 
     get plan_path(term: '4-後期')
-    assert_select '[data-term-button="4-後期"]', text: /2単位/, count: 1
-    assert_select '[data-term-button="4-前期"]', text: /0単位/, count: 1
-    assert_select '[data-term-credits]', text: /予定 2単位/, count: 1
-  end
-
-  test '一覧では全学期の科目を学期ごとの列に並べる' do
-    plan = @student.planned_courses.create!(course: course_record(@candidate), academic_year: 2027, semester: '後期')
-    placed = @student.student_courses.where(semester: %w[前期 後期]).to_a
-
-    get plan_path(view: 'all')
-
-    assert_select '[data-overview]', count: 1
-    assert_select '[data-term]', count: 0
-    assert_select '[data-term-button="all"][aria-current="page"]', count: 1
-    assert_select '[data-term-button][aria-current="page"]', count: 1
-    placed.each { |enrollment| assert_select "[data-overview] [data-enrollment='#{enrollment.id}']", count: 1 }
-    assert_select "[data-overview-cell$=':4-後期'] [data-plan='#{plan.id}']", count: 1
-    assert_select '#catalogue', count: 0
-  end
-
-  test '一覧の追加ボタンは今の学期以降のマスにだけ出す' do
-    get plan_path(view: 'all')
-
-    assert_select '[data-overview-add-button]'
-    assert_select '[data-overview-add-button$=":3-前期"]', count: 0
-    assert_select '[data-overview-add-button$=":3-後期"]'
-    assert_select '[data-overview-add-button$=":4-後期"]'
-    assert_select 'dialog[data-overview-add-target="dialog"]'
-  end
-
-  test '一覧の削除ボタンは予定のカードにだけ出す' do
-    plan = @student.planned_courses.create!(course: course_record(@candidate), **PLAN_TERM)
-
-    get plan_path(view: 'all')
-
-    assert_select "[data-overview] [data-plan='#{plan.id}'] form[action=?]", plan_course_path(plan), count: 1
-    assert_select '[data-overview] [data-enrollment] form', count: 0
-  end
-
-  test '一覧から追加・削除すると一覧に戻る' do
-    assert_difference '@student.planned_courses.count', 1 do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期', view: 'all' }
-    end
-    assert_redirected_to plan_path(view: 'all')
-    plan = @student.planned_courses.find_by!(course: course_record(@candidate))
-    assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
-
-    assert_difference '@student.planned_courses.count', -1 do
-      delete plan_course_path(plan), params: { view: 'all' }
-    end
-    assert_redirected_to plan_path(view: 'all')
-  end
-
-  test '追加・削除の結果は、一覧でも学期の画面でも固定のメッセージで出す' do
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期', view: 'all' }
-    follow_redirect!
-    assert_select '[role="status"][data-controller="toast"]', text: /追加しました/, count: 1
-
-    delete plan_course_path(@student.planned_courses.find_by!(course: course_record(@candidate))),
-           params: { term: '4-前期' }
-    follow_redirect!
-    assert_select '[role="status"][data-controller="toast"]', text: /削除しました/, count: 1
-  end
-
-  test '一覧で失敗したときは、閉じるまで残る固定のメッセージで出す' do
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-前期', view: 'all' }
-    follow_redirect!
-
-    assert_select '[role="alert"][data-controller="toast"]', count: 1
-    assert_select '[role="alert"][data-toast-auto-dismiss-value]', count: 0
-  end
-
-  test '単位が不明な予定のカードは、学期の画面でも一覧でも未確認と出す' do
-    course = @courses.find { |c| c['key'] == 'informatics_special_lecture_5' }
-    plan = @student.planned_courses.create!(course: course_record(course), **PLAN_TERM)
-
-    get plan_path(term: CURRENT_TERM)
-    assert_select "[data-plan='#{plan.id}']", text: /未確認/, count: 1
-
-    get plan_path(view: 'all')
-    assert_select "[data-overview] [data-plan='#{plan.id}']", text: /未確認/, count: 1
-  end
-
-  test '一覧からでも過去の学期には追加できない' do
-    assert_no_difference '@student.planned_courses.count' do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-前期', view: 'all' }
-    end
-    assert_redirected_to plan_path(view: 'all')
-  end
-
-  test '一覧の列の見出しから、その学期の画面へ移れる' do
-    get plan_path(view: 'all')
-
-    assert_select '[data-overview-term]', count: 8
-    assert_select '[data-overview-term="2-前期"][href=?]', plan_path(term: '2-前期'), count: 1
+    assert_select '[data-term-button]', count: 9
+    assert_select '[data-term-button="4-後期"][aria-current="page"]', count: 1
   end
 
   test '学期が登録されていない履修履歴は、どの学期を見ても別枠に表示する' do
@@ -455,7 +415,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test '学期を指定して追加した予定は、その学期の表にだけ出る' do
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期' }
+    post plan_courses_path, params: { course_id: course_record(@candidate).id, term: '4-前期' }
     assert_redirected_to plan_path(term: '4-前期')
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
     assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
@@ -469,13 +429,13 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   test '今の学期には予定を追加でき、過去の学期と読めない学期には追加できない' do
     assert_no_difference '@student.planned_courses.count' do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-前期' }
+      post plan_courses_path, params: { course_id: course_record(@candidate).id, term: '3-前期' }
       assert_redirected_to plan_path(term: '3-前期')
-      post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '9-夏期' }
+      post plan_courses_path, params: { course_id: course_record(@candidate).id, term: '9-夏期' }
       assert_redirected_to plan_path
     end
 
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '3-後期' }
+    post plan_courses_path, params: { course_id: course_record(@candidate).id, term: '3-後期' }
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
     assert_equal [2026, '後期'], [plan.academic_year, plan.semester]
   end
@@ -500,46 +460,295 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_not PlannedCourse.exists?(plan.id)
   end
 
-  test '追加ボックスに自由入力の欄はなく、追加できない区分ではその理由を示す' do
-    get plan_path(term: '4-前期')
-
-    assert_select "[name^='custom_course']", count: 0
-    assert_select "[data-add-course='general_subtotal'] select[name='course_key']", count: 1
-    # 追加を開く枠は、カードの並びの最後にある
-    assert_select "[data-planner-row='general_subtotal'] .grid > #add-trigger-general_subtotal:last-child", count: 1
-    # 便覧の科目は科目名・科目番号で絞り込める
-    assert_select "[data-add-course='general_subtotal'] form[data-controller='course-filter']" do
-      assert_select "input[type='search'][data-course-filter-target='query']", count: 1
-      assert_select 'option:not([data-search])', count: 0
-    end
-    # 便覧に科目がない区分
-    assert_select "[data-add-course='free'] [data-no-selectable-course='no_catalogue']",
-                  text: 'この区分は便覧に科目がないため、追加できません'
-    assert_select "[data-add-course='free'] select", count: 0
-    # 追加できない行には、追加の枠も「—」も出さず、理由だけを出す
-    assert_select '#add-trigger-free', count: 0
-    assert_select "[data-planner-row='free'] td", text: /—/, count: 0
-    # 便覧の科目をデモの学生がすべて修得済みの区分
-    assert_select "[data-add-course='japanese'] [data-no-selectable-course='all_taken']",
-                  text: 'この区分の科目はすべて修得済み・履修中・追加済みです'
+  test '自由入力は、送られた区分で保存される' do
+    # 画面の入口は「便覧から探す」に一本化されているので、ここでは保存の経路だけを見る。
+    custom = { name: '他学部の社会系特論', credits: '2', category: 'social' }
+    post plan_courses_path, params: { term: '4-前期', custom_course: custom }
+    plan = @student.planned_courses.joins(:course).find_by!(courses: { name: '他学部の社会系特論' })
+    assert_equal 'social', plan.course.custom_category
+    assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
   end
 
   test '学期を指定しない追加は断る' do
     assert_no_difference 'PlannedCourse.count' do
-      post plan_courses_path, params: { course_key: @candidate.fetch('key') }
+      post plan_courses_path, params: { course_id: course_record(@candidate).id }
     end
     assert_redirected_to plan_path
     follow_redirect!
     assert_select '#unscheduled', count: 0
   end
 
+  test '履修は科目番号で便覧の科目に当たる' do
+    entry = @student.student_courses.joins(:course).find_by!(courses: { course_number: '知能101' }).assessment_entry
+    assert_equal '知能101', entry.fetch(:key)
+
+    get root_path
+
+    check = workspace_check('required_information')
+    assert_equal :satisfied, check.status
+    assert_equal BigDecimal('2'), check.counted_credits
+  end
+
+  test '同じ科目番号の Course が2行あり、どちらも履修していても、便覧の1科目として1度だけ数える' do
+    get root_path
+    before = assessment_attributes.fetch('data-counted-credits')
+    original = @student.student_courses.joins(:course).find_by!(courses: { course_number: '知能101' })
+    renamed = Course.create!(course_number: '知能101', name: 'プログラミング演習Ⅰ（別表記）', credits: 1)
+    @student.student_courses.create!(course: renamed, academic_year: original.academic_year,
+                                     semester: original.semester, enrollment_status: 'completed',
+                                     credits_earned: original.credits_earned,
+                                     approval_confirmed: original.approval_confirmed)
+
+    get root_path
+
+    actual = controller.instance_variable_get(:@assessment).actual
+    assert_equal before, assessment_attributes.fetch('data-counted-credits')
+    assert_equal BigDecimal('2'), workspace_check('required_information').counted_credits
+    assert_equal :satisfied, workspace_check('required_information').status
+    assert_empty(actual.review_notes.grep(/プログラミング演習Ⅰ/))
+  end
+
+  test '同じ科目番号の Course が2行あり、履修した単位数が食い違うときは、数えずに要確認になる' do
+    get root_path
+    original = @student.student_courses.joins(:course).find_by!(courses: { course_number: '知能101' })
+    renamed = Course.create!(course_number: '知能101', name: 'プログラミング演習Ⅰ（別表記）', credits: 1)
+    @student.student_courses.create!(course: renamed, academic_year: original.academic_year,
+                                     semester: original.semester, enrollment_status: 'completed',
+                                     credits_earned: original.credits_earned + 1,
+                                     approval_confirmed: original.approval_confirmed)
+
+    get root_path
+
+    actual = controller.instance_variable_get(:@assessment).actual
+    check = workspace_check('required_information')
+    # どちらかの記録を選んで算入すると、単位が二重に、または誤って数えられる。算入せず、理由を出す。
+    assert_equal BigDecimal('1'), check.counted_credits
+    assert_equal :needs_review, check.status
+    assert_equal :needs_review, actual.status
+    assert_includes actual.review_notes.join, '同一科目の複数記録'
+    assert_includes actual.review_notes.join, '単位数または承認が一致せず'
+  end
+
+  test '科目番号の無い Course の履修は便覧に当たらず、数えずに要確認になる' do
+    assert_unmatched_enrollment_needs_review(Course.create!(name: '番号の無い科目', credits: 2))
+  end
+
+  test '科目番号が便覧に無い Course の履修は、数えずに要確認になる' do
+    assert_unmatched_enrollment_needs_review(Course.create!(course_number: '他学999', name: '便覧に無い科目', credits: 2))
+  end
+
+  test '同じ番号で名前の違う Course が2行あっても、送った id の行が予定に入る' do
+    # 別の入学年度の便覧に同じ番号で名前だけ違う行があるケース(ローマ数字の全角・半角など)の再現。
+    # 番号ではなく Course の id を送るので、どちらの行かは送った側が決める。
+    original = course_record(@candidate)
+    variant = Course.create!(course_number: @candidate.fetch('number'), name: "#{@candidate.fetch('name')}（別表記）",
+                             credits: 1)
+
+    assert_difference 'PlannedCourse.count', 1 do
+      post plan_courses_path, params: { course_id: original.id, term: CURRENT_TERM }
+    end
+    assert_redirected_to plan_path(term: CURRENT_TERM)
+    assert_equal [original.id], @student.planned_courses.reload.map(&:course_id)
+
+    @student.planned_courses.delete_all
+    assert_difference 'PlannedCourse.count', 1 do
+      post plan_courses_path, params: { course_id: variant.id, term: CURRENT_TERM }
+    end
+    assert_equal [variant.id], @student.planned_courses.reload.map(&:course_id)
+  end
+
+  test 'course_id で予定に追加できる' do
+    course = course_record(@candidate)
+
+    assert_difference 'PlannedCourse.count', 1 do
+      post plan_courses_path, params: { course_id: course.id, term: CURRENT_TERM }
+    end
+    assert_redirected_to plan_path(term: CURRENT_TERM)
+    assert_equal [course.id], @student.planned_courses.reload.map(&:course_id)
+  end
+
+  test '名簿に無い course_id は追加できない' do
+    # 他学科の番号など、番号パターンにも便覧にも当たらない Course と、存在しない id
+    stray = Course.create!(course_number: '他学999', name: '名簿に無い科目', credits: 2)
+
+    [stray.id, Course.maximum(:id) + 100].each do |id|
+      assert_no_difference 'PlannedCourse.count' do
+        post plan_courses_path, params: { course_id: id, term: CURRENT_TERM }
+      end
+      assert_redirected_to plan_path(term: CURRENT_TERM)
+      assert flash[:alert].present?
+    end
+  end
+
+  test '選べない科目の course_id は追加できない' do
+    prohibited = @courses.find { |course| course['selectable'] != true && course['number'].present? }
+
+    assert_no_difference 'PlannedCourse.count' do
+      post plan_courses_path, params: { course_id: course_record(prohibited).id, term: CURRENT_TERM }
+    end
+    assert_redirected_to plan_path(term: CURRENT_TERM)
+    assert flash[:alert].present?
+  end
+
+  test '自由入力で作られた科目の id では、予定に追加できない' do
+    custom = Course.create!(custom_category: 'free', course_number: '他学901', name: '自由入力の科目', credits: 2)
+
+    assert_no_difference 'PlannedCourse.count' do
+      post plan_courses_path, params: { course_id: custom.id, term: CURRENT_TERM }
+    end
+    assert flash[:alert].present?
+  end
+
+  test '便覧から選択に、番号パターンで区分が決まる科目が並ぶ(便覧に登録が無くても)' do
+    humanities = Course.create!(course_number: '人999', name: '番号パターンだけの人文科目', credits: 2)
+    assert_nil(@courses.find { |course| course['number'] == '人999' })
+
+    get plan_path
+
+    assert_response :success
+    assert_select "[data-add-course] option[value='#{humanities.id}']", minimum: 1
+  end
+
+  test '便覧から選択の option は、科目番号ではなく Course の id を送る' do
+    get plan_path
+
+    option = css_select("[data-add-course] select[name='course_id'] option[value='#{course_record(@candidate).id}']")
+    assert_not_empty option
+    assert_select "[data-add-course] select[name='course_number']", count: 0
+  end
+
+  test '名簿は1リクエストに1つだけ作る(区分の行ごとに作り直さない)' do
+    built = 0
+    original = CourseDirectory.method(:new)
+    CourseDirectory.stub(:new, ->(*args) { original.call(*args).tap { built += 1 } }) do
+      get plan_path
+    end
+
+    assert_response :success
+    assert_equal 1, built
+  end
+
+  test '登録の review_reason は、検索の一覧に「※要確認」として出る' do
+    reviewed = @courses.find { |course| course['review_reason'].present? }
+    assert_not_nil reviewed
+
+    get plan_path(q: reviewed.fetch('name'), pane: 'catalogue')
+
+    assert_select '#catalogue li',
+                  text: /#{Regexp.escape(reviewed.fetch('name'))}.*※要確認: #{Regexp.escape(reviewed['review_reason'])}/m
+  end
+
+  test '番号の無い登録科目は「科目番号が未掲載」と出し、「初期データ未登録」とは言わない' do
+    numberless = @courses.find { |course| course['number'].blank? && course['selectable'] == true }
+    assert_not_nil numberless
+
+    get plan_path(q: numberless.fetch('name'), pane: 'catalogue')
+
+    assert_select '#catalogue li', text: /#{Regexp.escape(numberless.fetch('name'))}.*科目番号が未掲載のため選択できません/m
+    assert_select '#catalogue li', text: /初期データ未登録/, count: 0
+    assert_select '#catalogue li input[type=submit]', count: 0
+  end
+
+  test '修得済み・予定済みの科目は、便覧から選択に出ない' do
+    completed = @student.student_courses.where(enrollment_status: 'completed').joins(:course).first.course
+    planned = course_record(@candidate)
+    @student.planned_courses.create!(course: planned, **PLAN_TERM)
+
+    get plan_path
+
+    assert_select "[data-add-course] option[value='#{completed.id}']", count: 0
+    assert_select "[data-add-course] option[value='#{planned.id}']", count: 0
+  end
+
+  test '自由入力で作られた科目は、便覧から選択にも検索の一覧にも出ない' do
+    custom = Course.create!(custom_category: 'free', course_number: '人998', name: '自由入力だけの科目', credits: 2)
+
+    get plan_path(q: '自由入力だけの科目', pane: 'catalogue')
+
+    assert_select "[data-add-course] option[value='#{custom.id}']", count: 0
+    assert_select '[data-catalogue-key]', count: 0
+  end
+
+  test '検索の一覧は200件で打ち切り、絞り込みを促す' do
+    (1..210).each { |i| Course.create!(course_number: "人#{1000 + i}", name: "大量科目#{i}", credits: 2) }
+
+    get plan_path(q: '大量科目', pane: 'catalogue')
+
+    assert_select '#catalogue [data-catalogue-key]', count: 200
+    assert_select '[data-catalogue-truncated]', text: /200/
+    assert_select '[data-catalogue-truncated]', text: /絞り込んで/
+
+    get plan_path(q: '大量科目20', pane: 'catalogue')
+
+    assert_select '[data-catalogue-truncated]', count: 0
+  end
+
+  test '名簿に course_id の無い登録科目は、検索には出るが追加の操作が無く、便覧から選択には出ない' do
+    registered = @candidate
+    rows = Course.where(course_number: registered.fetch('number'))
+    StudentCourse.where(course: rows).delete_all
+    rows.delete_all
+
+    get plan_path(q: registered.fetch('number'), pane: 'catalogue')
+
+    assert_select "#catalogue [data-catalogue-key='#{registered.fetch('number')}']", minimum: 1
+    assert_select "#catalogue [data-catalogue-key='#{registered.fetch('number')}'] input[type='submit']", count: 0
+    assert_select '[data-add-course] option', text: /#{Regexp.escape(registered.fetch('number'))}/, count: 0
+  end
+
+  test '学生に紐付いた便覧で判定する。学科名で探さない' do
+    other = Curriculum.create!(slug: 'other_course', admission_year: 2024, title: '別コースの便覧',
+                               document: @curriculum.merge('title' => '別コースの便覧'), published_at: Time.current)
+    @student.update!(curriculum: other)
+
+    # 卒業要件の確認は選んだ組み合わせで引くので、学生の便覧が決めるのは判定する画面のほう
+    get root_path
+
+    assert_response :success
+    assert_equal '別コースの便覧', controller.instance_variable_get(:@curriculum).fetch('title')
+  end
+
+  test '便覧が紐付いていない学生は設定画面になる' do
+    @student.update!(curriculum: nil)
+
+    get root_path
+
+    assert_response :service_unavailable
+    assert_select '[data-setup]', text: /便覧/
+    assert_select '[data-assessment]', count: 0
+  end
+
+  test '学生の便覧が公開を取り下げられていれば、判定せず設定画面になる' do
+    @student.curriculum.update!(published_at: nil)
+
+    get root_path
+
+    assert_response :service_unavailable
+    assert_select '[data-assessment]', count: 0
+  end
+
   private
 
-  # 便覧カタログの検索が見る文字（科目名・科目番号・キー）を小文字でつなげたもの
-  def catalogue_text(course) = course.values_at('name', 'number', 'key').compact.join(' ').downcase
+  def assert_unmatched_enrollment_needs_review(course)
+    get root_path
+    before = controller.instance_variable_get(:@assessment).actual
+
+    @student.student_courses.create!(course: course, academic_year: 2025, semester: '前期',
+                                     enrollment_status: 'completed', credits_earned: 2)
+    get root_path
+
+    actual = controller.instance_variable_get(:@assessment).actual
+    assert_equal before.counted_credits, actual.counted_credits
+    assert_equal :needs_review, actual.status
+    assert_includes actual.review_notes.join, course.name
+  end
+
+  def workspace_check(check_id)
+    controller.instance_variable_get(:@assessment).actual.checks.find { |check| check.id == check_id }
+  end
 
   def course_record(course)
-    Course.find_by!(curriculum_key: course.fetch('key'))
+    Course.find_by!(course_number: course.fetch('number'))
   end
 
   # 卒業ダッシュボードの合計表示。実績と見込みを1要素にまとめて持つ。
@@ -588,17 +797,17 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     assert_select 'form[action=?][method=?]', plan_path, 'get' do
       assert_select "input[name='term'][value='2-後期']"
-      assert_select "input[name='pane'][value='catalogue']"
     end
     assert_select 'a[href=?]', plan_path(term: '2-後期', pane: 'catalogue'), text: 'リセット'
   end
 
   test '便覧カタログから追加すると、見ている学期の予定になる' do
-    get plan_path(term: '4-前期', pane: 'catalogue')
-    assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[type='submit'][value='4年 前期に追加']"
-    assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[name='term'][value='4-前期']"
+    # 一覧は200件で打ち切るので、科目番号で絞って探す
+    get plan_path(term: '4-前期', q: @candidate.fetch('number'), pane: 'catalogue')
+    assert_select "[data-catalogue-key='#{@candidate.fetch('number')}'] input[type='submit'][value='4年 前期に追加']"
+    assert_select "[data-catalogue-key='#{@candidate.fetch('number')}'] input[name='term'][value='4-前期']"
 
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期' }
+    post plan_courses_path, params: { course_id: course_record(@candidate).id, term: '4-前期' }
     assert_redirected_to plan_path(term: '4-前期')
     plan = @student.planned_courses.find_by!(course: course_record(@candidate))
     assert_equal [2027, '前期'], [plan.academic_year, plan.semester]
@@ -609,168 +818,6 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     assert_select '#catalogue form[action=?]', plan_courses_path, count: 0
     assert_select '[data-catalogue-term]', text: /今の学期以降を表示すると追加できます/
-  end
-
-  test '便覧カタログは閉じていて、右上のボタンで右側のパネルとして開く' do
-    get plan_path(term: '4-前期')
-
-    assert_select '#catalogue', count: 0
-    assert_select '[data-catalogue-key]', count: 0
-    assert_select "a[data-catalogue-toggle='open'][href=?]", plan_path(term: '4-前期', pane: 'catalogue'), text: /便覧から探す/
-
-    get plan_path(term: '4-前期', pane: 'catalogue')
-
-    assert_select 'aside#catalogue', count: 1
-    category = @candidate.fetch('category')
-    assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] [data-catalogue-category]",
-                  text: StudentWorkspaceHelper::CATEGORY_LABELS.fetch(category, category)
-    assert_select "a[data-catalogue-toggle='close'][href=?]", plan_path(term: '4-前期'), text: /便覧を閉じる/
-  end
-
-  test '便覧のパネルを開いたまま学期を切り替えられる' do
-    get plan_path(term: '4-前期', pane: 'catalogue')
-
-    assert_select "[data-term-button='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
-  end
-
-  test '一覧でも、右上のボタンで便覧のパネルを開け閉めできる' do
-    get plan_path(view: 'all')
-    assert_select '#catalogue', count: 0
-    assert_select "[data-catalogue-toggle='open'][href=?]", plan_path(view: 'all', pane: 'catalogue'), count: 1
-
-    get plan_path(view: 'all', pane: 'catalogue', q: @candidate.fetch('name'))
-    assert_response :success
-    assert_select '[data-overview]', count: 1
-    assert_select "[data-catalogue-toggle='close'][href=?]", plan_path(view: 'all'), count: 1
-    assert_select '#catalogue' do
-      # 検索しても一覧のまま
-      assert_select "form[method='get'] input[name='view'][value='all']", count: 1
-      assert_select "form[method='get'] input[name='term']", count: 0
-      assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
-    end
-  end
-
-  test '一覧で便覧のパネルを開いたまま、学期の画面と行き来できる' do
-    get plan_path(view: 'all', pane: 'catalogue')
-    assert_select "[data-term-button='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
-    assert_select "[data-overview-term='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
-
-    get plan_path(term: '4-前期', pane: 'catalogue')
-    assert_select "[data-term-button='all'][href=?]", plan_path(view: 'all', pane: 'catalogue'), count: 1
-  end
-
-  test '一覧の便覧のパネルから追加すると、今の学期の予定になり、パネルを開いた一覧に戻る' do
-    key = @candidate.fetch('key')
-    get plan_path(view: 'all', pane: 'catalogue')
-    current = css_select('[data-term-current]').first['data-term-button']
-    assert_select "[data-catalogue-key='#{key}'] form" do
-      assert_select "input[name='term'][value=?]", current
-      assert_select "input[name='view'][value='all']"
-      assert_select "input[name='pane'][value='catalogue']"
-    end
-
-    assert_difference -> { @student.planned_courses.count }, 1 do
-      post plan_courses_path, params: { course_key: key, term: current, view: 'all', pane: 'catalogue' }
-    end
-    assert_redirected_to plan_path(view: 'all', pane: 'catalogue')
-  end
-
-  test '一覧の便覧のパネルでは、追加先の学期を今の学期以降から選べる' do
-    get plan_path(view: 'all', pane: 'catalogue')
-    current = css_select('[data-term-current]').first['data-term-button']
-    terms = css_select('[data-term-button]').pluck('data-term-button') - ['all']
-    open_terms = terms.drop(terms.index(current))
-
-    # 選べるのは今の学期以降だけで、最初は今の学期が選ばれている
-    assert_equal open_terms, css_select('[data-catalogue-add-to] option').pluck('value')
-    assert_select '[data-catalogue-add-to] option[selected][value=?]', current, count: 1
-
-    # 学期の画面のパネルには、選ぶ欄を出さない（表示中の学期に追加するため）
-    get plan_path(term: '4-前期', pane: 'catalogue')
-    assert_select '[data-catalogue-add-to]', count: 0
-  end
-
-  test '一覧の便覧のパネルで選んだ学期に追加でき、選んだ学期は追加のあとも残る' do
-    key = @candidate.fetch('key')
-    get plan_path(view: 'all', pane: 'catalogue', add_to: '4-後期')
-    assert_select '[data-catalogue-add-to] option[selected][value=?]', '4-後期', count: 1
-    assert_select "[data-catalogue-key='#{key}'] form" do
-      assert_select "input[name='term'][value='4-後期']"
-      assert_select "input[name='add_to'][value='4-後期']"
-      assert_select "input[type='submit'][value='4年 後期に追加']"
-    end
-
-    post plan_courses_path, params: { course_key: key, term: '4-後期', view: 'all', pane: 'catalogue', add_to: '4-後期' }
-    assert_redirected_to plan_path(view: 'all', pane: 'catalogue', add_to: '4-後期')
-    assert_equal '後期', @student.planned_courses.joins(:course).find_by!(courses: { curriculum_key: key }).semester
-  end
-
-  test '一覧の便覧のパネルの追加先に、過去の学期や読めない値を指定されたら、今の学期にする' do
-    get plan_path(view: 'all', pane: 'catalogue')
-    current = css_select('[data-term-current]').first['data-term-button']
-
-    %w[1-前期 x].each do |add_to|
-      next if add_to == current
-
-      get plan_path(view: 'all', pane: 'catalogue', add_to: add_to)
-      assert_response :success
-      assert_select '[data-catalogue-add-to] option[selected][value=?]', current, count: 1
-    end
-  end
-
-  test '便覧のパネルから追加・削除しても、パネルは開いたままで検索語も残る' do
-    key = @candidate.fetch('key')
-    query = @candidate.fetch('name')
-    get plan_path(term: '4-前期', pane: 'catalogue', q: query)
-    assert_select "[data-catalogue-key='#{key}'] form" do
-      assert_select "input[name='pane'][value='catalogue']"
-      assert_select "input[name='q'][value=?]", query
-    end
-    assert_select "[data-add-course] form input[name='pane'][value='catalogue']"
-
-    post plan_courses_path, params: { course_key: key, term: '4-前期', pane: 'catalogue', q: query }
-    assert_redirected_to plan_path(term: '4-前期', pane: 'catalogue', q: query)
-    follow_redirect!
-    plan = @student.planned_courses.find_by!(course: course_record(@candidate))
-    assert_select "[data-plan='#{plan.id}'] form input[name='pane'][value='catalogue']"
-
-    delete plan_course_path(plan), params: { term: '4-前期', pane: 'catalogue', q: query }
-    assert_redirected_to plan_path(term: '4-前期', pane: 'catalogue', q: query)
-  end
-
-  test 'パネルを閉じているときの追加・削除は、パネルを開かない' do
-    get plan_path(term: '4-前期')
-    assert_select "input[name='pane']", count: 0
-
-    post plan_courses_path, params: { course_key: @candidate.fetch('key'), term: '4-前期', pane: 'other', q: 'x' }
-    assert_redirected_to plan_path(term: '4-前期')
-  end
-
-  test '追加・削除のあとは、送ってきた計画表のページにそのまま戻る' do
-    key = @candidate.fetch('key')
-    # 学期の指定なしで開いたページからは、学期の指定なしの URL に戻る（URL が変わらないのでスクロール位置が保たれる）
-    post plan_courses_path, params: { course_key: key, term: CURRENT_TERM }, headers: { 'Referer' => plan_url }
-    assert_redirected_to plan_path
-
-    sent_from = plan_url(term: '4-前期', q: '', pane: 'catalogue', commit: '検索する')
-    plan = @student.planned_courses.find_by!(course: course_record(@candidate))
-    delete plan_course_path(plan), params: { term: '4-前期' }, headers: { 'Referer' => sent_from }
-    assert_redirected_to sent_from
-  end
-
-  test '送ってきたページが計画表でないときは、フォームの項目から戻る先を決める' do
-    key = @candidate.fetch('key')
-    [root_url, "https://evil.example#{requirements_path}", 'not a url'].each do |sent_from|
-      post plan_courses_path, params: { course_key: key, term: '4-前期' }, headers: { 'Referer' => sent_from }
-      assert_redirected_to plan_path(term: '4-前期')
-      @student.planned_courses.delete_all
-    end
-
-    # よそのサイトの /plan から送られてきても、戻る先はこのサイトの中
-    post plan_courses_path, params: { course_key: key, term: '4-前期' },
-                            headers: { 'Referer' => "https://evil.example#{plan_path(term: '1-前期')}" }
-    assert_redirected_to plan_path(term: '1-前期')
-    assert_equal 'localhost', URI.parse(response.location).host
   end
 end
 

@@ -30,26 +30,31 @@ class SampleStudentTest < ActiveSupport::TestCase
     assert_equal unrelated_user, User.find(unrelated_user.id)
   end
 
-  test 'unverified source credits and numbers stay unknown rather than being fabricated' do
-    document = curriculum
-    key = sample_enrollments.first.fetch('course_key')
-    entry = document.fetch('courses').find { |course| course.fetch('key') == key }
-    entry['number'] = nil
-    entry['credits'] = nil
-    student = CurriculumRepository.stub(:find, document) { SampleStudent.load! }
+  test '種ファイルの単位は、すでにある科目の値を上書きしない' do
+    # 単位は先着優先。あとから読む行で無条件に上書きすると、「未確認」にしている値が黙って復活する。
+    entry = course_master.first
+    existing = Course.create!(course_number: entry.fetch('number'), name: entry.fetch('name'), credits: 99)
 
-    course = Course.find_by!(curriculum_key: key)
-    assert_nil course.course_number
-    assert_nil course.credits
-    current = student.student_courses.create!(course: course, academic_year: 2025, enrollment_status: 'registered')
-    assert_nil current.assessment_entry.fetch(:credits)
-    assert_nil current.assessment_entry.fetch(:approved)
+    SampleStudent.load!
+
+    assert_equal 99, existing.reload.credits
+  end
+
+  test '同じ番号で名前の違う科目があっても、履修は同じ行につながる' do
+    entry = course_master.find { |course| sample_numbers.include?(course.fetch('number')) }
+    Course.create!(course_number: entry.fetch('number'), name: "#{entry.fetch('name')}（別名）")
+
+    student = SampleStudent.load!
+    before = student.student_courses.count
+    SampleStudent.load!
+
+    assert_equal before, student.student_courses.count
   end
 
   test 'conflicting existing cohort is not overwritten and loading is atomic' do
     faculty = Faculty.create!(name: '既存学部')
     department = faculty.departments.create!(name: '既存学科')
-    program = department.programs.create!(name: '既存コース')
+    program = department.programs.create!(name: '既存コース', curriculum_slug: 'intelligent_informatics')
     user = User.create!(email: SampleStudent::EMAIL, password: 'a-test-password')
     student = user.create_student!(program: program, admission_year: 2025)
     before = record_counts
@@ -64,12 +69,13 @@ class SampleStudentTest < ActiveSupport::TestCase
 
   private
 
-  def curriculum
-    CurriculumRepository.find(curriculum: 'intelligent_informatics', admission_year: 2024)
+  def course_master
+    JSON.parse(Rails.root.join(SampleStudent::COURSE_MASTER_PATH).read)
   end
 
-  def sample_enrollments
-    JSON.parse(Rails.root.join(SampleStudent::ENROLLMENTS_PATH).read).fetch('enrollments')
+  def sample_numbers
+    JSON.parse(Rails.root.join(SampleStudent::ENROLLMENTS_PATH).read)
+        .fetch('enrollments').map { |entry| entry.fetch('course_number') }
   end
 
   def record_counts

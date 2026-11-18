@@ -4,12 +4,17 @@
 class PlansController < ApplicationController
   include StudentWorkspace
 
+  # 検索・一覧は、画面に描ける数で打ち切る。courses テーブルは時間割を取り込むほど増え、ページ送りが無いため。
+  CATALOGUE_LIMIT = 200
+
   def show
     load_history
     load_plans
     @assessment = assess
     load_term
-    load_unavailable_keys
+    load_unavailable_numbers
+    # 区分の行の追加の枠も名簿から科目を出すので、パネルを開いていなくても要る。
+    @directory = directory
     # いま見ている画面（一覧、または学期の画面）を表す URL の項目。パネルの開け閉めや検索で同じ画面に戻るために使う
     @plan_page_params = @overview ? { view: 'all' } : { term: helpers.term_param(@term) }
     # 便覧カタログは、右側のパネルを開いている（?pane=catalogue）ときだけ検索する。学期の画面でも一覧でも開ける
@@ -57,24 +62,26 @@ class PlansController < ApplicationController
   end
 
   # もう追加できない科目（修得済み・履修中・予定に追加済み）。学期の画面でも一覧でも使う。
-  def load_unavailable_keys
-    @unavailable_keys = (@completed + @current).map { |enrollment| enrollment.course.curriculum_key } +
-                        @plans.map { |plan| plan.course.curriculum_key }
+  # 計画も履修も Course の行を指すので、科目番号で突き合わせる。
+  def load_unavailable_numbers
+    @unavailable_numbers = ((@completed + @current).map { |enrollment| enrollment.course.course_number } +
+                            @plans.map { |plan| plan.course.course_number }).compact
   end
 
   # 便覧カタログに出す科目を、検索語（q）で絞り込む。区分がわからない科目を調べるための検索なので、区分では絞り込まない。
+  # 名簿(CourseDirectory)が正。便覧に登録の無い科目も、番号から区分が決まるものは名簿に載る。
   def load_catalogue
     @query = params[:q].to_s.strip
     query = @query.downcase
-    @catalogue = @curriculum.fetch('courses').select { |course| matches_query?(course, query) }
-    keys = @catalogue.map { |course| course.fetch('key') }
-    @persisted_keys = Course.where(curriculum_key: keys).pluck(:curriculum_key)
+    matched = @directory.categories.flat_map { |category| @directory.in_category(category) }
+                        .select { |entry| matches_query?(entry, query) }
+    @catalogue_total = matched.size
+    @catalogue = matched.first(CATALOGUE_LIMIT)
+    @catalogue_limit = CATALOGUE_LIMIT
   end
 
-  def matches_query?(course, query)
-    query.blank? || [course['name'], course['number'], course['key']].compact.any? do |value|
-      value.downcase.include?(query)
-    end
+  def matches_query?(entry, query)
+    query.blank? || [entry.name, entry.number].compact.any? { |value| value.downcase.include?(query) }
   end
 end
 

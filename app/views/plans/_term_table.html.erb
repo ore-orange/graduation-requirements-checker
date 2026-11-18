@@ -1,8 +1,8 @@
 <%# 学期の画面の表（/plan?term=3-後期 など）。行＝卒業要件の区分、列＝この学期の科目。今の学期以降なら科目を追加できる %>
 <%
   is_current_term = @term == @current_term
-  unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course.curriculum_key, @courses_by_key)) }
-  unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course.curriculum_key, @courses_by_key)) }
+  unmapped_enrollments = @term_enrollments.reject { |e| mapped_categories.include?(course_category(e.course, @courses_by_number, @number_patterns)) }
+  unmapped_term_plans = @term_plans.reject { |p| mapped_categories.include?(course_category(p.course, @courses_by_number, @number_patterns)) }
 %>
 <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden" data-term="<%= term_param(@term) %>">
   <!-- 表示中の学期と、その学期の単位の内訳 -->
@@ -38,7 +38,7 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-200 text-xs">
-        <% StudentWorkspaceHelper::PLANNER_GROUPS.each do |group| %>
+        <% planner_groups(@curriculum).each do |group| %>
           <% group_check = find_check(@assessment.projected, group[:check_id]) %>
           <!-- 親グループ見出し行 -->
           <tr class="bg-slate-100/80 border-y border-slate-200" data-planner-group="<%= group[:id] %>">
@@ -57,9 +57,9 @@
 
           <% group[:rows].each do |row| %>
             <%
-              cell_enrollments = @term_enrollments.select { |e| row[:categories].include?(course_category(e.course.curriculum_key, @courses_by_key)) }
-              cell_plans = @term_plans.select { |p| row[:categories].include?(course_category(p.course.curriculum_key, @courses_by_key)) }
-              subtotal = planner_subtotal_for(row[:id])
+              cell_enrollments = @term_enrollments.select { |e| row[:categories].include?(course_category(e.course, @courses_by_number, @number_patterns)) }
+              cell_plans = @term_plans.select { |p| row[:categories].include?(course_category(p.course, @courses_by_number, @number_patterns)) }
+              subtotal = planner_subtotal_for(row[:id], @curriculum)
             %>
             <% if subtotal && subtotal[:row_ids].first == row[:id] %>
               <!-- 合計で数える区分のまとまり（必要単位はここにだけ出す） -->
@@ -80,7 +80,7 @@
 
               <!-- この学期の科目。追加できる行は、カードの並びの最後に追加の枠を置く -->
               <%
-                catalogue_in_row, selectable_in_row = row_catalogue_courses(row, @curriculum.fetch('courses'), @unavailable_keys)
+                catalogue_in_row, selectable_in_row = row_catalogue_courses(row, @directory, @unavailable_numbers)
                 can_add = @term_open && selectable_in_row.any?
               %>
               <td class="p-2.5">

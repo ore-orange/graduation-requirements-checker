@@ -1,0 +1,2622 @@
+[
+  {
+    "number": "C11",
+    "name": "キャリア形成入門",
+    "credits": 2
+  },
+  {
+    "number": "C15",
+    "name": "キャリアデザインとジェンダー",
+    "credits": 2
+  },
+  {
+    "number": "C22",
+    "name": "海外キャリア形成入門",
+    "credits": 2
+  },
+  {
+    "number": "C23",
+    "name": "海外職場体験",
+    "credits": 2
+  },
+  {
+    "number": "C27",
+    "name": "実践キャリア形成",
+    "credits": 2
+  },
+  {
+    "number": "C31",
+    "name": "地域企業（自治体）お題解決プログラム",
+    "credits": 2
+  },
+  {
+    "number": "C41",
+    "name": "日本企業インターンシップⅠ",
+    "credits": 2
+  },
+  {
+    "number": "C42",
+    "name": "日本企業インターンシップⅡ",
+    "credits": 2
+  },
+  {
+    "number": "C91",
+    "name": "キャリア関係特別講義Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "C92",
+    "name": "キャリア関係特別講義Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "C93",
+    "name": "キャリア関係特別講義Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "C94",
+    "name": "キャリア関係特別講義Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "C95",
+    "name": "キャリア関係特別講義Ⅴ",
+    "credits": 2
+  },
+  {
+    "number": "C96",
+    "name": "キャリア関係特別講義Ⅵ",
+    "credits": 2
+  },
+  {
+    "number": "C97",
+    "name": "キャリア関係特別講義Ⅶ",
+    "credits": 2
+  },
+  {
+    "number": "C98",
+    "name": "キャリア関係特別講義Ⅷ",
+    "credits": 2
+  },
+  {
+    "number": "C99",
+    "name": "キャリア関係特別講義Ⅸ",
+    "credits": 2
+  },
+  {
+    "number": "エネ981",
+    "name": "エネルギー移動工学",
+    "credits": 2
+  },
+  {
+    "number": "エネ982",
+    "name": "腐食防食工学",
+    "credits": 2
+  },
+  {
+    "number": "エネ983",
+    "name": "熱機関工学",
+    "credits": 2
+  },
+  {
+    "number": "エネ991",
+    "name": "エネルギー変換工学基礎",
+    "credits": 2
+  },
+  {
+    "number": "エネ992",
+    "name": "環境エネルギー工学概論",
+    "credits": 2
+  },
+  {
+    "number": "人01",
+    "name": "人間と哲学の知",
+    "credits": 2
+  },
+  {
+    "number": "人03",
+    "name": "思考の論理入門",
+    "credits": 2
+  },
+  {
+    "number": "人04",
+    "name": "思考の論理",
+    "credits": 2
+  },
+  {
+    "number": "人05",
+    "name": "西洋思想とインドの思想",
+    "credits": 2
+  },
+  {
+    "number": "人06",
+    "name": "西洋思想と日本･中国の思想",
+    "credits": 2
+  },
+  {
+    "number": "人08",
+    "name": "人間と倫理",
+    "credits": 2
+  },
+  {
+    "number": "人09",
+    "name": "環境の哲学",
+    "credits": 2
+  },
+  {
+    "number": "人10",
+    "name": "心の哲学",
+    "credits": 2
+  },
+  {
+    "number": "人11",
+    "name": "心の科学",
+    "credits": 2
+  },
+  {
+    "number": "人12",
+    "name": "人間関係論",
+    "credits": 2
+  },
+  {
+    "number": "人15",
+    "name": "犯罪心理学入門",
+    "credits": 2
+  },
+  {
+    "number": "人16",
+    "name": "比較思想文化論",
+    "credits": 2
+  },
+  {
+    "number": "人17",
+    "name": "生命倫理",
+    "credits": 2
+  },
+  {
+    "number": "人18",
+    "name": "宗教と世界",
+    "credits": 2
+  },
+  {
+    "number": "人19",
+    "name": "人間と宗教",
+    "credits": 2
+  },
+  {
+    "number": "人20",
+    "name": "人間観と教育",
+    "credits": 2
+  },
+  {
+    "number": "人21",
+    "name": "近代日本の社会と表現",
+    "credits": 2
+  },
+  {
+    "number": "人22",
+    "name": "日本古典文学の世界",
+    "credits": 2
+  },
+  {
+    "number": "人23",
+    "name": "文学の楽しみ",
+    "credits": 2
+  },
+  {
+    "number": "人24",
+    "name": "小説の社会学",
+    "credits": 2
+  },
+  {
+    "number": "人25",
+    "name": "ことばの生態",
+    "credits": 2
+  },
+  {
+    "number": "人26",
+    "name": "ことばの構造と意味",
+    "credits": 2
+  },
+  {
+    "number": "人27",
+    "name": "日本語のしくみ",
+    "credits": 2
+  },
+  {
+    "number": "人27-1",
+    "name": "日本語のはたらき",
+    "credits": 2
+  },
+  {
+    "number": "人28-1",
+    "name": "中国古典文学の世界",
+    "credits": 2
+  },
+  {
+    "number": "人28-2",
+    "name": "20世紀の中国文学",
+    "credits": 2
+  },
+  {
+    "number": "人30",
+    "name": "アメリカの文学と近代社会",
+    "credits": 2
+  },
+  {
+    "number": "人31",
+    "name": "日本語研究入門",
+    "credits": 2
+  },
+  {
+    "number": "人35",
+    "name": "歴史を知る",
+    "credits": 2
+  },
+  {
+    "number": "人36",
+    "name": "歴史を探る",
+    "credits": 2
+  },
+  {
+    "number": "人37",
+    "name": "歴史を見る",
+    "credits": 2
+  },
+  {
+    "number": "人38",
+    "name": "歴史を考える",
+    "credits": 2
+  },
+  {
+    "number": "人39",
+    "name": "歴史を深める",
+    "credits": 2
+  },
+  {
+    "number": "人40",
+    "name": "歴史を学ぶ",
+    "credits": 2
+  },
+  {
+    "number": "人41",
+    "name": "歴史を掘る",
+    "credits": 2
+  },
+  {
+    "number": "人46",
+    "name": "考古学入門",
+    "credits": 2
+  },
+  {
+    "number": "人52",
+    "name": "美術の世界",
+    "credits": 2
+  },
+  {
+    "number": "人55",
+    "name": "コーラル・アンサンブルの楽しみ",
+    "credits": 2
+  },
+  {
+    "number": "人56",
+    "name": "楽しく学ぶギター弾き語りⅠ",
+    "credits": 2
+  },
+  {
+    "number": "人57",
+    "name": "楽しく学ぶギター弾き語りⅡ",
+    "credits": 2
+  },
+  {
+    "number": "人58",
+    "name": "ステージスタッフ総合活動",
+    "credits": 2
+  },
+  {
+    "number": "人61",
+    "name": "美術と社会",
+    "credits": 2
+  },
+  {
+    "number": "人64",
+    "name": "陶芸の世界",
+    "credits": 2
+  },
+  {
+    "number": "人65",
+    "name": "オーケストラの楽しみⅠ",
+    "credits": 2
+  },
+  {
+    "number": "人66",
+    "name": "オーケストラの楽しみⅡ",
+    "credits": 2
+  },
+  {
+    "number": "人71",
+    "name": "心理学入門Ⅰ",
+    "credits": 1
+  },
+  {
+    "number": "人72",
+    "name": "心理学入門Ⅱ",
+    "credits": 1
+  },
+  {
+    "number": "人73",
+    "name": "共生社会にむけたアクセシビリティ",
+    "credits": 2
+  },
+  {
+    "number": "人74",
+    "name": "アクセシビリティ演習",
+    "credits": 2
+  },
+  {
+    "number": "人75",
+    "name": "ヒューマニティ系SDGs演習",
+    "credits": 1
+  },
+  {
+    "number": "人76",
+    "name": "ボランティアデザインⅠ",
+    "credits": 2
+  },
+  {
+    "number": "人77",
+    "name": "ボランティアデザインⅡ",
+    "credits": 2
+  },
+  {
+    "number": "人91",
+    "name": "人文系特別講義Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "人92",
+    "name": "人文系特別講義Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "健01",
+    "name": "健康・スポーツ科学",
+    "credits": 2
+  },
+  {
+    "number": "健03",
+    "name": "運動・スポーツ科学演習",
+    "credits": 2
+  },
+  {
+    "number": "先03",
+    "name": "線形代数学Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "先04",
+    "name": "線形代数学Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "先05",
+    "name": "線形代数学演習Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "先06",
+    "name": "線形代数学演習Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "先08",
+    "name": "統計学Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "先09",
+    "name": "統計学Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "先11",
+    "name": "微分積分学ＳＴ（スタンダードコース）Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "先12",
+    "name": "微分積分学ＳＴ（スタンダードコース）Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "先13",
+    "name": "微分積分学ＡＤ（アドバンストコース）Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "先14",
+    "name": "微分積分学ＡＤ（アドバンストコース）Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "先21",
+    "name": "地学実験",
+    "credits": 1
+  },
+  {
+    "number": "先23",
+    "name": "地球科学Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "先24",
+    "name": "地球科学Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "先31",
+    "name": "物理学Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "先32",
+    "name": "物理学Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "先33",
+    "name": "物理学実験",
+    "credits": 1
+  },
+  {
+    "number": "先41",
+    "name": "化学Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "先42",
+    "name": "化学Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "先43",
+    "name": "化学実験",
+    "credits": 1
+  },
+  {
+    "number": "先51",
+    "name": "生物学Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "先52",
+    "name": "生物学Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "先53",
+    "name": "生物学実験",
+    "credits": 1
+  },
+  {
+    "number": "全教412",
+    "name": "教職実践演習（高）",
+    "credits": 2
+  },
+  {
+    "number": "外101",
+    "name": "大学英語",
+    "credits": 4
+  },
+  {
+    "number": "外102",
+    "name": "英語講読演習 中級",
+    "credits": 2
+  },
+  {
+    "number": "外103",
+    "name": "英語講読演習 上級",
+    "credits": 2
+  },
+  {
+    "number": "外104",
+    "name": "英会話演習 中級",
+    "credits": 2
+  },
+  {
+    "number": "外105",
+    "name": "英会話演習 上級",
+    "credits": 2
+  },
+  {
+    "number": "外106",
+    "name": "英作文演習 中級",
+    "credits": 2
+  },
+  {
+    "number": "外107",
+    "name": "英作文演習 上級",
+    "credits": 2
+  },
+  {
+    "number": "外108",
+    "name": "英語プレゼンテーション演習 中級",
+    "credits": 2
+  },
+  {
+    "number": "外109",
+    "name": "英語プレゼンテーション演習 上級",
+    "credits": 2
+  },
+  {
+    "number": "外110",
+    "name": "ＴＯＥＩＣ演習",
+    "credits": 2
+  },
+  {
+    "number": "外111",
+    "name": "ＴＯＥＦＬ演習",
+    "credits": 2
+  },
+  {
+    "number": "外112",
+    "name": "英検準１級演習",
+    "credits": 2
+  },
+  {
+    "number": "外113",
+    "name": "特定英語課題演習Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "外114",
+    "name": "特定英語課題演習Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "外201",
+    "name": "ドイツ語入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "外202",
+    "name": "ドイツ語入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "外203",
+    "name": "ドイツ語入門Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "外204",
+    "name": "ドイツ語入門Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "外205",
+    "name": "ドイツ語会話入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "外206",
+    "name": "ドイツ語会話入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "外207",
+    "name": "インテンシブドイツ語Ⅰ",
+    "credits": 4
+  },
+  {
+    "number": "外208",
+    "name": "インテンシブドイツ語Ⅱ",
+    "credits": 4
+  },
+  {
+    "number": "外209",
+    "name": "インテンシブドイツ語Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "外210",
+    "name": "インテンシブドイツ語Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "外211",
+    "name": "ドイツ語圏文化入門",
+    "credits": 2
+  },
+  {
+    "number": "外301",
+    "name": "フランス語入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "外302",
+    "name": "フランス語入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "外303",
+    "name": "フランス語入門Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "外304",
+    "name": "フランス語入門Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "外305",
+    "name": "フランス語会話入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "外306",
+    "name": "フランス語会話入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "外307",
+    "name": "インテンシブフランス語Ⅰ",
+    "credits": 4
+  },
+  {
+    "number": "外308",
+    "name": "インテンシブフランス語Ⅱ",
+    "credits": 4
+  },
+  {
+    "number": "外309",
+    "name": "インテンシブフランス語Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "外310",
+    "name": "インテンシブフランス語Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "外311",
+    "name": "フランス語圏文化入門",
+    "credits": 2
+  },
+  {
+    "number": "外401",
+    "name": "スペイン語入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "外402",
+    "name": "スペイン語入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "外403",
+    "name": "スペイン語入門Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "外404",
+    "name": "スペイン語入門Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "外405",
+    "name": "スペイン語会話入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "外406",
+    "name": "スペイン語会話入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "外407",
+    "name": "インテンシブスペイン語Ⅰ",
+    "credits": 4
+  },
+  {
+    "number": "外408",
+    "name": "インテンシブスペイン語Ⅱ",
+    "credits": 4
+  },
+  {
+    "number": "外409",
+    "name": "インテンシブスペイン語Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "外410",
+    "name": "インテンシブスペイン語Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "外411",
+    "name": "スペイン語圏文化入門",
+    "credits": 2
+  },
+  {
+    "number": "外501",
+    "name": "中国語基礎Ⅰ",
+    "credits": 4
+  },
+  {
+    "number": "外502",
+    "name": "中国語基礎Ⅱ",
+    "credits": 4
+  },
+  {
+    "number": "外503",
+    "name": "中国語中級",
+    "credits": 4
+  },
+  {
+    "number": "外504",
+    "name": "中国語講読",
+    "credits": 2
+  },
+  {
+    "number": "外505",
+    "name": "中国語演習",
+    "credits": 2
+  },
+  {
+    "number": "外506",
+    "name": "中国語上級",
+    "credits": 2
+  },
+  {
+    "number": "外507",
+    "name": "中国語特演",
+    "credits": 2
+  },
+  {
+    "number": "外508",
+    "name": "中国語会話",
+    "credits": 2
+  },
+  {
+    "number": "外509",
+    "name": "時事中国語",
+    "credits": 2
+  },
+  {
+    "number": "外510",
+    "name": "中国語作文",
+    "credits": 2
+  },
+  {
+    "number": "外511",
+    "name": "実践中国語",
+    "credits": 2
+  },
+  {
+    "number": "外601",
+    "name": "朝鮮語基礎Ⅰ",
+    "credits": 4
+  },
+  {
+    "number": "外602",
+    "name": "朝鮮語基礎Ⅱ",
+    "credits": 4
+  },
+  {
+    "number": "外603",
+    "name": "朝鮮語中級",
+    "credits": 4
+  },
+  {
+    "number": "外604",
+    "name": "朝鮮語講読",
+    "credits": 2
+  },
+  {
+    "number": "外605",
+    "name": "朝鮮語演習",
+    "credits": 2
+  },
+  {
+    "number": "外701",
+    "name": "インドネシア語基礎Ⅰ",
+    "credits": 4
+  },
+  {
+    "number": "外702",
+    "name": "インドネシア語基礎Ⅱ",
+    "credits": 4
+  },
+  {
+    "number": "外711",
+    "name": "タイ語基礎Ⅰ",
+    "credits": 4
+  },
+  {
+    "number": "外712",
+    "name": "タイ語基礎Ⅱ",
+    "credits": 4
+  },
+  {
+    "number": "外731",
+    "name": "ラテン語入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "外732",
+    "name": "ラテン語入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "外751",
+    "name": "ロシア語入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "外752",
+    "name": "ロシア語入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "工共100",
+    "name": "工学基礎演習",
+    "credits": 2
+  },
+  {
+    "number": "工共101",
+    "name": "キャリアデザイン入門",
+    "credits": 1
+  },
+  {
+    "number": "工共111",
+    "name": "工業数学Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "工共112",
+    "name": "工業数学Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "工共114",
+    "name": "プログラミングⅠ",
+    "credits": 2
+  },
+  {
+    "number": "工共118",
+    "name": "基礎数学Ⅰ",
+    "credits": 1
+  },
+  {
+    "number": "工共119",
+    "name": "基礎数学Ⅱ",
+    "credits": 1
+  },
+  {
+    "number": "工共120",
+    "name": "情報リテラシー",
+    "credits": 1
+  },
+  {
+    "number": "工共121",
+    "name": "プログラミング基礎",
+    "credits": 2
+  },
+  {
+    "number": "工共122",
+    "name": "データサイエンス基礎",
+    "credits": 2
+  },
+  {
+    "number": "工共150",
+    "name": "工学概論",
+    "credits": 2
+  },
+  {
+    "number": "工共211",
+    "name": "工業数学Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "工共212",
+    "name": "工業数学Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "工共213",
+    "name": "確率及び統計",
+    "credits": 2
+  },
+  {
+    "number": "工共214",
+    "name": "プログラミングⅡ",
+    "credits": 2
+  },
+  {
+    "number": "工共221",
+    "name": "プログラミング応用",
+    "credits": 2
+  },
+  {
+    "number": "工共222",
+    "name": "データサイエンス応用",
+    "credits": 2
+  },
+  {
+    "number": "工共300",
+    "name": "技術者の倫理",
+    "credits": 2
+  },
+  {
+    "number": "工共301",
+    "name": "キャリアデザイン",
+    "credits": 2
+  },
+  {
+    "number": "工共302",
+    "name": "エンジニアリングデザイン演習",
+    "credits": 2
+  },
+  {
+    "number": "工共320",
+    "name": "Frontiers of Engineering",
+    "credits": 2
+  },
+  {
+    "number": "工共321",
+    "name": "技術英語Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "工共322",
+    "name": "技術英語Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "工共323",
+    "name": "技術英語基礎",
+    "credits": 2
+  },
+  {
+    "number": "工共324",
+    "name": "技術英語応用",
+    "credits": 2
+  },
+  {
+    "number": "工共325",
+    "name": "機械学習",
+    "credits": 2
+  },
+  {
+    "number": "工共330",
+    "name": "地域課題解決実践演習",
+    "credits": 2
+  },
+  {
+    "number": "工共331",
+    "name": "産業社会学原論Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "工共332",
+    "name": "産業社会学原論Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "工共333",
+    "name": "地域創生論",
+    "credits": 2
+  },
+  {
+    "number": "工共334",
+    "name": "国際協力論",
+    "credits": 2
+  },
+  {
+    "number": "工共335",
+    "name": "知的財産権",
+    "credits": 2
+  },
+  {
+    "number": "工共336",
+    "name": "品質管理",
+    "credits": 2
+  },
+  {
+    "number": "工共337",
+    "name": "経営工学概論",
+    "credits": 2
+  },
+  {
+    "number": "工共338",
+    "name": "インターンシップⅠ",
+    "credits": 1
+  },
+  {
+    "number": "工共339",
+    "name": "インターンシップⅡ",
+    "credits": 1
+  },
+  {
+    "number": "工共340",
+    "name": "インターンシップⅢ",
+    "credits": 2
+  },
+  {
+    "number": "工共341",
+    "name": "国際インターンシップⅠ",
+    "credits": 1
+  },
+  {
+    "number": "工共342",
+    "name": "インターンシップⅣ",
+    "credits": 2
+  },
+  {
+    "number": "工共351",
+    "name": "工業科教育法A",
+    "credits": 2
+  },
+  {
+    "number": "工共352",
+    "name": "工業科教育法B",
+    "credits": 2
+  },
+  {
+    "number": "工共401",
+    "name": "卒業研究Ⅰ",
+    "credits": 3
+  },
+  {
+    "number": "工共402",
+    "name": "卒業研究Ⅱ",
+    "credits": 3
+  },
+  {
+    "number": "工共403",
+    "name": "卒業設計または卒業研究Ⅰ",
+    "credits": 3
+  },
+  {
+    "number": "工共404",
+    "name": "卒業設計または卒業研究Ⅱ",
+    "credits": 3
+  },
+  {
+    "number": "工共405",
+    "name": "セミナーⅠ",
+    "credits": 1
+  },
+  {
+    "number": "工共406",
+    "name": "セミナーⅡ",
+    "credits": 1
+  },
+  {
+    "number": "工共407",
+    "name": "卒業研究",
+    "credits": 6
+  },
+  {
+    "number": "工共408",
+    "name": "セミナー",
+    "credits": 2
+  },
+  {
+    "number": "工共421",
+    "name": "技術英語Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "工共441",
+    "name": "国際インターンシップⅡ",
+    "credits": 2
+  },
+  {
+    "number": "工共450",
+    "name": "職業指導（工業）",
+    "credits": 2
+  },
+  {
+    "number": "工共451",
+    "name": "情報科教育法A",
+    "credits": 2
+  },
+  {
+    "number": "工共452",
+    "name": "情報科教育法B",
+    "credits": 2
+  },
+  {
+    "number": "工共453",
+    "name": "教職総合演習（情報）",
+    "credits": 2
+  },
+  {
+    "number": "建築982",
+    "name": "都市デザイン演習",
+    "credits": 2
+  },
+  {
+    "number": "建築983",
+    "name": "耐震設計概論",
+    "credits": 2
+  },
+  {
+    "number": "建築984",
+    "name": "都市および地方計画",
+    "credits": 2
+  },
+  {
+    "number": "建築991",
+    "name": "居住建築概論",
+    "credits": 2
+  },
+  {
+    "number": "情01",
+    "name": "情報科学演習",
+    "credits": 2
+  },
+  {
+    "number": "情11",
+    "name": "日本語表現法入門",
+    "credits": 2
+  },
+  {
+    "number": "機械981",
+    "name": "機器構造学",
+    "credits": 2
+  },
+  {
+    "number": "機械982",
+    "name": "亜熱帯材料学",
+    "credits": 2
+  },
+  {
+    "number": "機械983",
+    "name": "流体機械学",
+    "credits": 2
+  },
+  {
+    "number": "機械990",
+    "name": "機械工学概論",
+    "credits": 2
+  },
+  {
+    "number": "機械991",
+    "name": "材料生産工学概論",
+    "credits": 2
+  },
+  {
+    "number": "機械992",
+    "name": "熱流体工学概論",
+    "credits": 2
+  },
+  {
+    "number": "琉01",
+    "name": "平和論",
+    "credits": 2
+  },
+  {
+    "number": "琉02",
+    "name": "核の科学",
+    "credits": 2
+  },
+  {
+    "number": "琉03",
+    "name": "女性と社会",
+    "credits": 2
+  },
+  {
+    "number": "琉05",
+    "name": "沖縄の基地と戦跡Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "琉06",
+    "name": "沖縄の基地と戦跡Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "琉100",
+    "name": "沖縄の航空事業と地域振興",
+    "credits": 2
+  },
+  {
+    "number": "琉101",
+    "name": "ドローン＆フィールドサイエンス",
+    "credits": 2
+  },
+  {
+    "number": "琉102",
+    "name": "グローカル実践演習Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "琉103",
+    "name": "グローカル実践演習Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "琉104",
+    "name": "グローカル実践演習Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "琉105",
+    "name": "グローカル実践演習Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "琉106",
+    "name": "個と多様性",
+    "credits": 1
+  },
+  {
+    "number": "琉107",
+    "name": "グローカルリーダーシップ論Ⅰ",
+    "credits": 1
+  },
+  {
+    "number": "琉108",
+    "name": "グローカルリーダーシップ論Ⅱ",
+    "credits": 1
+  },
+  {
+    "number": "琉109",
+    "name": "グローカル実践研修",
+    "credits": 1
+  },
+  {
+    "number": "琉110",
+    "name": "グローカル実践研修Ⅱ",
+    "credits": 1
+  },
+  {
+    "number": "琉111",
+    "name": "沖縄の航空事業と地域振興Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "琉112",
+    "name": "世界自然遺産西表島",
+    "credits": 2
+  },
+  {
+    "number": "琉113",
+    "name": "マングローブ生態系西表島",
+    "credits": 2
+  },
+  {
+    "number": "琉114",
+    "name": "社会に活かす科学研究",
+    "credits": 2
+  },
+  {
+    "number": "琉14",
+    "name": "琉球の文学",
+    "credits": 2
+  },
+  {
+    "number": "琉18",
+    "name": "地域の科学",
+    "credits": 2
+  },
+  {
+    "number": "琉22",
+    "name": "琉球の自然",
+    "credits": 2
+  },
+  {
+    "number": "琉23",
+    "name": "琉球の自然保護",
+    "credits": 2
+  },
+  {
+    "number": "琉24",
+    "name": "沖縄のサンゴ礁",
+    "credits": 2
+  },
+  {
+    "number": "琉25",
+    "name": "琉球弧の自然誌",
+    "credits": 2
+  },
+  {
+    "number": "琉26",
+    "name": "琉球の地理",
+    "credits": 2
+  },
+  {
+    "number": "琉33",
+    "name": "現代の国際関係",
+    "credits": 2
+  },
+  {
+    "number": "琉41-2",
+    "name": "琉球アジア研究入門",
+    "credits": 2
+  },
+  {
+    "number": "琉42",
+    "name": "移民論",
+    "credits": 2
+  },
+  {
+    "number": "琉46",
+    "name": "沖縄の政治と社会",
+    "credits": 2
+  },
+  {
+    "number": "琉48",
+    "name": "うちなーぐちあしび",
+    "credits": 2
+  },
+  {
+    "number": "琉49",
+    "name": "亜熱帯－西表の自然",
+    "credits": 2
+  },
+  {
+    "number": "琉50",
+    "name": "沖縄の学力と教育",
+    "credits": 2
+  },
+  {
+    "number": "琉51",
+    "name": "琉球語入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "琉52",
+    "name": "琉球語入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "琉53",
+    "name": "沖縄の染めと織り",
+    "credits": 2
+  },
+  {
+    "number": "琉54",
+    "name": "沖縄の歴史入門",
+    "credits": 2
+  },
+  {
+    "number": "琉55",
+    "name": "琉球学入門",
+    "credits": 2
+  },
+  {
+    "number": "琉56",
+    "name": "琉球の自然と人",
+    "credits": 2
+  },
+  {
+    "number": "琉58",
+    "name": "Community environment and planning",
+    "credits": 2
+  },
+  {
+    "number": "琉71",
+    "name": "現代沖縄地域論",
+    "credits": 2
+  },
+  {
+    "number": "琉72",
+    "name": "地域課題フィールドワーク演習",
+    "credits": 2
+  },
+  {
+    "number": "琉73",
+    "name": "現代沖縄の地域振興",
+    "credits": 2
+  },
+  {
+    "number": "琉74",
+    "name": "地域システム計画論",
+    "credits": 2
+  },
+  {
+    "number": "琉75",
+    "name": "地域環境と生活空間",
+    "credits": 2
+  },
+  {
+    "number": "琉76",
+    "name": "地域プロジェクト実践",
+    "credits": 2
+  },
+  {
+    "number": "琉77",
+    "name": "地域フィールドワーク入門",
+    "credits": 2
+  },
+  {
+    "number": "琉78",
+    "name": "島嶼地域科学入門",
+    "credits": 2
+  },
+  {
+    "number": "琉91",
+    "name": "琉大特色・地域創生特別講義Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "琉92",
+    "name": "琉大特色・地域創生特別講義Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "琉93",
+    "name": "琉大特色・地域創生特別講義Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "琉94",
+    "name": "琉大特色・地域創生特別講義Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "琉95",
+    "name": "琉大特色・地域創生特別講義Ⅴ",
+    "credits": 2
+  },
+  {
+    "number": "琉96",
+    "name": "琉大特色・地域創生特別講義Ⅵ",
+    "credits": 2
+  },
+  {
+    "number": "琉97",
+    "name": "琉大特色・地域創生特別講義Ⅶ",
+    "credits": 2
+  },
+  {
+    "number": "琉98",
+    "name": "琉大特色・地域創生特別講義Ⅷ",
+    "credits": 2
+  },
+  {
+    "number": "琉99",
+    "name": "琉大特色・地域創生特別講義Ⅸ",
+    "credits": 2
+  },
+  {
+    "number": "知能101",
+    "name": "プログラミング演習Ⅰ",
+    "credits": 1
+  },
+  {
+    "number": "知能102",
+    "name": "プログラミング演習Ⅱ",
+    "credits": 1
+  },
+  {
+    "number": "知能103",
+    "name": "離散数学",
+    "credits": 2
+  },
+  {
+    "number": "知能104",
+    "name": "コンピュータシステム",
+    "credits": 2
+  },
+  {
+    "number": "知能105",
+    "name": "プログラミング演習基礎",
+    "credits": 2
+  },
+  {
+    "number": "知能106",
+    "name": "情報ネットワークⅠ",
+    "credits": 2
+  },
+  {
+    "number": "知能107",
+    "name": "知能情報演習Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "知能108",
+    "name": "知能情報演習Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "知能203",
+    "name": "アルゴリズムとデータ構造",
+    "credits": 2
+  },
+  {
+    "number": "知能204",
+    "name": "情報ネットワークⅠ",
+    "credits": 2
+  },
+  {
+    "number": "知能205",
+    "name": "コンピュータシステム",
+    "credits": 2
+  },
+  {
+    "number": "知能206",
+    "name": "データサイエンス基礎",
+    "credits": 4
+  },
+  {
+    "number": "知能207",
+    "name": "プロジェクトデザイン",
+    "credits": 2
+  },
+  {
+    "number": "知能208",
+    "name": "オペレーティングシステム",
+    "credits": 2
+  },
+  {
+    "number": "知能209",
+    "name": "コンピュータアーキテクチャ",
+    "credits": 2
+  },
+  {
+    "number": "知能210",
+    "name": "データベースシステム",
+    "credits": 2
+  },
+  {
+    "number": "知能211",
+    "name": "人工知能",
+    "credits": 2
+  },
+  {
+    "number": "知能212",
+    "name": "ソフトウエア開発演習I",
+    "credits": 2
+  },
+  {
+    "number": "知能212",
+    "name": "ソフトウエア開発演習Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "知能213",
+    "name": "知能情報基礎演習Ⅰ",
+    "credits": 1
+  },
+  {
+    "number": "知能214",
+    "name": "知能情報基礎演習Ⅱ",
+    "credits": 1
+  },
+  {
+    "number": "知能215",
+    "name": "プログラミング演習応用",
+    "credits": 2
+  },
+  {
+    "number": "知能221",
+    "name": "ディジタル回路",
+    "credits": 2
+  },
+  {
+    "number": "知能222",
+    "name": "情報処理技術概論",
+    "credits": 2
+  },
+  {
+    "number": "知能223",
+    "name": "情報ネットワークⅡ",
+    "credits": 2
+  },
+  {
+    "number": "知能226",
+    "name": "ディジタル信号処理",
+    "credits": 2
+  },
+  {
+    "number": "知能227",
+    "name": "情報理論",
+    "credits": 2
+  },
+  {
+    "number": "知能228",
+    "name": "知能情報基礎演習Ⅲ",
+    "credits": 1
+  },
+  {
+    "number": "知能229",
+    "name": "知能情報基礎演習Ⅳ",
+    "credits": 1
+  },
+  {
+    "number": "知能230",
+    "name": "知能情報演習Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "知能231",
+    "name": "知能情報演習Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "知能232",
+    "name": "IoTシステム演習",
+    "credits": 2
+  },
+  {
+    "number": "知能301",
+    "name": "知能情報総合実験",
+    "credits": 2
+  },
+  {
+    "number": "知能302",
+    "name": "AIoTメディアコンピューティング",
+    "credits": 2
+  },
+  {
+    "number": "知能303",
+    "name": "OSと並列処理",
+    "credits": 2
+  },
+  {
+    "number": "知能304",
+    "name": "知能情報総合演習",
+    "credits": 2
+  },
+  {
+    "number": "知能321",
+    "name": "ソフトウェア工学",
+    "credits": 2
+  },
+  {
+    "number": "知能322",
+    "name": "数理計画とアルゴリズム",
+    "credits": 2
+  },
+  {
+    "number": "知能323",
+    "name": "並列分散処理",
+    "credits": 2
+  },
+  {
+    "number": "知能326",
+    "name": "機械学習",
+    "credits": 2
+  },
+  {
+    "number": "知能327",
+    "name": "ヒューマンコンピュータインタラクション",
+    "credits": 2
+  },
+  {
+    "number": "知能329",
+    "name": "ディジタル制御論",
+    "credits": 2
+  },
+  {
+    "number": "知能330",
+    "name": "マルチメディア情報処理",
+    "credits": 2
+  },
+  {
+    "number": "知能330",
+    "name": "画像処理",
+    "credits": 2
+  },
+  {
+    "number": "知能331",
+    "name": "ネットワークセキュリティ",
+    "credits": 2
+  },
+  {
+    "number": "知能332",
+    "name": "知能ロボット",
+    "credits": 2
+  },
+  {
+    "number": "知能333",
+    "name": "コレクティブインテリジェンス",
+    "credits": 2
+  },
+  {
+    "number": "知能334",
+    "name": "データマイニング",
+    "credits": 2
+  },
+  {
+    "number": "知能338",
+    "name": "ソフトウエア開発演習II",
+    "credits": 2
+  },
+  {
+    "number": "知能338",
+    "name": "ソフトウエア開発演習Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "知能339",
+    "name": "ソフトウエア開発演習III",
+    "credits": 2
+  },
+  {
+    "number": "知能339",
+    "name": "ソフトウエア開発演習Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "知能340",
+    "name": "深層学習",
+    "credits": 2
+  },
+  {
+    "number": "知能341",
+    "name": "深層学習応用",
+    "credits": 2
+  },
+  {
+    "number": "知能342",
+    "name": "自然言語処理",
+    "credits": 2
+  },
+  {
+    "number": "知能343",
+    "name": "Webアプリケーション開発基礎",
+    "credits": 2
+  },
+  {
+    "number": "知能344",
+    "name": "論文講読演習",
+    "credits": 2
+  },
+  {
+    "number": "知能421",
+    "name": "ICT実践英語Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "知能422",
+    "name": "ICT実践英語Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "知能481",
+    "name": "情報技術演習I",
+    "credits": 2
+  },
+  {
+    "number": "知能481",
+    "name": "情報技術演習Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "知能482",
+    "name": "情報技術演習II",
+    "credits": 2
+  },
+  {
+    "number": "知能482",
+    "name": "情報技術演習Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "知能483",
+    "name": "情報技術演習III",
+    "credits": 1
+  },
+  {
+    "number": "知能483",
+    "name": "情報技術演習Ⅲ",
+    "credits": 1
+  },
+  {
+    "number": "知能484",
+    "name": "情報技術演習IV",
+    "credits": 1
+  },
+  {
+    "number": "知能484",
+    "name": "情報技術演習Ⅳ",
+    "credits": 1
+  },
+  {
+    "number": "知能491",
+    "name": "知能情報特別講義I",
+    "credits": 2
+  },
+  {
+    "number": "知能491",
+    "name": "知能情報特別講義Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "知能492",
+    "name": "知能情報特別講義II",
+    "credits": 2
+  },
+  {
+    "number": "知能492",
+    "name": "知能情報特別講義Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "知能493",
+    "name": "知能情報特別講義III",
+    "credits": 1
+  },
+  {
+    "number": "知能493",
+    "name": "知能情報特別講義Ⅲ",
+    "credits": 1
+  },
+  {
+    "number": "知能494",
+    "name": "知能情報特別講義IV",
+    "credits": 1
+  },
+  {
+    "number": "知能494",
+    "name": "知能情報特別講義Ⅳ",
+    "credits": 1
+  },
+  {
+    "number": "知能495",
+    "name": "情報システム管理演習",
+    "credits": 2
+  },
+  {
+    "number": "知能981",
+    "name": "ネットワークセキュリティ",
+    "credits": 2
+  },
+  {
+    "number": "知能983",
+    "name": "知能ロボット",
+    "credits": 2
+  },
+  {
+    "number": "知能984",
+    "name": "データマイニング",
+    "credits": 2
+  },
+  {
+    "number": "知能991",
+    "name": "コンピュータサイエンス基礎",
+    "credits": 2
+  },
+  {
+    "number": "知能992",
+    "name": "情報システム開発演習",
+    "credits": 2
+  },
+  {
+    "number": "知能993",
+    "name": "知能情報技術概論",
+    "credits": 2
+  },
+  {
+    "number": "社01",
+    "name": "法と社会",
+    "credits": 2
+  },
+  {
+    "number": "社02",
+    "name": "憲法概論",
+    "credits": 2
+  },
+  {
+    "number": "社03",
+    "name": "現代政治の課題",
+    "credits": 2
+  },
+  {
+    "number": "社04",
+    "name": "日本の政治",
+    "credits": 2
+  },
+  {
+    "number": "社06",
+    "name": "戦争と平和の諸問題",
+    "credits": 2
+  },
+  {
+    "number": "社11",
+    "name": "地域と生活",
+    "credits": 2
+  },
+  {
+    "number": "社12",
+    "name": "現代社会のしくみ",
+    "credits": 2
+  },
+  {
+    "number": "社13",
+    "name": "マスコミと社会",
+    "credits": 2
+  },
+  {
+    "number": "社15",
+    "name": "人類文化の比較",
+    "credits": 2
+  },
+  {
+    "number": "社19",
+    "name": "ジェンダー学とインターセクショナリティ",
+    "credits": 2
+  },
+  {
+    "number": "社21",
+    "name": "現代経済のしくみ",
+    "credits": 2
+  },
+  {
+    "number": "社22",
+    "name": "経済の歴史",
+    "credits": 2
+  },
+  {
+    "number": "社23",
+    "name": "現代企業のしくみⅠ",
+    "credits": 2
+  },
+  {
+    "number": "社24",
+    "name": "ベンチャー起業入門",
+    "credits": 2
+  },
+  {
+    "number": "社25",
+    "name": "ベンチャー起業実践",
+    "credits": 2
+  },
+  {
+    "number": "社26",
+    "name": "現代企業のしくみⅡ",
+    "credits": 2
+  },
+  {
+    "number": "社28",
+    "name": "現代経済の諸問題",
+    "credits": 2
+  },
+  {
+    "number": "社30",
+    "name": "大学教育論",
+    "credits": 2
+  },
+  {
+    "number": "社31",
+    "name": "教育政策史",
+    "credits": 2
+  },
+  {
+    "number": "社34",
+    "name": "マネジメント系SDGs演習",
+    "credits": 1
+  },
+  {
+    "number": "社35",
+    "name": "生命保険実務",
+    "credits": 2
+  },
+  {
+    "number": "社36",
+    "name": "損害保険実務",
+    "credits": 2
+  },
+  {
+    "number": "社91",
+    "name": "社会系特別講義Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "社92",
+    "name": "社会系特別講義Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "社基981",
+    "name": "プロジェクトマネジメント",
+    "credits": 2
+  },
+  {
+    "number": "社基982",
+    "name": "維持管理工学",
+    "credits": 2
+  },
+  {
+    "number": "社基983",
+    "name": "腐食防食と疲労",
+    "credits": 2
+  },
+  {
+    "number": "社基984",
+    "name": "減災計画",
+    "credits": 2
+  },
+  {
+    "number": "社基985",
+    "name": "環境衛生工学",
+    "credits": 2
+  },
+  {
+    "number": "社基991",
+    "name": "基礎流体力学",
+    "credits": 2
+  },
+  {
+    "number": "社基992",
+    "name": "橋設計論",
+    "credits": 2
+  },
+  {
+    "number": "社基994",
+    "name": "道路交通計画",
+    "credits": 2
+  },
+  {
+    "number": "社基997",
+    "name": "都市地域計画",
+    "credits": 2
+  },
+  {
+    "number": "社基998",
+    "name": "岩盤工学",
+    "credits": 2
+  },
+  {
+    "number": "総01",
+    "name": "脳の発達と人間",
+    "credits": 2
+  },
+  {
+    "number": "総06",
+    "name": "アメリカの文化と社会",
+    "credits": 2
+  },
+  {
+    "number": "総10",
+    "name": "住まいの科学",
+    "credits": 2
+  },
+  {
+    "number": "総100",
+    "name": "グローバル実践演習Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "総101",
+    "name": "グローバル実践演習Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "総102",
+    "name": "Urban Disaster Prevention",
+    "credits": 2
+  },
+  {
+    "number": "総103",
+    "name": "日本語学概説Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総104",
+    "name": "日本語学概説Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総105",
+    "name": "日本語教育学概説Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総106",
+    "name": "日本語教育学概説Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総107",
+    "name": "日本語教育各論Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総108",
+    "name": "日本語教育各論Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総109",
+    "name": "日本語教材研究Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総110",
+    "name": "日本語教材研究Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総111",
+    "name": "日本語教授法Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総112",
+    "name": "日本語教授法Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総113",
+    "name": "日本語教育実習",
+    "credits": 2
+  },
+  {
+    "number": "総114",
+    "name": "海外日本語教育実習Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総115",
+    "name": "日本語教育演習Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総116",
+    "name": "日本語教育演習Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総117",
+    "name": "日本語教育演習Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "総118",
+    "name": "日本語教育演習Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "総119",
+    "name": "国際共修で学ぶ日本文化Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総120",
+    "name": "国際共修で学ぶ日本文化Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総121",
+    "name": "国際共修で学ぶ日本史Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総122",
+    "name": "国際共修で学ぶ日本史Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総123",
+    "name": "国際共修で学ぶ沖縄の文化Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総124",
+    "name": "国際共修で学ぶ沖縄の文化Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総125",
+    "name": "国際共修で学ぶ沖縄の歴史Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総126",
+    "name": "国際共修で学ぶ沖縄の歴史Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総127",
+    "name": "グローバルSDGs概論",
+    "credits": 1
+  },
+  {
+    "number": "総128",
+    "name": "言語教育実習",
+    "credits": 2
+  },
+  {
+    "number": "総129",
+    "name": "グローカル・イノベーション演習Ⅰ",
+    "credits": 1
+  },
+  {
+    "number": "総130",
+    "name": "グローカル・イノベーション演習Ⅱ",
+    "credits": 1
+  },
+  {
+    "number": "総131",
+    "name": "グローカル・イノベーション演習Ⅲ",
+    "credits": 1
+  },
+  {
+    "number": "総132",
+    "name": "グローカル・イノベーション演習Ⅳ",
+    "credits": 1
+  },
+  {
+    "number": "総133",
+    "name": "ゲノム情報の生命科学とデータサイエンス入門",
+    "credits": 2
+  },
+  {
+    "number": "総134",
+    "name": "昆虫の科学",
+    "credits": 2
+  },
+  {
+    "number": "総14",
+    "name": "環境問題",
+    "credits": 2
+  },
+  {
+    "number": "総17",
+    "name": "情報科学概論",
+    "credits": 2
+  },
+  {
+    "number": "総20",
+    "name": "ヒトの科学と人間の医学",
+    "credits": 2
+  },
+  {
+    "number": "総21",
+    "name": "動物実験の基礎",
+    "credits": 2
+  },
+  {
+    "number": "総22",
+    "name": "生命科学入門",
+    "credits": 2
+  },
+  {
+    "number": "総28",
+    "name": "科学と擬似科学",
+    "credits": 2
+  },
+  {
+    "number": "総33",
+    "name": "人口と食糧",
+    "credits": 2
+  },
+  {
+    "number": "総36",
+    "name": "囲碁の世界",
+    "credits": 2
+  },
+  {
+    "number": "総38",
+    "name": "災害と安全",
+    "credits": 2
+  },
+  {
+    "number": "総47",
+    "name": "総合環境学概論",
+    "credits": 2
+  },
+  {
+    "number": "総49",
+    "name": "生活習慣病予防および健康増進",
+    "credits": 2
+  },
+  {
+    "number": "総50",
+    "name": "大学で何を学ぶか",
+    "credits": 2
+  },
+  {
+    "number": "総52",
+    "name": "海外文化研修Ａ(英語圏)",
+    "credits": 2
+  },
+  {
+    "number": "総53",
+    "name": "海外文化研修Ｂ(中国語圏)",
+    "credits": 2
+  },
+  {
+    "number": "総54",
+    "name": "海外文化研修Ｃ(スペイン語圏)",
+    "credits": 4
+  },
+  {
+    "number": "総55",
+    "name": "海外文化研修Ｄ(フランス語圏)",
+    "credits": 4
+  },
+  {
+    "number": "総56",
+    "name": "海外文化研修Ｅ(ドイツ語圏)",
+    "credits": 4
+  },
+  {
+    "number": "総57",
+    "name": "環境インターンシップⅠ",
+    "credits": 2
+  },
+  {
+    "number": "総58",
+    "name": "環境インターンシップⅡ",
+    "credits": 2
+  },
+  {
+    "number": "総62",
+    "name": "環境と文学",
+    "credits": 2
+  },
+  {
+    "number": "総65",
+    "name": "異文化コミュニケーション入門",
+    "credits": 2
+  },
+  {
+    "number": "総67",
+    "name": "グローバル実践演習Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総68",
+    "name": "グローバル実践演習Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総76",
+    "name": "倫理総合討論",
+    "credits": 2
+  },
+  {
+    "number": "総77",
+    "name": "地震と防災",
+    "credits": 2
+  },
+  {
+    "number": "総79",
+    "name": "総合環境論",
+    "credits": 2
+  },
+  {
+    "number": "総83",
+    "name": "適応の心理",
+    "credits": 2
+  },
+  {
+    "number": "総91",
+    "name": "総合特別講義Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "総92",
+    "name": "総合特別講義Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "総93",
+    "name": "総合特別講義Ⅲ",
+    "credits": 2
+  },
+  {
+    "number": "総94",
+    "name": "総合特別講義Ⅳ",
+    "credits": 2
+  },
+  {
+    "number": "総95",
+    "name": "総合特別講義Ⅴ",
+    "credits": 2
+  },
+  {
+    "number": "総96",
+    "name": "総合特別講義Ⅵ",
+    "credits": 2
+  },
+  {
+    "number": "総97",
+    "name": "総合特別講義Ⅶ",
+    "credits": 2
+  },
+  {
+    "number": "総98",
+    "name": "総合特別講義Ⅷ",
+    "credits": 2
+  },
+  {
+    "number": "総99",
+    "name": "総合特別講義Ⅸ",
+    "credits": 2
+  },
+  {
+    "number": "自01",
+    "name": "大気の科学",
+    "credits": 2
+  },
+  {
+    "number": "自02",
+    "name": "地球の科学",
+    "credits": 2
+  },
+  {
+    "number": "自03",
+    "name": "海洋の科学",
+    "credits": 2
+  },
+  {
+    "number": "自11",
+    "name": "統計と社会",
+    "credits": 2
+  },
+  {
+    "number": "自12",
+    "name": "数理の構造",
+    "credits": 2
+  },
+  {
+    "number": "自13",
+    "name": "数の文化",
+    "credits": 2
+  },
+  {
+    "number": "自21",
+    "name": "時間と空間",
+    "credits": 2
+  },
+  {
+    "number": "自22",
+    "name": "人間と物理学",
+    "credits": 2
+  },
+  {
+    "number": "自32",
+    "name": "分子の世界",
+    "credits": 2
+  },
+  {
+    "number": "自41",
+    "name": "生物の生活",
+    "credits": 2
+  },
+  {
+    "number": "自42",
+    "name": "生命の科学",
+    "credits": 2
+  },
+  {
+    "number": "自54",
+    "name": "沖縄の風景",
+    "credits": 2
+  },
+  {
+    "number": "自55",
+    "name": "社会統計学基礎",
+    "credits": 2
+  },
+  {
+    "number": "自57",
+    "name": "ランドスケープ論",
+    "credits": 2
+  },
+  {
+    "number": "自61",
+    "name": "地球環境と科学技術",
+    "credits": 2
+  },
+  {
+    "number": "自64",
+    "name": "自然環境と土木工学",
+    "credits": 2
+  },
+  {
+    "number": "自65",
+    "name": "生物資源利用とサイエンス",
+    "credits": 2
+  },
+  {
+    "number": "自71",
+    "name": "ヒトの健康科学",
+    "credits": 2
+  },
+  {
+    "number": "自83",
+    "name": "ライフサイエンス系SDGs演習",
+    "credits": 1
+  },
+  {
+    "number": "自84",
+    "name": "エンジニアリング系SDGs演習",
+    "credits": 1
+  },
+  {
+    "number": "自91",
+    "name": "自然系特別講義Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "自92",
+    "name": "自然系特別講義Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "転03",
+    "name": "微分積分学入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "転04",
+    "name": "微分積分学入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "転11",
+    "name": "物理学入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "転12",
+    "name": "物理学入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "転23",
+    "name": "化学入門Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "転24",
+    "name": "化学入門Ⅱ",
+    "credits": 2
+  },
+  {
+    "number": "電情981",
+    "name": "電気電子計測工学Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "電情983",
+    "name": "量子力学Ⅰ",
+    "credits": 2
+  },
+  {
+    "number": "電情991",
+    "name": "電気電子工学基礎",
+    "credits": 2
+  },
+  {
+    "number": "電情992",
+    "name": "通信工学概論",
+    "credits": 2
+  },
+  {
+    "number": "電気981",
+    "name": "パワーエレクトロニクス",
+    "credits": 2
+  },
+  {
+    "number": "電気984",
+    "name": "電気機器",
+    "credits": 2
+  },
+  {
+    "number": "電気985",
+    "name": "発電工学",
+    "credits": 2
+  },
+  {
+    "number": "電気991",
+    "name": "電気電子工学基礎",
+    "credits": 2
+  },
+  {
+    "number": "電気992",
+    "name": "メカトロニクス",
+    "credits": 2
+  }
+]
