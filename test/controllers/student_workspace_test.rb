@@ -616,7 +616,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
     assert_select '#catalogue', count: 0
     assert_select '[data-catalogue-key]', count: 0
-    assert_select "a[data-catalogue-toggle='open'][href=?]", plan_path(term: '4-前期', pane: 'catalogue'), text: /便覧から探す/
+    assert_select "a[data-catalogue-toggle='open'][href=?]", plan_path(term: '4-前期', pane: 'catalogue'), text: /科目名で検索/
 
     get plan_path(term: '4-前期', pane: 'catalogue')
 
@@ -624,7 +624,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     category = @candidate.fetch('category')
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] [data-catalogue-category]",
                   text: StudentWorkspaceHelper::CATEGORY_LABELS.fetch(category, category)
-    assert_select "a[data-catalogue-toggle='close'][href=?]", plan_path(term: '4-前期'), text: /便覧を閉じる/
+    assert_select "a[data-catalogue-toggle='close'][href=?]", plan_path(term: '4-前期'), text: /検索を閉じる/
   end
 
   test '便覧のパネルを開いたまま学期を切り替えられる' do
