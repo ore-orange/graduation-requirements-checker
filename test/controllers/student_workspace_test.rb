@@ -649,6 +649,15 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "a[data-catalogue-toggle='close'][href=?]", plan_path(term: '4-前期'), text: /検索を閉じる/
   end
 
+  test '学期ボタン列は、幅640以上の画面ではスクロールしても上に残る（学期の画面でも一覧でも）' do
+    [plan_path(term: '4-前期'), plan_path(view: 'all')].each do |path|
+      get path
+
+      assert_select '[data-term-switcher] nav[aria-label=?]', '学期の切り替え', count: 1
+      assert_includes css_select('[data-term-switcher]').first['class'].split, 'sm:sticky', "#{path} で上に残らない"
+    end
+  end
+
   test '便覧のパネルを開いたまま学期を切り替えられる' do
     get plan_path(term: '4-前期', pane: 'catalogue')
 

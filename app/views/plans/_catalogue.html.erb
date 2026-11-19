@@ -2,9 +2,10 @@
 <%# せまい画面（幅1280未満）では、表と並べる場所がないので、画面の右側に重ねて出す %>
 <%# スマホではナビが2段になるので、ナビの上まで重ねる（z-40）。lg 以上ではナビ（z-30、高さ4rem）の下に出す %>
 <%# 広い画面（xl 以上）では表の右に並べ、表をスクロールしてもパネルが画面に残るようにする %>
+<%# 上に残る学期ボタン列（メニューの下、下端は上から約154px）と重ならないよう、止まる位置を上から11rem（176px）にし、高さもその分縮める %>
 <aside id="catalogue" aria-labelledby="catalogue-heading"
        class="fixed z-40 top-0 lg:z-20 lg:top-16 right-0 bottom-0 w-full max-w-sm flex flex-col bg-white border-l border-slate-200 shadow-xl p-4
-              xl:sticky xl:z-auto xl:top-20 xl:right-auto xl:bottom-auto xl:w-96 xl:shrink-0 xl:max-h-[calc(100vh-6rem)] xl:rounded-2xl xl:border xl:border-slate-200/80 xl:shadow-xs">
+              xl:sticky xl:z-auto xl:top-44 xl:right-auto xl:bottom-auto xl:w-96 xl:shrink-0 xl:max-h-[calc(100vh-12rem)] xl:rounded-2xl xl:border xl:border-slate-200/80 xl:shadow-xs">
   <div class="flex items-start justify-between gap-2">
     <div>
       <h2 id="catalogue-heading" class="text-base font-bold text-slate-900">科目名で検索</h2>

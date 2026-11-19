@@ -40,35 +40,39 @@
     </div>
 
     <!-- 学期の切り替え（せまい画面ではボタンの列だけ横にスクロール） -->
-    <nav class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-3" aria-label="学期の切り替え">
-      <ol class="flex gap-1.5 overflow-x-auto">
-        <!-- 全学期の一覧。2行目は全学期の単位の合計 -->
-        <li class="flex-1 min-w-max">
-          <%# 便覧のパネルを開いているときは、一覧と学期を行き来しても開いたままにする %>
-          <%= link_to plan_path(view: 'all', pane: ('catalogue' if @catalogue_open)),
-                      class: "#{button_class} #{@overview ? selected_class : unselected_class}",
-                      aria: { current: (@overview ? 'page' : nil) }, data: { term_button: 'all' } do %>
-            <span>一覧</span>
-            <span class="text-[11px] font-normal <%= @overview ? 'text-indigo-100' : 'text-slate-400' %>">合計 <%= credit_number(overall_credit[:total]) %>単位</span>
-          <% end %>
-        </li>
-        <li class="w-px shrink-0 my-2 bg-slate-200" aria-hidden="true"></li>
-        <% @terms.each do |term| %>
-          <% selected = !@overview && term == @term %>
+    <%# 幅640以上では、スクロールしても上のメニュー（高さ4rem）のすぐ下に残す。スマホは上のメニューが2段で場所をとるので残さない %>
+    <%# 外側の箱は、上に残ったときにメニューとのすき間から表が透けて見えないよう、背景の色で埋める %>
+    <div class="sm:sticky sm:top-16 sm:z-20 sm:-mt-2 sm:pt-2 bg-slate-50" data-term-switcher>
+      <nav class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-3" aria-label="学期の切り替え">
+        <ol class="flex gap-1.5 overflow-x-auto">
+          <!-- 全学期の一覧。2行目は全学期の単位の合計 -->
           <li class="flex-1 min-w-max">
-            <%= link_to plan_path(term: term_param(term), pane: ('catalogue' if @catalogue_open)),
-                        class: "#{button_class} #{selected ? selected_class : unselected_class}",
-                        aria: { current: (selected ? 'page' : nil) },
-                        data: { term_button: term_param(term), term_current: (term == @current_term ? true : nil) } do %>
-              <span><%= term_label(term) %></span>
-              <span class="text-[11px] font-normal <%= selected ? 'text-indigo-100' : 'text-slate-400' %>">
-                <%= credit_number(credits_of_term.fetch(term)[:total]) %>単位<%= '・現在' if term == @current_term %>
-              </span>
+            <%# 便覧のパネルを開いているときは、一覧と学期を行き来しても開いたままにする %>
+            <%= link_to plan_path(view: 'all', pane: ('catalogue' if @catalogue_open)),
+                        class: "#{button_class} #{@overview ? selected_class : unselected_class}",
+                        aria: { current: (@overview ? 'page' : nil) }, data: { term_button: 'all' } do %>
+              <span>一覧</span>
+              <span class="text-[11px] font-normal <%= @overview ? 'text-indigo-100' : 'text-slate-400' %>">合計 <%= credit_number(overall_credit[:total]) %>単位</span>
             <% end %>
           </li>
-        <% end %>
-      </ol>
-    </nav>
+          <li class="w-px shrink-0 my-2 bg-slate-200" aria-hidden="true"></li>
+          <% @terms.each do |term| %>
+            <% selected = !@overview && term == @term %>
+            <li class="flex-1 min-w-max">
+              <%= link_to plan_path(term: term_param(term), pane: ('catalogue' if @catalogue_open)),
+                          class: "#{button_class} #{selected ? selected_class : unselected_class}",
+                          aria: { current: (selected ? 'page' : nil) },
+                          data: { term_button: term_param(term), term_current: (term == @current_term ? true : nil) } do %>
+                <span><%= term_label(term) %></span>
+                <span class="text-[11px] font-normal <%= selected ? 'text-indigo-100' : 'text-slate-400' %>">
+                  <%= credit_number(credits_of_term.fetch(term)[:total]) %>単位<%= '・現在' if term == @current_term %>
+                </span>
+              <% end %>
+            </li>
+          <% end %>
+        </ol>
+      </nav>
+    </div>
 
     <%# 左に表（一覧、または学期の表）、右に便覧カタログのパネル（開いているときだけ）。せまい画面ではパネルは画面の右側に重なる %>
     <%# 一覧の表は幅が広いので、パネルと並べると表の中で横にスクロールする %>
