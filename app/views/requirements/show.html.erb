@@ -16,8 +16,22 @@
     <% if @published %>
       <%= render 'published' %>
     <% elsif @selection.complete? %>
-      <%= render 'empty' %>
+      <%# 公開済みが無い。下書きがあればその続きへ、どちらも無ければ「ありません」と作り始める入口 %>
+      <% if @drafts.any? %>
+        <%= render 'drafts', drafts: @drafts %>
+      <% else %>
+        <%= render 'empty' %>
+      <% end %>
+    <% else %>
+      <%# 選択肢にない年度・コースの便覧も、ここから作り始められる。普段は畳んでおく %>
+      <details class="rounded-2xl border border-slate-200 bg-white shadow-xs" data-new-curriculum>
+        <summary class="cursor-pointer px-5 py-4 text-sm font-semibold text-indigo-700 sm:px-6">
+          選択肢にない年度・コースの便覧を、PDFから新しく作る
+        </summary>
+        <div class="px-5 pb-5 sm:px-6 sm:pb-6">
+          <%= render 'upload' %>
+        </div>
+      </details>
     <% end %>
-
   </main>
 </div>

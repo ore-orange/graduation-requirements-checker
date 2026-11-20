@@ -89,7 +89,9 @@ jobs:
 
     steps:
       - name: Install packages
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpq-dev libvips
+        # ghostscript は、便覧PDFの取り込み(CurriculumImport::PageSource)が gs を呼ぶため。
+        # 開発・本番のイメージには Dockerfile で入っている。
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpq-dev libvips ghostscript
 
       - name: Checkout code
         uses: actions/checkout@v7
