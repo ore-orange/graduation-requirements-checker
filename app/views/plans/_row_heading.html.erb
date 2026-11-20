@@ -8,6 +8,7 @@
 <% if subtotal %>
   <%= render 'plans/credit_badge', credits: row_credits, req: nil, status: nil %>
 <% else %>
-  <%= render 'plans/credit_badge', credits: row_credits, req: row[:req], status: row_status, row_id: row[:id] %>
+  <%# 必要単位がない区分（専門科目（自由））は、足りているかどうかの色を付けない %>
+  <%= render 'plans/credit_badge', credits: row_credits, req: row[:req], status: (row_status if row[:req]), row_id: row[:id] %>
 <% end %>
 <p class="mt-1.5 text-[11px] text-slate-400 font-normal leading-relaxed"><%= row[:subtitle] %></p>
