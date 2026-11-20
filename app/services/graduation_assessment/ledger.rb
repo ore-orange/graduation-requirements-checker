@@ -4,8 +4,10 @@ class GraduationAssessment
   # 算入可能な単位と、未確定事項が影響する区分・科目を一緒に保持する。
   class Ledger
     Item = Struct.new(:course, :credits, :counted, :reason, keyword_init: true)
+    NUMBER_GROUPERS = { 'number_prefix' => :prefix, 'number_prefix_hundreds' => :hundreds }.freeze
+    FIELD_GROUP = 'field:'
     attr_reader :items, :notes, :uncertain_roles, :uncertain_required
-    attr_accessor :fusion_provider_unknown, :foreign_language_unknown, :unknown_identity
+    attr_accessor :unknown_identity
 
     def self.decimal(value)
       return unless value.is_a?(Numeric)
@@ -96,26 +98,19 @@ class GraduationAssessment
       end
     end
 
-    def apply_natural_cap
-      remaining = BigDecimal('2')
-      # 入力順ではなく正規キー順に上限を配分し、説明を安定させる。
-      items.sort_by { |key, _| key }.each do |_, item|
-        next unless item.course['category'] == 'natural' && item.counted.positive?
-
-        allowed = [remaining, item.counted].min
-        item.reason = "自然系は卒業算入上限2単位（この科目は#{allowed.to_s('F')}単位を算入）" if allowed < item.counted
-        item.counted = allowed
-        remaining -= allowed
+    # 区分の算入単位をグループごとに合計する。group_by は科目番号の接頭辞（number_prefix）、
+    # 接頭辞＋百の位（number_prefix_hundreds）、または科目の欄（field:language など）。
+    # グループを決められない科目（番号が読めない、欄が空）は含めない。
+    def grouped_credits_by(category, group_by)
+      counted_items(category).each_with_object(Hash.new(Catalogue::ZERO)) do |item, totals|
+        group = group_of(item.course, group_by)
+        totals[group] += item.counted if group
       end
     end
 
-    def grouped_credits(category, field)
-      items.values.each_with_object(Hash.new(Catalogue::ZERO)) do |item, totals|
-        next unless item.course['category'] == category
-
-        group = item.course[field]
-        totals[group] += item.counted if group.present?
-      end
+    # 区分に算入済みで、グループを決められない科目。そのグループは分からないので最大値を信用できない。
+    def ungrouped_courses(category, group_by)
+      counted_items(category).map(&:course).select { |course| group_of(course, group_by).nil? }
     end
 
     def course_results
@@ -124,6 +119,19 @@ class GraduationAssessment
                          counted_credits: item.counted, reason: item.reason)
       end
       (results + @extra_results).freeze
+    end
+
+    private
+
+    # 欄で分けるときは、番号の読み方に頼らず、科目が持つ値をそのまま使う（外7xx は1つの言語ではない）。
+    def group_of(course, group_by)
+      return course[group_by.delete_prefix(FIELD_GROUP)].presence if group_by.to_s.start_with?(FIELD_GROUP)
+
+      CourseNumber.public_send(NUMBER_GROUPERS.fetch(group_by), course['number'])
+    end
+
+    def counted_items(category)
+      items.values.select { |item| item.course['category'] == category && item.counted.positive? }
     end
   end
 end

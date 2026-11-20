@@ -1,12 +1,14 @@
 # 卒業要件データと判定の契約
 
-要件文書は`config/curricula/<department_slug>/<admission_year>.json`に保存する。現在の対象は`intelligent_informatics/2024.json`（琉球大学 工学部 工学科 知能情報コース、2024年度入学）。取得キーの`department`はRepositoryの既存Interface名であり、DB上の学科名・コース名・プログラム名を同一視するものではない。
+要件文書は`config/curricula/<department_slug>/<admission_year>.json`に置く。現在の対象は`intelligent_informatics/2024.json`（琉球大学 工学部 工学科 知能情報コース、2024年度入学）。このファイルは`bin/rails db:seed`で`curricula`表に公開済みとして入れる元データで、判定の golden テストと整合性テストの入力でもある。アプリが実行時に読むのはファイルではなくDBの行。`slug`は学科名・コース名・プログラム名と同一視しない。
 
 ```ruby
-curriculum = CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
+curriculum = Curriculum.published.find_by!(slug: 'intelligent_informatics', admission_year: 2024)
+curriculum.document   # => 要件文書のHash
+curriculum.catalogue  # => GraduationAssessment::Catalogue
 ```
 
-この呼び出しは登録済みのHashを返す。未登録の対象は`NotFound`になる。学部階層やプログラム別ファイルの合成、JSONB保存は導入していない。
+`Curriculum.seed_from_file(path)`はslugをディレクトリ名、入学年度をファイル名から決め、同じslug・年度の公開済みの行があれば更新する（何度流しても増えない）。公開済みは同じslug・年度に1つだけで、下書きは何件でも置ける。壊れた文書は`catalogue`を呼んだ時点で`ArgumentError`になる。学部階層やプログラム別ファイルの合成は導入していない。
 
 ## 出典と対象範囲
 
@@ -18,20 +20,83 @@ curriculum = CurriculumRepository.find(department: 'intelligent_informatics', ad
 
 知能327の重複印刷は1科目として登録する。知能情報特別講義Ⅴ・Ⅵは分類表にある一方、番号・単位の掲載がないため、その項目は`null`と確認理由を保持する。未確認の値を作らない。
 
-## 文書形式（format_version: 1）
+## 文書形式（format_version: 2）
 
 | フィールド | 内容 |
 | --- | --- |
 | `department` / `admission_year` / `title` | 対象の取得キー・入学年度・表示名 |
 | `sources` | 一次資料の識別子・タイトル・URL・ページ・注意点 |
-| `requirements` | 指定英語・日本語表現法入門・微分積分の二系列・物理の代替科目を識別するrole |
-| `courses` | 科目別の正規キー・番号・名称・単位・区分・必修フラグ・提供コース・言語・role・出典・確認理由・承認条件・選択可否 |
+| `categories` | 区分の`key`・和名`label`・卒業総単位に数えるか`counts_toward_total` |
+| `rules` | 卒業要件の条件と、算入を変える調整。下記のルールDSL |
+| `display` | 画面の章・行・小計の組み立て。要件そのものではなく見せ方 |
+| `courses` | 科目別の正規キー・番号・名称・単位・区分・必修フラグ・言語・role・出典・確認理由・承認条件・選択可否 |
 
-`courses[].key`は、DB連番や名称検索に依存しない明示的な参照キー。`Course.curriculum_key`と対応させる。科目番号や名称が一致するだけでは別科目を同一視しない。
+判定のしかたはコードではなくこのJSONが決める。`GraduationAssessment::Evaluation`は`rules`を並び順に解釈するだけで、区分名も必要単位も文面もコードには持たない。2024年度の便覧は22区分・27規則（条件24・調整3）を持つ。
 
-`credits`は一次資料の所定単位で、未確認なら`null`。`review_reason`は未確認の理由。`requires_approval`は学生別の承認確認が必要なことを示す規則であり、承認済みという事実ではない。自コース提供の工学融合等は`selectable: false`とする。
+`courses[].key`は、判定が便覧の科目を引くための便覧内の参照キー。DBの`Course`はキーを持たない。学生の履修・予定は、学生が持つ便覧（`Student#curriculum`）の`courses[].number`を`Course.course_number`で引いて、この`key`に当てる（`StudentWorkspace`）。同じ科目番号の`Course`が複数あるときは、どれかを選ばず要確認にする。
 
-Repositoryの形式検証はJSONオブジェクトであることまでであり、JSON Schemaはまだ導入していない。卒業単位の条件式は、当該年度専用の`GraduationAssessment`と[判定設計](../../docs/graduation-rules-2024.md)で管理する。汎用のルールDSLではない。
+`credits`は一次資料の所定単位で、未確認なら`null`。`review_reason`は未確認の理由。`requires_approval`は学生別の承認確認が必要なことを示す規則であり、承認済みという事実ではない。自コース提供の工学融合等は`selectable: false`とする。`number`は科目番号で、一次資料に無ければ`null`。`language`は外国語科目の言語で、一外国語の集計はこの欄で分ける（科目番号の百の位では分けない。外7xxにはインドネシア語・タイ語・ラテン語・ロシア語が混ざる）。
+
+`Catalogue`の読み込み時検証（科目・区分の重複、区分の参照先、規則の形）はあるが、JSON Schemaはまだ導入していない。年度ごとの判定の根拠は[判定設計](../../docs/graduation-rules-2024.md)に残す。
+
+### 規則（`rules`）
+
+各規則は`id`・`type`を持つ。条件はさらに`label`（画面の見出し）・`source_page`（根拠の出典）・`detail`（説明文の前半。コードが「確認済み算入○／必要○単位。」を後ろに足す）を持つ。`id`は`display`の`check_ids`から参照されるので、変えると画面の行が単位を見失う。
+
+条件は7種類。
+
+| `type` | 判定 | 主な欄 |
+| --- | --- | --- |
+| `credit_sum` | 指定した区分の算入単位の合計が`required_credits`に届くか | `categories`・`required_credits` |
+| `all_required` | `courses[].required`の科目をすべて修得しているか。余剰単位による代用は不可 | `expected_course_count`・`required_credits`・`required_categories` |
+| `one_of_paths` | roleの組で表した経路のうち、どれか1つを丸ごと満たすか | `paths`（roleの配列の配列）・`review_note` |
+| `grouped_max` | 区分の算入単位を`group_by`でグループに分け、最大のグループが`required_credits`に届くか。グループを合算しない | `category`・`group_by`・`group_label`・`required_credits` |
+| `any_of` | `options`のどれか1つを満たせばよい | `options` |
+| `all_of` | `conditions`をすべて満たす。`any_of`の選択肢としてだけ置ける | `conditions` |
+| （未対応の`type`） | 充足とは答えず、必ず要確認にして理由を残す | — |
+
+`grouped_max`の`group_by`は`number_prefix`（科目番号の接頭辞。提供コースを表す）、`number_prefix_hundreds`（接頭辞＋百の位）、`field:<欄名>`（`field:language`など、科目の欄の値）のいずれか。グループを決められない科目（番号が読めない、欄が空）は最大値に算入せず、`group_label`を使った要確認の注記を残す。
+
+入れ子は`any_of` → `all_of`の2段まで。`any_of`の選択肢に置けるのは`credit_sum`・`grouped_max`・`all_of`、`all_of`の条件に置けるのは`credit_sum`・`grouped_max`。それより深い位置や置けない`type`の規則は、例外にはせず要確認にする（解釈できない規則を充足と答えないため）。
+
+`all_required`の`expected_course_count`・`required_credits`・`required_categories`は、科目表の転記漏れを見張るための控え。科目表の必修の数・単位合計がこの値と合わないとき、または必修の科目が`required_categories`の外の区分に入っているときは、不足ではなく要確認にする。区分の取り違えは科目数も単位合計も合ったまま通ってしまい、その単位が選択の集計にも流れ込んで二重に数えられる。
+
+`one_of_paths`で複数の経路に算入済みの役割があるときは、組合せと重複算入を確認できるまで、その経路の全役割を算入から外して`review_note`の文面を残す。
+
+### 調整（`rules`のうち`cap`・`exclude`）
+
+調整は判定を作らず、条件を評価する前に算入そのものを変える。`rules`の中に条件と混在して置ける（`display`の順に合わせるため、並び順は保たれる）。
+
+| `type` | はたらき | 欄 |
+| --- | --- | --- |
+| `cap` | 区分の算入単位を`credits`で打ち切る。正規キー順に配分し、打ち切った科目に理由を残す | `category`・`credits` |
+| `exclude` | 当たった科目を算入の対象にしない | `category`・`reason`・`number_prefix`（任意） |
+
+`exclude`は`category`が一致した科目に当たる。`number_prefix`があれば科目番号の接頭辞も一致した科目だけに絞る（自コース提供の工学融合は`category: fusion` + `number_prefix: 知能`）。科目番号が読めない科目は接頭辞の規則に当たらない。読めないことは、その接頭辞に属する根拠にならない。
+
+壊れた調整は黙って落とさず、便覧を読み込む時点で`ArgumentError`にする。`cap`の`credits`が0以上の有限な数でない場合と、`exclude`の`category`・`reason`が空、`number_prefix`が空白や全角を含む場合。
+
+### 画面の組み立て（`display`）
+
+`total_credits`は卒業に必要な総単位。`groups`は画面の章で、章ごとに`title`・`required_credits`・`check_id`と、行`rows`を持つ。行は`name`・`subtitle`・`required_credits`・`required_label`・`categories`（その行に集める区分）・`check_ids`（その行に出す判定）・`credits_from_check`（単位を区分の合計ではなく判定の値から取るか）を持つ。`subtotals`は複数の行にまたがる小計。
+
+`display`は見せ方だけを持ち、卒業要件そのものは`rules`にある。両者の対応（`check_ids`の綴り、どの行にも出ない区分）は`test/services/graduation_assessment/handbook_integrity_test.rb`が見張る。
+
+**`display`は卒業ダッシュボードと履修計画表の章・行・小計、区分の和名（`categories`の`label`）、卒業総単位の元になっている。** 画面のRubyは章立てを持たず、`display`を編集すれば表示が変わる。`display`が無い便覧は、別の便覧の章立てで描かず、画面で例外になる。`required_credits`・`required_label`は画面側では`req`・`req_label`として読む。
+
+### 読み込み時に弾くもの
+
+`Catalogue`は、`categories`か`rules`のどちらかを持つ便覧を「規則で判定する便覧」とみなし、次を検めて外れていれば例外にする。壊れた便覧が正しく見えたまま、学生の判定を狂わせないため。
+
+`format_version`の記載では判断しない。欄だけformat 2で`format_version`が1のままの便覧や、`format_version`を書いていない便覧が、検めを素通りしてしまうため。
+
+- `courses`の`number`に重複がある（`ArgumentError`）。同じ番号の科目が2つあると、学生の履修が違う科目に解決される。空・`null`の`number`は弾かない（知能情報特別講義Ⅴ・Ⅵは分類表にしか載っておらず、意図的に番号を持たない）
+- `categories`の要素に`key`が無い、または`key`が重複している（`ArgumentError`）
+- `rules`が`categories`に無い区分を参照している（`ArgumentError`）。入れ子の`options`・`conditions`と、`all_required`の`required_categories`もたどる
+- 条件が1つも無い（`ArgumentError`）。`rules`が空、`rules`の欄が無い、調整しか置いていない、のいずれも。条件ゼロの便覧は、何も確かめないまま判定を返してしまう
+- `all_required`の`required_categories`が、空でない区分キーの配列でない（`ArgumentError`）。欄が無い・`null`・`[]`・文字列・文字列以外を含む配列のいずれも弾く。この欄が無いと、必修の科目が必修の区分の外に入っていることを見張れない
+- `cap`・`exclude`の定義が壊れている（`ArgumentError`）
+- `one_of_paths`に`paths`が無い（`KeyError`）
 
 ## 判定Interface
 
@@ -46,12 +111,6 @@ result = GraduationAssessment.new(curriculum: curriculum).call(
 戻り値は`actual`と`projected`のSnapshot。Snapshotは`status`（`:satisfied` / `:unmet` / `:needs_review`）、`counted_credits`、条件ごとの`checks`、`review_notes`、科目ごとの`course_results`を返す。
 
 同一キーの修得済み科目を予定に重ねても増加させない。修得単位の競合や未確認の代替関係は勝手に最大値・最新値を選ばない。算入対象外と確定した科目は、履修状態が不明でも0単位の除外理由を表示し、その記録だけを理由に最終判定を要確認にはしない。
-
-## Repository取得の契約
-
-`find(department:, admission_year:)`はHashを返す。departmentは小文字英数字とアンダースコアのslug（先頭は英字）、admission_yearは1〜9999のInteger。
-
-`InvalidInput`、`NotFound`、`InvalidDocument`、`ReadError`はいずれも`CurriculumRepository::Error`。ファイルの場所やパース元本文はエラーに含めない。symlinkを含む保存ディレクトリ外への参照を拒否する。
 
 ## デモ履修データとの分離
 

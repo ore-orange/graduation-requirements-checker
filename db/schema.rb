@@ -41,10 +41,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_060000) do
     t.integer "credits"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "curriculum_key"
+    t.string "custom_category"
     t.index ["course_number"], name: "index_courses_on_course_number"
-    t.index ["curriculum_key"], name: "index_courses_on_curriculum_key", unique: true, where: "(curriculum_key IS NOT NULL)"
     t.check_constraint "credits::numeric >= 0::numeric", name: "courses_nonnegative_credits"
+  end
+
+  create_table "curricula", force: :cascade do |t|
+    t.string "slug", null: false
+    t.integer "admission_year", null: false
+    t.string "faculty_name"
+    t.string "department_name"
+    t.string "title"
+    t.jsonb "document", default: {}, null: false
+    t.string "source_filename"
+    t.jsonb "pages", default: []
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "import_error"
+    t.index ["slug", "admission_year"], name: "index_curricula_on_published_slug_and_year", unique: true, where: "(published_at IS NOT NULL)"
   end
 
   create_table "departments", force: :cascade do |t|
@@ -70,6 +85,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_060000) do
     t.datetime "updated_at", null: false
     t.integer "academic_year", null: false
     t.string "semester", null: false
+    t.boolean "approval_confirmed"
     t.index ["course_id"], name: "index_planned_courses_on_course_id"
     t.index ["student_id", "course_id"], name: "index_planned_courses_on_student_id_and_course_id", unique: true
     t.index ["student_id"], name: "index_planned_courses_on_student_id"
@@ -135,6 +151,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_060000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "program_id", null: false
+    t.bigint "curriculum_id"
+    t.index ["curriculum_id"], name: "index_students_on_curriculum_id"
     t.index ["program_id", "admission_year"], name: "index_students_on_program_id_and_admission_year"
     t.index ["program_id"], name: "index_students_on_program_id"
     t.index ["user_id"], name: "index_students_on_user_id", unique: true
@@ -199,6 +217,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_060000) do
   add_foreign_key "student_courses", "students"
   add_foreign_key "student_program_assignments", "programs"
   add_foreign_key "student_program_assignments", "students"
+  add_foreign_key "students", "curricula"
   add_foreign_key "students", "programs"
   add_foreign_key "students", "users"
   add_foreign_key "timetable_upload_rows", "courses"

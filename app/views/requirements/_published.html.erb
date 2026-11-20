@@ -1,0 +1,131 @@
+<%# 公開済みの便覧の卒業要件。学生の判定に使われている文書を、そのまま見せる %>
+<%
+  display = @curriculum.fetch('display')
+  groups = display.fetch('groups')
+  rows_by_id = groups.flat_map { |group| group.fetch('rows') }.index_by { |row| row['id'] }
+  # 章・枠・行・決まりの入れ子を1回だけ組み立てる。枠の作り方は要件表の確認画面と同じ組み立てを使う。
+  deck = requirement_deck(@curriculum)
+  tree = deck.tree
+%>
+
+<%# 卒業要件は、総単位を一番上にした1本の入れ子にする（総単位 → 章 → 枠 → 行 → 決まり）。
+    名前と必要単位は、どの段も左の同じ列に置く。親が右・子が左だと、合計と内訳が別の表に見える。
+    数字の大きさは上の段ほど大きくし、どれが合計でどれが内訳かを一目で分かるようにする。
+    行のカードの殻・余白は卒業ダッシュボードの区分カード（dashboard/show）に揃える。ダッシュボードの修得状況
+    （バッジ・進み具合のバー・開閉・内訳の読み込み）は学生の進み具合の部品なので、この画面には持ち込まない。 %>
+<section aria-labelledby="total-heading" data-requirement-tree
+         class="overflow-hidden rounded-2xl border border-slate-300 bg-slate-100/70 shadow-xs">
+  <div class="grid gap-3 border-b border-slate-200 bg-white p-5 sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-6 sm:p-6">
+    <div>
+      <h3 id="total-heading" class="text-xs font-semibold text-slate-500">卒業に必要な単位</h3>
+      <p class="mt-1 flex flex-wrap items-baseline gap-x-1.5" data-total-credits>
+        <span class="text-5xl font-extrabold tracking-tight text-slate-900 tabular-nums"><%= credit_number(display['total_credits']) %></span>
+        <span class="text-sm font-medium text-slate-500">単位</span>
+      </p>
+    </div>
+    <div class="min-w-0 space-y-1 sm:border-l sm:border-slate-100 sm:pl-6">
+      <p class="text-sm font-semibold text-slate-900"><%= @curriculum['title'] %></p>
+      <p class="text-xs text-slate-500">
+        学生便覧に載っている卒業要件を、そのまま表示しています。印刷された便覧と見比べて確認できます。この画面から要件は変更できません。
+      </p>
+    </div>
+  </div>
+
+  <div class="space-y-4 p-3 sm:p-4">
+    <% groups.each_with_index do |group, group_index| %>
+      <section aria-labelledby="group-<%= group['id'] %>-heading" data-group="<%= group['id'] %>"
+               class="overflow-hidden rounded-2xl border border-slate-300 bg-slate-100/70 shadow-xs">
+        <div class="grid gap-3 border-b border-slate-200 bg-white p-5 sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-6 sm:px-6 sm:py-5">
+          <div>
+            <h3 id="group-<%= group['id'] %>-heading" class="text-xs font-semibold text-slate-500"><%= group['title'] %></h3>
+            <p class="mt-1 flex flex-wrap items-baseline gap-x-1.5" data-group-credits>
+              <span class="text-4xl font-extrabold tracking-tight text-slate-900 tabular-nums"><%= credit_number(group['required_credits']) %></span>
+              <span class="text-sm font-medium text-slate-500">単位</span>
+            </p>
+          </div>
+        </div>
+        <ul class="space-y-3 p-3 sm:p-4">
+          <% tree.nodes_of(group_index).each do |node, _row_index| %>
+            <% if requirement_frame?(node) %>
+              <%= render 'requirement_frame', deck: deck, frame: node, group: group %>
+            <% else %>
+              <%= render 'requirement_card', **row_card_locals(deck, node, nil, group) %>
+            <% end %>
+          <% end %>
+        </ul>
+      </section>
+    <% end %>
+  </div>
+</section>
+
+<%# 枠にできなかった小計（まとめている行が1つの章の中で連続していない）。囲めないので、章の後ろに並べ、
+    まとめている行を名前で出す。枠になった小計は、上の章の中に出ているので、ここには出さない。 %>
+<% loose = tree.loose_subtotals.map(&:first) %>
+<% if loose.any? %>
+  <section aria-labelledby="subtotals-heading" data-loose-subtotals class="space-y-4">
+    <h3 id="subtotals-heading" class="text-base font-bold text-slate-900">複数の区分をまとめて数える要件</h3>
+    <ul class="space-y-4">
+      <% loose.each do |subtotal| %>
+        <%= render 'requirement_card', id_attr: { subtotal: subtotal['id'] }, name: subtotal['name'],
+                                       credits: subtotal['required_credits'],
+                                       note: "対象：#{Array(subtotal['row_ids']).map { |id| rows_by_id.dig(id, 'name') || id }.join('・')}" %>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+
+<%# 判定に使う規則。上のカードがすでに言っていること（章・行・枠が同じ単位数を出している合計と、行の下に
+    決まりのカードとして出したもの）は一覧から省き、どのカードにも結びついていない規則だけを便覧の順に出す。
+    省いた規則も、備考と出典ページはカードに無く、印刷された便覧と見比べる手立てになるので、消さずに畳んで出す
+    （科目表と同じ <details>。初めは閉じる。畳んでも HTML には入っているので、ページ内検索にも届く）。 %>
+<% on_cards = card_rule_ids(deck) %>
+<% omitted = omitted_rules(@curriculum, also_shown: on_cards) %>
+<section id="judgement-rules" aria-labelledby="rules-heading" class="space-y-4">
+  <div class="space-y-1">
+    <h3 id="rules-heading" class="text-base font-bold text-slate-900">判定の規則</h3>
+    <p class="text-xs text-slate-500">
+      卒業の判定はこの規則で行います。上のカードに出ている規則は、一覧から省いて、下の欄にまとめています。
+      赤で表示された規則は、このアプリが解釈できないため、判定では要確認になります。
+    </p>
+  </div>
+
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-xs">
+    <ul data-visible-rules class="divide-y divide-slate-100 px-5 sm:px-6">
+      <% visible_rules(@curriculum, also_shown: on_cards).each do |rule| %>
+        <%= rule_entry(rule, @curriculum) %>
+      <% end %>
+    </ul>
+  </div>
+
+  <%# 省いた規則は一覧の下に置く。上に置くと、開いたときに読んでいた一覧が押し下げられる %>
+  <% if omitted.any? %>
+    <details data-omitted-rules
+             class="group/card rounded-2xl border border-slate-200 bg-white shadow-xs transition hover:border-indigo-300 hover:shadow-md open:border-indigo-400 open:shadow-md open:ring-1 open:ring-indigo-300">
+      <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-5 sm:px-6">
+        <div class="min-w-0 space-y-1">
+          <h4 class="text-xs font-semibold text-slate-500">
+            上のカードに出ているため省いた規則：<span class="text-sm font-extrabold text-slate-900 tabular-nums"><%= omitted.size %>件</span>
+          </h4>
+          <p class="text-xs text-slate-500">
+            消えたわけではなく、内容は上のカードに出ています。開くと、備考と出典ページを確認できます。
+          </p>
+        </div>
+        <%# 開閉できることは、この丸ボタンと矢印の向きで示す（科目表・ダッシュボードと同じ） %>
+        <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition group-hover/card:bg-indigo-100 group-hover/card:text-indigo-600 group-open/card:bg-indigo-100 group-open/card:text-indigo-600">
+          <svg class="size-4 transition-transform group-open/card:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M5.5 7.5 10 12l4.5-4.5H5.5Z" />
+          </svg>
+        </span>
+      </summary>
+
+      <ul class="mx-5 divide-y divide-slate-100 border-t border-slate-100 pb-1 sm:mx-6">
+        <% omitted.each do |rule| %>
+          <%= rule_entry(rule, @curriculum, omitted: true) %>
+        <% end %>
+      </ul>
+    </details>
+  <% end %>
+</section>
+
+<%# 科目表。公開後の便覧の科目は、ほかのどの画面からも見られないので、ここで読み取り専用に出す %>
+<%= render 'courses', curriculum: @curriculum, directory: @directory %>

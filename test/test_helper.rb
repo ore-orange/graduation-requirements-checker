@@ -15,8 +15,17 @@ module ActiveSupport
     # 共有すると、別のワーカーや開発環境の画像を消し合う。
     TimetableUpload.images_root = Rails.root.join('tmp/test_images/0')
 
-    parallelize_setup { |worker| TimetableUpload.images_root = Rails.root.join('tmp/test_images', worker.to_s) }
-    parallelize_teardown { |worker| FileUtils.rm_rf(Rails.root.join('tmp/test_images', worker.to_s)) }
+    # 便覧の下書きの画像も同じ。取り込みの id と同じ数字が並ぶので、置き場は別にする。
+    Curriculum.images_root = Rails.root.join('tmp/test_curriculum_images/0')
+
+    parallelize_setup do |worker|
+      TimetableUpload.images_root = Rails.root.join('tmp/test_images', worker.to_s)
+      Curriculum.images_root = Rails.root.join('tmp/test_curriculum_images', worker.to_s)
+    end
+    parallelize_teardown do |worker|
+      FileUtils.rm_rf(Rails.root.join('tmp/test_images', worker.to_s))
+      FileUtils.rm_rf(Rails.root.join('tmp/test_curriculum_images', worker.to_s))
+    end
 
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all
@@ -27,6 +36,27 @@ module ActiveSupport
     # test_ で始める名前にすると、Minitestがテストメソッドとして拾ってしまうので避ける。
     def sample_department
       @sample_department ||= Faculty.create!(name: 'テスト学部').departments.create!(name: 'テスト学科')
+    end
+  end
+end
+
+module ActionDispatch
+  class IntegrationTest
+    # 便覧やマスタを直す画面は、学生でなくてもログインしていれば開ける。
+    # 学生の履修を見る画面は SampleStudent の利用者でログインする(こちらは使わない)。
+    def sign_in_as_staff
+      sign_in_as(User.create!(email: "staff-#{SecureRandom.hex(4)}@example.test", password: 'a-test-password'))
+    end
+
+    # 便覧を操作したあとに戻る、卒業要件の確認画面。その便覧の学部・学科・コース・入学年度を選んだ状態で開く。
+    # 学部名か学科コース名が無い古い行は選べないので、選択なしの画面になる。
+    # department_name は結合済みの1文字列なので、Programから学科名・コース名に分けて渡す(CurriculaController#requirements_location と同じ)。
+    def requirements_path_for(curriculum)
+      department, course = Program.department_and_course_for(curriculum.department_name)
+      selection = { faculty: curriculum.faculty_name, department: department, course: course,
+                    admission_year: curriculum.admission_year }.compact
+      required = [curriculum.faculty_name, department, curriculum.admission_year]
+      required.all?(&:present?) ? requirements_path(selection) : requirements_path
     end
   end
 end

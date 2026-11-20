@@ -1,0 +1,28 @@
+<%# locals: (deck:, frame:, group:) %>
+<%# 枠。小計（display.subtotals）がまとめている行を囲み、枠自身の必要単位を出す。
+    便覧には「3区分で22単位」の置き場所が無く、22を真ん中の行に押し込んで、残りの行に「内数22単位枠」と
+    書いていた。枠がその22を出せば説明文は要らなくなり、どの行がその22に数えられるのかも目で分かる。
+    枠の色・縁は、要件表の確認画面の枠（curricula/_requirements_frame）と同じにする。 %>
+<% subtotal = frame.subtotal %>
+<li class="rounded-2xl border-2 border-indigo-200 bg-indigo-50/40 shadow-xs" data-subtotal="<%= subtotal['id'] %>">
+  <div class="grid gap-4 p-5 sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-5 sm:p-6">
+    <div>
+      <h4 class="text-xs font-semibold text-indigo-900"><%= subtotal['name'] %></h4>
+      <p class="mt-1 flex flex-wrap items-baseline gap-x-1.5" data-subtotal-credits>
+        <span class="text-3xl font-extrabold tracking-tight text-slate-900 tabular-nums"><%= credit_number(subtotal['required_credits']) %></span>
+        <span class="text-sm font-medium text-slate-500">単位</span>
+      </p>
+    </div>
+    <div class="min-w-0 sm:border-l sm:border-indigo-200 sm:pl-6">
+      <p class="text-sm text-slate-600">
+        下の<%= frame.rows.size %>区分の単位を合計して判定します。区分ごとの必要単位はありません。
+      </p>
+    </div>
+  </div>
+
+  <ul class="space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">
+    <% frame.rows.each do |row| %>
+      <%= render 'requirement_card', **row_card_locals(deck, row, frame, group) %>
+    <% end %>
+  </ul>
+</li>

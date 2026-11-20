@@ -23,5 +23,15 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
   end
+
+  # 便覧やマスタを直す画面は、ログインしていないと開けない。本物のログイン画面を通る。
+  def sign_in_as_staff(email: 'staff@example.test', password: 'a-test-password')
+    User.create!(email: email, password: password)
+    visit new_session_path
+    fill_in 'メールアドレス', with: email
+    fill_in 'パスワード', with: password
+    click_on 'ログイン'
+    assert_no_current_path new_session_path
+  end
 end
 

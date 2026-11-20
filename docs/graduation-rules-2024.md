@@ -233,7 +233,7 @@ sum(F[c]) + M + V + R + X >= 37
 
 ## 8. 既存モデルとの接続と不足情報
 
-- `Course.curriculum_key`で要件文書とDBを明示的に対応させる。値がある場合は一意だが、従来の番号・名称の重複は許容する。
+- `Student#curriculum`の便覧の`courses[].number`を`Course.course_number`で引いて、要件文書とDBを対応させる。`Course`はキーを持たない。同じ科目番号の`Course`が複数ある履修・予定は、1つの便覧の科目に決められないので要確認にする。
 - `StudentCourse`は`enrollment_status`をcompleted/registered/in_progress/failed/unknownとして保存する。既存行の既定値はunknownで、成績・NULL・年度から状態を推測しない。
 - 修得済みは`credits_earned`を保持し、科目マスタの更新で書き換えない。承認は学生別の`approval_confirmed`で保持し、未確認の承認をtrueとして扱わない。
 - `PlannedCourse`は学生・科目の組み合わせを一意に保存し、履修年度・学期を持たない。年度必須の実際の履修履歴へ架空の値を入れない。

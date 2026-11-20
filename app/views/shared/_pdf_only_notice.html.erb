@@ -1,0 +1,4 @@
+<%# dropzone コントローラーの「PDFでないものを落とした」ときの断り。ドロップはファイル選択の accept を通らないので、送る前にここで断る。
+    文言と見た目は、サーバーが返す警告(shared/flash)と同じ %>
+<p role="alert" hidden data-dropzone-target="error" data-pdf-only-notice
+   class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-900 sm:text-sm">PDFファイルを選んでください。</p>

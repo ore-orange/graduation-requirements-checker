@@ -1,0 +1,153 @@
+# frozen_string_literal: true
+
+require 'bigdecimal'
+require 'json'
+
+# 2024年度の判定結果を固定するためのケース定義と、判定結果の直列化。
+# rake タスクとテストが同じ定義を呼ぶので、記録と照合の内容がずれない。
+module GraduationGolden
+  CURRICULUM_PATH = Rails.root.join('config/curricula/intelligent_informatics/2024.json')
+  ENROLLMENTS_PATH = Rails.root.join('test/fixtures/files/sample_enrollments.json')
+  FIXTURE_PATH = Rails.root.join('test/fixtures/files/graduation_golden_2024.json')
+
+  module_function
+
+  def curriculum_document
+    JSON.parse(CURRICULUM_PATH.read)
+  end
+
+  # ケース名 => 判定へ渡す引数。順序は固定。
+  def cases(curriculum)
+    courses = curriculum.fetch('courses')
+    all_completed = courses.select { |course| course['selectable'] }.map { |course| completed_entry(course) }
+    {
+      'empty' => arguments,
+      'sample' => sample_case(courses),
+      'all_completed' => arguments(completed: all_completed),
+      'missing_one_required' => arguments(completed: without_first_required(courses, all_completed)),
+      'clean_single_path' => arguments(completed: clean_single_path(curriculum, all_completed)),
+      'natural_cap_only' => arguments(completed: natural_cap_only(courses)),
+      'english_plus_two_7xx_languages' => arguments(completed: Scenarios.english_plus_two_7xx_languages(courses))
+    }
+  end
+
+  def record(curriculum)
+    cases(curriculum).transform_values do |arguments|
+      result = GraduationAssessment.new(curriculum: curriculum).call(**arguments)
+      { 'actual' => snapshot(result.actual), 'projected' => snapshot(result.projected) }
+    end
+  end
+
+  # 比較を安定させるため、キー順・配列順を固定し、単位は文字列にする。
+  def snapshot(snapshot)
+    {
+      'status' => snapshot.status.to_s,
+      'counted_credits' => credits(snapshot.counted_credits),
+      'review_notes' => snapshot.review_notes.sort,
+      'checks' => snapshot.checks.sort_by(&:id).map { |check| check_hash(check) }
+    }
+  end
+
+  def json(curriculum)
+    "#{JSON.pretty_generate(sort_keys(record(curriculum)))}\n"
+  end
+
+  def arguments(completed: [], registered: [], unresolved: [])
+    { completed: completed, registered: registered, planned: [], unresolved: unresolved }
+  end
+
+  # number は key と別に持つ。科目表から外した科目を番号パターンで数える経路(EntryNormalizer#pattern_course)は
+  # key ではなく number を見るので、番号を運ばないケースではその経路に入れない。
+  def completed_entry(course, credits: course['credits'], approved: nil)
+    { key: course['key'], number: course['number'], credits: credits, approved: approved, name: course['name'] }
+  end
+
+  def sample_case(courses)
+    by_number = courses.select { |course| course['number'] }.index_by { |course| course['number'] }
+    groups = { completed: [], registered: [], unresolved: [] }
+    JSON.parse(ENROLLMENTS_PATH.read).fetch('enrollments').each do |enrollment|
+      course = by_number.fetch(enrollment['course_number'])
+      status = enrollment['enrollment_status']
+      case status
+      when 'completed'
+        groups[:completed] << completed_entry(course, credits: enrollment['credits_earned'],
+                                                      approved: enrollment['approval_confirmed'])
+      when 'registered', 'in_progress'
+        groups[:registered] << completed_entry(course, approved: enrollment['approval_confirmed'])
+      when 'unknown'
+        groups[:unresolved] << completed_entry(course, credits: nil, approved: enrollment['approval_confirmed'])
+      end
+    end
+    arguments(**groups)
+  end
+
+  def without_first_required(courses, entries)
+    key = courses.select { |course| course['required'] }.pluck('key').min
+    raise 'required の科目が科目表にない' if key.nil?
+
+    entries.reject { |entry| entry[:key] == key }
+  end
+
+  # 微分積分学は系列の一方、物理学は代替の一方だけで、単位数が不明な科目も含まない状態。
+  # 第二経路の役割は便覧の one_of_paths 規則から読む。
+  def clean_single_path(curriculum, entries)
+    rules = curriculum.fetch('rules').index_by { |rule| rule['id'] }
+    alternatives = %w[calculus physics].flat_map { |id| rules.fetch(id).fetch('paths').fetch(1) }
+    dropped = curriculum.fetch('courses').select do |course|
+      course['credits'].nil? || course.fetch('roles', []).intersect?(alternatives)
+    end.pluck('key')
+    entries.reject { |entry| dropped.include?(entry[:key]) }
+  end
+
+  # 自然系の算入上限だけを確かめるため、キー順で先頭3科目以外は何も入れない。
+  def natural_cap_only(courses)
+    courses.select { |course| course['category'] == 'natural' }.sort_by { |course| course['key'] }.first(3)
+           .map { |course| completed_entry(course) }
+  end
+
+  def check_hash(check)
+    {
+      'id' => check.id,
+      'status' => check.status.to_s,
+      'counted_credits' => credits(check.counted_credits),
+      'required_credits' => credits(check.required_credits),
+      'missing_courses' => check.missing_courses.sort
+    }
+  end
+
+  def credits(value)
+    BigDecimal(value.to_s).to_s('F') unless value.nil?
+  end
+
+  def sort_keys(value)
+    case value
+    when Hash then value.sort.to_h { |key, child| [key, sort_keys(child)] }
+    when Array then value.map { |child| sort_keys(child) }
+    else value
+    end
+  end
+
+  # 記録するケースのうち、組み立てが長いもの。
+  module Scenarios
+    module_function
+
+    # 英語がちょうど8単位に、外7xx の別々の言語（ラテン語2単位・ロシア語2単位）だけを足した状態。
+    # 外7xx は1つの言語ではない。百の位で数えると4単位の一外国語になって充足と誤るので、未充足であることを固定する。
+    def english_plus_two_7xx_languages(courses)
+      english = eight_credits_of_english(courses)
+      other = %w[外731 外751].map { |number| courses.find { |course| course['number'] == number } }
+      (english + other).map { |course| GraduationGolden.completed_entry(course) }
+    end
+
+    # キー順に先頭から、合計がちょうど8単位になるまで英語を選ぶ。
+    def eight_credits_of_english(courses)
+      total = 0
+      picked = courses.select { |course| course['category'] == 'english' }.sort_by { |course| course['key'] }
+                      .take_while { |course| (total += course['credits']) <= 8 }
+      raise '英語の先頭の科目がちょうど8単位にならない' unless picked.sum { |course| course['credits'] } == 8
+
+      picked
+    end
+  end
+end
+

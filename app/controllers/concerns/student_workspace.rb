@@ -25,9 +25,28 @@ module StudentWorkspace
     # 初回ログインの人。コースと入学年度を聞いてから本来の画面へ戻す。
     return redirect_to new_student_path if @student.nil?
 
-    @curriculum = @student.curriculum
-    @courses_by_key = @curriculum.fetch('courses').index_by { |course| course.fetch('key') }
+    # @curriculum は便覧の文書（Hash）。読み手は fetch で引くので、レコードは渡さない。
+    @curriculum = published_curriculum(@student).document
+    # 履修・予定の Course は、科目番号で便覧の科目に当たる。番号の無い科目は当たりようがないので入れない。
+    @courses_by_number = @curriculum.fetch('courses').select { |course| course['number'].present? }
+                                    .index_by { |course| course.fetch('number') }
+    # 画面の区分計算だけが見る。判定へ渡す key の振り替え(catalogue_entries)は @courses_by_number のまま。
+    @number_patterns = CurriculumImport::NumberPatterns.new(@curriculum['categories'])
   end
+
+  # 学生が持つ便覧。無い、または公開済みでなければ、判定せずに初期設定の案内を出す。
+  # 公開前の便覧は作業中の文書なので、誰の判定にも使わない。
+  def published_curriculum(student)
+    curriculum = student.curriculum
+    raise SetupIncomplete, '学生に便覧が設定されていません。bin/rails db:seed を実行してください。' unless curriculum
+    return curriculum if curriculum.published?
+
+    raise SetupIncomplete, '公開済みの便覧がありません。bin/rails db:seed を実行してください。'
+  end
+
+  # 学生に見せる科目の名簿。1リクエストに1つだけ作り、区分ごとに何度呼ばれても courses テーブルは1回しか読まない。
+  # 判定(@courses_by_number と catalogue_entries の経路)は名簿を使わない。
+  def directory = @directory ||= CourseDirectory.new(@curriculum)
 
   def enrollments
     @enrollments ||= @student.student_courses.includes(:course).order(:academic_year, :id).to_a
@@ -44,20 +63,43 @@ module StudentWorkspace
     @other_enrollments = @enrollments - @completed - @current
   end
 
+  # 判定へ渡す履修・予定は、Course の科目番号を key にした形で組む。便覧の科目に当てるのは最後。
   def assess
-    unresolved = @other_enrollments.select { |enrollment| enrollment.enrollment_status == 'unknown' }
-    GraduationAssessment.new(curriculum: @curriculum).call(
-      completed: @completed.map(&:assessment_entry),
-      registered: @current.map(&:assessment_entry),
-      planned: @plans.map { |plan| planned_entry(plan) },
-      unresolved: unresolved.map(&:assessment_entry)
-    )
+    unknown = @other_enrollments.select { |enrollment| enrollment.enrollment_status == 'unknown' }
+    groups = { completed: @completed.map(&:assessment_entry), registered: @current.map(&:assessment_entry),
+               planned: @plans.map { |plan| planned_entry(plan) }, unresolved: unknown.map(&:assessment_entry) }
+    GraduationAssessment.new(curriculum: @curriculum).call(**catalogue_entries(groups))
   end
 
   def planned_entry(plan)
-    course = @courses_by_key[plan.course.curriculum_key]
+    course = @courses_by_number[plan.course.course_number]
     credits = course ? course.fetch('credits') : plan.course.credits
-    { key: plan.course.curriculum_key, credits: credits, approved: nil, name: plan.course.name }
+    # 指導教員の承認が要る科目か自体は便覧(course)が決める。得たかどうかは学生側の事実なので、答えていなければ
+    # nil のまま渡す（黙って false にすると「承認なし」と答えたことになり、黙って true にすると未回答でも通る）。
+    # number は key と別に持つ(catalogue_entries が key を振り替えても、番号パターンの推定に使えるように)。
+    { key: plan.course.course_number, number: plan.course.course_number, credits: credits,
+      approved: plan.approval_confirmed, name: plan.course.name }
+  end
+
+  # 科目番号が便覧の科目に当たれば、その科目の key で判定に渡す。同じ番号の Course が複数あっても、履修・予定は
+  # それぞれ1行を指し、その番号は便覧の同じ1科目に当たる。同じ科目の複数記録は EntryNormalizer が1つにまとめ、
+  # 単位数や承認が食い違うときだけ要確認にする。
+  #
+  # 当たらない科目には "unmatched:" で始まる key を振る(番号の綴りがたまたま別の科目の key に一致しても
+  # 取り違えないため)。番号があればその番号で束ねる。束ねないと、同じ科目の2つの記録(落ちた回と通った回)が
+  # 別々の記録として扱われ、単位数の食い違いを見る上の仕組みが働かないまま、片方の単位だけが数えられてしまう。
+  # 番号の無い科目は束ねようがないので、1件ずつ別の key にする(別々の科目が1つにまとまって通知が落ちないように)。
+  def catalogue_entries(groups)
+    unmatched = 0
+    groups.transform_values do |entries|
+      entries.map do |entry|
+        course = @courses_by_number[entry[:key]]
+        next entry.merge(key: course.fetch('key')) if course
+
+        number = entry[:number].presence
+        entry.merge(key: "unmatched:#{number || (unmatched += 1)}")
+      end
+    end
   end
 
   # URL の "2-後期" を学期にする。読めない値は nil。
@@ -85,6 +127,7 @@ module StudentWorkspace
   # 予定を追加できるのは今の学期とそれ以降。
   def term_open?(term) = TERMS.index(term) >= TERMS.index(current_term)
 
+  # 例外のメッセージは、何が足りないかを指す固定の文言なので、そのまま画面に出す。
   def show_setup(error)
     @setup_message = error.message
     render 'shared/setup', status: :service_unavailable

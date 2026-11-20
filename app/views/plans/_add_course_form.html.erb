@@ -11,12 +11,12 @@
          aria-label="<%= row[:name] %>の科目を絞り込み"
          data-course-filter-target="query" data-action="input->course-filter#filter"
          class="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
-  <select name="course_key" size="6" required aria-label="<%= row[:name] %>の科目を選択"
+  <select name="course_id" size="6" required aria-label="<%= row[:name] %>の科目を選択"
           data-course-filter-target="select"
           class="w-full border border-slate-200 rounded-md px-1 py-1 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
-    <% selectable_in_row.each_with_index do |c, index| %>
-      <option value="<%= c.fetch('key') %>" data-search="<%= [c['number'], c.fetch('name')].compact.join(' ') %>"<% if index.zero? %> selected<% end %>>
-        <%= [c['number'], c.fetch('name'), "(#{credit_label(c['credits'])})"].compact.join(' ') %>
+    <% selectable_in_row.each_with_index do |entry, index| %>
+      <option value="<%= entry.course_id %>" data-search="<%= [entry.number, entry.name].compact.join(' ') %>"<% if index.zero? %> selected<% end %>>
+        <%= [entry.number, entry.name, "(#{credit_label(entry.credits)})"].compact.join(' ') %>
       </option>
     <% end %>
   </select>

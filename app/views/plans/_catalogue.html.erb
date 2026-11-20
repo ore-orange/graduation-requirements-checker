@@ -49,24 +49,31 @@
         <%= term_label(@term) %> は過去の学期のため追加できません。今の学期以降を表示すると追加できます。
       <% end %>
     </p>
-    <span class="font-semibold text-slate-500"><%= @catalogue.size %> 科目</span>
+    <span class="font-semibold text-slate-500"><%= @catalogue_total %> 科目</span>
   </div>
+
+  <% if @catalogue_total > @catalogue_limit %>
+    <%# 件数が多いと画面に描ききれないので、先頭だけを出して、絞り込みを促す %>
+    <p class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-800" data-catalogue-truncated>
+      <%= @catalogue_total %> 件のうち <%= @catalogue_limit %> 件だけを出しています。科目名・科目番号で絞り込んでください。
+    </p>
+  <% end %>
 
   <% if @catalogue.empty? %>
     <p class="mt-3 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語を変更してください。</p>
   <% else %>
     <%# パネルの残りの高さを使い、リストの中でスクロールする %>
     <ul class="mt-2 divide-y divide-slate-100 overflow-y-auto pr-1 min-h-0 flex-1">
-      <% @catalogue.each do |course| %>
-        <% unavailable = catalogue_availability(course, unavailable_keys: @unavailable_keys, persisted_keys: @persisted_keys) %>
-        <li class="py-2.5" data-catalogue-key="<%= course.fetch('key') %>">
+      <% @catalogue.each do |entry| %>
+        <% unavailable = catalogue_availability(entry, unavailable_numbers: @unavailable_numbers) %>
+        <li class="py-2.5" data-catalogue-key="<%= entry.number %>">
           <div class="flex items-start justify-between gap-2">
-            <h3 class="min-w-0 text-sm font-semibold text-slate-900"><%= course.fetch('name') %></h3>
+            <h3 class="min-w-0 text-sm font-semibold text-slate-900"><%= entry.name %></h3>
             <% if unavailable %>
               <span class="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-500"><%= unavailable %></span>
             <% elsif @term_open %>
               <%= form_with url: plan_courses_path, class: 'shrink-0' do |form| %>
-                <%= form.hidden_field :course_key, value: course.fetch('key'), id: nil %>
+                <%= form.hidden_field :course_id, value: entry.course_id, id: nil %>
                 <%= hidden_field_tag :term, term_param(@term), id: nil %>
                 <%= hidden_field_tag :view, 'all', id: nil if @overview %>
                 <%# 追加のあとも、パネルを開いたまま、検索語も残したままにする %>
@@ -74,26 +81,26 @@
                   <%= hidden_field_tag name, value, id: nil %>
                 <% end %>
                 <%= form.submit "#{term_label(@term)}に追加", class: 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer',
-                                                            aria: { label: "#{course.fetch('name')}を#{term_label(@term)}の予定に追加" } %>
+                                                            aria: { label: "#{entry.name}を#{term_label(@term)}の予定に追加" } %>
               <% end %>
             <% end %>
           </div>
           <%# 「どの区分の科目か」を調べるためのパネルなので、区分は科目名のすぐ下の決まった場所に出す %>
           <div class="mt-1 flex flex-wrap items-center gap-1.5">
-            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700" data-catalogue-category><%= category_label(course.fetch('category')) %></span>
-            <% if course['required'] %>
+            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700" data-catalogue-category><%= category_label(entry.category, @curriculum) %></span>
+            <% if entry.required %>
               <span class="rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">専門必修</span>
             <% end %>
-            <% if course['number'].present? %>
-              <span class="font-mono text-[11px] text-slate-400"><%= course['number'] %></span>
+            <% if entry.number.present? %>
+              <span class="font-mono text-[11px] text-slate-400"><%= entry.number %></span>
             <% end %>
-            <span class="text-[11px] text-slate-500"><%= credit_label(course['credits']) %></span>
+            <span class="text-[11px] text-slate-500"><%= credit_label(entry.credits) %></span>
           </div>
-          <% if course['requires_approval'] %>
+          <% if entry.requires_approval %>
             <p class="mt-1 text-xs text-amber-800">※指導教員の履修承認確認が必要です</p>
           <% end %>
-          <% if course['review_reason'].present? %>
-            <p class="mt-1 text-xs text-amber-800">※要確認: <%= course['review_reason'] %></p>
+          <% if entry.review_reason.present? %>
+            <p class="mt-1 text-xs text-amber-800">※要確認: <%= entry.review_reason %></p>
           <% end %>
         </li>
       <% end %>
