@@ -1,0 +1,7 @@
+<%# 検索パネル（#catalogue）を開くボタン。表の見出しの右端（学期の表と一覧）に置く。開いているかどうかは URL の pane で持つ %>
+<%# 開いたあとは出さず、パネルの中の「閉じる」で閉じる。表の右にパネルが並ぶと表の幅が縮み、ここに閉じるボタンを置くと左にずれて見えるため %>
+<%= link_to plan_path(**@plan_page_params, pane: 'catalogue'),
+            class: 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-indigo-200 bg-white text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition',
+            aria: { expanded: false }, data: { catalogue_toggle: 'open' } do %>
+  科目名で検索
+<% end %>
