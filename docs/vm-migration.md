@@ -150,11 +150,36 @@ sudo ufw status
 SSH は、0 で整理した公開鍵でログインできることを**手元のPCから確認してから**、パスワード認証を切る。
 先に切ると、鍵が通らなかったときにコンソールからしか入れなくなる。切った直後も、今のセッションは閉じずに、別の端末で鍵ログインをもう一度試す。
 
+`/etc/ssh/sshd_config` を直接書き換える(`sed` など)だけでは、**効かないことがある**。Ubuntu は `sshd_config` の先頭で
+`/etc/ssh/sshd_config.d/*.conf` を読み込み、sshd は**最初に見つかった値を採用する**ため、`50-cloud-init.conf` などが
+`PasswordAuthentication yes` を持っていると、そちらが優先される。そこで、最初に読まれる名前の設定ファイルを作る。
+
 ```bash
 # 別の端末で鍵ログインできることを確認したあと
-sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sudo sshd -t && sudo systemctl reload ssh
+sudo vi /etc/ssh/sshd_config.d/00-disable-password.conf
 ```
+
+`vi` では、**`i`** で入力モードにして次の内容を入力し、**`Esc`** のあと **`:wq`** + Enter で保存する(保存せず終了するときは `:q!`)。
+
+```
+# SSH はパスワードでは入れない。公開鍵だけにする。
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+PermitRootLogin no
+```
+
+```bash
+sudo sshd -t && echo "syntax ok"            # 何か出力されたら反映せずに直す
+sudo systemctl reload ssh                    # いまの接続は切れない
+sudo sshd -T | grep -iE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|pubkeyauthentication) '
+# passwordauthentication no / kbdinteractiveauthentication no / permitrootlogin no / pubkeyauthentication yes
+```
+
+`passwordauthentication yes` のままなら、別のファイルが先に読まれている。
+`sudo grep -rE 'PasswordAuthentication' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/` で見つけて直す。
+別の端末で、鍵では入れてパスワードでは入れない(`Permission denied (publickey).`)ことを確かめてから、いまのセッションを閉じる。
+詳しい手順と戻し方は [vm-member-accounts.md](vm-member-accounts.md) の「6. SSH のパスワード認証を無効にする」を参照。
 
 Ubuntu 26.04 は、`sudo` や coreutils が Rust 実装(`sudo-rs`、`uutils`)になっていることがある。
 手順の `sudo --preserve-env=...` や `grc-backup` の `date` / `find` / `du` が想定どおり動くか、
