@@ -3,8 +3,10 @@
 # 便覧PDFを上げて下書き（Curriculum）を作り、どのページを読むかを人が決める画面。
 # 一覧とアップロードの入口は /requirements にあり、ここは下書きの確認画面。
 # アップロードと同じリクエストの中で、ページ画像とページごとの文字を取り出し、PDFは捨てる。
-# 読み取り(AI)は1ページずつ、画面から1リクエストごとに同期で行う。
+# 読み取り(AI)は1ページずつ、画面から1リクエストごとに同期で行う。公開の可否は CurriculumImport::Publication が1か所で決める。
 class CurriculaController < ApplicationController
+  include CurriculaCourses
+  include CurriculaCourseFilter
   include CurriculumUploadParams
   include CurriculaPagesUpdate
 
@@ -12,13 +14,56 @@ class CurriculaController < ApplicationController
   # 識別名(slug)は入力させない(Curriculum が学部名・学科コース名から決める)ので、ここに欄の名前は無い。
   FIELD_LABELS = { admission_year: '入学年度', faculty_name: '学部名', department_name: '学科・コース名' }.freeze
 
-  before_action :load_draft, only: %i[show update destroy page_image read_page]
+  helper_method :requirements_review, :publication
+
+  # update_courses・edit_course は CurriculaCourses、filter_courses は CurriculaCourseFilter(concern)が定義する。
+  before_action :load_draft, only: # rubocop:disable Rails/LexicallyScopedActionFilter
+    %i[show update update_rules update_courses bulk_confirm_courses filter_courses edit_course destroy page_image
+       read_page publish]
 
   rescue_from ActiveRecord::RecordNotFound do
     redirect_to requirements_path, alert: 'この下書きは見つかりません。削除された可能性があります。', status: :see_other
   end
 
-  def show; end
+  def show
+    @review = CurriculumImport::RequirementsReview.new(@curriculum)
+  end
+
+  # 下書きを公開する。可否は Publication が決め、止めるときは理由を画面に返す(何も変えない)。
+  # 警告があれば、画面が見せた一覧の指紋(acknowledged)が要る。同じ識別名・入学年度の公開済みの差し替えは、replace を選んだときだけ。
+  def publish
+    @curriculum.publish!(acknowledged: params[:acknowledged], replace: params[:replace] == '1')
+    redirect_to requirements_location, notice: '便覧を公開しました。学生の卒業判定に使われます。', status: :see_other
+  rescue CurriculumImport::Publication::Refused => e
+    redirect_to curriculum_path(@curriculum, anchor: 'publish'), status: :see_other,
+                                                                 alert: "公開できませんでした(何も変えていません)。#{e.reasons.first}"
+  end
+
+  # 公開済みの便覧を直すための下書き。公開済みの行は書き換えず、document をコピーした下書きを新しく作る。
+  def duplicate
+    published = Curriculum.published.find(params.expect(:id))
+    draft = CurriculumImport::Duplicate.call(published)
+    redirect_to draft, notice: '公開済みの便覧を複製して、下書きを作りました。直したあとに公開すると、差し替えられます。', status: :see_other
+  end
+
+  # 区分ごとに、まだ確認していない科目をまとめて確認する。対象と指紋は CoursesReview が決める(courses_review と同じ1か所)。
+  # 区分全体の行がまとめて変わるので、Turbo にはせず素直に画面を開き直す(「読み落とした科目を足す」と同じ考え方)。
+  # ロックの中で公開済みに変わっていないかも確かめる(update_courses と同じ理由)。
+  def bulk_confirm_courses
+    result = nil
+    published = false
+    @curriculum.with_lock do
+      published = @curriculum.published?
+      unless published
+        result = CurriculumImport::BulkConfirm.new(@curriculum, category: params[:category], rev: params[:rev]).call
+      end
+    end
+    return redirect_to requirements_location, alert: published_alert, status: :see_other if published
+
+    anchor = helpers.course_category_dom_id(params[:category])
+    redirect_to curriculum_path(@curriculum, anchor: anchor), (result.ok? ? :notice : :alert) => result.message,
+                                                              status: :see_other
+  end
 
   # 取り込み時に作ったページ画像。この下書きの置き場にあるものしか返さない。
   def page_image
@@ -80,6 +125,25 @@ class CurriculaController < ApplicationController
     end
   end
 
+  # 要件表の確認画面(規則・区分・章と行・総単位・注釈の扱い)で人が直した値を、下書きに入れる。
+  # 直したものは、読み直しから守る印(confirmed)を付けて持つ。送られなかった項目は消さない(RequirementsEdit)。
+  # 読み取り(ReadPage)も同じ行をロックして document を書くので、ここも行を取り直してロックし、最新の上で直す。
+  # ロックの中で公開済みに変わっていないかも、もう一度確かめる(update と同じ理由)。
+  def update_rules
+    result = nil
+    published = false
+    @curriculum.with_lock do
+      published = @curriculum.published?
+      result = CurriculumImport::RequirementsEdit.new(@curriculum, rules_params).call unless published
+    end
+    return redirect_to requirements_location, alert: published_alert, status: :see_other if published
+    return redirect_to rules_review_path, notice: edit_success_message(result), status: :see_other if result.ok?
+    # 画面を開いたあとに中身が変わっていたら、いまの中身で開き直す(送られた入力は、古い中身の位置に結びついている)。
+    return redirect_to rules_review_path, alert: result.errors.first, status: :see_other if result.stale
+
+    render_rejected(result)
+  end
+
   # 下書きは作業中の文書なので、そのまま消す。公開済みは load_draft で弾く。それでも、消す直前にロックが明くまでの
   # 間に公開が済んでいることがあるので、行をロックしてもう一度確かめてから消す(公開済みの行を消させない)。
   def destroy
@@ -96,6 +160,47 @@ class CurriculaController < ApplicationController
   end
 
   private
+
+  # 要件表の確認画面が見せるもの(show と、保存できなかったときの開き直しが作る)。ビューの入力欄の部品が読む。
+  def requirements_review = @review
+
+  # 公開の欄が見せるもの。差し替えを選んだ前提で理由を並べる(差し替えの要・不要は、欄の中で別に聞く)。
+  # 保存できなかった要件表の画面(render_rejected)も show を描くので、show では作らず、使うときに作る。
+  def publication = @publication ||= CurriculumImport::Publication.new(@curriculum, replace: true)
+
+  # 要件表の確認の入力。入れ子の形(章の中の行など)は、RequirementsEdit が1つずつ読んで型を確かめる。
+  def rules_params
+    params.to_unsafe_h.slice('revision', 'categories', 'rules', 'display', 'new_rule', 'new_exclude', 'new_group',
+                             'new_row', 'annotations', 'remove_approval_note', 'adopt_patterns')
+  end
+
+  def rules_review_path = curriculum_path(@curriculum, anchor: 'requirements_review')
+
+  # 保存できなかったときは、送られた入力を残したまま、要件表の画面を開き直す。問題は全部、項目の下と上に出す。
+  # 何百という欄を直した人が、1つの打ち間違いで、すべてを打ち直さなくて済むように。
+  def render_rejected(result)
+    submission = CurriculumImport::RequirementsReview::Submission.new(submitted_pairs)
+    @review = CurriculumImport::RequirementsReview.new(@curriculum, submission: submission, problems: result.problems,
+                                                                    touched: result.touched)
+    flash.now[:alert] = "要件表の修正を保存できませんでした(何も変えていません)。#{result.problems.size}件の問題を、下の要件表で直してください。"
+    render :show, status: :unprocessable_content
+  end
+
+  # 送られた欄を、送られた名前のまま取り出す(入れ子のパラメータに直す前の形)。
+  def submitted_pairs
+    return [] unless request.form_data?
+
+    URI.decode_www_form(request.raw_post)
+  rescue ArgumentError
+    []
+  end
+
+  def edit_success_message(result)
+    shown = result.notes.first(3).join(' ')
+    return shown if result.edited.zero?
+
+    "要件表の修正を保存しました(#{result.edited}件)。直した項目は人が確認した値として残り、読み直しでは上書きしません。#{shown}"
+  end
 
   # 操作した便覧の、卒業要件の確認画面。選択を引き継いで、操作の結果をそのまま見せる(選択なしの画面に戻すと、
   # 自分の操作のあとに空の画面へ落ちる)。学部名・学科コース名を持たない古い行は選択できないので、選択なしの画面にする。

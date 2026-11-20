@@ -1,0 +1,49 @@
+<%# 枠にできなかった小計(設計書 項目10)。まとめている行が1つの章の中で連続していないと、行を囲めない。 %>
+<%# 囲めないものを黙って消すと、その小計が画面から無くなるので、今までどおり章の後ろに並べ、 %>
+<%# 「この小計がまとめている行」を名前で出す(id ではなく、人が読める名前で)。 %>
+<% loose = review.loose_subtotals %>
+<% field_class = RequirementsReviewHelper::FIELD_CLASS %>
+<% if loose.any? %>
+  <h4 class="mt-6 text-sm font-bold text-slate-900">行を囲めなかった小計</h4>
+  <p class="mt-0.5 text-sm text-slate-600">
+    まとめている行が、1つの章の中で続いていません。行の並びを揃えると、上の表の中で行を囲む枠になります。
+  </p>
+  <ul class="mt-2 space-y-2" id="requirements_subtotals">
+    <% loose.each do |subtotal, index| %>
+      <% key = "display[subtotals][#{index}]" %>
+      <% shown_rules = review.rules_under(subtotal['check_ids']) %>
+      <li id="subtotal-<%= subtotal['id'] %>" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+        <div class="flex flex-wrap items-center gap-2">
+          <%= hidden_field_tag "#{key}[id]", subtotal['id'], id: nil %>
+          <label class="block">
+            <span class="sr-only">小計の名前</span>
+            <%= rv_text "#{key}[name]", subtotal['name'], id: nil,
+                        class: "w-64 font-semibold text-slate-900 #{field_class}" %>
+          </label>
+          <%= credit_range(["#{key}[required_credits]", subtotal['required_credits']], review.upper_limit(shown_rules)) %>
+          <% if human_confirmed?(subtotal) %><span class="rv-confirmed">人が確認した</span><% end %>
+          <details class="ml-auto text-sm" <%= 'open' if review.open?('subtotal', subtotal['id']) %>>
+            <summary class="rv-more"
+                     title="この小計の、詳しい設定">…</summary>
+            <label class="mt-1 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-rose-800">
+              <%= rv_check "#{key}[_destroy]", '1', false, id: nil %>
+              この小計を消す(読み直しても戻りません。行は消えません)
+            </label>
+          </details>
+        </div>
+        <p class="mt-1 text-sm text-slate-600">
+          まとめている行: <%= review.row_names(subtotal['row_ids']).join('・').presence || '(なし)' %>
+        </p>
+        <%= render 'requirements_finding_notes', findings: review.findings_for(:display, subtotal['id']) %>
+        <%= render 'requirements_problems', review: review, kind: 'subtotal', id: subtotal['id'] %>
+        <% if shown_rules.any? %>
+          <div class="mt-2 space-y-2">
+            <% shown_rules.each do |rule| %>
+              <%= render 'requirements_rule', review: review, rule: rule %>
+            <% end %>
+          </div>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>

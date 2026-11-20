@@ -1,0 +1,1102 @@
+# frozen_string_literal: true
+
+require 'test_helper'
+
+module CurriculumImport
+  class ValidationTest < ActiveSupport::TestCase
+    REAL_DOCUMENT = Rails.root.join('config/curricula/intelligent_informatics/2024.json')
+
+    GARBAGE = [nil, 'x', 5, {}, [1], [[]], -1].freeze
+
+    # ---- 人工の、検査にすべて通る文書。壊すときはここから1か所だけ変える ----
+
+    def course(number, name, category, **fields)
+      { 'key' => "course_#{number}", 'number' => number, 'name' => name, 'credits' => 2, 'category' => category,
+        'required' => false, 'language' => nil, 'roles' => [], 'source' => 'handbook', 'source_page' => 'PDF3ページ',
+        'review_reason' => nil, 'requires_approval' => false, 'selectable' => true }.merge(fields.stringify_keys)
+    end
+
+    def rule(id, type, **fields)
+      { 'id' => id, 'type' => type, 'label' => "規則#{id}", 'source_page' => 'PDF3ページ' }.merge(fields.stringify_keys)
+    end
+
+    def row(id, categories, check_ids, required, **fields)
+      { 'id' => id, 'name' => "行#{id}", 'subtitle' => nil, 'required_credits' => required, 'required_label' => nil,
+        'categories' => categories, 'check_ids' => check_ids,
+        'credits_from_check' => false }.merge(fields.stringify_keys)
+    end
+
+    def base_document
+      { 'format_version' => 2, 'department' => 'sample', 'admission_year' => 2024, 'title' => '見本',
+        'categories' => base_categories, 'courses' => base_courses, 'rules' => base_rules, 'display' => base_display }
+    end
+
+    def base_categories
+      [['humanities', '人文系', true], ['english', '英語', true], ['required_core', 'コア必修', true],
+       ['fusion', '工学融合', true], ['excluded', '算入対象外', false]].map do |key, label, counts|
+        { 'key' => key, 'label' => label, 'counts_toward_total' => counts }
+      end
+    end
+
+    def base_courses
+      [course('人101', '哲学', 'humanities', roles: ['role_a']), course('人102', '倫理', 'humanities', roles: ['role_b']),
+       course('人103', '歴史', 'humanities'), course('外101', '英語Ⅰ', 'english'), course('外102', '英語Ⅱ', 'english'),
+       course('知能101', 'プログラミング', 'required_core', required: true),
+       course('知能102', '離散数学', 'required_core', required: true),
+       course('機械991', '熱力学', 'fusion'), course('機械992', '流体力学', 'fusion'),
+       course('情01', '情報科学演習', 'excluded', selectable: false)]
+    end
+
+    def base_rules
+      categories = %w[humanities english required_core fusion]
+      [rule('humanities', 'credit_sum', categories: ['humanities'], required_credits: 4),
+       rule('english', 'credit_sum', categories: ['english'], required_credits: 2),
+       rule('path_rule', 'one_of_paths', paths: [['role_a'], ['role_b']]),
+       rule('core', 'all_required', expected_course_count: 2, required_credits: 4,
+                                    required_categories: ['required_core']),
+       rule('fusion_provider', 'grouped_max', category: 'fusion', group_by: 'number_prefix', required_credits: 4),
+       rule('total', 'credit_sum', categories: categories, required_credits: 14),
+       rule('excluded_category', 'exclude', category: 'excluded', reason: '算入対象外')]
+    end
+
+    def base_display
+      { 'total_credits' => 14,
+        'groups' => [{ 'id' => 'common', 'title' => '1. 共通教育', 'required_credits' => 6,
+                       'rows' => [row('humanities', ['humanities'], ['humanities'], 4),
+                                  row('english', ['english'], ['english'], 2)] },
+                     { 'id' => 'required', 'title' => '2. 必修', 'required_credits' => 4, 'check_id' => 'core',
+                       'rows' => [row('required_core', ['required_core'], ['core'], 4)] },
+                     { 'id' => 'elective', 'title' => '3. 選択', 'required_credits' => 4,
+                       'rows' => [row('fusion', ['fusion'], ['fusion_provider'], 4, credits_from_check: true)] }] }
+    end
+
+    # base_document を複製して、ブロックで壊す。
+    def broken(&)
+      base_document.deep_dup.tap(&)
+    end
+
+    def findings_for(subject, pages: [])
+      subject = Validation.new(subject, pages: pages) if subject.is_a?(Hash)
+      subject.call
+    end
+
+    def assert_reason(fragment, subject, blocking: nil, scope: nil, pages: [])
+      found = findings_for(subject, pages: pages).select { |finding| finding[:reason].include?(fragment) }
+
+      assert_predicate found, :any?, "「#{fragment}」を含む理由が無い: #{findings_for(subject, pages: pages).pluck(:reason)}"
+      unless blocking.nil?
+        assert(found.any? do |finding|
+          finding[:blocking] == blocking
+        end, "blocking が #{blocking} の指摘が無い: #{found}")
+      end
+      assert(found.any? { |finding| finding[:scope] == scope }, "scope が #{scope} の指摘が無い: #{found}") if scope
+      found
+    end
+
+    def assert_blocking(fragment, subject, **)
+      assert_reason(fragment, subject, blocking: true, **)
+    end
+
+    def assert_warning(fragment, subject, **)
+      found = assert_reason(fragment, subject, blocking: false, **)
+      assert(found.none? { |finding| finding[:blocking] }, "警告のはずが公開を止める: #{found}")
+    end
+
+    def assert_quiet(subject, pages: [])
+      assert_empty findings_for(subject, pages: pages)
+    end
+
+    # ---- 基準 ----
+
+    test '人工の基準文書は Catalogue に読め、何も指摘されない' do
+      assert_nothing_raised { GraduationAssessment::Catalogue.new(base_document) }
+      assert_quiet base_document
+      assert_not_predicate Validation.new(base_document), :blocking?
+    end
+
+    test '実物の2024年度の便覧は公開を止めず、区分の食い違いの印2件だけが残る' do
+      document = JSON.parse(REAL_DOCUMENT.read)
+      validation = Validation.new(document)
+
+      assert_not_predicate validation, :blocking?
+      # 知能301(総合実験)と工共214(プログラミングⅡ)は、必修が選択の番号帯に入る正しい例外。人が見る印にとどめる。
+      assert_equal %w[informatics_integrated_experiment programming_2], validation.call.pluck(:target).sort
+      assert_equal [%i[course]], [validation.call.pluck(:scope).uniq]
+      assert(validation.call.none? { |finding| finding[:blocking] })
+    end
+
+    test '結果は scope・target・label・reason・blocking を持つ' do
+      result = findings_for(broken { |d| d['courses'][0]['category'] = 'nowhere' }).first
+
+      assert_equal %i[scope target label reason blocking], result.keys
+      assert_equal :course, result[:scope]
+      assert_equal 'course_人101', result[:target]
+    end
+
+    # ---- 科目 ----
+
+    test '科目番号の重複を出し、公開を止める' do
+      document = broken { |d| d['courses'] << course('人101', '重複した哲学', 'humanities', key: 'dup') }
+
+      assert_blocking '同じ科目番号', document, scope: :course
+      assert_raises(ArgumentError) { GraduationAssessment::Catalogue.new(document) }
+    end
+
+    test '科目の key の重複と欠けを出し、公開を止める' do
+      assert_blocking('同じ key の科目が2件', broken do |d|
+        d['courses'] << course('人199', 'x', 'humanities', key: 'course_人101')
+      end)
+      assert_blocking('科目に key がありません', broken { |d| d['courses'][0].delete('key') })
+    end
+
+    test '全角や空白の違いだけの同じ番号は、警告にとどめる' do
+      assert_warning('綴りが違うだけ', broken { |d| d['courses'] << course('人１０１', '哲学(全角)', 'humanities') })
+    end
+
+    test '分類表にあって提供科目表にない科目を出す' do
+      document = broken { |d| d['courses'] << course(nil, '特別講義', 'humanities', key: 'special') }
+
+      assert_warning '提供科目表に行がない', document, scope: :course
+    end
+
+    test '番号の無い科目でも、review_reason があれば学生に要確認と出るので問題にしない' do
+      document = broken do |d|
+        d['courses'] << course(nil, '特別講義', 'humanities', key: 'special', credits: nil, review_reason: '分類表のみに記載')
+      end
+
+      assert_quiet document
+    end
+
+    test '番号を読めない科目は、その区分に接頭辞で数える規則があるときだけ出す' do
+      assert_warning('接頭辞と数字に分けて読めません', broken { |d| d['courses'] << course('機械9-1', '融合', 'fusion') })
+      assert_quiet(broken { |d| d['courses'] << course('人27-1', '枝番の科目', 'humanities') })
+    end
+
+    test '区分が空の科目も、review_reason があれば学生に要確認と出るので止めない' do
+      assert_quiet(broken { |d| d['courses'][0].merge!('category' => nil, 'review_reason' => '分類表に無い') })
+    end
+
+    test '区分が categories に無い科目は、どの行にも出ないので公開を止める' do
+      assert_blocking('区分「nowhere」が categories にありません', broken { |d| d['courses'][0]['category'] = 'nowhere' })
+      assert_blocking('categories にありません', broken { |d| d['courses'][0]['category'] = nil })
+    end
+
+    test '単位数が読めていない科目を出す' do
+      assert_warning('単位数', broken { |d| d['courses'][0]['credits'] = nil })
+      assert_warning('単位数', broken { |d| d['courses'][0]['credits'] = 0 })
+    end
+
+    test '出典の無い科目を出す' do
+      assert_warning('出典(source_page)がありません', broken { |d| d['courses'][0]['source_page'] = '' })
+    end
+
+    test '番号から推定した区分と食い違う科目を出し、確認済みの科目は出さない' do
+      document = broken do |d|
+        d['courses'] += [course('機械993', '誤読', 'required_core', key: 'odd'),
+                         course('機械994', '融合Ⅲ', 'fusion'), course('機械995', '融合Ⅳ', 'fusion')]
+      end
+
+      assert_warning '区分の取り違えでないか', document, scope: :course
+      document['courses'].find { |c| c['key'] == 'odd' }['confirmed'] = true
+
+      assert_empty(findings_for(document).select { |finding| finding[:target] == 'odd' })
+    end
+
+    # ---- 規則の形 ----
+
+    def rule_in(document, id)
+      document['rules'].find { |candidate| candidate['id'] == id }
+    end
+
+    test '既知の型は、必要な欄が欠けていれば公開を止める' do
+      # all_of は最上位に置けない(下の入れ子のテストで見る)。
+      Validation::Input::FIELD_KINDS.except('all_of').each do |type, fields|
+        fields.each_key do |field|
+          document = broken do |d|
+            d['rules'] << rule("sample_#{type}", type, **sample_fields(type)).except(field)
+          end
+          found = findings_for(document).select { |f| f[:target] == "sample_#{type}" && f[:blocking] }
+
+          assert_predicate found, :any?, "#{type} の #{field} が欠けても止まらない"
+          assert_includes found.first[:reason], field
+        end
+      end
+    end
+
+    test '必要な欄が、どんな型の値に化けても、検査は落ちずに公開を止める' do
+      Validation::Input::FIELD_KINDS.each do |type, fields|
+        fields.each do |field, kind|
+          GARBAGE.each do |value|
+            document = broken do |d|
+              d['rules'] << rule("sample_#{type}", type, **sample_fields(type)).merge(field => value)
+            end
+            validation = Validation.new(document)
+
+            assert_nothing_raised { validation.call }
+            # 最上位の all_of は置けない型で警告にとどまる。空の経路([[]])だけの paths は形としては読める(警告)。
+            # 5 は数の欄に、'x' は文字の欄に、正しい値。
+            valid = (value == 5 && %i[number count].include?(kind)) || (value == 'x' && kind == :text)
+            next if type == 'all_of' || valid || (type == 'one_of_paths' && value == [[]])
+
+            assert_predicate validation, :blocking?, "#{type}.#{field} = #{value.inspect}"
+          end
+        end
+      end
+    end
+
+    def sample_fields(type)
+      { 'credit_sum' => { categories: ['humanities'], required_credits: 2 },
+        'all_required' => { expected_course_count: 2, required_credits: 4, required_categories: ['required_core'] },
+        'one_of_paths' => { paths: [['role_a']] },
+        'grouped_max' => { category: 'fusion', group_by: 'number_prefix', required_credits: 2 },
+        'any_of' => { options: [{ 'type' => 'credit_sum', 'categories' => ['english'], 'required_credits' => 2 }] },
+        'all_of' => { conditions: [] }, 'cap' => { category: 'humanities', credits: 2 },
+        'exclude' => { category: 'excluded', reason: '対象外' } }.fetch(type)
+    end
+
+    test '欄の形が違う規則(paths が配列でない、経路が配列でない)は公開を止める' do
+      assert_blocking('必要な欄が無いか、形が違います: paths', broken { |d| rule_in(d, 'path_rule')['paths'] = nil })
+      assert_blocking('paths', broken { |d| rule_in(d, 'path_rule')['paths'] = [nil, ['role_a']] })
+      assert_blocking('required_credits', broken { |d| rule_in(d, 'humanities')['required_credits'] = '4' })
+    end
+
+    test 'paths が空、または空の経路を含む one_of_paths を出す' do
+      assert_warning('paths が空', broken { |d| rule_in(d, 'path_rule')['paths'] = [] })
+      assert_warning('空の経路', broken { |d| rule_in(d, 'path_rule')['paths'] = [[]] })
+      assert_warning('空の経路', broken { |d| rule_in(d, 'path_rule')['paths'] = [['role_a'], []] })
+    end
+
+    test 'expected_course_count や required_credits が0の all_required は公開を止める' do
+      assert_blocking('必修の科目数が0以下', broken { |d| rule_in(d, 'core')['expected_course_count'] = 0 })
+      assert_blocking('必修の単位が0以下', broken { |d| rule_in(d, 'core')['required_credits'] = 0 })
+    end
+
+    test '必修の科目が1つも無い all_required を出す' do
+      document = broken { |d| d['courses'].each { |c| c['required'] = false } }
+
+      assert_warning '必修の科目が科目表に1つもありません', document
+    end
+
+    test 'all_required の required_categories が空なら公開を止める' do
+      assert_blocking('required_categories が空', broken { |d| rule_in(d, 'core')['required_categories'] = [] })
+    end
+
+    test 'categories が空の credit_sum を出す' do
+      assert_warning('区分(categories)が空', broken { |d| rule_in(d, 'humanities')['categories'] = [] })
+    end
+
+    test '必要単位が0以下の credit_sum は、常に充足になるので公開を止める' do
+      assert_blocking('常に充足', broken { |d| rule_in(d, 'humanities')['required_credits'] = 0 })
+    end
+
+    test 'categories に無い区分を指す規則は公開を止める(入れ子も、cap・exclude も)' do
+      assert_blocking('区分を指しています: ghost', broken { |d| rule_in(d, 'humanities')['categories'] = ['ghost'] })
+      assert_blocking('ghost', broken { |d| rule_in(d, 'fusion_provider')['category'] = 'ghost' })
+      assert_blocking('ghost', broken { |d| rule_in(d, 'excluded_category')['category'] = 'ghost' })
+      nested = { 'type' => 'credit_sum', 'categories' => ['ghost'], 'required_credits' => 2 }
+      assert_blocking('ghost', broken { |d| d['rules'] << rule('either', 'any_of', options: [nested]) })
+    end
+
+    test 'source_page の無い規則を出す' do
+      assert_warning('出典(source_page)がありません', broken { |d| rule_in(d, 'humanities').delete('source_page') })
+    end
+
+    test 'id や label の無い規則は公開を止める' do
+      assert_blocking('規則に id がありません', broken { |d| rule_in(d, 'humanities').delete('id') })
+      assert_blocking('規則に label がありません', broken { |d| rule_in(d, 'humanities').delete('label') })
+    end
+
+    test '規則の id の重複は公開を止める' do
+      assert_blocking('の id が、2件の規則で重なっています', broken do |d|
+        d['rules'] << rule('humanities', 'credit_sum', categories: ['english'], required_credits: 2)
+      end)
+    end
+
+    test '解釈できない型や置けない位置の型は、要確認になるので警告にとどめる' do
+      assert_warning('解釈できません', broken { |d| d['rules'] << rule('mystery', 'mystery') })
+      assert_warning('置けません', broken { |d| d['rules'] << rule('lonely', 'all_of', conditions: []) })
+      assert_warning('type がありません', broken { |d| d['rules'] << rule('typeless', nil) })
+    end
+
+    test 'any_of・all_of の入れ子の規則も検める' do
+      nested = { 'type' => 'credit_sum', 'categories' => ['english'] }
+      document = broken { |d| d['rules'] << rule('either', 'any_of', options: [nested]) }
+
+      assert_blocking '必要な欄が無いか、形が違います: required_credits', document
+      assert_warning('options が空', broken { |d| d['rules'] << rule('either', 'any_of', options: []) })
+      empty_all_of = { 'type' => 'all_of', 'conditions' => [] }
+      assert_warning('conditions が空', broken { |d| d['rules'] << rule('either', 'any_of', options: [empty_all_of]) })
+      lacking = { 'type' => 'all_of' }
+      assert_blocking('必要な欄が無いか、形が違います: conditions', broken do |d|
+        d['rules'] << rule('either', 'any_of', options: [lacking])
+      end)
+    end
+
+    test 'grouped_max の group_by が3つの形のどれでもなければ公開を止める' do
+      assert_blocking('group_by は number_prefix', broken { |d| rule_in(d, 'fusion_provider')['group_by'] = 'provider' })
+      assert_blocking('group_by は number_prefix', broken { |d| rule_in(d, 'fusion_provider')['group_by'] = 'field:' })
+      assert_quiet(broken { |d| rule_in(d, 'fusion_provider')['group_by'] = 'number_prefix_hundreds' })
+    end
+
+    test 'grouped_max の field: が指す欄に値のある科目が無ければ出す' do
+      assert_warning('値のある科目が', broken { |d| rule_in(d, 'fusion_provider')['group_by'] = 'field:language' })
+      document = broken do |d|
+        rule_in(d, 'fusion_provider')['group_by'] = 'field:language'
+        d['courses'].select { |c| c['category'] == 'fusion' }.each { |c| c['language'] = '英語' }
+      end
+
+      assert_quiet document
+    end
+
+    test 'exclude の number_prefix が空、または正規化前の表記なら公開を止める' do
+      ['', '知 能', '知能　', 'Ｃ', nil, 5].each do |prefix|
+        document = broken do |d|
+          d['rules'] << rule('own', 'exclude', category: 'fusion', reason: '自コース', number_prefix: prefix)
+        end
+
+        assert_blocking 'number_prefix', document
+        assert_raises(ArgumentError) { GraduationAssessment::Catalogue.new(document) }
+      end
+      assert_quiet(broken do |d|
+        d['rules'] << rule('own', 'exclude', category: 'fusion', reason: '自コース', number_prefix: '知能')
+      end)
+    end
+
+    test 'exclude に reason が無ければ公開を止める' do
+      assert_blocking('reason', broken { |d| rule_in(d, 'excluded_category').delete('reason') })
+      assert_blocking('reason', broken { |d| rule_in(d, 'excluded_category')['reason'] = ' ' })
+    end
+
+    test '条件が1つも無い exclude は、すべての科目を外すので公開を止める' do
+      assert_blocking('条件が1つも無い', broken { |d| rule_in(d, 'excluded_category').delete('category') })
+    end
+
+    test 'exclude は区分が無くても、科目番号だけで書ける' do
+      assert_quiet(broken do |d|
+        d['rules'] << rule('by_number', 'exclude', reason: '他学部の情報系科目', numbers: %w[理101])
+      end)
+    end
+
+    test 'exclude の numbers が配列でなければ公開を止める' do
+      assert_blocking('numbers', broken do |d|
+        d['rules'] << rule('by_number', 'exclude', reason: 'r', numbers: '理101')
+      end)
+    end
+
+    test 'exclude の提供コースの一致・以外が読めなければ公開を止める' do
+      assert_blocking('number_prefix_mode', broken do |d|
+        d['rules'] << rule('own', 'exclude', category: 'fusion', reason: 'r', number_prefix: '知能',
+                                             number_prefix_mode: 'maybe')
+      end)
+      assert_blocking('number_prefix_mode', broken do |d|
+        d['rules'] << rule('own', 'exclude', category: 'fusion', reason: 'r', number_prefix_mode: 'except')
+      end)
+      assert_quiet(broken do |d|
+        d['rules'] << rule('own', 'exclude', category: 'fusion', reason: 'r', number_prefix: '知能',
+                                             number_prefix_mode: 'except')
+      end)
+    end
+
+    test 'cap の credits が負・非数・無限なら公開を止める' do
+      [-1, 'abc', nil, Float::INFINITY, Float::NAN].each do |credits|
+        document = broken { |d| d['rules'] << rule('cap1', 'cap', category: 'humanities', credits: credits) }
+
+        assert_blocking 'credits', document
+      end
+      assert_quiet(broken { |d| d['rules'] << rule('cap1', 'cap', category: 'humanities', credits: 0) })
+    end
+
+    # ---- 役割 ----
+
+    test '規則が名指しする役割を、どの科目も持っていなければ出す' do
+      document = broken { |d| rule_in(d, 'path_rule')['paths'] = [['role_a'], ['role_ghost']] }
+
+      assert_warning '役割(role_ghost)を持つ科目が、科目表にありません', document
+    end
+
+    # 役割は判定に効かない(必須の役割は one_of_paths からだけ作られる)ので、参照が無くても公開は止めない。
+    test '科目に付いているのに、どの規則も参照しない役割は、要件が落ちた疑いとして警告にとどめる' do
+      document = broken { |d| d['courses'][2]['roles'] = ['role_lost'] }
+
+      assert_warning '役割「role_lost」は科目に付いていますが、どの規則も参照していません', document
+      assert_nothing_raised { GraduationAssessment::Catalogue.new(document) }
+    end
+
+    test '宣言されているだけで、科目も規則も使わない役割は警告にとどめる' do
+      document = broken { |d| d['roles'] = [{ 'key' => 'role_a' }, { 'key' => 'role_b' }, { 'key' => 'role_idle' }] }
+
+      assert_warning '役割「role_idle」は宣言されていますが', document
+    end
+
+    # ---- 規則と科目表の突き合わせ ----
+
+    test '必修の単位合計が all_required の required_credits と違えば出す' do
+      assert_warning('必修の単位合計(4)が、規則の必要単位(6)と違います', broken { |d| rule_in(d, 'core')['required_credits'] = 6 })
+    end
+
+    test '必修の科目数が規則と違えば出す' do
+      assert_warning('必修の科目数(2)が、規則の科目数(3)と違います', broken { |d| rule_in(d, 'core')['expected_course_count'] = 3 })
+    end
+
+    test '必修の科目が必修の区分の外にあれば出す' do
+      assert_warning('必修の区分(コア必修)の外にあります', broken { |d| d['courses'][0]['required'] = true })
+    end
+
+    test '科目表のすべての科目を修得しても必要単位に届かない credit_sum を出す' do
+      assert_warning('必要な8単位に届きません', broken { |d| rule_in(d, 'english')['required_credits'] = 8 })
+    end
+
+    test '数える区分に科目が1つも無い規則を出す' do
+      document = broken { |d| d['courses'].reject! { |c| c['category'] == 'humanities' } }
+
+      assert_warning '数える区分(人文系)に科目が1つもありません', document
+    end
+
+    # 科目番号から区分が決まる科目は便覧に入れない。パターンを持つ区分は、科目0件が正常な状態。
+    def with_patterns(document, *keys)
+      keys.each do |key|
+        document['categories'].find { |c| c['key'] == key }['number_patterns'] = ['人']
+      end
+    end
+
+    def add_free_category(document)
+      document['categories'] << { 'key' => 'free', 'label' => '自由', 'counts_toward_total' => true }
+    end
+
+    test '番号パターンを持つ区分が0件でも、規則の警告を出さない' do
+      document = broken do |d|
+        d['courses'].reject! { |c| c['category'] == 'humanities' }
+        with_patterns(d, 'humanities')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:reason].include?('科目が1つもありません') })
+    end
+
+    test 'パターンも科目も持たない区分だけを指す規則には、いまどおり警告を出す' do
+      document = broken do |d|
+        add_free_category(d)
+        d['rules'] << rule('free_rule', 'credit_sum', categories: ['free'], required_credits: 2)
+        # 空のパターンは持っていないのと同じ。
+        d['categories'].find { |c| c['key'] == 'free' }['number_patterns'] = []
+      end
+
+      assert_warning '数える区分(自由)に科目が1つもありません', document, scope: :rule
+    end
+
+    test '指す区分のうち1つでもパターンを持てば、警告を出さない' do
+      document = broken do |d|
+        d['courses'].reject! { |c| c['category'] == 'humanities' }
+        add_free_category(d)
+        d['rules'] << rule('mixed', 'credit_sum', categories: %w[humanities free], required_credits: 2)
+        with_patterns(d, 'humanities')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:target] == 'mixed' && f[:reason].include?('科目が1つもありません') })
+    end
+
+    test '行の区分がパターンを持つなら、0件でも警告を出さない' do
+      document = broken do |d|
+        d['courses'].reject! { |c| c['category'] == 'english' }
+        with_patterns(d, 'english')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:scope] == :display && f[:reason].include?('科目が1つもありません') })
+    end
+
+    test '科目0件でも、数える区分がすべてパターンを持つなら公開を止めない' do
+      document = broken do |d|
+        d['courses'] = []
+        with_patterns(d, 'humanities', 'english', 'required_core', 'fusion')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:target] == 'courses' && f[:blocking] })
+    end
+
+    test '科目0件で、パターンを持たない数える区分があれば公開を止める' do
+      document = broken do |d|
+        d['courses'] = []
+        with_patterns(d, 'humanities', 'english', 'required_core')
+      end
+
+      assert_blocking '科目が1つもありません', document, scope: :course
+    end
+
+    test '科目0件で、数える区分が1つも無いなら公開を止める' do
+      document = broken do |d|
+        d['courses'] = []
+        d['categories'] = []
+      end
+
+      assert_blocking '科目が1つもありません', document, scope: :course
+    end
+
+    test 'パターンを持つ区分を指す credit_sum は、残った科目の単位が必要単位に届かなくても警告しない' do
+      document = broken do |d|
+        rule_in(d, 'humanities')['required_credits'] = 20
+        with_patterns(d, 'humanities')
+      end
+
+      assert_not(findings_for(document).any? { |f| f[:reason].include?('に届きません') })
+    end
+
+    test 'パターンを持たない区分では、科目の単位が必要単位に届かなければ、いまどおり警告する' do
+      document = broken { |d| rule_in(d, 'humanities')['required_credits'] = 20 }
+
+      assert_warning '必要な20単位に届きません', document, scope: :rule
+    end
+
+    test '総単位に数えない区分に、丸ごと算入から外す exclude 規則が無ければ公開を止める' do
+      assert_blocking('exclude 規則がありません', broken { |d| d['rules'].reject! { |r| r['id'] == 'excluded_category' } })
+      # 接頭辞つき・科目番号つきの exclude は区分の一部しか外さないので、覆ったことにしない。
+      document = broken { |d| rule_in(d, 'excluded_category')['number_prefix'] = '情' }
+
+      assert_blocking 'exclude 規則がありません', document
+      named = broken { |d| rule_in(d, 'excluded_category')['numbers'] = ['情01'] }
+
+      assert_blocking 'exclude 規則がありません', named
+    end
+
+    test '総単位の規則が数える区分が、総単位に数える区分と違えば出す' do
+      assert_warning('足りない区分: 工学融合', broken { |d| rule_in(d, 'total')['categories'] -= ['fusion'] })
+      assert_warning('余分な区分: 算入対象外', broken { |d| rule_in(d, 'total')['categories'] += ['excluded'] })
+      assert_warning('総単位の判定が規則にありません', broken { |d| rule_in(d, 'total')['required_credits'] = 13 })
+    end
+
+    # ---- 画面の表 ----
+
+    test 'check_ids が指す規則がなければ出し、公開を止める' do
+      document = broken { |d| d['display']['groups'][0]['rows'][0]['check_ids'] = %w[humanities vanished] }
+
+      assert_blocking '規則が見つかりません: vanished', document, scope: :display
+    end
+
+    test '章の check_id・小計の check_ids と row_ids が指す先がなければ公開を止める' do
+      assert_blocking('規則が見つかりません: vanished', broken { |d| d['display']['groups'][1]['check_id'] = 'vanished' })
+      subtotal = { 'id' => 'sub', 'name' => '小計', 'required_credits' => 4, 'row_ids' => %w[fusion gone],
+                   'check_ids' => ['core'] }
+      assert_blocking('指す行が見つかりません: gone', broken { |d| d['display']['subtotals'] = [subtotal] })
+      assert_blocking('規則が見つかりません: vanished', broken do |d|
+        d['display']['subtotals'] = [subtotal.merge('row_ids' => [], 'check_ids' => ['vanished'])]
+      end)
+    end
+
+    test 'check_ids が cap や exclude の id を指していても、Check が無いので止める' do
+      assert_blocking('規則が見つかりません: excluded_category', broken do |d|
+        d['display']['groups'][0]['rows'][0]['check_ids'] = ['excluded_category']
+      end)
+    end
+
+    # Task 16 のレビューで見つかった穴。DraftMerge.withdraw は規則だけを外し、display が指す check_id を残す。
+    test '読み直しで規則だけが外れて display に残った参照を、公開の前に止める' do
+      document = base_document
+      DraftMerge.withdraw(document, { 'rules' => %w[humanities] }, 3)
+      assert_blocking '規則が見つかりません: humanities', document, scope: :display
+    end
+
+    test 'credits_from_check の行は categories が空配列でもよい(指す規則が数える区分を出すものとして扱う)' do
+      document = broken { |d| d['display']['groups'][2]['rows'][0]['categories'] = [] }
+
+      assert_quiet document
+      assert_nothing_raised { GraduationAssessment::Catalogue.new(document) }
+      strict = broken do |d|
+        d['display']['groups'][2]['rows'][0]['categories'] = []
+        d['display']['groups'][2]['rows'][0]['credits_from_check'] = false
+      end
+
+      assert_blocking '画面のどの行にも出てきません', strict
+    end
+
+    # 欄が無いと、計画表が row[:categories].include? を呼んで落ちる。Catalogue は通すので、ここで止める。
+    test '行の categories が無い・配列でないなら、credits_from_check の行でも公開を止める' do
+      [:absent, nil, 'fusion'].each do |value|
+        document = broken do |d|
+          row = d['display']['groups'][2]['rows'][0]
+          value == :absent ? row.delete('categories') : row['categories'] = value
+        end
+
+        assert_blocking 'categories が配列ではありません', document, scope: :display
+      end
+    end
+
+    # 学生は任意の算入区分に自分で科目を入れられるので、科目表に無い区分が満たせないわけではない。止めずに知らせる。
+    test '科目が1つも無い区分が、必要単位のある行に出ていれば警告する(止めない)' do
+      document = broken { |d| d['courses'].reject! { |c| c['category'] == 'english' } }
+
+      assert_warning '区分「英語」に科目が1つもありません', document, scope: :display
+      assert_not_predicate Validation.new(document), :blocking?
+    end
+
+    test '必要単位の無い行の、科目が無い区分は、学生が自由に入れる区分として許す' do
+      document = broken do |d|
+        d['categories'] << { 'key' => 'free', 'label' => '自由', 'counts_toward_total' => true }
+        d['display']['groups'][2]['rows'] << row('free', ['free'], ['fusion_provider'], nil, required_label: '内数')
+        rule_in(d, 'total')['categories'] << 'free'
+      end
+
+      assert_quiet document
+    end
+
+    test '要件表が内数を明記した自由科目の行(必要単位あり)も、公開を止めない' do
+      document = broken do |d|
+        d['categories'] << { 'key' => 'free', 'label' => '自由', 'counts_toward_total' => true }
+        d['display']['groups'][2]['rows'] << row('free', ['free'], ['fusion_provider'], 11)
+        rule_in(d, 'total')['categories'] << 'free'
+      end
+
+      assert_warning '区分「自由」に科目が1つもありません', document
+      assert_not_predicate Validation.new(document), :blocking?
+    end
+
+    test '行が categories に無い区分を指していれば公開を止める' do
+      assert_blocking('区分を指しています: ghost', broken { |d| d['display']['groups'][0]['rows'][0]['categories'] = ['ghost'] })
+    end
+
+    test 'どの行にも出てこない区分があれば出す(公開を止める)' do
+      document = broken { |d| d['display']['groups'][2]['rows'].clear }
+      result = Validation.new(document)
+
+      assert_reason '画面のどの行にも出てきません', result
+      assert_predicate result, :blocking?
+    end
+
+    test 'excluded はどの行に出てこなくても止めない' do
+      assert_not_predicate Validation.new(base_document), :blocking?
+      shown = base_document['display']['groups'].flat_map { |group| group['rows'] }.flat_map { |row| row['categories'] }
+
+      assert_not_includes shown, 'excluded'
+    end
+
+    test '区分ごとの必要単位の合計が卒業総単位を超えていたら出す' do
+      assert_blocking('章の必要単位の合計(17)が、卒業算入の総単位(14)を超えて',
+                      broken { |d| d['display']['groups'][0]['required_credits'] = 9 })
+      assert_warning('区分ごとの必要単位の合計(16)が、卒業算入の総単位(14)を超えて',
+                     broken { |d| rule_in(d, 'humanities')['required_credits'] = 14 })
+    end
+
+    test '総単位を低く読んだ便覧は、総単位の規則が充足と答えるので公開を止める' do
+      document = JSON.parse(REAL_DOCUMENT.read)
+      document['display']['total_credits'] -= 4
+      document['rules'].find { |r| r['id'] == 'total' }['required_credits'] -= 4
+      result = Validation.new(document)
+
+      assert_blocking('章の必要単位の合計(130)が、卒業算入の総単位(126)を超えて', result)
+      assert_predicate result, :blocking?
+    end
+
+    # 総単位に数えない区分だけの章(教職科目など)は、総単位とは別に積める。
+    test '総単位に数えない区分だけの章は、章の合計に入れない' do
+      document = broken do |d|
+        d['categories'] << { 'key' => 'teaching', 'label' => '教職', 'counts_toward_total' => false }
+        d['rules'] << rule('teaching_exclude', 'exclude', category: 'teaching', reason: '教職は算入対象外')
+        d['courses'] << course('教01', '教職入門', 'teaching')
+        d['display']['groups'] << { 'id' => 'teaching', 'title' => '4. 教職', 'required_credits' => 20,
+                                    'rows' => [row('teaching', ['teaching'], [], 20)] }
+      end
+
+      assert_quiet document
+    end
+
+    test '総単位が章の合計より大きいのは正当なので出さない' do
+      document = broken do |d|
+        d['display']['total_credits'] = 18
+        rule_in(d, 'total')['required_credits'] = 18
+      end
+
+      assert_quiet document
+    end
+
+    test '章・行の必要単位が、指す規則の必要単位と違えば出す' do
+      assert_warning('必要単位(5)が、規則「規則humanities」の必要単位(4)と違います',
+                     broken { |d| d['display']['groups'][0]['rows'][0]['required_credits'] = 5 })
+      assert_warning('章「2. 必修」の必要単位(5)', broken { |d| d['display']['groups'][1]['required_credits'] = 5 })
+      subtotal = { 'id' => 'sub', 'name' => '小計', 'required_credits' => 5, 'row_ids' => ['fusion'],
+                   'check_ids' => ['fusion_provider'] }
+      document = broken { |d| d['display']['subtotals'] = [subtotal] }
+
+      assert_warning('小計「小計」の必要単位(5)が、規則「規則fusion_provider」の必要単位(4)', document)
+    end
+
+    # 複数の決まりを持つ行も突き合わせる(設計書 項目5 の別立て)。どの決まりの数字とも合わなければ出す。
+    test '複数の決まりを持つ行の必要単位が、どの決まりの必要単位とも違えば出す' do
+      document = broken do |d|
+        row = d['display']['groups'][0]['rows'][0]
+        row['check_ids'] = %w[humanities english]
+        row['required_credits'] = 5
+      end
+
+      assert_warning('必要単位(5)が、どの決まりの必要単位(4・2)とも違います', document)
+    end
+
+    test '複数の決まりのどれかと合っていれば、必要単位の食い違いは出さない' do
+      assert_quiet(broken do |d|
+        d['display']['groups'][0]['rows'][0]['check_ids'] = %w[humanities english]
+      end)
+    end
+
+    # 単位の欄を持たない決まり(one_of_paths)しか指していない行は、比べる数字が無い。
+    test '必要単位を持つ決まりが1つも無い行は、食い違いを出さない' do
+      assert_quiet(broken do |d|
+        d['display']['groups'][0]['rows'][0]['check_ids'] = %w[path_rule]
+      end)
+    end
+
+    test '総単位が読めていなければ公開を止める' do
+      assert_blocking('display.total_credits', broken { |d| d['display'].delete('total_credits') })
+    end
+
+    # ---- ページと承認の注記 ----
+
+    def page(number, kind: 'courses', status: 'read', text: '本文', warnings: nil)
+      { 'page' => number, 'kind' => kind, 'status' => status, 'error' => nil, 'text' => text,
+        'warnings' => warnings }.compact
+    end
+
+    test 'テキストが空のページがあるのに承認の注記が1つも無い便覧を出す' do
+      pages = [page(3, text: nil), page(4, text: '  '), page(5)]
+
+      assert_warning '承認の注記が1つもありません', base_document, pages: pages, scope: :document
+      assert_equal ['PDF3・4ページ'], findings_for(base_document, pages: pages).pluck(:target)
+    end
+
+    test '承認の注記が1つでもあれば、テキストの空のページを出さない' do
+      document = broken do |d|
+        d['approval_notes'] =
+          [{ 'scope' => 'category', 'category' => 'humanities', 'text' => '承認', 'source_page' => 'PDF3ページ' }]
+      end
+
+      assert_quiet document, pages: [page(3, text: nil)]
+    end
+
+    test '読まないページ・まだ読んでいないページのテキストの空は、承認の見落としとして出さない' do
+      assert_empty(findings_for(base_document, pages: [page(1, kind: 'skip', text: nil)]).select do |f|
+        f[:reason].include?('承認の注記')
+      end)
+      assert_empty(findings_for(base_document, pages: [page(3, status: 'pending', text: nil)]).select do |f|
+        f[:reason].include?('承認の注記')
+      end)
+    end
+
+    test '読む種別なのに読めていないページを出す' do
+      pages = [page(3, status: 'failed'), page(4, status: 'pending'), page(5, kind: 'skip', status: 'pending')]
+
+      assert_warning '読み取れていないページ', base_document, pages: pages
+      assert_equal ['PDF3・4ページ'], findings_for(base_document, pages: pages).pluck(:target)
+    end
+
+    test '承認に触れる警告がページに残っているのに、注記も承認の科目も無ければ出す' do
+      pages = [page(3, warnings: ['このページの文字に「承認」とありますが、承認が要る科目として読めた科目がありません。'])]
+
+      assert_warning '承認の注記も、承認が必要な科目もありません', base_document, pages: pages
+      assert_quiet broken { |d| d['courses'][0]['requires_approval'] = true }, pages: pages
+    end
+
+    test 'Validation.for は下書きの document と pages を渡す' do
+      curriculum = Curriculum.new(slug: 'sample', admission_year: 2024, document: base_document,
+                                  pages: [page(3, text: nil)])
+
+      assert_warning '承認の注記が1つもありません', Validation.for(curriculum)
+    end
+
+    # ---- 壊れた形・最後の網 ----
+
+    test '形が壊れた文書でも例外にせず、公開を止める' do
+      documents = [nil, [], 'text', {}, { 'courses' => 'x', 'rules' => [1, 'a'], 'display' => [] },
+                   { 'courses' => [nil, 3], 'categories' => { 'a' => 1 },
+                     'display' => { 'groups' => [{ 'rows' => 'x' }] } },
+                   base_document.merge('rules' => [{ 'type' => 'any_of', 'id' => 'a', 'label' => 'a',
+                                                     'options' => 'x' }])]
+      documents.each do |document|
+        validation = Validation.new(document)
+
+        assert_nothing_raised { validation.call }
+        assert_predicate validation, :blocking?, document.inspect
+      end
+    end
+
+    test 'courses が無い文書は、読める理由で公開を止める' do
+      assert_blocking('courses がありません', broken { |d| d.delete('courses') })
+    end
+
+    test '形の問題は、読めない部分を空として検査を続けるうえで、公開を止める' do
+      assert_blocking('ハッシュでない要素が1件', broken { |d| d['courses'] << 'oops' })
+      assert_blocking('rules は配列でなければ', broken { |d| d['rules'] = 'x' })
+      assert_blocking('display はハッシュでなければ', broken { |d| d['display'] = [] })
+    end
+
+    test '検査が拾わなくても、本物の読み込みが落ちる便覧は、その理由で公開を止める' do
+      # 行の name が無い。Catalogue が display の形として弾く(この検査は名前を見ていない)。
+      document = broken { |d| d['display']['groups'][0]['rows'][0].delete('name') }
+
+      assert_blocking '便覧として読み込めない、または判定できません', document, scope: :document
+      assert_blocking 'name がありません', document
+    end
+
+    # ---- 文書の骨組み ----
+
+    test '科目が1つも無い便覧は、他の検査が何も見ないまま通るので、公開を止める' do
+      assert_blocking '科目が1つもありません', broken { |d| d['courses'] = [] }, scope: :course
+    end
+
+    test '規則が1つも無い便覧は、公開を止める' do
+      assert_blocking '判定の規則が1つもありません', broken { |d| d['rules'] = [] }, scope: :rule
+    end
+
+    test '規則があるのに display が無い便覧は、画面が開けないので公開を止める' do
+      assert_blocking '画面の要件表(display)がありません', broken { |d| d.delete('display') }, scope: :display
+    end
+
+    test '骨組みが揃っていれば、骨組みの指摘は出ない' do
+      assert_empty(findings_for(base_document).select { |finding| finding[:target].in?(%w[courses rules display]) })
+    end
+
+    # ---- 指摘から内部の識別子を消す(target は突き合わせ用の id のまま、見せる文字は label) ----
+
+    # 規則・行の id は、人が一度も打たない値。画面に出る文字(label と reason)に入れない。
+    def shown_text(finding)
+      [finding[:label], finding[:reason]].join("\n")
+    end
+
+    def finding_on(document, target, scope: nil)
+      found = findings_for(document).select { |f| f[:target] == target && (scope.nil? || f[:scope] == scope) }
+      assert_predicate found, :any?, "target「#{target}」の指摘が出ていない: #{findings_for(document).pluck(:target, :reason)}"
+      found
+    end
+
+    test '規則の指摘は、target に id を残したまま、label に規則の名前を出す(id は見せる文字に入らない)' do
+      document = broken do |d|
+        d['rules'] << rule('rule_ge_total', 'credit_sum', categories: ['humanities'], required_credits: 0,
+                                                          label: '共通教育の合計')
+      end
+
+      found = finding_on(document, 'rule_ge_total', scope: :rule)
+
+      assert(found.all? { |f| f[:label] == '共通教育の合計' }, found.pluck(:label).inspect)
+      found.each { |f| assert_not_includes shown_text(f), 'rule_ge_total' }
+    end
+
+    test '規則に label が無ければ、持ち主の行の名前と型の和名を使う' do
+      document = broken do |d|
+        d['rules'] << rule('rule_ge_total', 'credit_sum', categories: ['humanities'],
+                                                          required_credits: 4).except('label')
+        d['display']['groups'][0]['rows'] << row('row_foreign', ['english'], ['rule_ge_total'], 2, name: '基幹領域：外国語科目')
+      end
+
+      found = finding_on(document, 'rule_ge_total', scope: :rule)
+
+      assert_equal ['行「基幹領域：外国語科目」の区分の合計単位'], found.pluck(:label).uniq
+    end
+
+    test '規則に label も持ち主の行も無ければ、型の和名だけを使う。型も無ければ名前の無い規則と言う' do
+      document = broken do |d|
+        d['rules'] << rule('rule_lost', 'credit_sum', categories: [], required_credits: 4).except('label')
+      end
+
+      assert_equal ['区分の合計単位'], finding_on(document, 'rule_lost').pluck(:label).uniq
+
+      untyped = broken { |d| d['rules'] << { 'id' => 'rule_untyped', 'source_page' => 'PDF3ページ' } }
+
+      assert_equal ['名前のない規則'], finding_on(untyped, 'rule_untyped').pluck(:label).uniq
+    end
+
+    test '入れ子の規則は「…の中の条件」と出し、options[1] のような添字を見せない' do
+      document = broken do |d|
+        d['rules'] << rule('rule_foreign_lang', 'all_of', conditions: [
+                             { 'type' => 'credit_sum', 'categories' => ['english'], 'required_credits' => 2 },
+                             { 'type' => 'credit_sum', 'categories' => ['english'], 'required_credits' => 0 }
+                           ]).except('label')
+        d['display']['groups'][0]['rows'] << row('row_foreign', ['english'], ['rule_foreign_lang'], 2,
+                                                 name: '基幹領域：外国語科目')
+      end
+
+      nested = finding_on(document, 'rule_foreign_lang の conditions[2]', scope: :rule)
+
+      assert_equal ['行「基幹領域：外国語科目」の中の条件(2つ目)'], nested.pluck(:label).uniq
+      nested.each do |f|
+        assert_no_match(/conditions|options|\[\d+\]|rule_foreign_lang/, shown_text(f))
+      end
+    end
+
+    test 'ラベルのある規則の中の選択肢は「その名前」の中の選択肢と出す' do
+      document = broken do |d|
+        d['rules'] << rule('rule_choice', 'any_of', label: 'どちらかを修得',
+                                                    options: [{ 'type' => 'credit_sum', 'categories' => ['english'],
+                                                                'required_credits' => 0 }])
+      end
+
+      assert_equal ['「どちらかを修得」の中の選択肢(1つ目)'], finding_on(document, 'rule_choice の options[1]').pluck(:label)
+    end
+
+    test '区分の一覧を出す文面は、キーではなく和名になる' do
+      document = broken { |d| d['rules'].find { |r| r['id'] == 'total' }['categories'] = %w[humanities english] }
+
+      found = findings_for(document).select { |f| f[:reason].include?('足りない区分') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      found.each do |f|
+        assert_includes f[:reason], '工学融合'
+        assert_includes f[:reason], 'コア必修'
+        assert_no_match(/fusion|required_core/, f[:reason])
+      end
+    end
+
+    test '余分な区分の一覧も、和名で出る' do
+      document = broken { |d| d['rules'].find { |r| r['id'] == 'total' }['categories'] += ['excluded'] }
+
+      found = findings_for(document).select { |f| f[:reason].include?('余分な区分') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      found.each do |f|
+        assert_includes f[:reason], '算入対象外'
+        assert_no_match(/excluded/, f[:reason])
+      end
+    end
+
+    test '行の指摘は、target に行の id を残したまま、label に行の名前を出す(id は見せる文字に入らない)' do
+      document = broken do |d|
+        d['display']['groups'][0]['rows'] << row('row_ge_humanities', ['ghost'], [], 2, name: '人文系の行')
+      end
+
+      found = finding_on(document, 'row_ge_humanities', scope: :display)
+
+      assert_equal ['行「人文系の行」'], found.pluck(:label).uniq
+      found.each { |f| assert_not_includes shown_text(f), 'row_ge_humanities' }
+    end
+
+    test '区分の和名が文面に出るとき、キーを括弧で添えない' do
+      document = broken { |d| d['display']['groups'][0]['rows'].each { |r| r['categories'] -= ['humanities'] } }
+
+      found = findings_for(document).select { |f| f[:reason].include?('どの行にも出てきません') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      found.each do |f|
+        assert_includes f[:reason], '区分「人文系」'
+        assert_not_includes f[:reason], 'humanities'
+        assert_equal '区分「人文系」', f[:label]
+      end
+    end
+
+    test '行と規則の必要単位が違うという指摘は、章・行・規則を名前で呼ぶ' do
+      document = broken do |d|
+        d['display']['groups'][0]['rows'] << row('row_ge_eng', ['english'], ['english'], 99, name: '外国語の行')
+      end
+
+      found = findings_for(document).select { |f| f[:reason].include?('必要単位(99)') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      found.each do |f|
+        assert_includes f[:reason], '行「外国語の行」'
+        assert_includes f[:reason], '規則「規則english」'
+        assert_no_match(/row_ge_eng/, shown_text(f))
+        assert_not_includes f[:reason], '「english」'
+      end
+    end
+
+    test '章の指摘も、章の名前で呼ぶ' do
+      document = broken { |d| d['display']['groups'][0]['check_id'] = 'nowhere' }
+
+      found = finding_on(document, 'common', scope: :display)
+
+      assert_equal ['章「1. 共通教育」'], found.pluck(:label).uniq
+      assert(found.all? { |f| f[:reason].include?('章「1. 共通教育」') }, found.pluck(:reason).inspect)
+    end
+
+    test '規則の id が重なる指摘は、規則の名前で言う' do
+      document = broken do |d|
+        d['rules'] << rule('english', 'credit_sum', categories: ['english'], required_credits: 2)
+      end
+
+      found = findings_for(document).select { |f| f[:reason].include?('重なっています') }
+
+      assert_predicate found, :any?, findings_for(document).pluck(:reason).inspect
+      assert_equal ['規則english'], found.pluck(:label).uniq
+    end
+
+    test '壊れた便覧のどの指摘にも、規則の id と行の id が出ない(指摘は実際に何件も出ている)' do
+      ids = %w[rule_a rule_b rule_c row_a row_b]
+      document = broken do |d|
+        d['rules'] << rule('rule_a', 'credit_sum', categories: ['english'], required_credits: 0, label: '外国語の決まり')
+        empty_option = { 'type' => 'credit_sum', 'categories' => [], 'required_credits' => 1 }
+        d['rules'] << rule('rule_b', 'any_of', label: '条件の決まり', options: [empty_option])
+        d['rules'] << rule('rule_c', 'credit_sum', categories: ['ghost'], required_credits: 2).except('label')
+        d['display']['groups'][0]['rows'] << row('row_a', ['ghost'], [], 2, name: '行あ')
+        d['display']['groups'][0]['rows'] << row('row_b', ['english'], ['rule_c'], 77, name: '行い')
+        d['rules'].find { |r| r['id'] == 'total' }['categories'] = %w[humanities]
+      end
+
+      found = findings_for(document)
+
+      assert_operator found.size, :>=, 5, found.pluck(:reason).inspect
+      found.each do |f|
+        ids.each { |id| assert_not_includes shown_text(f), id, "#{id} が見える: #{f}" }
+      end
+      assert(found.any? { |f| f[:target].start_with?('rule_') }, 'target は id のまま')
+      assert(found.any? { |f| f[:target].start_with?('row_') }, 'target は id のまま')
+    end
+
+    test '規則の conditions が配列でない形の問題は、規則の名前で言い、規則の id を出さない' do
+      document = broken do |d|
+        d['rules'] << rule('rule_ge_total', 'any_of', label: '共通教育の合計', options: 'こわれた')
+      end
+
+      found = finding_on(document, 'rule_ge_total の options', scope: :rule)
+
+      assert_equal ['共通教育の合計の選択肢'], found.pluck(:label).uniq
+      found.each do |f|
+        assert_includes f[:reason], '共通教育の合計の選択肢 は配列でなければなりません'
+        assert_not_includes shown_text(f), 'rule_ge_total'
+      end
+    end
+
+    test '章の rows が配列でない形の問題は、章の名前で言い、章の id を出さない' do
+      document = broken do |d|
+        d['display']['groups'] << { 'id' => 'g_common', 'title' => '共通教育の章', 'required_credits' => 1, 'rows' => 'こわれた' }
+      end
+
+      found = finding_on(document, 'display.groups[g_common].rows', scope: :display)
+
+      assert_equal ['章「共通教育の章」の行'], found.pluck(:label).uniq
+      found.each do |f|
+        assert_includes f[:reason], '章「共通教育の章」の行 は配列でなければなりません'
+        assert_not_includes shown_text(f), 'g_common'
+      end
+    end
+
+    test '入れ子の規則の欄が配列でない形の問題も、名前で言う。ハッシュでない要素の件数の文面も同じ' do
+      document = broken do |d|
+        d['rules'] << rule('rule_nest', 'any_of', label: '入れ子の親',
+                                                  options: [1, { 'type' => 'all_of', 'conditions' => 5 }])
+      end
+
+      found = findings_for(document).select do |f|
+        (f[:target].start_with?('rule_nest') && f[:reason].include?('配列')) || f[:reason].include?('ハッシュでない')
+      end
+
+      assert_operator found.size, :>=, 2, findings_for(document).pluck(:reason).inspect
+      found.each { |f| assert_no_match(/rule_nest|options|conditions/, shown_text(f)) }
+    end
+
+    test 'label を渡さない指摘は、target をそのまま見せる文字にする' do
+      findings = Validation::Findings.new
+      findings.warning(:course, 'x', '理由')
+
+      assert_equal 'x', findings.to_a.first[:label]
+    end
+
+    test 'Input#rule_name と #row_name は、内部の id を返さない' do
+      input = Validation::Input.new(broken { |d| d['rules'] << rule('rule_x', 'credit_sum').except('label') }, [])
+
+      assert_equal '規則english', input.rule_name(input.rules.find { |r| r['id'] == 'english' })
+      assert_equal '行「行humanities」', input.row_name('humanities')
+      assert_equal '名前のない行', input.row_name('no_such_row')
+      assert_equal '区分の合計単位', input.rule_name(input.rules.find { |r| r['id'] == 'rule_x' })
+    end
+
+    test '警告だけの文書は公開を止めない' do
+      document = broken { |d| d['courses'][0]['source_page'] = '' }
+
+      assert_predicate Validation.new(document).call, :any?
+      assert_not_predicate Validation.new(document), :blocking?
+    end
+  end
+end
+

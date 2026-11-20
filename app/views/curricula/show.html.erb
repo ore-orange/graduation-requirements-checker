@@ -26,7 +26,11 @@
                       class: 'rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-semibold text-rose-700 hover:bg-rose-50' %>
       </div>
       <p class="mt-3 text-sm font-semibold text-slate-700">
-        手順: <%= link_to '① PDFを読み取る', '#pages-heading', class: 'underline' %>
+        手順:
+        <%= link_to '① PDFを読み取る', '#pages-heading', class: 'underline' %> →
+        <%= link_to '② 要件表を確認する', '#requirements_review', class: 'underline' %> →
+        <%= link_to '③ 科目表を確認する', '#course-review', class: 'underline' %> →
+        <%= link_to '④ 公開する', '#publish', class: 'underline' %>
       </p>
       <% if @curriculum.import_error.present? %>
         <p role="alert" class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-900">
@@ -36,5 +40,8 @@
     </section>
 
     <%= render 'pages', curriculum: @curriculum %>
+    <%= render 'requirements_review', review: @review %>
+    <%= render 'courses_review', review: courses_review %>
+    <%= render 'publish', curriculum: @curriculum, publication: publication %>
   </main>
 </div>

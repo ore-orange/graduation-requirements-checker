@@ -1,0 +1,156 @@
+# frozen_string_literal: true
+
+# 要件表の確認画面(curricula/_requirements_*)の部品。値の書式と、フォームの欄の名前・種類をここに集める。
+module RequirementsReviewHelper
+  RULE_TYPE_NAMES = CurriculumImport::RuleTypeNames::NAMES
+  FIELD_NAMES = CurriculumImport::RequirementsEdit::FIELD_LABELS
+  # 入力欄の見た目。くわしくは app/assets/tailwind/application.css の .rv-field。
+  # 行・決まりの数だけ繰り返すので、クラスの並びを直書きしない(1画面が重くなる)。
+  FIELD_CLASS = 'rv-field'
+
+  # 単位の数。整数なら小数点を付けない。無ければダッシュ。
+  def review_credits(value)
+    return '—' unless value.is_a?(Numeric)
+
+    value.to_d.then { |number| number.frac.zero? ? number.to_i.to_s : number.to_s('F') }
+  end
+
+  # 入れ子を持つ規則の論理。画面はこれをバッジにして、行の下の枠に出す。
+  # 経路(one_of_paths)と選択肢(any_of)は「どれか1つ」、all_of は「すべて」。
+  # それ以外(credit_sum など)は入れ子を持たないので、バッジも枠も作らない。
+  RULE_LOGIC_LABELS = { 'one_of_paths' => 'OR', 'any_of' => 'OR', 'all_of' => 'AND' }.freeze
+
+  def rule_type_name(type)
+    RULE_TYPE_NAMES.fetch(type, type.presence || '(型なし)')
+  end
+
+  def rule_logic_label(rule) = RULE_LOGIC_LABELS[rule['type']]
+
+  # 決まりの名前の横に出す一言(設計書 項目3)。型の名前は出さない。
+  # 必修をすべて修得する決まりだけは、便覧に書いてある科目数と、科目表の実数を並べて出す
+  # (食い違えば、科目表の転記漏れがその場で分かる)。
+  def rule_note(rule, review)
+    return nil unless rule['type'] == 'all_required'
+
+    "科目表の必修は #{review.courses.count { |course| course['required'] == true }} 科目"
+  end
+
+  # 入力欄。保存できなかった送信の入力があれば、それを残して出す(RequirementsReview#field_value)。
+  # 数は文字の欄にする。数の欄(type=number)は、数でない文字をブラウザが捨てるので、打ち間違いが消えて、問題の文だけが残ってしまう。
+  def rv_text(name, default, **)
+    text_field_tag(name, requirements_review.field_value(name, default), **)
+  end
+
+  def rv_number(name, default, **)
+    text_field_tag(name, requirements_review.field_value(name, default), inputmode: 'decimal', **)
+  end
+
+  def rv_check(name, value, default, **)
+    check_box_tag(name, value, requirements_review.field_checked?(name, value, default), **)
+  end
+
+  def rv_area(name, default, **)
+    text_area_tag(name, requirements_review.field_value(name, default), **)
+  end
+
+  def rv_select(name, options, default, **)
+    select_tag(name, options_for_select(options, requirements_review.field_value(name, default)), **)
+  end
+
+  # 規則のフォームの欄の名前の前半(rules[添字])。どの枠で出しても、同じ名前で送る。
+  # 添字は id で引く(同じ中身の規則が2つあっても、別の添字になる)。
+  def rule_param_key(rule, review)
+    "rules[#{review.rules.index { |candidate| candidate['id'] == rule['id'] }}]"
+  end
+
+  # ---- 「◯単位以上 〜 ◯単位以下」(設計書 項目3) ----
+
+  # 決まりの箱で、場所を決めて出す欄。
+  RULE_LOWER_FIELD = 'required_credits'
+  RULE_UPPER_FIELD = 'credits'
+  RULE_RANGE_FIELDS = [RULE_LOWER_FIELD, RULE_UPPER_FIELD].freeze
+  # 対象の区分。判定が何を数えるかを決める値なので、常時出す。
+  RULE_TARGET_FIELDS = %w[categories category required_categories].freeze
+  # 対象の区分のほかに、判定が当たる範囲を決める欄。これも畳まない
+  # (必修の科目数・グループの分け方・科目番号の接頭辞を読み違えると、判定が変わる)。
+  # 算入しない科目の条件と理由も、畳まない(設計書 項目9)。当たる科目の単位は、修得していても消える。
+  RULE_SHOWN_FIELDS = %w[expected_course_count group_by number_prefix number_prefix_mode numbers reason].freeze
+  # 経路・選択肢・条件は、1つの欄ではなく繰り返しの行で出す。
+  RULE_NESTED_KINDS = %i[paths options conditions].freeze
+
+  # 決まりの箱に出す欄を、出す場所ごとに分ける(設計書 項目3・7)。
+  #   lower・upper … 「◯以上〜◯以下」の2つの欄を、この決まりが持つか
+  #   target … 対象の区分  shown … 判定が当たる範囲を決める欄  nested … 経路・選択肢・条件
+  #   rest  … 残り(「…」の中。判定の数字を決めない値だけ)
+  def rule_field_groups(rule)
+    fields = CurriculumImport::RequirementsEdit.rule_fields(rule)
+    nested, plain = fields.partition { |_, kind| RULE_NESTED_KINDS.include?(kind) }
+    target, other = plain.partition { |field, _| RULE_TARGET_FIELDS.include?(field) }
+    shown, rest = other.partition { |field, _| RULE_SHOWN_FIELDS.include?(field) }
+    { nested: nested, target: target, shown: shown,
+      rest: rest.to_h.except(*RULE_RANGE_FIELDS).to_a,
+      lower: fields.key?(RULE_LOWER_FIELD), upper: fields.key?(RULE_UPPER_FIELD) }
+  end
+
+  # 画面に出さない欄。値は保存に要るので隠し欄で送り返すが、人には打たせない。
+  #   group_label … 学生に出る「同一の◯◯から」の◯◯。グループの分け方から決めて書く(設計書 項目3-3)。
+  HIDDEN_FIELDS = %w[group_label].freeze
+
+  # 規則の1つの欄の入力。欄の種類は RequirementsEdit.rule_fields と同じ表から決まる。
+  def rule_field_input(name, field, kind, rule, review)
+    return hidden_field_tag(name, rule[field], id: nil) if HIDDEN_FIELDS.include?(field)
+
+    hint = rule['type'] == 'exclude' ? RequirementsExcludeHelper::FIELD_HINTS[field].to_s : ''
+    label = tag.span("#{FIELD_NAMES.fetch(field, field)}#{hint}", class: 'text-sm font-semibold text-slate-700')
+    tag.div(label + rule_field_control(name, field, kind, rule[field], review), class: 'space-y-1')
+  end
+
+  # 欄の名前ごとの作り。表に無い欄は、種類(kind)で決める。
+  FIELD_CONTROLS = { 'category' => :category_select, 'group_by' => :group_by_select,
+                     'number_prefix' => :prefix_select, 'number_prefix_mode' => :prefix_mode_picks }.freeze
+
+  def rule_field_control(name, field, kind, value, review)
+    builder = FIELD_CONTROLS[field]
+    return send(builder, name, value, review) if builder
+    return category_chips(name, value, review, label: nil) if kind == :set
+    return rv_number(name, value, id: nil, class: "w-28 #{FIELD_CLASS}") if %i[number count].include?(kind)
+    return number_list_field(name, value, review) if kind == :optional_list
+
+    rv_text(name, value, id: nil, class: "w-full #{FIELD_CLASS}")
+  end
+
+  def group_by_select(name, value, _review)
+    rv_select(name, group_by_options(value), value, id: nil, class: FIELD_CLASS)
+  end
+
+  # グループの分け方(設計書 項目3-3)。画面に field:language や number_prefix を打たせない。
+  #
+  # いまの値が2択に無ければ、現在値を3つめの選択肢として残す。この画面は未知の便覧を読むための画面で、
+  # Validation::RuleShape は number_prefix_hundreds や field:<任意の欄> も通す。2択に絞ると、
+  # 別の便覧でAIがそう読んだ決まりが、画面を開いて保存しただけで書き換わり、元の値がどこにも残らない。
+  def group_by_options(current)
+    current = current.to_s
+    options = CurriculumImport::RequirementsEdit::GROUP_BY_CHOICES.map { |value, label| [label, value] }
+    return options if current.blank? || options.any? { |_, value| value == current }
+
+    options + [["いまの設定: #{current}", current]]
+  end
+
+  def category_select(name, selected, review)
+    options = review.category_keys.map { |key| [review.category_label(key), key] }
+    rv_select(name, options, selected, include_blank: true, id: nil, class: FIELD_CLASS)
+  end
+
+  def human_confirmed?(item) = item[CurriculumImport::DraftMerge::CONFIRMED] == true
+
+  # 持ち主(行・章・枠)の「人が確認した」印。隠した決まりに付いた印も、ここに出す。
+  # 隠した決まりの値は持ち主の欄に出ているので、その印も持ち主に出さないと画面から消えてしまう。
+  def confirmed_with_hidden?(item, hidden_rule)
+    human_confirmed?(item) || (hidden_rule.present? && human_confirmed?(hidden_rule))
+  end
+
+  def annotation_type_options
+    CurriculumImport::Annotations::RULE_TYPES.map { |type| ["規則にする: #{rule_type_name(type)}(#{type})", type] }
+  end
+end
+

@@ -37,13 +37,23 @@ Rails.application.routes.draw do
 
   resources :course_registrations, only: :index
   # 便覧PDFのアップロードと下書きの確認。確認画面は「卒業要件の確認」タブの中にいる扱い。
-  # read_page は1ページずつの読み取り、page_image は取り込み時に作ったページ画像。
+  # publish は下書きの公開、duplicate は公開済みを複製して直すための下書きを作る。update_rules は要件表の確認画面の保存、update_courses・edit_course は科目表の確認画面の保存と編集欄。
   resources :curricula, only: %i[create show update destroy] do
     member do
+      post :publish
+      post :duplicate
       post 'pages/:page/read', action: :read_page, as: :read_page
+      patch :update_courses
+      patch 'courses/bulk_confirm', action: :bulk_confirm_courses, as: :bulk_confirm_courses
+      post 'courses/filter', action: :filter_courses, as: :filter_courses
+      get :edit_course
+      patch :update_rules
       get 'page_image/:page', action: :page_image, as: :page_image
     end
   end
+
+  # 保存できなかった要件表の画面は、保存の宛先(update_rules)の URL に出る。そこを開き直した(GET)ときは、確認画面へ戻す。
+  get 'curricula/:id/update_rules', to: redirect('/curricula/%{id}#requirements_review')
 
   resources :timetable_uploads, only: %i[create show destroy] do
     member do

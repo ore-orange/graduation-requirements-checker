@@ -187,12 +187,167 @@ class RequirementsTest < ActionDispatch::IntegrationTest
 
   # ---- 3つの状態 ----
 
-  test '便覧の無い年度を選ぶと、無いと伝える' do
+  test '公開済みを選ぶと、編集するボタンが出る。押すと既存の「複製して直す」に飛ぶ' do
+    show_selected
+
+    assert_select 'form[action=?][method=post]', duplicate_curriculum_path(@curriculum), count: 1
+    assert_select 'form[action=?] button, form[action=?] input[type=submit]',
+                  duplicate_curriculum_path(@curriculum), duplicate_curriculum_path(@curriculum),
+                  text: /この卒業要件を編集する/, count: 1
+    assert_select 'body', text: /この年度の便覧はまだありません/, count: 0
+  end
+
+  test '編集するボタンを押すと、公開済みを書き換えずに下書きができる' do
+    before = @curriculum.reload.attributes
+
+    assert_difference('Curriculum.drafts.count', 1) { post duplicate_curriculum_path(@curriculum), env: local_env }
+
+    assert_redirected_to curriculum_path(Curriculum.drafts.order(:id).last)
+    assert_equal before, @curriculum.reload.attributes
+  end
+
+  test '下書きだけがある組み合わせを選ぶと、下書きの確認を続けるリンクが出る' do
+    draft = create_draft
+
+    show_selected(admission_year: 2030)
+
+    assert_response :success
+    assert_select 'a[href=?]', curriculum_path(draft), text: /下書きの確認を続ける/
+    assert_select '[data-total-credits]', count: 0
+    assert_select 'form[action=?]', duplicate_curriculum_path(@curriculum), count: 0
+  end
+
+  test '公開済みと下書きが両方ある組み合わせでも、編集するボタンは出る。下書きは件数と続きのリンクを並べる' do
+    # 識別名が違う下書きでも、同じ3つの値なら並ぶ(選択は識別名を持たない)
+    # 差し替えると旧版が下書きに戻って残るので、下書きの有無でボタンを隠すと、1回直しただけで次の編集ができなくなる
+    draft = create_draft(admission_year: 2024)
+
+    show_selected
+
+    assert_select '[data-total-credits]', text: /130/
+    assert_select 'form[action=?]', duplicate_curriculum_path(@curriculum), count: 1
+    assert_select '[data-drafts] h3', text: /同じ年度の下書きが1件あります/
+    assert_select 'a[href=?]', curriculum_path(draft), text: /下書きの確認を続ける/
+    # 作業中か旧版かは見分けられないので、作業が途中だとは言わない
+    assert_select 'body', text: /作業が途中/, count: 0
+  end
+
+  test '差し替えたあとも、同じ選択に編集するボタンが残る(旧版が下書きに戻っても隠さない)' do
+    post duplicate_curriculum_path(@curriculum), env: local_env
+    copy = Curriculum.drafts.order(:id).last
+    copy.update!(document: copy.document.deep_dup) # 直さなくても公開できる複製(科目は確認済み)
+    post publish_curriculum_path(copy), params: { replace: '1' }, env: local_env
+    assert_redirected_to requirements_path(selection)
+
+    follow_redirect!
+
+    assert_response :success
+    assert_select '[data-total-credits]', text: /130/
+    assert_select 'form[action=?]', duplicate_curriculum_path(copy), count: 1
+    assert_select '[data-drafts] a[href=?]', curriculum_path(@curriculum)
+  end
+
+  test '下書きが複数あれば、すべて続きのリンクにする' do
+    first = create_draft
+    second = create_draft
+
+    show_selected(admission_year: 2030)
+
+    assert_select 'a[href=?]', curriculum_path(first)
+    assert_select 'a[href=?]', curriculum_path(second)
+  end
+
+  # 同じ年度の下書きが何件あっても、行の見た目だけでは見分けられない(年度・コース名・ファイル名が同じ)。
+  # 公開を差し替える画面で古い版を選ぶと、直した分が戻るので、新しい順に並べ、各行に自分の更新日時を出す。
+  # 作った順(id)・更新の古い順とは別の並びにして、どちらの並べ方でも落ちるようにする。
+  test '同じ年度の下書きは、更新の新しい順に並び、各行がそれぞれの更新日時を日本時間で出す' do
+    # 日本時間の日付と UTC の日付がずれる時刻も入れる(UTC のまま出すと、日付も違ってしまう)
+    middle = create_draft(admission_year: 2030, updated_at: Time.utc(2026, 11, 4, 16, 5))
+    oldest = create_draft(admission_year: 2030, updated_at: Time.utc(2026, 10, 1, 0, 0))
+    newest = create_draft(admission_year: 2030, updated_at: Time.utc(2026, 11, 5, 5, 32))
+
+    show_selected(admission_year: 2030)
+
+    rows = draft_rows
+    assert_equal [newest, middle, oldest].map { |draft| curriculum_path(draft) }, rows.pluck(:href)
+    assert_equal ['2026年11月5日 14:32', '2026年11月5日 01:05', '2026年10月1日 09:00'], rows.pluck(:shown)
+    assert_equal [newest, middle, oldest].map { |draft| draft.updated_at.utc.iso8601 }, rows.pluck(:datetime)
+  end
+
+  test '更新日時が同じ下書きは、あとから作ったものを先に並べる' do
+    stamp = Time.utc(2026, 11, 5, 5, 32)
+    first = create_draft(admission_year: 2030, updated_at: stamp)
+    second = create_draft(admission_year: 2030, updated_at: stamp)
+
+    show_selected(admission_year: 2030)
+
+    assert_equal [second, first].map { |draft| curriculum_path(draft) },
+                 css_select('[data-drafts] li a').pluck('href')
+  end
+
+  test '2回続けて直して差し替えたあと、先頭の下書きは新しい方の旧版で、最初の版は最後になる' do
+    # 差し替えるたびに、置き換わった公開済みが下書きに戻る。戻した時刻が、その行の更新日時になる
+    original = @curriculum
+    first_fix = nil
+    travel_to Time.utc(2026, 11, 1, 3, 0) do
+      post duplicate_curriculum_path(original), env: local_env
+      first_fix = Curriculum.drafts.order(:id).last
+      post publish_curriculum_path(first_fix), params: { replace: '1' }, env: local_env
+    end
+    travel_to Time.utc(2026, 11, 20, 3, 0) do
+      post duplicate_curriculum_path(first_fix), env: local_env
+      second_fix = Curriculum.drafts.order(:id).last
+      post publish_curriculum_path(second_fix), params: { replace: '1' }, env: local_env
+    end
+    assert_equal [original.id, first_fix.id], Curriculum.drafts.order(:id).ids
+
+    show_selected
+
+    rows = draft_rows
+    assert_equal [first_fix, original].map { |draft| curriculum_path(draft) }, rows.pluck(:href)
+    assert_equal ['2026年11月20日 12:00', '2026年11月1日 12:00'], rows.pluck(:shown)
+  end
+
+  test '下書きの行は、旧版か作業中かを言い当てる印や文言を持たない' do
+    create_draft(admission_year: 2024)
+
+    show_selected
+
+    assert_select '[data-drafts]', text: /旧版です|作業中です|古い版|新しい版|最新/, count: 0
+  end
+
+  test '便覧の無い年度を選ぶと、無いと伝え、PDFから作る導線が出る' do
     show_selected(admission_year: 2030)
 
     assert_response :success
     assert_select 'body', text: /この年度の便覧はまだありません/
+    assert_select 'form[action=?][enctype="multipart/form-data"]', curricula_path
     assert_select '[data-total-credits]', count: 0
+    assert_select 'form[action*=duplicate]', count: 0
+  end
+
+  test '取り込みのフォームは、PDFでないものを落とされたときに出す断りを、隠した状態で持っている' do
+    show_selected(admission_year: 2030)
+
+    # ドロップはファイル選択の accept を通らない。dropzone コントローラーは、この欄が無いと動かない
+    assert_select 'form[action=?][data-controller~=dropzone] [data-dropzone-target=error][role=alert][hidden]',
+                  curricula_path, text: /PDFファイルを選んでください/, count: 1
+  end
+
+  test '取り込みのフォームに、時間割を先に取り込む案内と、便覧には例外だけを登録する案内が出る' do
+    show_selected(admission_year: 2030)
+
+    sel = 'section[data-curriculum-import] [data-import-prerequisite]'
+    assert_select sel, text: /先に「講義登録」タブで、その年度の時間割PDFを取り込/
+    assert_select sel, text: /番号パターンの候補を.*人が採用/
+    assert_select sel, text: /科目番号から区分が決まらない科目/
+    assert_select sel, text: /だけを登録します/, count: 0
+  end
+
+  test '何も選んでいないときも、選択肢にない年度の便覧を作り始める入口がある' do
+    get requirements_path, env: local_env
+
+    assert_select 'details form[action=?][enctype="multipart/form-data"]', curricula_path
   end
 
   # ---- 変な指定でも、落ちず、他のコースの便覧を出さない ----
@@ -227,15 +382,17 @@ class RequirementsTest < ActionDispatch::IntegrationTest
   end
 
   test '別の学部の学科コースを組み合わせても、他のプログラムの便覧は出さない' do
-    Curriculum.create!(slug: 'other_course', admission_year: 2024, faculty_name: '理学部',
-                       department_name: '数理科学科', title: '別コースの便覧', published_at: Time.current,
-                       document: @curriculum.document.merge('title' => '別コースの便覧'))
+    other = Curriculum.create!(slug: 'other_course', admission_year: 2024, faculty_name: '理学部',
+                               department_name: '数理科学科', title: '別コースの便覧', published_at: Time.current,
+                               document: @curriculum.document.merge('title' => '別コースの便覧'))
 
     show_selected(faculty: '理学部') # 学科コースは工学部のもの
 
     assert_response :success
     assert_select 'body', text: /別コースの便覧/, count: 0
     assert_select '[data-total-credits]', count: 0
+    assert_select 'form[action=?]', duplicate_curriculum_path(other), count: 0
+
     show_selected(faculty: '理学部', department: '数理科学科', course: nil)
 
     assert_select 'p', text: /別コースの便覧/
@@ -282,9 +439,11 @@ class RequirementsTest < ActionDispatch::IntegrationTest
       show_selected(admission_year: 2030)
       assert_response :success
 
-      # 公開済みが無い組み合わせでも呼ばない
+      # 下書きだけの組み合わせでも、公開済みが無いので呼ばない
+      create_draft(admission_year: 2031)
       show_selected(admission_year: 2031)
       assert_response :success
+      assert_select 'a[href^="/curricula/"]'
     end
   end
 
@@ -601,9 +760,12 @@ class RequirementsTest < ActionDispatch::IntegrationTest
 
     assert_select 'button[onclick]', count: 0
     assert_select '[onclick], [onchange], [oninput], [onkeyup]', count: 0
-    # 公開済みを見ているときに置いてよいフォームは、対象を選ぶもの(GET)だけ。
-    assert_select 'main form', count: 1
+    # 公開済みを見ているときに置いてよいフォームは2つだけ。選択(GET)と、複製して直すボタン(下書きを1つ作るだけで、
+    # 公開済みの行は書き換えない)。PDFのアップロードは、便覧が無いときの入口で、ここには出ない。
+    assert_select 'main form', count: 2
     assert_select 'main form[method=get][action=?]', requirements_path, count: 1
+    assert_select 'main form[action=?]', duplicate_curriculum_path(@curriculum), count: 1
+    assert_select 'main form[action=?]', curricula_path, count: 0
     assert_select 'main textarea', count: 0
     assert_select 'main select', count: 4
     assert_select 'main script', count: 0

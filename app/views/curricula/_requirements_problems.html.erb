@@ -1,0 +1,6 @@
+<%# 保存できなかった入力の問題。どの項目のものかを、その項目の下に出す(入力は、そのまま残してある)。 %>
+<% review.problems_for(kind, id).each do |problem| %>
+  <p role="alert" class="mt-1 rounded border border-rose-300 bg-rose-100 px-2 py-1 text-xs font-bold text-rose-900">
+    入力を直してください: <%= problem.message %>
+  </p>
+<% end %>

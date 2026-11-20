@@ -1,0 +1,64 @@
+<%# 枠(設計書 項目10)。小計(display.subtotals)を、まとめている行を囲む枠として描く。 %>
+<%#
+  小計は「複数の行をまとめて数える決まり」なので、画面の外に別立てで置くと、まとめている対象が見えない。
+  枠は章と同じく「◯以上〜◯以下」を持ち、複数の行から指されていた合計の決まりは、行ではなく枠に出る。
+  row_ids は、囲んでいる行から決まる(人が id を打たない)。枠を外せば、中の行は章の直下に戻る。
+%>
+<% subtotal = frame.subtotal %>
+<% key = "display[subtotals][#{frame.index}]" %>
+<% shown_rules = review.rules_under(subtotal['check_ids']) %>
+<%# 枠と同じことを言っている決まりは、箱を描かず「…」に名前と説明だけを出す(設計書 項目1) %>
+<% hidden_rule = review.hidden_rule(:frame, frame, shown_rules) %>
+<% field_class = RequirementsReviewHelper::FIELD_CLASS %>
+<div id="subtotal-<%= frame.id %>" data-reorder-target="item" data-subtotal-frame="<%= frame.id %>"
+     class="rounded-xl border-2 border-indigo-200 bg-indigo-50/40 p-3">
+  <div class="flex flex-wrap items-center gap-2">
+    <%= render 'requirements_reorder', noun: '枠' %>
+    <%= hidden_field_tag "#{key}[id]", subtotal['id'], id: nil %>
+    <span class="rounded bg-indigo-200 px-1.5 py-0.5 text-xs font-bold text-indigo-900">枠</span>
+    <label class="block">
+      <span class="sr-only">枠の名前</span>
+      <%= rv_text "#{key}[name]", subtotal['name'], id: nil,
+                  class: "w-64 font-semibold text-slate-900 #{field_class}" %>
+    </label>
+    <%= credit_range(["#{key}[required_credits]", subtotal['required_credits']], review.upper_limit(shown_rules)) %>
+    <% if confirmed_with_hidden?(subtotal, hidden_rule) %><span class="rv-confirmed">人が確認した</span><% end %>
+    <details class="ml-auto text-sm"
+             <%= 'open' if review.open?('subtotal', subtotal['id']) || (hidden_rule && review.open?('rule', hidden_rule['id'])) %>>
+      <summary class="rv-more"
+               title="この枠の、詳しい設定">…</summary>
+      <div class="mt-1 grid gap-3 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-2">
+        <% if hidden_rule %>
+          <%= render 'requirements_hidden_rule', review: review, rule: hidden_rule %>
+        <% end %>
+        <label class="flex items-center gap-1.5 text-rose-800 sm:col-span-2">
+          <%= rv_check "#{key}[_destroy]", '1', false, id: nil %>
+          この枠を外す(中の行は章の直下に戻ります。行は消えません)
+        </label>
+      </div>
+    </details>
+  </div>
+
+  <%= render 'requirements_finding_notes', findings: review.findings_for(:display, subtotal['id']) %>
+  <%= render 'requirements_problems', review: review, kind: 'subtotal', id: subtotal['id'] %>
+
+  <% boxed_rules = shown_rules - [hidden_rule].compact %>
+  <% if boxed_rules.any? %>
+    <div class="mt-2 space-y-2">
+      <% boxed_rules.each do |rule| %>
+        <%= render 'requirements_rule', review: review, rule: rule %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# row_ids は、囲んでいる行から送る(人は id を打たない)。行の並べ替えは、この並びにそのまま伝わる %>
+  <div class="mt-2 space-y-2" data-controller="reorder">
+    <% frame.rows.each_with_index do |row, offset| %>
+      <div data-reorder-target="item">
+        <%= hidden_field_tag "#{key}[row_ids][]", row['id'], id: nil %>
+        <%= render 'requirements_row', review: review, row: row,
+                   row_key: "#{group_key}[rows][#{frame.row_index + offset}]" %>
+      </div>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,55 @@
+<%# 章の中の1行。1行が画面の1行に収まること(設計書 項目2)。 %>
+<%#
+  常時出すのは、PDFと突き合わせるときに目で追う4つだけ。
+    必要単位 … 「◯以上〜◯以下」(設計書 項目3。以上はこの行の required_credits、以下はこの行に掛かる算入上限)
+    科目名   … 行の名前
+    対象科目 … 対象の区分のチップと、その区分の科目(件数を押すと開く)
+    修了要件 … この行を確かめる決まり(下の箱)
+  残り(副題・必要単位が空のときの表示・単位を決まりから取るか・この行を消す)は「…」の中。
+  行の「以上〜以下」は display.rows[].required_credits だけを読み書きし、入れ子の決まりの数字には書き込まない
+  (行に出る数字と、決まりが判定に使う数字は別物。設計書 項目5)。
+%>
+<% shown_rules = review.rules_under_row(row) %>
+<%# 持ち主と同じことを言っている決まりは、箱を描かず「…」に名前と説明だけを出す(設計書 項目1) %>
+<% hidden_rule = review.hidden_rule(:row, row, shown_rules) %>
+<%# この行が自分の数字の決まりを持っているか。持っていなければ、その数字は章か枠のもの(設計書 項目1-2) %>
+<% own_credits = shown_rules.any? { |rule| rule['required_credits'].is_a?(Numeric) } %>
+<% holder = own_credits ? nil : review.credits_holder(row) %>
+<% count = review.course_count_of_row(row) %>
+<div id="row-<%= row['id'] %>" class="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
+  <div class="flex flex-wrap items-center gap-2">
+    <%= render 'requirements_reorder', noun: '行' %>
+    <span class="h-2 w-2 shrink-0 rounded-full bg-indigo-400"></span>
+    <%= hidden_field_tag "#{row_key}[id]", row['id'], id: nil %>
+    <label class="block">
+      <span class="sr-only">行の名前</span>
+      <%= rv_text "#{row_key}[name]", row['name'], id: nil,
+                  class: "w-56 font-semibold text-slate-900 #{RequirementsReviewHelper::FIELD_CLASS}" %>
+    </label>
+    <%= credit_range(["#{row_key}[required_credits]", row['required_credits']], review.upper_limit(shown_rules),
+                     held_by: holder && credits_held_by_text(holder)) %>
+    <% if inner_row?(row) && holder.nil? %>
+      <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600"
+            title="必要単位(下限)も、その代わりに出す言葉もありません。学生の画面では、まとめている枠か章の単位に含まれると出ます">内数</span>
+    <% end %>
+    <% if confirmed_with_hidden?(row, hidden_rule) %><span class="rv-confirmed">人が確認した</span><% end %>
+    <div class="ml-auto flex items-center gap-1">
+      <%= render 'requirements_row_courses', review: review, row: row, count: count %>
+      <%= render 'requirements_row_more', review: review, row: row, row_key: row_key, hidden_rule: hidden_rule %>
+    </div>
+  </div>
+
+  <%= category_chips "#{row_key}[categories]", row['categories'], review %>
+
+  <%= render 'requirements_finding_notes', findings: review.findings_for(:display, row['id']) %>
+  <%= render 'requirements_problems', review: review, kind: 'row', id: row['id'] %>
+
+  <% boxed_rules = shown_rules - [hidden_rule].compact %>
+  <% if boxed_rules.any? %>
+    <div class="mt-2 ml-3 space-y-2 border-l-2 border-amber-300 pl-3">
+      <% boxed_rules.each do |rule| %>
+        <%= render 'requirements_rule', review: review, rule: rule %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

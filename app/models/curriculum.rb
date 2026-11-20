@@ -179,6 +179,18 @@ class Curriculum < ApplicationRecord
     published_at.present?
   end
 
+  # 公開できるか、できないなら理由(人が直せる文)。決めるのは CurriculumImport::Publication の1か所。
+  # replace は、同じ識別名・入学年度の公開済みを下書きに戻して差し替える(学生の判定が切り替わる)と明示したとき。
+  def publishable?(replace: false) = blocking_reasons(replace: replace).empty?
+
+  def blocking_reasons(replace: false) = CurriculumImport::Publication.new(self, replace: replace).blocking_reasons
+
+  # 公開する。確認用の欄・ページの記録・ページ画像を落とし、公開済みにする。できなければ Publication::Refused。
+  # acknowledged は、画面が見せた警告の一覧の指紋(Publication#digest)。警告があるときだけ要る。
+  def publish!(acknowledged: nil, replace: false)
+    CurriculumImport::Publication.publish!(self, acknowledged: acknowledged, replace: replace)
+  end
+
   # kinds は { ページ番号 => 種別 }。知らない種別や、存在しないページが混ざっていないか。
   def page_kinds_assignable?(kinds)
     numbers = pages.map { |page| page['page'].to_s }

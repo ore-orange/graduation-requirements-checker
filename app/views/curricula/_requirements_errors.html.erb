@@ -1,0 +1,9 @@
+<%# 保存できなかった入力の問題の一覧。全部を、ここに出す(1つずつ直しては送り直す、をさせない)。入力は下にそのまま残してある。 %>
+<% if review.problems.any? %>
+  <div id="requirements_errors" role="alert" class="border-b border-rose-200 bg-rose-50 px-5 py-4 sm:px-6">
+    <p class="text-sm font-bold text-rose-900">保存できませんでした(何も変えていません)。入力は、そのまま残してあります。</p>
+    <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-rose-900">
+      <% review.problems.each do |problem| %><li><%= problem.message %></li><% end %>
+    </ul>
+  </div>
+<% end %>
