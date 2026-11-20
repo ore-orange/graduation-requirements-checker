@@ -633,12 +633,13 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '[data-catalogue-term]', text: /今の学期以降を表示すると追加できます/
   end
 
-  test '便覧カタログは閉じていて、右上のボタンで右側のパネルとして開く' do
+  test '便覧カタログは閉じていて、表の見出しのボタンで右側のパネルとして開く' do
     get plan_path(term: '4-前期')
 
     assert_select '#catalogue', count: 0
     assert_select '[data-catalogue-key]', count: 0
-    assert_select "a[data-catalogue-toggle='open'][href=?]", plan_path(term: '4-前期', pane: 'catalogue'), text: /科目名で検索/
+    assert_select "[data-term] a[data-catalogue-toggle='open'][href=?]", plan_path(term: '4-前期', pane: 'catalogue'),
+                  text: /科目名で検索/, count: 1
 
     get plan_path(term: '4-前期', pane: 'catalogue', q: @candidate.fetch('name'))
 
@@ -646,7 +647,10 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     category = @candidate.fetch('category')
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] [data-catalogue-category]",
                   text: StudentWorkspaceHelper::CATEGORY_LABELS.fetch(category, category)
-    assert_select "a[data-catalogue-toggle='close'][href=?]", plan_path(term: '4-前期'), text: /検索を閉じる/
+    # 閉じるのはパネルの中のボタンだけ。開いている間は、表の見出しに開くボタンを出さない
+    assert_select "#catalogue a[data-catalogue-toggle='close'][href=?][aria-label=?]",
+                  plan_path(term: '4-前期'), '検索を閉じる', text: /閉じる/, count: 1
+    assert_select "[data-catalogue-toggle='open']", count: 0
   end
 
   test '学期ボタン列は、幅640以上の画面ではスクロールしても上に残る（学期の画面でも一覧でも）' do
@@ -664,15 +668,17 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-term-button='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
   end
 
-  test '一覧でも、右上のボタンで便覧のパネルを開け閉めできる' do
+  test '一覧でも、表の見出しのボタンで便覧のパネルを開き、パネルの中のボタンで閉じられる' do
     get plan_path(view: 'all')
     assert_select '#catalogue', count: 0
-    assert_select "[data-catalogue-toggle='open'][href=?]", plan_path(view: 'all', pane: 'catalogue'), count: 1
+    assert_select "[data-overview] [data-catalogue-toggle='open'][href=?]",
+                  plan_path(view: 'all', pane: 'catalogue'), count: 1
 
     get plan_path(view: 'all', pane: 'catalogue', q: @candidate.fetch('name'))
     assert_response :success
     assert_select '[data-overview]', count: 1
-    assert_select "[data-catalogue-toggle='close'][href=?]", plan_path(view: 'all'), count: 1
+    assert_select "#catalogue [data-catalogue-toggle='close'][href=?]", plan_path(view: 'all'), count: 1
+    assert_select "[data-catalogue-toggle='open']", count: 0
     assert_select '#catalogue' do
       # 検索しても一覧のまま
       assert_select "form[method='get'] input[name='view'][value='all']", count: 1

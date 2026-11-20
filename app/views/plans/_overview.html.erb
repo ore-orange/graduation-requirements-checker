@@ -10,14 +10,20 @@
   current_column = 'bg-indigo-50/50'
 %>
 <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden" data-overview data-controller="overview-add">
-  <div class="px-4 sm:px-6 py-4 border-b border-slate-100">
-    <h2 class="text-base font-bold text-slate-900">全学期の一覧</h2>
-    <p class="text-xs text-slate-500 mt-0.5" data-term-credits>
-      修得 <%= credit_number(overall_credit[:earned]) %>単位
-      <% if overall_credit[:current].positive? %> ・ 履修中 <%= credit_number(overall_credit[:current]) %>単位<% end %>
-      <% if overall_credit[:planned].positive? %> ・ 予定 <%= credit_number(overall_credit[:planned]) %>単位<% end %>
-    </p>
-    <p class="text-[11px] text-slate-400 mt-1">列の見出しを押すと、その学期の画面に移ります。</p>
+  <div class="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+    <div>
+      <h2 class="text-base font-bold text-slate-900">全学期の一覧</h2>
+      <p class="text-xs text-slate-500 mt-0.5" data-term-credits>
+        修得 <%= credit_number(overall_credit[:earned]) %>単位
+        <% if overall_credit[:current].positive? %> ・ 履修中 <%= credit_number(overall_credit[:current]) %>単位<% end %>
+        <% if overall_credit[:planned].positive? %> ・ 予定 <%= credit_number(overall_credit[:planned]) %>単位<% end %>
+      </p>
+      <p class="text-[11px] text-slate-400 mt-1">列の見出しを押すと、その学期の画面に移ります。</p>
+    </div>
+    <%# 検索パネルを開くボタン。閉じているときだけ出す（plans/_catalogue_toggle） %>
+    <% unless @catalogue_open %>
+      <div class="shrink-0"><%= render 'plans/catalogue_toggle' %></div>
+    <% end %>
   </div>
 
   <div class="overflow-x-auto">
