@@ -27,6 +27,8 @@ module StudentWorkspace
 
     @curriculum = @student.curriculum
     @courses_by_key = @curriculum.fetch('courses').index_by { |course| course.fetch('key') }
+    # 画面の章・行・区分の和名は便覧から読む。便覧ごとに章立てが違うため。
+    @layout = CurriculumLayout.new(@curriculum)
   end
 
   def enrollments

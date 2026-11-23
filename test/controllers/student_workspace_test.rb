@@ -290,6 +290,16 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "form[action='#{session_path}'] button", text: 'ログアウト', count: 1
   end
 
+  test '便覧に画面の章立てが無ければ、500ではなく初期設定の案内を出す' do
+    curriculum = curricula(:intelligent_informatics2024)
+    curriculum.update!(document: curriculum.document.except('display'))
+
+    get root_path
+
+    assert_response :service_unavailable
+    assert_select '[data-setup]', count: 1
+  end
+
   test '履修計画表は指定した学期の履修履歴だけを表示する' do
     shown = @student.student_courses.where(academic_year: 2025, semester: '後期').to_a
     hidden = @student.student_courses.where.not(academic_year: 2025).or(
@@ -623,7 +633,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select 'aside#catalogue', count: 1
     category = @candidate.fetch('category')
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] [data-catalogue-category]",
-                  text: StudentWorkspaceHelper::CATEGORY_LABELS.fetch(category, category)
+                  text: CurriculumLayout.new(@curriculum).category_label(category)
     assert_select "a[data-catalogue-toggle='close'][href=?]", plan_path(term: '4-前期'), text: /便覧を閉じる/
   end
 

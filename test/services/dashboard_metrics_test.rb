@@ -22,7 +22,8 @@ class DashboardMetricsTest < ActiveSupport::TestCase
       actual: Snapshot.new(status: actual_status || actual.first&.status || :unmet, checks: actual),
       projected: Snapshot.new(status: projected_status || projected.first&.status || :unmet, checks: projected)
     )
-    DashboardMetrics.new(assessment: assessment, enrollments: [], plans: plans, courses_by_key: {})
+    DashboardMetrics.new(assessment: assessment, enrollments: [], plans: plans, courses_by_key: {},
+                         layout: CurriculumLayout.new(curricula(:intelligent_informatics2024).document))
   end
 
   test '修得済みで足りていれば充足' do

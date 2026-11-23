@@ -38,7 +38,7 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-200 text-xs">
-        <% StudentWorkspaceHelper::PLANNER_GROUPS.each do |group| %>
+        <% @layout.groups.each do |group| %>
           <% group_check = find_check(@assessment.projected, group[:check_id]) %>
           <!-- 親グループ見出し行 -->
           <tr class="bg-slate-100/80 border-y border-slate-200" data-planner-group="<%= group[:id] %>">
