@@ -30,9 +30,9 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     file.write(content)
     file.rewind
     upload = Rack::Test::UploadedFile.new(file.path, 'application/pdf')
-    TimetableImport::PdfParser.stub(:extract_xml, xml) do
+    PdfPages.stub(:text_xml, xml) do
       # 画像化(gs)はテストでは動かさない。ページ画像を使うテストは自分で置く。
-      TimetableImport::PageImages.stub(:render, ->(_pdf, _dir) { 0 }) do
+      PdfPages.stub(:render, ->(_pdf, _dir) { 0 }) do
         post timetable_uploads_path, params: upload_params(pdf: upload, **params), env: ENV_LOCAL
       end
     end

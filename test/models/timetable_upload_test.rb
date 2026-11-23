@@ -13,8 +13,8 @@ class TimetableUploadTest < ActiveSupport::TestCase
   XML
 
   def build_upload(renderer)
-    TimetableImport::PdfParser.stub(:extract_xml, XML) do
-      TimetableImport::PageImages.stub(:render, renderer) do
+    PdfPages.stub(:text_xml, XML) do
+      PdfPages.stub(:render, renderer) do
         TimetableUpload.build_from_pdf('dummy.pdf', semester: '前期', year: 2026,
                                                     department_id: sample_department.id, filename: 'a.pdf')
       end
@@ -42,7 +42,7 @@ class TimetableUploadTest < ActiveSupport::TestCase
   end
 
   test 'an upload still works when the pages cannot be rendered' do
-    upload = build_upload(->(_pdf, _dir) { raise TimetableImport::PageImages::Error, 'gsが見つかりません' })
+    upload = build_upload(->(_pdf, _dir) { raise PdfPages::Error, 'gsが見つかりません' })
 
     assert_equal 1, upload.rows.size
     assert_equal 0, upload.page_count
