@@ -1,29 +1,21 @@
 # frozen_string_literal: true
 
 class GraduationAssessment
+  # 便覧の文書(科目表・区分・規則)を、判定が引ける形にする。卒業要件そのものはコードに持たず、rules から組み立てる。
   class Catalogue
     ZERO = BigDecimal('0')
-    COMMON = %w[health humanities social natural integrated career regional japanese english foreign_language].freeze
-    REQUIRED = {
-      'required_information' => ['情報技術系必修', 2],
-      'required_comprehensive' => ['総合力演習必修', 7],
-      'required_research' => ['研究・基礎演習・実験必修', 16],
-      'required_math' => ['数学基礎必修', 6],
-      'required_core' => ['知能情報コア必修', 26]
-    }.freeze
-    INNER = %w[elective_math advanced related].freeze
-    ELECTIVE = (INNER + %w[fusion free]).freeze
-    CATEGORIES = (COMMON + ['basic'] + REQUIRED.keys + ELECTIVE + ['excluded']).freeze
-    PROVIDERS = %w[mechanical energy electrical electronics civil architecture].freeze
-    SOURCE = 'docs/kogaku_chinot_y24.pdf（便覧10ページ・PDF11ページ）'
-    REQUIRED_SOURCE = 'docs/kogaku_chinot_y24.pdf（便覧1・10・11ページ・PDF2・11・12ページ）'
 
-    attr_reader :courses, :requirements
+    attr_reader :courses, :conditions, :category_keys
 
     def initialize(document)
       @courses = document.fetch('courses')
       @by_key = @courses.index_by { |course| course.fetch('key') }
-      @requirements = document.fetch('requirements')
+      @category_keys = document.fetch('categories').map { |category| category.fetch('key') }
+      rules = document.fetch('rules')
+      @adjustments = rules.select { |rule| Rules.adjustment?(rule) }.map { |rule| Rules.adjustment(rule) }
+      @conditions = rules.reject { |rule| Rules.adjustment?(rule) }.map { |rule| Rules.condition(rule) }
+      # 条件の無い便覧は、何も確かめないまま判定を返してしまう。
+      raise ArgumentError, '便覧に判定の条件(rules)がありません。' if @conditions.empty?
     end
 
     def find(key)
@@ -42,24 +34,33 @@ class GraduationAssessment
       role_candidates(role).pluck('name')
     end
 
-    def required_roles
-      @required_roles ||= (requirements.fetch('english_roles') + [requirements.fetch('japanese_role')] +
-        requirements.fetch('calculus_paths').flatten + requirements.fetch('physics_roles')).uniq
-    end
-
-    def specified?(course)
-      course['required'] || roles(course).intersect?(required_roles)
-    end
-
     def mandatory
       courses.select { |course| course['required'] }
     end
 
-    def exclusion(course)
-      return '卒業単位への算入対象外' if course['category'] == 'excluded'
-      return unless course['category'] == 'fusion' && course['provider'] == 'intelligent_informatics'
+    # 経路(one_of_paths)を持つ条件。重複算入の確認(reconcile)に使う。
+    def path_rules
+      @path_rules ||= conditions.grep(Rules::OneOfPaths)
+    end
 
-      '自コース提供の工学融合科目は登録・算入不可'
+    # 経路の規則が指定する科目か。必修科目と並んで、所定単位どおりに修得しているかを確かめる。
+    def specified?(course)
+      @path_roles ||= path_rules.flat_map(&:roles)
+      course['required'] || roles(course).intersect?(@path_roles)
+    end
+
+    # 入れ子も含めた grouped_max。グループを決められない科目に注記するため。
+    def grouped_rules
+      @grouped_rules ||= conditions.flat_map(&:grouped_rules)
+    end
+
+    def caps
+      @adjustments.grep(Rules::Cap)
+    end
+
+    # 算入の対象にしない理由。当たらなければ nil。
+    def exclusion(course)
+      @adjustments.grep(Rules::Exclude).find { |rule| rule.match?(course) }&.reason
     end
   end
 end

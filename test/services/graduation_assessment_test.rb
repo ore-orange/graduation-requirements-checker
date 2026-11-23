@@ -5,17 +5,17 @@ require 'bigdecimal'
 
 class GraduationAssessmentTest < ActiveSupport::TestCase
   ALTERNATIVE_KEYS = %w[intro_i intro_ii intro_physics].freeze
+  # 規則は2024年度の便覧のものをそのまま使い、科目表だけを人工のものに替える。
+  HANDBOOK = JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2024.json').read).freeze
+  # 便覧の役割名を、このテストの人工の科目が持つ役割名に置き換える。
+  ROLE_NAMES = { 'english_reading_intermediate' => 'intermediate_reading', 'calculus_st_1' => 'st_i',
+                 'calculus_st_2' => 'st_ii', 'calculus_intro_1' => 'intro_i', 'calculus_intro_2' => 'intro_ii',
+                 'physics_1' => 'physics_i', 'physics_intro_1' => 'introductory_physics_i' }.freeze
 
   setup do
     # 人工の科目名・キーで、科目表の転記と便覧の計算規則を切り離す。
     # 単位配分は各要件の境界値に合わせる。
     @courses = []
-    @requirements = {
-      'english_roles' => %w[university_english intermediate_reading],
-      'japanese_role' => 'japanese_expression',
-      'calculus_paths' => [%w[st_i st_ii], %w[intro_i intro_ii]],
-      'physics_roles' => %w[physics_i introductory_physics_i]
-    }
     add('health', 'health', 2)
     add('humanities', 'humanities', 6)
     add('social', 'social', 4)
@@ -542,7 +542,12 @@ class GraduationAssessmentTest < ActiveSupport::TestCase
   end
 
   def document
-    { 'courses' => @courses, 'requirements' => @requirements }
+    rules = HANDBOOK.fetch('rules').map do |rule|
+      next rule unless rule['type'] == 'one_of_paths'
+
+      rule.merge('paths' => rule['paths'].map { |path| path.map { |role| ROLE_NAMES.fetch(role, role) } })
+    end
+    { 'courses' => @courses, 'categories' => HANDBOOK.fetch('categories'), 'rules' => rules }
   end
 
   def assess(**)
