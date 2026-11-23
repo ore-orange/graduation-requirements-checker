@@ -33,6 +33,9 @@ services:
       # 未設定でも起動はできる。その場合Googleログインのボタンだけが出ない。
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # 便覧PDFを読み取るGeminiのAPIキー。未設定でも起動はできる（読み取りの機能だけが使えない）。
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
     volumes:
       # ソースをマウントしてホストの編集を即反映
       - .:/app
