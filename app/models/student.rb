@@ -15,16 +15,17 @@ class Student < ApplicationRecord
   validates :user_id, uniqueness: true
   validates :admission_year, numericality: { only_integer: true, greater_than: 0, less_than: 10_000 }
   # 入れた瞬間に画面が出せない学生を作らないよう、入学年度のカリキュラムがあることを確かめる。
-  # 作成時だけにするのは、後からカリキュラムのJSONを入れ替えても既存の学生を保存できなくしないため。
+  # 作成時だけにするのは、後からカリキュラムを入れ替えても既存の学生を保存できなくしないため。
   validate :curriculum_must_exist, on: :create
 
-  # この学生に適用される卒業要件。JSONが壊れている場合は握りつぶさず、そのまま落とす。
+  # この学生に適用される卒業要件(公開済みの便覧の文書)。
   def curriculum
     raise SetupIncomplete, 'コースにカリキュラムが登録されていません。' if curriculum_slug.blank?
 
-    CurriculumRepository.find(curriculum: curriculum_slug, admission_year: admission_year)
-  rescue CurriculumRepository::NotFound
-    raise SetupIncomplete, "#{admission_year}年度のカリキュラムが登録されていません。"
+    record = Curriculum.find_published(slug: curriculum_slug, admission_year: admission_year)
+    raise SetupIncomplete, "#{admission_year}年度のカリキュラムが登録されていません。" unless record
+
+    record.document
   end
 
   private
@@ -33,7 +34,7 @@ class Student < ApplicationRecord
   def curriculum_must_exist
     return if program.blank? || curriculum_slug.blank? || admission_year.blank?
     return unless admission_year.is_a?(Integer)
-    return if CurriculumRepository.available_years(curriculum: curriculum_slug).include?(admission_year)
+    return if Curriculum.find_published(slug: curriculum_slug, admission_year: admission_year)
 
     errors.add(:admission_year, :no_curriculum)
   end

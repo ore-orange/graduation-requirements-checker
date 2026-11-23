@@ -37,8 +37,8 @@
           <%= form.select :admission_year,
                           @programs.to_h { |program|
                             [program.full_name,
-                             CurriculumRepository.available_years(curriculum: program.curriculum_slug)
-                                                 .reverse.map { |year| ["#{year}年度", year] }]
+                             Curriculum.published_years(program.curriculum_slug)
+                                       .reverse.map { |year| ["#{year}年度", year] }]
                           },
                           { include_blank: '選択してください' },
                           class: 'demo-input',

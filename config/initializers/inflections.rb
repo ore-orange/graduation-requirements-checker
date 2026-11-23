@@ -14,3 +14,8 @@
 # ActiveSupport::Inflector.inflections(:en) do |inflect|
 #   inflect.acronym "RESTful"
 # end
+
+# 便覧(Curriculum)の表は curricula。既定の規則では curriculums になってしまう。
+ActiveSupport::Inflector.inflections(:en) do |inflect|
+  inflect.irregular 'curriculum', 'curricula'
+end

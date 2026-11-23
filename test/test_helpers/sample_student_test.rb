@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'test_helper'
-require 'minitest/mock'
 
 class SampleStudentTest < ActiveSupport::TestCase
   test 'loading repeatedly preserves plans unrelated data and non-seeded history' do
@@ -36,7 +35,8 @@ class SampleStudentTest < ActiveSupport::TestCase
     entry = document.fetch('courses').find { |course| course.fetch('key') == key }
     entry['number'] = nil
     entry['credits'] = nil
-    student = CurriculumRepository.stub(:find, document) { SampleStudent.load! }
+    curricula(:intelligent_informatics2024).update!(document: document)
+    student = SampleStudent.load!
 
     course = Course.find_by!(curriculum_key: key)
     assert_nil course.course_number
@@ -65,7 +65,7 @@ class SampleStudentTest < ActiveSupport::TestCase
   private
 
   def curriculum
-    CurriculumRepository.find(curriculum: 'intelligent_informatics', admission_year: 2024)
+    curricula(:intelligent_informatics2024).document.deep_dup
   end
 
   def sample_enrollments
