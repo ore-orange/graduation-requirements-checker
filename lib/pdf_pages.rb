@@ -30,6 +30,48 @@ module PdfPages
     header[16, 4]&.unpack1('N') if header.to_s.start_with?("\x89PNG".b)
   end
 
+  # PDFのページ数。PDFでないファイルでも gs は成功で終わるので、出力が数であることで確かめる。
+  def self.page_count(pdf_path)
+    out, status = Open3.capture2('gs', '-q', '-dNODISPLAY', '-dNOPAUSE', '-dBATCH', '-dSAFER',
+                                 "--permit-file-read=#{pdf_path}", "-sInput=#{pdf_path}",
+                                 '-c', 'Input (r) file runpdfbegin pdfpagecount = quit')
+    count = Integer(out.to_s.strip, 10, exception: false)
+    raise Error, 'PDFのページ数を数えられませんでした。PDFか確認してください。' unless status.success? && count&.positive?
+
+    count
+  rescue Errno::ENOENT
+    raise Error, 'Ghostscript(gs)が見つかりません。'
+  end
+
+  # 1ページだけを画像にして path に書く。page は1始まり。
+  def self.render_page(pdf_path, page, path)
+    FileUtils.mkdir_p(File.dirname(path))
+    _, status = Open3.capture2('gs', *GS_OPTIONS, '-sDEVICE=png16m', "-r#{DPI}", *page_range(page),
+                               "-sOutputFile=#{path}", pdf_path)
+    raise Error, "#{page}ページを画像にできませんでした。" unless status.success? && File.file?(path)
+
+    path
+  rescue Errno::ENOENT
+    raise Error, 'Ghostscript(gs)が見つかりません。'
+  end
+
+  # 1ページの文字を、行のまとまりを保ったテキストで返す(AIに画像と一緒に渡す補助)。page は1始まり。
+  # 便覧のPDFは NUL などの制御文字を含むことがあり、そのままでは DB(jsonb)に入らないので、改行とタブ以外は落とす。
+  def self.page_text(pdf_path, page)
+    text, status = Open3.capture2('gs', *GS_OPTIONS, '-sDEVICE=txtwrite', '-dTextFormat=3', *page_range(page),
+                                  '-sOutputFile=-', pdf_path)
+    raise Error, "#{page}ページの文字を取り出せませんでした。" unless status.success?
+
+    text.dup.force_encoding(Encoding::UTF_8).scrub.gsub(/[\x00-\x08\x0B-\x1F\x7F]/, '')
+  rescue Errno::ENOENT
+    raise Error, 'Ghostscript(gs)が見つかりません。'
+  end
+
+  def self.page_range(page)
+    ["-dFirstPage=#{Integer(page)}", "-dLastPage=#{Integer(page)}"]
+  end
+  private_class_method :page_range
+
   # 全ページの文字を、1文字ずつ座標の付いたXMLで返す。ページは <page> で区切られる。
   def self.text_xml(pdf_path)
     xml, status = Open3.capture2('gs', *GS_OPTIONS, '-sDEVICE=txtwrite', '-dTextFormat=0', '-sOutputFile=-', pdf_path)
