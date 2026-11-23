@@ -2,7 +2,7 @@
 
 ## 初期状態（DB設計前の記録）
 
-Ruby 3.4.11 / Rails 8.1.4 / Active Record / pg、Docker ComposeのPostgreSQL 17。
+Ruby 3.4.13 / Rails 8.1.4 / Active Record / pg、Docker ComposeのPostgreSQL 17。
 初期schema.rbはversion: 0で業務テーブルなし。既存ModelはApplicationRecordのみ。
 DB設計書・ER図、卒業要件JSON、判定ロジックは存在しなかった。
 既存テストはHomeControllerとヘルスチェックのシステムテスト。
