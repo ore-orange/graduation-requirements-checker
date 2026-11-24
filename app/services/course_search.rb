@@ -2,9 +2,9 @@
 
 # 保存済みの講義の絞り込み。管理者が「指摘を受けた講義を探す」ための引き当てに使う。
 #
-# 学期は軸に入れない(表の列としてだけ出す)。年度・学科が空の講義(#53 のあとに残る
-# curriculum_key 由来のもの)は、その軸を指定していないときは落とさない。
-class CourseOfferingSearch
+# 学期は軸に入れない(表の列としてだけ出す)。便覧(カリキュラムJSON)由来の科目は年度も学科も
+# 持たないが、その軸を指定していないときは落とさない。
+class CourseSearch
   # 完全一致で当てる軸と、部分一致で当てる軸
   EXACT_KEYS = %i[year faculty_id department_id].freeze
   PARTIAL_KEYS = %i[course_number lecture_code name].freeze
@@ -22,13 +22,13 @@ class CourseOfferingSearch
   end
 
   def relation
-    scope = CourseOffering.includes(:course, department: :faculty)
+    scope = Course.includes(department: :faculty)
     scope = scope.where(year: conditions[:year]) if conditions[:year]
     scope = narrow_by_organization(scope)
     scope = narrow_by_text(scope)
-    # PostgreSQLは降順だとNULLを先頭に置く。年度の無い講義(#53 のあとに残るもの)が
+    # PostgreSQLは降順だとNULLを先頭に置く。年度の無い講義(便覧由来のもの)が
     # 新しい年度より前に並ばないよう、最後に送る。
-    scope.order(Arel.sql('course_offerings.year DESC NULLS LAST')).order(:semester, :weekday, :periods, :id)
+    scope.order(Arel.sql('courses.year DESC NULLS LAST')).order(:semester, :weekday, :periods, :id)
   end
 
   private
@@ -45,14 +45,10 @@ class CourseOfferingSearch
 
   def narrow_by_text(scope)
     if (code = conditions[:lecture_code])
-      scope = scope.where('course_offerings.lecture_code ILIKE ?', contains(code))
+      scope = scope.where('courses.lecture_code ILIKE ?', contains(code))
     end
-    return scope unless conditions[:course_number] || conditions[:name]
-
-    scope = scope.joins(:course)
-    if conditions[:course_number]
-      scope = scope.where('courses.course_number ILIKE ?',
-                          contains(conditions[:course_number]))
+    if (number = conditions[:course_number])
+      scope = scope.where('courses.course_number ILIKE ?', contains(number))
     end
     conditions[:name] ? scope.where('courses.name ILIKE ?', contains(conditions[:name])) : scope
   end

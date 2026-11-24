@@ -64,8 +64,8 @@ class TimetableUploadsController < ApplicationController
     return redirect_to @upload, alert: result.errors.join(' / '), status: :see_other unless result.applied
 
     redirect_to course_registrations_path, status: :see_other,
-                                           notice: "保存しました。講義の新規#{result.created_courses}件、開講情報の新規" \
-                                                   "#{result.created_offerings}件・更新#{result.updated_offerings}件。"
+                                           notice: "保存しました。講義の新規#{result.created}件・更新" \
+                                                   "#{result.updated}件・変更なし#{result.unchanged}件。"
   end
 
   private
@@ -80,7 +80,7 @@ class TimetableUploadsController < ApplicationController
     return {} unless raw.respond_to?(:each_pair)
 
     raw.each_pair.filter_map do |id, values|
-      [id.to_s, values.permit(*TimetableUploadRow::EDITABLE, :course_choice)] if values.respond_to?(:permit)
+      [id.to_s, values.permit(*TimetableUploadRow::EDITABLE)] if values.respond_to?(:permit)
     end.to_h
   end
 
