@@ -593,8 +593,28 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select 'a[href=?]', plan_path(term: '2-後期', pane: 'catalogue'), text: 'リセット'
   end
 
-  test '便覧カタログから追加すると、見ている学期の予定になる' do
+  test '検索パネルは、開いた直後は科目を並べず、検索すると結果を出す' do
     get plan_path(term: '4-前期', pane: 'catalogue')
+
+    assert_select '[data-catalogue-prompt]', text: /科目名や科目番号を入れて検索すると/
+    assert_select '[data-catalogue-key]', count: 0
+    assert_select '#catalogue', text: /\d+ 科目/, count: 0
+
+    get plan_path(term: '4-前期', pane: 'catalogue', q: @candidate.fetch('name'))
+
+    assert_select '[data-catalogue-prompt]', count: 0
+    assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
+    assert_select '#catalogue', text: /\d+ 科目/
+
+    # 何も見つからないときは、開いた直後の案内とは別の文を出す
+    get plan_path(term: '4-前期', pane: 'catalogue', q: '該当しない検索語')
+
+    assert_select '[data-catalogue-prompt]', count: 0
+    assert_select '#catalogue', text: /条件に一致する科目が見つかりませんでした/
+  end
+
+  test '便覧カタログから追加すると、見ている学期の予定になる' do
+    get plan_path(term: '4-前期', pane: 'catalogue', q: @candidate.fetch('name'))
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[type='submit'][value='4年 前期に追加']"
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] input[name='term'][value='4-前期']"
 
@@ -605,26 +625,41 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   end
 
   test '過去の学期では便覧カタログから追加できない' do
-    get plan_path(term: '2-後期', pane: 'catalogue')
+    get plan_path(term: '2-後期', pane: 'catalogue', q: @candidate.fetch('name'))
+
+    assert_select "[data-catalogue-key='#{@candidate.fetch('key')}']", count: 1
 
     assert_select '#catalogue form[action=?]', plan_courses_path, count: 0
     assert_select '[data-catalogue-term]', text: /今の学期以降を表示すると追加できます/
   end
 
-  test '便覧カタログは閉じていて、右上のボタンで右側のパネルとして開く' do
+  test '便覧カタログは閉じていて、表の見出しのボタンで右側のパネルとして開く' do
     get plan_path(term: '4-前期')
 
     assert_select '#catalogue', count: 0
     assert_select '[data-catalogue-key]', count: 0
-    assert_select "a[data-catalogue-toggle='open'][href=?]", plan_path(term: '4-前期', pane: 'catalogue'), text: /便覧から探す/
+    assert_select "[data-term] a[data-catalogue-toggle='open'][href=?]", plan_path(term: '4-前期', pane: 'catalogue'),
+                  text: /科目名で検索/, count: 1
 
-    get plan_path(term: '4-前期', pane: 'catalogue')
+    get plan_path(term: '4-前期', pane: 'catalogue', q: @candidate.fetch('name'))
 
     assert_select 'aside#catalogue', count: 1
     category = @candidate.fetch('category')
     assert_select "[data-catalogue-key='#{@candidate.fetch('key')}'] [data-catalogue-category]",
                   text: StudentWorkspaceHelper::CATEGORY_LABELS.fetch(category, category)
-    assert_select "a[data-catalogue-toggle='close'][href=?]", plan_path(term: '4-前期'), text: /便覧を閉じる/
+    # 閉じるのはパネルの中のボタンだけ。開いている間は、表の見出しに開くボタンを出さない
+    assert_select "#catalogue a[data-catalogue-toggle='close'][href=?][aria-label=?]",
+                  plan_path(term: '4-前期'), '検索を閉じる', text: /閉じる/, count: 1
+    assert_select "[data-catalogue-toggle='open']", count: 0
+  end
+
+  test '学期ボタン列は、幅640以上の画面ではスクロールしても上に残る（学期の画面でも一覧でも）' do
+    [plan_path(term: '4-前期'), plan_path(view: 'all')].each do |path|
+      get path
+
+      assert_select '[data-term-switcher] nav[aria-label=?]', '学期の切り替え', count: 1
+      assert_includes css_select('[data-term-switcher]').first['class'].split, 'sm:sticky', "#{path} で上に残らない"
+    end
   end
 
   test '便覧のパネルを開いたまま学期を切り替えられる' do
@@ -633,15 +668,17 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "[data-term-button='4-後期'][href=?]", plan_path(term: '4-後期', pane: 'catalogue'), count: 1
   end
 
-  test '一覧でも、右上のボタンで便覧のパネルを開け閉めできる' do
+  test '一覧でも、表の見出しのボタンで便覧のパネルを開き、パネルの中のボタンで閉じられる' do
     get plan_path(view: 'all')
     assert_select '#catalogue', count: 0
-    assert_select "[data-catalogue-toggle='open'][href=?]", plan_path(view: 'all', pane: 'catalogue'), count: 1
+    assert_select "[data-overview] [data-catalogue-toggle='open'][href=?]",
+                  plan_path(view: 'all', pane: 'catalogue'), count: 1
 
     get plan_path(view: 'all', pane: 'catalogue', q: @candidate.fetch('name'))
     assert_response :success
     assert_select '[data-overview]', count: 1
-    assert_select "[data-catalogue-toggle='close'][href=?]", plan_path(view: 'all'), count: 1
+    assert_select "#catalogue [data-catalogue-toggle='close'][href=?]", plan_path(view: 'all'), count: 1
+    assert_select "[data-catalogue-toggle='open']", count: 0
     assert_select '#catalogue' do
       # 検索しても一覧のまま
       assert_select "form[method='get'] input[name='view'][value='all']", count: 1
@@ -661,7 +698,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   test '一覧の便覧のパネルから追加すると、今の学期の予定になり、パネルを開いた一覧に戻る' do
     key = @candidate.fetch('key')
-    get plan_path(view: 'all', pane: 'catalogue')
+    get plan_path(view: 'all', pane: 'catalogue', q: @candidate.fetch('name'))
     current = css_select('[data-term-current]').first['data-term-button']
     assert_select "[data-catalogue-key='#{key}'] form" do
       assert_select "input[name='term'][value=?]", current
@@ -692,7 +729,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   test '一覧の便覧のパネルで選んだ学期に追加でき、選んだ学期は追加のあとも残る' do
     key = @candidate.fetch('key')
-    get plan_path(view: 'all', pane: 'catalogue', add_to: '4-後期')
+    get plan_path(view: 'all', pane: 'catalogue', add_to: '4-後期', q: @candidate.fetch('name'))
     assert_select '[data-catalogue-add-to] option[selected][value=?]', '4-後期', count: 1
     assert_select "[data-catalogue-key='#{key}'] form" do
       assert_select "input[name='term'][value='4-後期']"

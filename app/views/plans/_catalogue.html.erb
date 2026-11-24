@@ -2,17 +2,21 @@
 <%# せまい画面（幅1280未満）では、表と並べる場所がないので、画面の右側に重ねて出す %>
 <%# スマホではナビが2段になるので、ナビの上まで重ねる（z-40）。lg 以上ではナビ（z-30、高さ4rem）の下に出す %>
 <%# 広い画面（xl 以上）では表の右に並べ、表をスクロールしてもパネルが画面に残るようにする %>
+<%# 上に残る学期ボタン列（メニューの下、下端は上から約154px）と重ならないよう、止まる位置を上から11rem（176px）にし、高さもその分縮める %>
 <aside id="catalogue" aria-labelledby="catalogue-heading"
        class="fixed z-40 top-0 lg:z-20 lg:top-16 right-0 bottom-0 w-full max-w-sm flex flex-col bg-white border-l border-slate-200 shadow-xl p-4
-              xl:sticky xl:z-auto xl:top-20 xl:right-auto xl:bottom-auto xl:w-96 xl:shrink-0 xl:max-h-[calc(100vh-6rem)] xl:rounded-2xl xl:border xl:border-slate-200/80 xl:shadow-xs">
+              xl:sticky xl:z-auto xl:top-44 xl:right-auto xl:bottom-auto xl:w-96 xl:shrink-0 xl:max-h-[calc(100vh-12rem)] xl:rounded-2xl xl:border xl:border-slate-200/80 xl:shadow-xs">
   <div class="flex items-start justify-between gap-2">
     <div>
-      <h2 id="catalogue-heading" class="text-base font-bold text-slate-900">便覧から探す</h2>
+      <h2 id="catalogue-heading" class="text-base font-bold text-slate-900">科目名で検索</h2>
       <p class="text-xs text-slate-500 mt-0.5">科目名や科目番号から、どの区分の科目かを調べられます。</p>
     </div>
-    <%= link_to '✕', plan_path(**@plan_page_params),
-                class: 'shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600',
-                aria: { label: '便覧を閉じる' } %>
+    <%# パネルを閉じるのはここだけ（表の見出しには開くボタンしか置かない）。見つけやすいよう、記号だけでなく文字も出す %>
+    <%= link_to plan_path(**@plan_page_params),
+                class: 'shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100',
+                aria: { label: '検索を閉じる' }, data: { catalogue_toggle: 'close' } do %>
+      <span aria-hidden="true">✕</span> 閉じる
+    <% end %>
   </div>
 
   <%= form_with url: plan_path, method: :get, class: 'mt-3 space-y-2' do |form| %>
@@ -49,10 +53,16 @@
         <%= term_label(@term) %> は過去の学期のため追加できません。今の学期以降を表示すると追加できます。
       <% end %>
     </p>
-    <span class="font-semibold text-slate-500"><%= @catalogue.size %> 科目</span>
+    <%# 検索する前は件数を出さない（「0 科目」だと、見つからなかったように見えるため） %>
+    <% if @query.present? %>
+      <span class="font-semibold text-slate-500"><%= @catalogue.size %> 科目</span>
+    <% end %>
   </div>
 
-  <% if @catalogue.empty? %>
+  <% if @query.blank? %>
+    <%# 開いた直後（検索語が空）は科目を並べず、検索の仕方を案内する %>
+    <p class="mt-3 rounded-xl bg-slate-50 p-4 text-xs text-slate-600" data-catalogue-prompt>科目名や科目番号を入れて検索すると、ここに結果が出ます。</p>
+  <% elsif @catalogue.empty? %>
     <p class="mt-3 rounded-xl bg-slate-50 p-4 text-xs text-slate-600">条件に一致する科目が見つかりませんでした。検索語を変更してください。</p>
   <% else %>
     <%# パネルの残りの高さを使い、リストの中でスクロールする %>
