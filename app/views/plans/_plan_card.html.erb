@@ -4,7 +4,7 @@
   is_custom = custom_course?(plan.course.curriculum_key)
 %>
 <div data-plan="<%= plan.id %>" data-course-key="<%= plan.course.curriculum_key %>"
-     class="p-2 rounded-lg border <%= is_custom ? 'border-amber-300 bg-amber-50/70' : 'border-sky-200 bg-sky-50/70' %> shadow-2xs">
+     class="p-2 rounded-lg border border-dashed bg-white <%= is_custom ? 'border-amber-300' : 'border-sky-300' %> shadow-2xs">
   <div class="flex items-center justify-between gap-1 text-[10px] font-mono <%= is_custom ? 'text-amber-800' : 'text-sky-700' %>">
     <span>
       <%= course_num.presence || (is_custom ? '自由入力' : '履修予定') %>

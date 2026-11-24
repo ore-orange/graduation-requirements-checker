@@ -4,7 +4,7 @@
     custom = custom_course?(record.course.curriculum_key)
     credit_text = plan_credit_label(record, @courses_by_key)
     label = custom ? '要確認' : '予定'
-    tone = custom ? 'border-amber-300 bg-amber-50/70 text-amber-800' : 'border-sky-200 bg-sky-50/70 text-sky-700'
+    tone = custom ? 'border-dashed border-amber-300 bg-white text-amber-800' : 'border-dashed border-sky-300 bg-white text-sky-700'
     data = { plan: record.id }
   else
     status = record.enrollment_status
@@ -12,7 +12,8 @@
     label = StudentWorkspace::CURRENT_STATUSES.include?(status) ? '履修中' : (status == 'completed' ? '修得' : enrollment_status_label(status))
     tone = if StudentWorkspace::CURRENT_STATUSES.include?(status) then 'border-sky-200 bg-sky-50/60 text-sky-700'
            elsif status == 'completed' then 'border-slate-200 bg-white text-slate-500'
-           else 'border-amber-200 bg-amber-50/60 text-amber-800'
+           elsif status == 'failed' then 'border-slate-300 bg-slate-100 text-slate-500'
+           else 'border-dashed border-amber-300 bg-white text-amber-800'
            end
     data = { enrollment: record.id }
   end
