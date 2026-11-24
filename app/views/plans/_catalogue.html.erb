@@ -58,7 +58,7 @@
     <%# パネルの残りの高さを使い、リストの中でスクロールする %>
     <ul class="mt-2 divide-y divide-slate-100 overflow-y-auto pr-1 min-h-0 flex-1">
       <% @catalogue.each do |course| %>
-        <% unavailable = catalogue_availability(course, unavailable_keys: @unavailable_keys, persisted_keys: @persisted_keys) %>
+        <% unavailable = catalogue_availability(course, unavailable_keys: @unavailable_keys) %>
         <li class="py-2.5" data-catalogue-key="<%= course.fetch('key') %>">
           <div class="flex items-start justify-between gap-2">
             <h3 class="min-w-0 text-sm font-semibold text-slate-900"><%= course.fetch('name') %></h3>
