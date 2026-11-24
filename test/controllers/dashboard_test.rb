@@ -149,14 +149,17 @@ class DashboardTest < ActionDispatch::IntegrationTest
     get dashboard_group_path('required')
 
     assert_response :success
-    assert_match(/未修得・未計画の必修/, response.body)
-    assert_match(/卒業研究Ⅰ/, response.body)
+    assert_match(/未修得の必修科目があります/, response.body)
+    assert_select 'button[data-action="modal#open"]', text: '詳細＞'
+    # 科目名は一覧に並べず、モーダルの中にだけ出す
+    assert_select 'dialog [data-missing-courses] li', text: '卒業研究Ⅰ'
   end
 
   test '未修得の必修がなければその行は出さない' do
     get dashboard_group_path('common')
 
-    assert_no_match(/未修得・未計画の必修/, response.body)
+    assert_no_match(/未修得の必修科目があります/, response.body)
+    assert_select 'dialog', count: 0
   end
 
   test '内訳は画面まるごとではなくフレームだけを返す' do
