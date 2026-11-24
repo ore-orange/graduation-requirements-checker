@@ -158,5 +158,22 @@ class GeminiClientTest < ActiveSupport::TestCase
   ensure
     ENV[GeminiClient::API_KEY_ENV] = original
   end
+
+  test '応答を待つ秒数は、呼び出し側が変えられる。要件表の読み取りは長く待つ' do
+    assert_equal GeminiClient::READ_TIMEOUT, GeminiClient.new(api_key: API_KEY).read_timeout
+    assert_equal 180, GeminiClient.new(api_key: API_KEY, read_timeout: 180).read_timeout
+    assert_operator RequirementsReader::READ_TIMEOUT, :>, GeminiClient::READ_TIMEOUT
+  end
+
+  test '失敗の種類を、画面の文言を選べるように残す' do
+    reasons = [[503, '{}', {}], [429, '{}', {}], [403, '{}', {}], Errno::ECONNRESET.new].map do |response|
+      assert_raises(GeminiClient::Error) { generate(FakeTransport.new(*([response] * 3))) }.reason
+    end
+
+    assert_equal %i[busy busy setup no_response], reasons
+    assert_equal :setup, assert_raises(GeminiClient::Error) {
+      GeminiClient.new(api_key: '').generate_json(prompt: 'x', schema: SCHEMA)
+    }.reason
+  end
 end
 

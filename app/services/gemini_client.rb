@@ -12,7 +12,17 @@ require 'time'
 #
 # APIキーはリクエストのヘッダにだけ入れる。URL・例外のメッセージ・ログには出さない。
 class GeminiClient
-  class Error < StandardError; end
+  # 使えなかった理由。message は開発者向けの詳しい説明(ログ用)で、reason は画面の文言を選ぶための種類。
+  #   busy: 混雑(429・5xx)、no_response: 応答が無い・通信の失敗、setup: キーや送り方の問題(400番台)、
+  #   answer: 答えが使えない、input: 送るもの(画像)の問題
+  class Error < StandardError
+    attr_reader :reason
+
+    def initialize(message = nil, reason: :answer)
+      super(message)
+      @reason = reason
+    end
+  end
 
   # 1回の呼び出しの失敗。やり直すかどうかを決めるために、状態コードと Retry-After を持つ。外には出さない。
   class RequestFailed < StandardError
@@ -54,9 +64,12 @@ class GeminiClient
     ENV[API_KEY_ENV].present?
   end
 
+  attr_reader :read_timeout
+
   # transport は (uri, headers, body) を受けて [状態コード, 本文, 応答ヘッダ(小文字キーの Hash)] を返すもの。テストが偽物を渡す。
+  # read_timeout は1回の応答を待つ秒数。答えの長い読み取り(要件表など)は、呼び出し側が長くする。
   def initialize(api_key: ENV.fetch(API_KEY_ENV, nil), model: ENV.fetch(MODEL_ENV, DEFAULT_MODEL),
-                 transport: method(:post), sleeper: ->(seconds) { sleep(seconds) })
+                 transport: method(:post), sleeper: ->(seconds) { sleep(seconds) }, read_timeout: READ_TIMEOUT)
     model = model.presence || DEFAULT_MODEL
     raise ArgumentError, 'モデル名に使えない文字があります' unless model.match?(MODEL_FORMAT)
 
@@ -64,12 +77,13 @@ class GeminiClient
     @model = model
     @transport = transport
     @sleeper = sleeper
+    @read_timeout = read_timeout
   end
 
   # schema は小文字の型名で書いた JSON Schema(type: 'object' など)。答えはその形の Hash。
   # image_path を渡すと、画像も一緒に読ませる(PNG・JPEG)。
   def generate_json(prompt:, schema:, image_path: nil)
-    raise Error, 'APIキーが設定されていません。' if @api_key.blank?
+    raise Error.new('APIキーが設定されていません。', reason: :setup) if @api_key.blank?
 
     body = JSON.generate(request_body(prompt, schema, image_path))
     parse(call_with_retry(body))
@@ -88,7 +102,7 @@ class GeminiClient
         @sleeper.call(wait_seconds(e, attempts))
         retry
       end
-      raise Error, "Geminiを呼び出せませんでした(#{e.message}、#{attempts}回試しました)。"
+      raise Error.new("Geminiを呼び出せませんでした(#{e.message}、#{attempts}回試しました)。", reason: failure_reason(e))
     end
   end
 
@@ -100,6 +114,12 @@ class GeminiClient
   rescue *NETWORK_ERRORS => e
     # 例外のメッセージには接続先などが入り得るので、種類だけを載せる。
     raise RequestFailed, "通信に失敗しました: #{e.class}"
+  end
+
+  def failure_reason(error)
+    return :no_response if error.status.nil?
+
+    retryable?(error) ? :busy : :setup
   end
 
   def retryable?(error)
@@ -131,14 +151,14 @@ class GeminiClient
 
   def image_part(image_path)
     mime = MIME_TYPES[File.extname(image_path.to_s).downcase]
-    raise Error, '送れる画像の形式はPNGかJPEGだけです。' unless mime
+    raise Error.new('送れる画像の形式はPNGかJPEGだけです。', reason: :input) unless mime
 
     data = File.binread(image_path)
-    raise Error, '画像が大きすぎて送れません。' if data.bytesize > MAX_IMAGE_BYTES
+    raise Error.new('画像が大きすぎて送れません。', reason: :input) if data.bytesize > MAX_IMAGE_BYTES
 
     { mimeType: mime, data: Base64.strict_encode64(data) }
   rescue SystemCallError
-    raise Error, '画像を読めませんでした。'
+    raise Error.new('画像を読めませんでした。', reason: :input)
   end
 
   # Gemini のスキーマは型名を大文字で書く(STRING・OBJECT など)。値が文字列の type だけを直す
@@ -215,7 +235,7 @@ class GeminiClient
 
   # 既定の通信。標準の net/http で1回POSTする。
   def post(uri, headers, body)
-    Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT,
+    Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: OPEN_TIMEOUT, read_timeout: @read_timeout,
                                         write_timeout: WRITE_TIMEOUT) do |http|
       request = Net::HTTP::Post.new(uri, headers)
       request.body = body
