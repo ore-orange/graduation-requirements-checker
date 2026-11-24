@@ -11,7 +11,14 @@
   end
 %>
 <%# バーは細いので、上下に余白を足してホバーしやすくする。 %>
-<div class="group/bar relative -my-1 py-1">
+<%# ツールチップはマウスに付いて動く（bar_tooltip_controller）。画面に見えている間しか中身が出ないので、 %>
+<%# 読み上げには同じ内容をゲージ自体の名前として渡す。 %>
+<div class="-my-1 py-1"
+     <% if tooltip_lines %>
+       role="img" aria-label="<%= tooltip_lines.map { |_, label, credits| "#{label} #{credit_number(credits)}単位" }.join('、') %>"
+       data-controller="bar-tooltip"
+       data-action="mouseenter->bar-tooltip#show mousemove->bar-tooltip#move mouseleave->bar-tooltip#hide"
+     <% end %>>
   <div class="flex <%= local_assigns.fetch(:size, 'h-3') %> overflow-hidden rounded-full bg-slate-200">
     <div class="h-full bg-emerald-500" style="width: <%= summary[:earned_pct] %>%"></div>
     <% if summary[:planned_pct].positive? %>
@@ -19,15 +26,15 @@
     <% end %>
   </div>
   <% if tooltip_lines %>
-    <%# 見えない間も読み上げられるよう、hidden ではなく透明にして残す。 %>
-    <span role="tooltip"
-          class="pointer-events-none absolute bottom-full left-1/2 z-20 -translate-x-1/2 space-y-0.5 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-md group-hover/bar:opacity-100">
+    <%# popover にして最前面のレイヤーに出す。位置はカーソルに合わせてJSが決める。 %>
+    <div popover="manual" aria-hidden="true" data-bar-tooltip-target="tip"
+         class="pointer-events-none fixed inset-auto m-0 space-y-0.5 whitespace-nowrap rounded-md border-0 bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white shadow-md">
       <% tooltip_lines.each do |dot, label, credits| %>
         <span class="flex items-center gap-1.5">
-          <span class="size-2 shrink-0 rounded-full bg-current <%= dot %>" aria-hidden="true"></span>
-          <%= label %>: <span class="tabular-nums"><%= credit_number(credits) %>単位</span>
+          <span class="size-2 shrink-0 rounded-full bg-current <%= dot %>"></span>
+          <span><%= label %>: <span class="tabular-nums"><%= credit_number(credits) %>単位</span></span>
         </span>
       <% end %>
-    </span>
+    </div>
   <% end %>
 </div>
