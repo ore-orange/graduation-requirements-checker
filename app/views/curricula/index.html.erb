@@ -1,0 +1,65 @@
+<% content_for :title, "便覧の取り込み | #{app_name}" %>
+<div class="space-y-8">
+  <header>
+    <h1 class="text-3xl font-bold tracking-tight text-slate-900">便覧の取り込み</h1>
+    <p class="mt-3 text-slate-600">便覧PDFの要件表のページを読み取り、卒業要件の下書きを作ります。</p>
+  </header>
+
+  <%= render 'shared/flash' %>
+
+  <section class="demo-panel" aria-labelledby="upload-heading">
+    <h2 id="upload-heading" class="text-xl font-bold text-slate-900">要件表を読み込む</h2>
+    <%= form_with url: curricula_path, multipart: true, class: 'mt-4 space-y-5', data: { controller: 'dropzone', turbo: false } do |form| %>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="demo-label">学部・学科・コース</span>
+          <%= form.select :program_id,
+                          @programs.group_by { |program| "#{program.department.faculty.name} #{program.department.name}" }
+                                   .transform_values { |programs| programs.map { |program| [program.name, program.id] } },
+                          { include_blank: '選んでください' }, class: 'demo-input', required: true %>
+        </label>
+        <label class="block">
+          <span class="demo-label">入学年度</span>
+          <%= form.select :admission_year, Curriculum.admission_year_range.to_a.reverse.map { |year| ["#{year}年度", year] },
+                          { include_blank: '選んでください' }, class: 'demo-input', required: true %>
+        </label>
+        <label class="block">
+          <span class="demo-label">要件表のページ</span>
+          <%= form.text_field :page_range, placeholder: '例: 11 または 10-12', required: true, class: 'demo-input' %>
+          <span class="mt-1 block text-xs text-slate-500">PDFのページ番号です(便覧に印字された番号ではありません)。一度に<%= CurriculumImport::RequirementsUpload::MAX_PAGES %>ページまで。</span>
+        </label>
+      </div>
+
+      <div data-dropzone-target="zone" data-action="dragover->dropzone#dragOver dragleave->dropzone#dragLeave drop->dropzone#drop"
+           class="rounded-xl border-2 border-dashed border-slate-300 p-6 text-center">
+        <p class="text-sm text-slate-600">ここにPDFをドラッグ&ドロップ、または</p>
+        <button type="button" data-action="dropzone#choose" class="demo-button-secondary mt-3">PDFを選ぶ</button>
+        <p data-dropzone-target="name" class="mt-3 text-sm text-slate-700">ファイルが選ばれていません</p>
+        <%= form.file_field :pdf, accept: 'application/pdf', required: true, class: 'sr-only', tabindex: '-1',
+                            data: { dropzone_target: 'input', action: 'change->dropzone#changed' } %>
+      </div>
+
+      <div class="flex justify-end">
+        <%= form.submit '下書きを作る', class: 'demo-button' %>
+      </div>
+    <% end %>
+  </section>
+
+  <% if @drafts.any? %>
+    <section class="demo-panel" aria-labelledby="drafts-heading">
+      <h2 id="drafts-heading" class="text-xl font-bold text-slate-900">下書き</h2>
+      <ul class="mt-4 divide-y divide-slate-200">
+        <% @drafts.each do |draft| %>
+          <% statuses = draft.pages.pluck('status') %>
+          <li class="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div>
+              <p class="font-semibold text-slate-900"><%= draft.program&.full_name || draft.slug %> / <%= draft.admission_year %>年度入学</p>
+              <p class="text-sm text-slate-600"><%= draft.source_filename %> / 読み取り済み <%= statuses.count('read') %> / <%= statuses.size %>ページ</p>
+            </div>
+            <%= link_to '開く', draft, class: 'text-sm font-semibold text-slate-800 underline underline-offset-4' %>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+  <% end %>
+</div>

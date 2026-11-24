@@ -1,0 +1,29 @@
+<%# 画面の章立て(display)。ダッシュボードと履修計画表の章・行になる。 %>
+<h3 class="mt-6 text-lg font-bold text-slate-900">要件表の見出しと行<span class="ml-2 text-sm font-normal text-slate-600">卒業に必要な総単位: <%= display['total_credits'] ? "#{display['total_credits']}単位" : '読み取れていません' %></span></h3>
+<% if Array(display['groups']).empty? %>
+  <p class="mt-2 text-sm text-slate-600">見出しと行は読み取れていません。</p>
+<% else %>
+  <div class="mt-2 overflow-x-auto">
+    <table class="w-full min-w-[40rem] text-left text-sm">
+      <thead class="border-b border-slate-300 text-slate-600">
+        <tr><th class="py-2 pr-3">見出し・行</th><th class="pr-3">必要単位</th><th>数える科目区分</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% display['groups'].each do |group| %>
+          <tr class="bg-slate-50 font-semibold">
+            <td class="py-2 pr-3"><%= group['title'] %></td>
+            <td class="pr-3"><%= group['required_credits'] ? "#{group['required_credits']}単位" : '—' %></td>
+            <td></td>
+          </tr>
+          <% Array(group['rows']).each do |row| %>
+            <tr>
+              <td class="py-2 pr-3 pl-4"><%= row['name'] %><% if row['subtitle'].present? %><span class="block text-xs text-slate-500"><%= row['subtitle'] %></span><% end %></td>
+              <td class="pr-3"><%= row['required_credits'] ? "#{row['required_credits']}単位" : (row['required_label'] || '—') %></td>
+              <td><%= Array(row['categories']).map { |key| label_for(key, labels) }.join('・') %></td>
+            </tr>
+          <% end %>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

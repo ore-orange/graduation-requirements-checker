@@ -16,10 +16,12 @@
           [requirements_path, '卒業要件の確認'],
           [plan_path, '履修計画表'],
           [course_registrations_path, '講義登録'],
+          [curricula_path, '便覧の取り込み'],
           [profile_path, 'マイページ']].each do |path, label| %>
         <%# 取り込みの確認画面は「講義登録」の中にいる扱いにする %>
         <% active = current_page?(path) ||
-                    (path == course_registrations_path && request.path.start_with?('/timetable_uploads')) %>
+                    (path == course_registrations_path && request.path.start_with?('/timetable_uploads')) ||
+                    (path == curricula_path && request.path.start_with?('/curricula/')) %>
         <%= link_to label, path,
               aria: { current: ('page' if active) },
               class: ['whitespace-nowrap px-3.5 py-1.5 rounded-lg text-xs sm:text-sm transition-all',

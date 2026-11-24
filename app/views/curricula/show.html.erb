@@ -1,0 +1,76 @@
+<% content_for :title, "要件表の下書き | #{app_name}" %>
+<% document = @draft.document %>
+<% labels = Array(document['categories']).to_h { |category| [category['key'], category['label']] } %>
+<% roles = Array(document['roles']).to_h { |role| [role['key'], role['label']] } %>
+<div class="space-y-6" <%= tag.attributes(data: { controller: 'reading-status', reading_status_url_value: status_curriculum_path(@draft) }) if @draft.reading? %>>
+  <header>
+    <%= link_to '← 便覧の取り込み', curricula_path, class: 'text-sm font-semibold text-slate-700 underline underline-offset-4' %>
+    <div class="mt-4 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight text-slate-900">要件表の下書き</h1>
+        <p class="mt-2 text-slate-700"><%= @program&.full_name || @draft.slug %> / <%= @draft.admission_year %>年度入学</p>
+        <p class="mt-1 text-sm text-slate-600"><%= @draft.source_filename %></p>
+      </div>
+      <%= button_to '下書きを削除する', @draft, method: :delete, class: 'text-sm font-semibold text-red-800 underline underline-offset-4',
+                    form: { data: { turbo_confirm: 'この下書きを削除します。よろしいですか?' } } %>
+    </div>
+    <p class="mt-3 text-sm font-bold text-red-700">読み取りは間違えることがあります。必ずPDFと見比べてください。</p>
+  </header>
+
+  <%= render 'shared/flash' %>
+
+  <section class="demo-panel" aria-labelledby="pages-heading">
+    <h2 id="pages-heading" class="text-xl font-bold text-slate-900">ページ</h2>
+    <% unless GeminiClient.available? %>
+      <p class="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">いまは読み取りの機能が使えません。システムの管理担当者に連絡してください。</p>
+    <% end %>
+    <ul class="mt-4 divide-y divide-slate-200">
+      <% @draft.pages.each do |entry| %>
+        <% status = @draft.page_status(entry) %>
+        <li id="page-<%= entry['page'] %>" class="py-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="font-semibold text-slate-900"><%= entry['page'] %>ページ</span>
+              <%= page_status_badge(status) %>
+            </div>
+            <% if status == 'reading' %>
+              <span class="text-sm text-slate-600">読み取り中です。数十秒〜数分かかります。終わると自動で結果が出ます。</span>
+            <% elsif GeminiClient.available? %>
+              <%= button_to (status == 'pending' ? '読み取る' : '読み直す'),
+                            read_page_curriculum_path(@draft, page: entry['page']),
+                            class: 'demo-button-secondary' %>
+            <% end %>
+          </div>
+          <% if status == 'interrupted' %>
+            <p class="mt-2 text-sm text-amber-800">読み取りが途中で止まりました。もう一度「読み直す」を押してください。</p>
+          <% end %>
+          <% if entry['error'].present? %>
+            <p class="mt-2 text-sm text-rose-800"><%= entry['error'] %></p>
+          <% end %>
+          <% Array(entry['warnings']).each do |warning| %>
+            <p class="mt-2 text-sm text-amber-800"><%= warning %></p>
+          <% end %>
+          <% if @draft.page_image_path(entry['page']) %>
+            <details class="mt-3">
+              <summary class="cursor-pointer text-sm font-semibold text-slate-700">PDFのページを見る</summary>
+              <%= image_tag page_image_curriculum_path(@draft, page: entry['page']), alt: "PDF #{entry['page']}ページ目",
+                            class: 'mt-2 w-full max-w-3xl border border-slate-300' %>
+            </details>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+
+  <section class="demo-panel" aria-labelledby="result-heading">
+    <h2 id="result-heading" class="text-xl font-bold text-slate-900">読み取った内容</h2>
+    <% if document.slice('categories', 'rules', 'display').values.all?(&:blank?) %>
+      <p class="mt-4 rounded-lg bg-slate-50 p-4 text-slate-600">まだ何も読み取っていません。上のページの「読み取る」を押してください。</p>
+    <% else %>
+      <%= render 'layout_table', display: document['display'] || {}, labels: labels %>
+      <%= render 'rules_list', rules: Array(document['rules']), labels: labels, roles: roles %>
+      <%= render 'keys_list', title: '科目区分', entries: Array(document['categories']) %>
+      <%= render 'keys_list', title: '指定科目(必ず修得する科目として名前が挙がっているもの)', entries: Array(document['roles']) %>
+    <% end %>
+  </section>
+</div>

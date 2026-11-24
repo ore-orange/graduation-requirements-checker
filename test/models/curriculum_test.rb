@@ -106,6 +106,26 @@ class CurriculumTest < ActiveSupport::TestCase
                     ['intelligent_informatics', 2024]
   end
 
+  test '読み取りを始めると読み取り中になり、読み取り中の間は二重に始めない' do
+    draft = build(pages: [{ 'page' => 11, 'status' => 'pending' }])
+    draft.save!
+
+    assert draft.start_reading!(11)
+    assert_equal 'reading', draft.page_status(draft.page_entry(11))
+    assert_predicate draft, :reading?
+    assert_not draft.start_reading!(11)
+  end
+
+  test '読み取り中のまま長く止まったページは、中断として扱い、読み直せる' do
+    draft = build(pages: [{ 'page' => 11, 'status' => 'reading',
+                            'started_at' => (Curriculum::READING_LIMIT + 1.minute).ago.iso8601 }])
+    draft.save!
+
+    assert_equal 'interrupted', draft.page_status(draft.page_entry(11))
+    assert_not draft.reading?
+    assert draft.start_reading!(11)
+  end
+
   private
 
   def write(root, relative, document)
