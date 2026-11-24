@@ -35,7 +35,9 @@ module CurriculumImport
       end
       curriculum
     rescue PdfPages::Error => e
-      raise Error, e.message
+      # Ghostscript の失敗などの詳しい理由はログへ。画面には、事務の方ができることを伝える。
+      Rails.logger.warn("便覧PDFの取り込みに失敗しました: #{e.message}")
+      raise Error, 'PDFを読み込めませんでした。PDFが壊れていないか確かめて、もう一度取り込んでください。'
     end
 
     private

@@ -8,7 +8,6 @@ module CurriculumImport
   # どちらが正しいかは機械では決めず、人が確認画面で直す。
   module RequirementsMerge
     LISTS = { 'categories' => 'key', 'roles' => 'key', 'rules' => 'id' }.freeze
-    LIST_NAMES = { 'categories' => '区分', 'roles' => '役割', 'rules' => '規則' }.freeze
 
     module_function
 
@@ -43,7 +42,7 @@ module CurriculumImport
       added = []
       entries.each do |entry|
         if existing.any? { |item| item[key] == entry[key] }
-          warnings << "#{LIST_NAMES.fetch(list)} #{entry[key]} は別のページで読み取り済みのため、先のものを残しました"
+          warnings << "「#{entry['label'] || entry[key]}」は別のページでも読み取られたため、先に読み取った方を残しました。"
         else
           existing << entry
           added << entry[key]
@@ -68,7 +67,8 @@ module CurriculumImport
         target['total_credits'] = total
         contributed['total_credits'] = true
       elsif target['total_credits'] != total
-        warnings << "卒業総単位が別のページの読み取り(#{target['total_credits']})と違うため、先のものを残しました(#{total})"
+        warnings << "卒業に必要な総単位が、別のページの読み取り(#{target['total_credits']}単位)と違います" \
+                    "(このページは#{total}単位)。先に読み取った方を残しました。"
       end
     end
 

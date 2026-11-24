@@ -56,7 +56,8 @@ class RequirementsReader
       どの規則にも id、label(画面に出す名前)、detail(便覧の注記があればそのまま。なければ null)を付ける。
       categories・category には、上の区分の key だけを書く。
 
-      - credit_sum: 区分の単位の合計が required_credits 以上。categories と required_credits。
+      - credit_sum: 区分の単位の合計が required_credits 以上。categories(区分が1つでも配列で書く)と required_credits。
+        category(単数)は使わない。
       - grouped_max: 区分の中をグループに分け、いちばん大きいグループが required_credits 以上(「1つのコースの科目から4単位以上」
         「同じ一外国語から4単位以上」など)。category、group_by(提供コースごとなら field:provider、言語ごとなら field:language)、
         required_credits、missing_group_note(グループの分からない科目に付ける注意。例: 「工学融合の提供コースが未確認」)。

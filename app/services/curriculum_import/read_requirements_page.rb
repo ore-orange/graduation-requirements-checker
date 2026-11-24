@@ -33,7 +33,7 @@ module CurriculumImport
 
     def read(entry)
       image_path = @curriculum.page_image_path(@page)
-      raise RequirementsReader::Error, "#{@page}ページの画像が見つかりません。" unless image_path
+      raise RequirementsReader::Error, 'このページの画像が見つかりません。PDFを取り込み直してください。' unless image_path
 
       @reader.read(image_path: image_path, text: entry['text'])
     end
@@ -43,6 +43,7 @@ module CurriculumImport
         previous = @curriculum.page_entry(@page)['contributed']
         document = RequirementsMerge.withdraw(@curriculum.document, previous)
         document, contributed, warnings = RequirementsMerge.merge(document, answer)
+        warnings = Array(answer['warnings']) + warnings
         @curriculum.update!(document: document,
                             pages: updated_pages('status' => 'read', 'error' => nil, 'contributed' => contributed,
                                                  'warnings' => warnings))
