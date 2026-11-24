@@ -1,8 +1,33 @@
 <%# バーは量だけを表す。修得済みは緑、履修中は水色、残りは灰色。 %>
 <%# 足りているかどうかは、判定バッジの色が受け持つ。 %>
-<div class="flex <%= local_assigns.fetch(:size, 'h-3') %> overflow-hidden rounded-full bg-slate-200">
-  <div class="h-full bg-emerald-500" style="width: <%= summary[:earned_pct] %>%"></div>
-  <% if summary[:planned_pct].positive? %>
-    <div class="h-full bg-sky-400" style="width: <%= summary[:planned_pct] %>%"></div>
+<%# ホバーすると、不足（予定もすべて修得したとしても足りない分）・予定・履修済みの単位を出す。 %>
+<%
+  tooltip_lines = nil
+  if summary[:req]
+    shortage = [summary[:req] - summary[:earned] - summary[:planned], 0].max
+    tooltip_lines = [['text-amber-400', '不足', shortage],
+                     ['text-sky-400', '予定', summary[:planned]],
+                     ['text-emerald-500', '履修済み', summary[:earned]]]
+  end
+%>
+<%# バーは細いので、上下に余白を足してホバーしやすくする。 %>
+<div class="group/bar relative -my-1 py-1">
+  <div class="flex <%= local_assigns.fetch(:size, 'h-3') %> overflow-hidden rounded-full bg-slate-200">
+    <div class="h-full bg-emerald-500" style="width: <%= summary[:earned_pct] %>%"></div>
+    <% if summary[:planned_pct].positive? %>
+      <div class="h-full bg-sky-400" style="width: <%= summary[:planned_pct] %>%"></div>
+    <% end %>
+  </div>
+  <% if tooltip_lines %>
+    <%# 見えない間も読み上げられるよう、hidden ではなく透明にして残す。 %>
+    <span role="tooltip"
+          class="pointer-events-none absolute bottom-full left-1/2 z-20 -translate-x-1/2 space-y-0.5 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-md group-hover/bar:opacity-100">
+      <% tooltip_lines.each do |dot, label, credits| %>
+        <span class="flex items-center gap-1.5">
+          <span class="size-2 shrink-0 rounded-full bg-current <%= dot %>" aria-hidden="true"></span>
+          <%= label %>: <span class="tabular-nums"><%= credit_number(credits) %>単位</span>
+        </span>
+      <% end %>
+    </span>
   <% end %>
 </div>
