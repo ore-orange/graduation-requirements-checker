@@ -107,7 +107,7 @@
             <% @courses.each do |course| %>
               <tr>
                 <td class="py-2 pr-3"><%= course.year || '—' %></td>
-                <td class="pr-3"><%= course.semester %></td>
+                <td class="pr-3"><%= course.semester || '—' %></td>
                 <td class="pr-3"><%= course.department ? "#{course.department.faculty.name} #{course.department.name}" : '—' %></td>
                 <td class="pr-3"><%= course.course_number %></td>
                 <td class="pr-3"><%= course.lecture_code %></td>

@@ -24,8 +24,10 @@ class Course < ApplicationRecord
   validates :credits, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than: 1000 },
                       allow_nil: true
   validates :semester, inclusion: { in: SEMESTERS }, allow_nil: true
-  # 講義コードのある行は開講1件なので、学期も必ず持つ。
+  # 開講1件の行は講義コードと学期を両方持ち、便覧由来の行はどちらも持たない。
+  # DBの courses_offering_pair と同じことを、保存前に検証でも見る。
   validates :semester, presence: true, if: -> { lecture_code.present? }
+  validates :lecture_code, presence: true, if: -> { semester.present? }
   validates :lecture_code, uniqueness: { scope: %i[year semester] }, allow_nil: true
   validates :requirement_type, inclusion: { in: REQUIREMENT_TYPES }, allow_nil: true
   validates :weekday, inclusion: { in: WEEKDAYS }, allow_nil: true

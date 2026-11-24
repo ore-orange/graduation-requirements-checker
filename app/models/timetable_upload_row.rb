@@ -15,10 +15,6 @@ class TimetableUploadRow < ApplicationRecord
       period_text: row['時限'], term_type: row['開講区分'], note: row['備考'], review_reason: row['要確認'].presence }
   end
 
-  def credits_value
-    Integer(credits.to_s, 10, exception: false)
-  end
-
   # 画面から送られた値を反映する(保存はしない)。
   def apply_edit(values)
     EDITABLE.each { |field| self[field] = edited_value(field, values[field]) if values.key?(field) }

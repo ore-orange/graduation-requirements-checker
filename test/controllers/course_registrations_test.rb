@@ -232,6 +232,19 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
     assert_select 'td', text: '便覧の科目'
   end
 
+  test '便覧の科目の行は、年度・学期・学部学科が「—」で出る' do
+    Course.create!(curriculum_key: 'intro', course_number: 'T1234', name: '便覧の科目', credits: 2)
+    import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100')])
+
+    get course_registrations_path, env: ENV_LOCAL
+
+    assert_select 'tbody tr' do |rows|
+      row = rows.find { |candidate| candidate.text.include?('便覧の科目') }
+      cells = row.css('td').map { |cell| cell.text.strip }
+      assert_equal %w[— — —], cells[0..2]
+    end
+  end
+
   test '保存済みの講義には年度と学部・学科が出る' do
     import_rows([offering_row(lecture_code: 'k001', name: '情報処理概論', course_number: '工共100')])
 
@@ -343,6 +356,7 @@ class CourseRegistrationsTest < ActionDispatch::IntegrationTest
       post commit_timetable_upload_path(upload), env: ENV_LOCAL
     end
     assert_redirected_to course_registrations_path
+    assert_equal '保存しました。講義の新規1件・更新0件・変更なし0件。', flash[:notice]
     assert_equal '月', Course.find_by!(lecture_code: '610000071').weekday
     assert_not TimetableUpload.exists?(upload.id)
   end

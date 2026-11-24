@@ -19,7 +19,7 @@ erDiagram
   users ||--o| students : has
   faculties ||--o{ departments : has
   departments ||--o{ programs : has
-  departments ||--o{ students : current_department
+  programs ||--o{ students : current_program
   students ||--o{ student_courses : attempts
   courses ||--o{ student_courses : refers_to
   students ||--o{ student_program_assignments : history
@@ -36,7 +36,7 @@ erDiagram
 | faculties | name必須・一意。講義の分類に使う選択肢の元なので、db/seeds.rbで作る |
 | departments | faculty必須、name必須。名前は学部内で一意。db/seeds/academic_organizations.rbが持つ一覧から作る |
 | programs | department必須、name必須 |
-| students | user必須・一意、department必須（現在所属）、admission_year必須 |
+| students | user必須・一意、program必須（現在所属コース。学科・学部はprograms.department_idからたどる）、admission_year必須 |
 | courses | 科目1件。便覧由来の科目と、授業時間配当表の開講1件が同じテーブルに入る。name必須、course_number任意・非一意、credits任意。便覧由来の行はcurriculum_key（値がある場合は一意）を持ち、開講の列はすべて空。開講1件の行はcurriculum_keyを持たず、year（開講年度。暦の年ではなく年度で、2026年度の後期も2026）/semester（前期・後期）/lecture_code/department（開講学科。学部はdepartments.faculty_idからたどる）を持ち、講義コードは年度・学期の中で一意。必修/選択、受講年次（整数配列）、曜日、時限（整数配列）、開講区分（1Q・2Q・半年・集中）は任意で、集中講義は曜日・時限なし。year/departmentは便覧由来の行のためNULL可だが、取り込みの画面では必須。この2種類しかないことはcourses_offering_pair（lecture_codeとsemesterは同時に有るか無い）で示す |
 | student_courses | student/course/academic_year必須。enrollment_statusはcompleted/registered/in_progress/failed/unknown。semester/grade/credits_earnedはNULL可、approval_confirmedは三値 |
 | student_program_assignments | student/program/status必須、assigned_at/ended_at任意 |

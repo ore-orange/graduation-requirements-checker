@@ -16,6 +16,10 @@ class CourseTest < ActiveSupport::TestCase
     assert_predicate build_course(year: 2027, lecture_code: 'k001'), :valid?
   end
 
+  test '学期があるのに講義コードが無い行は検証で止まる' do
+    assert_not build_course(lecture_code: nil).valid?
+  end
+
   # 検証ではなくcheck制約で止まることを確かめるので、生SQLで入れる。
   test '講義コードがあるのに学期が無い行はDBが拒否する' do
     assert_raises(ActiveRecord::StatementInvalid) do
