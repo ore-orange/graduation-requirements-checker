@@ -11,16 +11,5 @@ module TimetableUploadsHelper
     items << ["#{current}（選択肢にありません）", current] if current.present? && choices.exclude?(current)
     options_for_select([['', '']] + items, current.to_s)
   end
-
-  # 既存の講義と被っている行の選択肢。選ばれていない間だけ、「選んでください」を出す。
-  def course_choice_options(row, candidates)
-    items = candidates.map do |course|
-      label = candidates.one? ? '既存の講義として扱う' : "既存の講義（ID #{course.id}）として扱う"
-      [label, course.id.to_s]
-    end
-    items << %w[別の講義として登録 new]
-    items.unshift(['選んでください', '']) unless row.course_choice_resolved?
-    options_for_select(items, row.course_choice)
-  end
 end
 

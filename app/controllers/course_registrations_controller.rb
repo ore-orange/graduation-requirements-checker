@@ -9,12 +9,14 @@ class CourseRegistrationsController < ApplicationController
     @faculties = Faculty.includes(:departments).order(:id)
     @year_options = YEAR_RANGE.map { |offset| current_academic_year + offset }
     @uploads = TimetableUpload.includes(:rows, department: :faculty).order(:id)
-    @search = CourseOfferingSearch.new(params)
+    @search = CourseSearch.new(params)
     @paginator = Paginator.new(total: @search.relation.count, page: params[:page])
-    @offerings = @search.relation.offset(@paginator.offset).limit(@paginator.per)
-    @any_offering = CourseOffering.exists?
+    @courses = @search.relation.offset(@paginator.offset).limit(@paginator.per)
+    # 便覧由来の科目は年度も講義コードも持たないので、これだけで一覧を出すと空の行が並ぶ。
+    # 「保存された講義」の有無は、取り込んだ講義(講義コードを持つ行)で判断する。
+    @any_course = Course.offered.exists?
     # 絞り込みの年度は、保存済みの講義にある年度だけを出す
-    @search_years = CourseOffering.distinct.order(year: :desc).pluck(:year).compact
+    @search_years = Course.distinct.order(year: :desc).pluck(:year).compact
   end
 
   private

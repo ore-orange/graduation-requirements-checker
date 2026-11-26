@@ -533,6 +533,29 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select '#unscheduled', count: 0
   end
 
+  test '便覧にあって coursesに無い科目も、予定に追加できる' do
+    fresh = unpersisted_candidate
+
+    assert_difference ['@student.planned_courses.count', 'Course.count'], 1 do
+      post plan_courses_path, params: { course_key: fresh.fetch('key'), term: CURRENT_TERM }
+    end
+
+    assert_redirected_to plan_path(term: CURRENT_TERM)
+    course = Course.find_by!(curriculum_key: fresh.fetch('key'))
+    assert_equal [fresh.fetch('name'), fresh['number'], fresh['credits']],
+                 [course.name, course.course_number, course.credits]
+  end
+
+  test '便覧のパネルは、coursesに無い科目も追加できるものとして出す' do
+    fresh = unpersisted_candidate
+
+    get plan_path(term: '4-前期', pane: 'catalogue', q: fresh.fetch('name'))
+
+    assert_response :success
+    assert_select "[data-catalogue-key='#{fresh.fetch('key')}'] input[type='submit'][value='4年 前期に追加']",
+                  count: 1
+  end
+
   private
 
   # 便覧カタログの検索が見る文字（科目名・科目番号・キー）を小文字でつなげたもの
@@ -540,6 +563,18 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
 
   def course_record(course)
     Course.find_by!(curriculum_key: course.fetch('key'))
+  end
+
+  # 便覧にはあるが coursesに行が無い科目。本番のDBには便覧由来の行を作る仕組みが無いので、
+  # 1件も無い状態から追加することになる。
+  def unpersisted_candidate
+    fresh = @courses.find do |course|
+      course['selectable'] == true && @occupied_keys.exclude?(course.fetch('key')) &&
+        !StudentCourse.joins(:course).exists?(courses: { curriculum_key: course.fetch('key') })
+    end
+    assert_not_nil fresh, '便覧に、履修履歴から参照されていない選択可能な科目がある前提'
+    Course.find_by(curriculum_key: fresh.fetch('key'))&.destroy!
+    fresh
   end
 
   # 卒業ダッシュボードの合計表示。実績と見込みを1要素にまとめて持つ。

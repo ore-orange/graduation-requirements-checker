@@ -49,6 +49,27 @@ class GraduationAssessmentTest < ActiveSupport::TestCase
                          .map { |course| entry(course['key']) }
   end
 
+  # 統合後の courses では同じ科目が学期ごと・年度ごとに複数行になる。判定はcurriculum_keyで
+  # 突き合わせるので、同じキーの記録が複数来ても二重に算入しない。
+  test '同じ科目の記録が複数あっても、単位が一致すれば算入は1回' do
+    @completed << entry('health')
+
+    snapshot = assess.actual
+
+    assert_equal 130, snapshot.counted_credits
+    assert_equal 2, course(snapshot, 'health').counted_credits
+  end
+
+  test '同じ科目の記録で単位が食い違うと、算入せず要確認になる' do
+    @completed << entry('health', credits: 1)
+
+    snapshot = assess.actual
+
+    assert_equal 0, course(snapshot, 'health').counted_credits
+    assert_equal 128, snapshot.counted_credits
+    assert(snapshot.review_notes.any? { |note| note.include?('同一科目の複数記録') })
+  end
+
   test 'a complete 130 credit selection satisfies all handbook checks' do
     snapshot = assess.actual
 

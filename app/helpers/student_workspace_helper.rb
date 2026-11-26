@@ -62,11 +62,10 @@ module StudentWorkspaceHelper
 
   def credit_number(val) = val.nil? ? '0' : number_with_precision(val, precision: 2, strip_insignificant_zeros: true)
 
-  def catalogue_availability(course, unavailable_keys:, persisted_keys:)
+  def catalogue_availability(course, unavailable_keys:)
     return '追加済み・修得済み・履修中' if unavailable_keys.include?(course['key'])
-    return '選択対象外' unless course['selectable'] == true
 
-    '初期データ未登録' unless persisted_keys.include?(course['key'])
+    '選択対象外' unless course['selectable'] == true
   end
 
   def course_category(curriculum_key, courses_by_key)

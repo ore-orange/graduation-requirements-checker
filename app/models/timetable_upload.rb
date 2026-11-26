@@ -30,7 +30,6 @@ class TimetableUpload < ApplicationRecord
       import = create!(semester: semester, year: year, department_id: department_id, source_filename: filename)
       parsed.each_with_index do |row, index|
         upload_row = import.rows.build(TimetableUploadRow.attributes_from_parsed(row, index))
-        upload_row.assign_default_course_choice
         upload_row.save!
       end
       import
