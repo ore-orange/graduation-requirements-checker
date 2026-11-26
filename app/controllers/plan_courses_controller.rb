@@ -68,12 +68,17 @@ class PlanCoursesController < ApplicationController
     find_catalogue_course(key) if key.is_a?(String)
   end
 
+  # 便覧の科目は、予定に入れるときに初めて courses の行を作る。
+  # 元の値は便覧(カリキュラムJSON)が持っていて、courses の行は予定の参照先として要るだけ。
   def find_catalogue_course(key)
     catalogue_course = @courses_by_key[key]
     return unless catalogue_course && catalogue_course['selectable'] == true
 
-    Course.find_by(curriculum_key: key) ||
-      raise(SetupIncomplete, 'カリキュラムの科目が登録されていません。')
+    Course.find_or_create_by!(curriculum_key: key) do |course|
+      course.course_number = catalogue_course['number']
+      course.name = catalogue_course.fetch('name')
+      course.credits = catalogue_course['credits']
+    end
   end
 
   # 自由入力の科目は以前に追加された予定だけが残っている。その最後の予定を消したら科目も消す

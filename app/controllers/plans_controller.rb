@@ -67,8 +67,6 @@ class PlansController < ApplicationController
     @query = params[:q].to_s.strip
     query = @query.downcase
     @catalogue = @curriculum.fetch('courses').select { |course| matches_query?(course, query) }
-    keys = @catalogue.map { |course| course.fetch('key') }
-    @persisted_keys = Course.where(curriculum_key: keys).pluck(:curriculum_key)
   end
 
   def matches_query?(course, query)
