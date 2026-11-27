@@ -81,5 +81,36 @@ class PdfPagesTest < ActiveSupport::TestCase
       assert_match 'Ghostscript(gs)が見つかりません', assert_raises(PdfPages::Error) { PdfPages.text_xml('in.pdf') }.message
     end
   end
+
+  test 'page_count はページ数を返し、数でない出力はPDFではないとして断る' do
+    Open3.stub(:capture2, ["14\n", Status.new(true)]) do
+      assert_equal 14, PdfPages.page_count('in.pdf')
+    end
+    # PDFでないファイルでも gs は成功で終わる
+    Open3.stub(:capture2, ['', Status.new(true)]) do
+      assert_raises(PdfPages::Error) { PdfPages.page_count('README.md') }
+    end
+  end
+
+  test 'render_page と page_text は、そのページだけを gs に頼む' do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'p11.png')
+      requested = nil
+      fake_gs = ->(*args) do
+        requested = args
+        File.write(path, 'png') if args.include?('-sDEVICE=png16m')
+        ["本文\u0000\f\n次の行\t列", Status.new(true)]
+      end
+
+      Open3.stub(:capture2, fake_gs) do
+        PdfPages.render_page('in.pdf', 11, path)
+        assert_includes requested, '-dFirstPage=11'
+        assert_includes requested, '-dLastPage=11'
+
+        # jsonb に入らない NUL などの制御文字は落とし、改行とタブは残す
+        assert_equal "本文\n次の行\t列", PdfPages.page_text('in.pdf', 11)
+      end
+    end
+  end
 end
 

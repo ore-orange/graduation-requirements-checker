@@ -14,8 +14,12 @@ module ActiveSupport
     # ページ画像の置き場は、実行ごと・並列のワーカーごとに分ける。
     # 共有すると、別のワーカーや開発環境の画像を消し合う。
     TimetableUpload.images_root = Rails.root.join('tmp/test_images/0')
+    Curriculum.images_root = Rails.root.join('tmp/test_images/0/curricula')
 
-    parallelize_setup { |worker| TimetableUpload.images_root = Rails.root.join('tmp/test_images', worker.to_s) }
+    parallelize_setup do |worker|
+      TimetableUpload.images_root = Rails.root.join('tmp/test_images', worker.to_s)
+      Curriculum.images_root = Rails.root.join('tmp/test_images', worker.to_s, 'curricula')
+    end
     parallelize_teardown { |worker| FileUtils.rm_rf(Rails.root.join('tmp/test_images', worker.to_s)) }
 
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
