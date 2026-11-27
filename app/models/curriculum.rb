@@ -9,7 +9,12 @@ class Curriculum < ApplicationRecord
   scope :drafts, -> { where(published_at: nil) }
 
   # 読み取りの状態(pages[n]['status'])の呼び方。pending は取り込み直後で、まだ読んでいない。
-  PAGE_STATUS_LABELS = { 'pending' => '未読', 'read' => '読み取り済み', 'failed' => '読み取りに失敗' }.freeze
+  # reading はバックグラウンドで読み取っている最中。interrupted は reading のまま止まったもの(下の READING_LIMIT)。
+  PAGE_STATUS_LABELS = { 'pending' => '未読', 'reading' => '読み取り中', 'read' => '読み取り済み',
+                         'failed' => '読み取りに失敗', 'interrupted' => '中断' }.freeze
+  # 読み取りは最長でも10分ほどで終わる(1回180秒 × 3回 + 待ち)。これを超えて reading のままなら、
+  # サーバーの再起動などでジョブが消えたとみなし、読み直せるようにする。
+  READING_LIMIT = 15.minutes
 
   # 下書きを消すときに、取り込んだページ画像もここごと消す。
   after_destroy { FileUtils.rm_rf(images_dir) }
@@ -27,6 +32,24 @@ class Curriculum < ApplicationRecord
   validates :slug, presence: true, format: { with: SLUG_FORMAT }
   validates :admission_year, numericality: { only_integer: true, in: 1..9999 }
   validate :document_must_be_object
+
+  PROGRAM_SLUG = /\Aprogram_(\d+)\z/
+
+  # コースの便覧の識別名。コースがまだ識別名を持っていなければ、コースの id から決まった名前を作る
+  # (公開するときに、この名前をコースに付ける)。
+  def self.slug_for(program)
+    program.curriculum_slug.presence || "program_#{program.id}"
+  end
+
+  # 年度として選べる範囲。学生便覧が載っている最古の年度から、来年度入学の便覧を先に作れるよう今年+1まで。
+  def self.admission_year_range
+    2016..(Time.zone.today.year + 1)
+  end
+
+  # この便覧のコース。識別名を持つコースか、program_<id> の名前から引く。無ければ nil。
+  def program
+    Program.find_by(curriculum_slug: slug) || (Program.find_by(id: Regexp.last_match(1)) if PROGRAM_SLUG.match(slug))
+  end
 
   # コースの slug と入学年度に当たる公開済みの便覧。無ければ nil。
   def self.find_published(slug:, admission_year:)
@@ -55,8 +78,38 @@ class Curriculum < ApplicationRecord
     path if path.file?
   end
 
+  # ページ画像の中身。無ければ nil。
+  def page_image_data(page)
+    page_image_path(page)&.binread
+  end
+
   def page_entry(page)
     pages.find { |entry| entry['page'] == page }
+  end
+
+  # 画面に出す状態。reading のまま READING_LIMIT を過ぎたページは interrupted にする。
+  def page_status(entry)
+    return entry['status'] unless entry['status'] == 'reading'
+
+    started = Time.zone.parse(entry['started_at'].to_s)
+    started && started > READING_LIMIT.ago ? 'reading' : 'interrupted'
+  end
+
+  def reading?
+    pages.any? { |entry| page_status(entry) == 'reading' }
+  end
+
+  # 読み取りを始める。すでに読み取り中なら何もせず false(同じページを二重に読ませない)。
+  def start_reading!(page)
+    with_lock do
+      entry = page_entry(page)
+      raise ArgumentError, "#{page}ページは、この下書きにありません。" unless entry
+      return false if page_status(entry) == 'reading'
+
+      changes = { 'status' => 'reading', 'started_at' => Time.current.iso8601, 'error' => nil }
+      update!(pages: pages.map { |item| item['page'] == page ? item.merge(changes) : item })
+      true
+    end
   end
 
   private

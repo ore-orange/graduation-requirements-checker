@@ -40,15 +40,15 @@ class DashboardTest < ActionDispatch::IntegrationTest
     assert_select 'h2:not(.sr-only)', count: 0
   end
 
-  test 'ヘッダーのタブが5画面ぶんある' do
+  test 'ヘッダーのタブが6画面ぶんある' do
     get root_path
 
     [[root_path, '卒業ダッシュボード'], [requirements_path, '卒業要件の確認'],
      [plan_path, '履修計画表'], [course_registrations_path, '講義登録'],
-     [profile_path, 'マイページ']].each do |path, label|
+     [curricula_path, '便覧の取り込み'], [profile_path, 'マイページ']].each do |path, label|
       assert_select 'nav a[href=?]', path, text: label
     end
-    assert_select 'nav a', count: 5
+    assert_select 'nav a', count: 6
     assert_select 'nav a[aria-current="page"]', text: '卒業ダッシュボード'
   end
 

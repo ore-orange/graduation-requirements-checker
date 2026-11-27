@@ -33,6 +33,16 @@ Rails.application.routes.draw do
   resources :plan_courses, only: %i[create destroy], path: 'plan/courses'
 
   resources :course_registrations, only: :index
+  # 便覧PDFの要件表の取り込み。下書きを作り、ページごとに読み取って結果を確かめる。
+  resources :curricula, only: %i[index create show destroy] do
+    member do
+      post 'pages/:page/read', action: :read_page, as: :read_page
+      # 読み取りの状態(読み取り中・読み取り済み・失敗)。画面が数秒おきに問い合わせる。
+      get :status
+      get 'page_image/:page', action: :page_image, as: :page_image
+    end
+  end
+
   resources :timetable_uploads, only: %i[create show destroy] do
     member do
       post :commit

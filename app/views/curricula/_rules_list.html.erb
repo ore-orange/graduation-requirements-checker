@@ -1,0 +1,15 @@
+<%# 卒業要件の規則(rules)。判定はこの規則で行う。 %>
+<h3 class="mt-8 text-lg font-bold text-slate-900">卒業の条件<span class="ml-2 text-sm font-normal text-slate-600"><%= rules.size %>件</span></h3>
+<% if rules.empty? %>
+  <p class="mt-2 text-sm text-slate-600">卒業の条件は読み取れていません。</p>
+<% else %>
+  <ol class="mt-2 divide-y divide-slate-100">
+    <% rules.each do |rule| %>
+      <li class="py-2">
+        <p class="text-sm font-semibold text-slate-900"><%= rule_title(rule) %></p>
+        <p class="text-sm text-slate-700"><%= rule_sentence(rule, labels, roles) %></p>
+        <% if rule['detail'].present? %><p class="text-xs text-slate-500"><%= rule['detail'] %></p><% end %>
+      </li>
+    <% end %>
+  </ol>
+<% end %>

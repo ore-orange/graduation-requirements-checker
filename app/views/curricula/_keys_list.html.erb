@@ -1,0 +1,10 @@
+<h3 class="mt-8 text-lg font-bold text-slate-900"><%= title %><span class="ml-2 text-sm font-normal text-slate-600"><%= entries.size %>件</span></h3>
+<% if entries.empty? %>
+  <p class="mt-2 text-sm text-slate-600">ありません。</p>
+<% else %>
+  <ul class="mt-2 flex flex-wrap gap-2">
+    <% entries.each do |entry| %>
+      <li class="rounded-md bg-slate-100 px-2 py-1 text-sm text-slate-800"><%= entry['label'] %></li>
+    <% end %>
+  </ul>
+<% end %>

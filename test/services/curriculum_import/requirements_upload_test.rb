@@ -50,7 +50,8 @@ class RequirementsUploadTest < ActiveSupport::TestCase
 
     assert_no_difference('Curriculum.count') do
       error = assert_raises(CurriculumImport::RequirementsUpload::Error) { upload('11', render: failing) }
-      assert_match '11ページ', error.message
+      assert_match 'PDFを読み込めませんでした', error.message
+      assert_no_match 'Ghostscript', error.message
     end
   end
 
