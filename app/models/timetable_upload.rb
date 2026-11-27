@@ -22,7 +22,7 @@ class TimetableUpload < ApplicationRecord
   end
 
   def self.build_from_pdf(pdf_path, semester:, year:, department_id:, filename:)
-    xml = TimetableImport::PdfParser.extract_xml(pdf_path)
+    xml = PdfPages.text_xml(pdf_path)
     parsed = TimetableImport::PdfParser.new(xml, semester: semester).rows
     raise TimetableImport::PdfParser::Error, 'PDFから科目の行を見つけられませんでした。授業時間配当表のPDFか確認してください。' if parsed.empty?
 
@@ -63,7 +63,7 @@ class TimetableUpload < ApplicationRecord
   # ページ画像の実寸(横幅px)。画面の倍率はこれをもとに決める。
   def page_width
     first = page_image_paths.first
-    TimetableImport::PageImages.width(first) if first
+    PdfPages.width(first) if first
   end
 
   # ページ画像の中身。画面には、この取り込みが実際に作った画像しか出さない。
@@ -74,7 +74,7 @@ class TimetableUpload < ApplicationRecord
 
   # 見比べ用の画像を作る。作れなくても取り込みは成立させる(ペインが出ないだけ)。
   def render_page_images(pdf_path)
-    TimetableImport::PageImages.render(pdf_path, images_dir)
+    PdfPages.render(pdf_path, images_dir)
   rescue StandardError => e
     Rails.logger.warn("ページ画像を作れませんでした(取り込みは続けます): #{e.class}: #{e.message}")
     nil

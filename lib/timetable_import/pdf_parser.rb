@@ -1,11 +1,10 @@
 # frozen_string_literal: true
 
 require 'cgi'
-require 'open3'
 require_relative 'values'
 
 module TimetableImport
-  # 授業時間配当表PDFを、Ghostscriptが出力する座標付きテキスト(XML)から表の行に直す。
+  # 授業時間配当表PDFを、Ghostscriptが出力する座標付きテキスト(XML。PdfPages.text_xml)から表の行に直す。
   # PDFの1科目は複数行にまたがるため、講義コード(9桁)の行を基準に、
   # 各テキストを最も近い基準行へ振り分ける。列は左端のx座標で判定する。
   class PdfParser
@@ -42,16 +41,6 @@ module TimetableImport
     # 表の最初の行の上にある見出し行を除くための余裕
     HEADER_MARGIN = 20
     LINE_GAP = 6
-
-    def self.extract_xml(pdf_path)
-      xml, status = Open3.capture2('gs', '-q', '-dNOPAUSE', '-dBATCH', '-dSAFER', '-sDEVICE=txtwrite', '-dTextFormat=0',
-                                   '-sOutputFile=-', pdf_path)
-      raise Error, 'Ghostscript(gs)でPDFを読み取れませんでした。gsが入っているか確認してください。' unless status.success?
-
-      xml.force_encoding(Encoding::UTF_8)
-    rescue Errno::ENOENT
-      raise Error, 'Ghostscript(gs)が見つかりません。brew install ghostscript などで導入してください。'
-    end
 
     def initialize(xml, semester:)
       @xml = xml

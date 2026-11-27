@@ -34,7 +34,7 @@ class TimetableUploadsController < ApplicationController
                                                       department_id: params[:department_id],
                                                       filename: File.basename(pdf.original_filename))
     redirect_to upload, notice: 'PDFを読み取りました。内容をPDFと見比べて、行ごとに確認してください。', status: :see_other
-  rescue TimetableImport::PdfParser::Error => e
+  rescue TimetableImport::PdfParser::Error, PdfPages::Error => e
     redirect_to course_registrations_path, alert: e.message, status: :see_other
   end
 
