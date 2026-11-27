@@ -5,19 +5,15 @@
 class DashboardMetrics
   include StudentWorkspaceHelper
 
-  GRADUATION_CREDITS = 130
+  attr_reader :assessment, :enrollments, :plans, :courses_by_key, :layout
 
-  # 判定側がまとめて数えている区分は、カテゴリ別の集計ではなく算入単位をそのまま使う。
-  # 知能情報アドバンストの必要22単位は3区分で1つの枠なので、ここも算入単位で揃える。
-  CHECK_DRIVEN_ROWS = %w[general_subtotal fusion advanced].freeze
-
-  attr_reader :assessment, :enrollments, :plans, :courses_by_key
-
-  def initialize(assessment:, enrollments:, plans:, courses_by_key:)
+  # layout は CurriculumLayout。卒業総単位と、行の単位をどこから取るかは便覧の章立てが決める。
+  def initialize(assessment:, enrollments:, plans:, courses_by_key:, layout:)
     @assessment = assessment
     @enrollments = enrollments
     @plans = plans
     @courses_by_key = courses_by_key
+    @layout = layout
   end
 
   def custom_plans
@@ -29,9 +25,9 @@ class DashboardMetrics
                 .sum(BigDecimal('0')) { |plan| plan_credits(plan, courses_by_key) }
   end
 
-  # 卒業必要単位(130)に対する合計。カード上部のバーで使う。
+  # 卒業必要単位に対する合計。カード上部のバーで使う。
   def total(earned, planned)
-    bar(GRADUATION_CREDITS, earned, planned)
+    bar(layout.total_credits, earned, planned)
       .merge(status: assessment.actual.status == :satisfied ? :satisfied : :unmet)
   end
 
@@ -63,7 +59,8 @@ class DashboardMetrics
   def row_credits(definition, extra)
     actual = find_check(assessment.actual, definition[:check_ids].first)
     projected = find_check(assessment.projected, definition[:check_ids].first)
-    if CHECK_DRIVEN_ROWS.include?(definition[:id]) && actual&.counted_credits && projected&.counted_credits
+    # 判定側がまとめて数えている行(credits_from_check)は、区分別の集計ではなく算入単位をそのまま使う。
+    if definition[:credits_from_check] && actual&.counted_credits && projected&.counted_credits
       [actual.counted_credits, (projected.counted_credits - actual.counted_credits) + extra]
     else
       credits = category_credits(enrollments, plans, definition[:categories], courses_by_key)
