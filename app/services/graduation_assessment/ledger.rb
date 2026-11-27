@@ -4,8 +4,10 @@ class GraduationAssessment
   # 算入可能な単位と、未確定事項が影響する区分・科目を一緒に保持する。
   class Ledger
     Item = Struct.new(:course, :credits, :counted, :reason, keyword_init: true)
-    attr_reader :items, :notes, :uncertain_roles, :uncertain_required
-    attr_accessor :fusion_provider_unknown, :foreign_language_unknown, :unknown_identity
+    # unknown_groups は、グループを決められない科目があった grouped_max の鍵。ambiguous_rules は、
+    # 複数の経路に算入済みの科目があって全役割を外した one_of_paths の id。どちらも評価1回ごとの状態。
+    attr_reader :items, :notes, :uncertain_roles, :uncertain_required, :unknown_groups, :ambiguous_rules
+    attr_accessor :unknown_identity
 
     def self.decimal(value)
       return unless value.is_a?(Numeric)
@@ -24,6 +26,8 @@ class GraduationAssessment
       @uncertain_categories = []
       @uncertain_roles = []
       @uncertain_required = []
+      @unknown_groups = []
+      @ambiguous_rules = []
       @unknown_identity = false
     end
 
@@ -96,14 +100,15 @@ class GraduationAssessment
       end
     end
 
-    def apply_natural_cap
-      remaining = BigDecimal('2')
+    # 区分の算入を limit 単位で打ち切る。打ち切った科目の理由は、算入した単位を受け取るブロックが作る。
+    def cap(category, limit)
+      remaining = limit
       # 入力順ではなく正規キー順に上限を配分し、説明を安定させる。
       items.sort_by { |key, _| key }.each do |_, item|
-        next unless item.course['category'] == 'natural' && item.counted.positive?
+        next unless item.course['category'] == category && item.counted.positive?
 
         allowed = [remaining, item.counted].min
-        item.reason = "自然系は卒業算入上限2単位（この科目は#{allowed.to_s('F')}単位を算入）" if allowed < item.counted
+        item.reason = yield(allowed) if allowed < item.counted
         item.counted = allowed
         remaining -= allowed
       end

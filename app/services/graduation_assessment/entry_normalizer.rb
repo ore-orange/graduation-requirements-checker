@@ -52,7 +52,7 @@ class GraduationAssessment
     end
 
     def metadata_review_reason(course)
-      if Catalogue::CATEGORIES.exclude?(course['category'])
+      if @catalogue.category_keys.exclude?(course['category'])
         @ledger.unknown_identity = true
         return '科目の卒業要件上の分類が未確認'
       end
@@ -70,25 +70,19 @@ class GraduationAssessment
     end
 
     def inspect_metadata(item)
-      inspect_provider(item)
-      inspect_language(item)
+      inspect_groups(item)
       inspect_nominal_credit(item)
     end
 
-    def inspect_provider(item)
+    # グループごとに数える規則(grouped_max)で、この科目のグループを決められない(欄が空)とき。
+    def inspect_groups(item)
       course = item.course
-      return unless course['category'] == 'fusion' && Catalogue::PROVIDERS.exclude?(course['provider'])
+      @catalogue.grouped_rules.each do |rule|
+        next unless course['category'] == rule.category && course[rule.field].blank?
 
-      @ledger.note(item, '工学融合の提供コースが未確認')
-      @ledger.fusion_provider_unknown = true
-    end
-
-    def inspect_language(item)
-      course = item.course
-      return unless course['category'] == 'foreign_language' && course['language'].blank?
-
-      @ledger.note(item, '外国語の言語が未確認（一外国語4単位の集計には未算入）')
-      @ledger.foreign_language_unknown = true
+        @ledger.note(item, rule.missing_group_note)
+        @ledger.unknown_groups << rule.group_key
+      end
     end
 
     def inspect_nominal_credit(item)

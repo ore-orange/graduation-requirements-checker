@@ -22,20 +22,46 @@ Curriculum.published_years('intelligent_informatics') # => [2024]
 
 知能327の重複印刷は1科目として登録する。知能情報特別講義Ⅴ・Ⅵは分類表にある一方、番号・単位の掲載がないため、その項目は`null`と確認理由を保持する。未確認の値を作らない。
 
-## 文書形式（format_version: 1）
+## 文書形式（format_version: 2）
 
 | フィールド | 内容 |
 | --- | --- |
 | `department` / `admission_year` / `title` | 対象の取得キー・入学年度・表示名 |
 | `sources` | 一次資料の識別子・タイトル・URL・ページ・注意点 |
-| `requirements` | 指定英語・日本語表現法入門・微分積分の二系列・物理の代替科目を識別するrole |
+| `categories` | 区分の`key`と和名`label` |
+| `display` | 画面の章・行・小計と卒業総単位。見せ方だけで、卒業要件そのものではない |
+| `rules` | 卒業要件の条件と、算入を変える調整。下記の「規則（rules）」 |
 | `courses` | 科目別の正規キー・番号・名称・単位・区分・必修フラグ・提供コース・言語・role・出典・確認理由・承認条件・選択可否 |
 
 `courses[].key`は、DB連番や名称検索に依存しない明示的な参照キー。`Course.curriculum_key`と対応させる。科目番号や名称が一致するだけでは別科目を同一視しない。
 
 `credits`は一次資料の所定単位で、未確認なら`null`。`review_reason`は未確認の理由。`requires_approval`は学生別の承認確認が必要なことを示す規則であり、承認済みという事実ではない。自コース提供の工学融合等は`selectable: false`とする。
 
-便覧の形式検証はJSONオブジェクトであることまでであり（`Curriculum`の検証）、JSON Schemaはまだ導入していない。卒業単位の条件式は、当該年度専用の`GraduationAssessment`と[判定設計](../../docs/graduation-rules-2024.md)で管理する。汎用のルールDSLではない。
+便覧の形式検証はJSONオブジェクトであることまでであり（`Curriculum`の検証）、JSON Schemaはまだ導入していない。判定のしかたはコードではなく`rules`が決める。年度ごとの判定の根拠は[判定設計](../../docs/graduation-rules-2024.md)に残す。
+
+### 規則（`rules`）
+
+`GraduationAssessment`は`rules`を解釈するだけで、区分名・必要単位・文面をコードに持たない。条件は1つのチェックになり、`id`・`label`・`source`・`detail`を持つ。`id`は`display`の`check_id(s)`から参照されるので、変えると画面の行が判定を見失う。
+
+| `type` | 判定 | 主な欄 |
+| --- | --- | --- |
+| `credit_sum` | 指定した区分の算入単位の合計が`required_credits`に届くか | `categories`・`required_credits` |
+| `grouped_max` | 区分の算入単位を科目の欄の値で分け、最大のグループが`required_credits`に届くか。グループを合算しない | `category`・`group_by`（`field:<欄名>`）・`missing_group_note` |
+| `one_of_paths` | roleの組で表した経路のうち、どれか1つを丸ごと満たすか。2つ以上の経路に算入済みの科目があれば、全役割を外して`review_note`を注記する | `paths`・`review_note` |
+| `all_required` | `courses[].required`の科目をすべて修得しているか。必修の数や区分が控えと合わなければ要確認 | `expected_course_count`・`required_credits`・`required_categories` |
+| `any_of` | `options`のどれか1つを満たすか。`detail`に入れ子の条件の値を`{{id}}`で差し込める | `options`・`counted_from` |
+| `all_of` | `conditions`をすべて満たすか。`any_of`の選択肢としてだけ置ける | `conditions` |
+
+知らない`type`や置けない位置の条件は、例外にせず必ず要確認にする（解釈できない規則を充足と答えないため）。
+
+調整はチェックを作らず、条件を評価する前に算入を変える。壊れた調整は読み込む時点で`ArgumentError`にする。
+
+| `type` | はたらき | 欄 |
+| --- | --- | --- |
+| `cap` | 区分の算入単位を`credits`で打ち切る。キー順に配分し、打ち切った科目に`reason`を残す | `category`・`credits`・`reason` |
+| `exclude` | 当たった科目を算入しない。`field`があれば、その欄が`value`と一致した科目だけに当たる | `category`・`reason`・`field`・`value` |
+
+2024年度の判定結果は`test/fixtures/files/graduation_golden_2024.json`に記録し、`test/services/graduation_assessment/golden_test.rb`が照合する。規則を直して判定を意図して変えたときだけ、`bin/rails graduation:golden`で記録を書き直す。
 
 ## 判定Interface
 
