@@ -15,7 +15,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     @student = SampleStudent.student
     @student.planned_courses.delete_all
     sign_in_as(@student.user)
-    @curriculum = CurriculumRepository.find(curriculum: 'intelligent_informatics', admission_year: 2024)
+    @curriculum = curricula(:intelligent_informatics2024).document
     @courses = @curriculum.fetch('courses')
     @occupied_keys = @student.student_courses.where(enrollment_status: %w[completed registered in_progress])
                              .joins(:course).pluck('courses.curriculum_key')

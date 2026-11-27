@@ -1,0 +1,8 @@
+# 公開済みの便覧。中身は config/curricula の本物のJSONをそのまま使う(判定のテストが同じ文書を読むため)。
+intelligent_informatics2024:
+  slug: intelligent_informatics
+  admission_year: 2024
+  title: <%= JSON.parse(Rails.root.join('config/curricula/intelligent_informatics/2024.json').read)['title'] %>
+  document: <%= Rails.root.join('config/curricula/intelligent_informatics/2024.json').read.then { |json| JSON.generate(JSON.parse(json)) } %>
+  published_at: <%= Time.zone.local(2026, 4, 1).to_fs(:db) %>
+

@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'test_helper'
-require 'minitest/mock'
 
 class StudentTest < ActiveSupport::TestCase
   setup do
@@ -46,13 +45,11 @@ class StudentTest < ActiveSupport::TestCase
     assert_predicate @student, :valid?
   end
 
-  test 'カリキュラムが壊れている場合は初期設定として扱わない' do
+  test '公開していない便覧は学生の判定に使わない' do
     @program.update!(curriculum_slug: 'intelligent_informatics')
-    broken = proc { raise CurriculumRepository::InvalidDocument, 'broken' }
+    curricula(:intelligent_informatics2024).update!(published_at: nil)
 
-    CurriculumRepository.stub(:find, broken) do
-      assert_raises(CurriculumRepository::InvalidDocument) { @student.curriculum }
-    end
+    assert_raises(SetupIncomplete) { @student.curriculum }
   end
 end
 

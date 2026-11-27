@@ -1,12 +1,16 @@
 # 卒業要件データと判定の契約
 
-要件文書は`config/curricula/<department_slug>/<admission_year>.json`に保存する。現在の対象は`intelligent_informatics/2024.json`（琉球大学 工学部 工学科 知能情報コース、2024年度入学）。取得キーの`department`はRepositoryの既存Interface名であり、DB上の学科名・コース名・プログラム名を同一視するものではない。
+要件文書は`config/curricula/<slug>/<admission_year>.json`に置く。現在の対象は`intelligent_informatics/2024.json`（琉球大学 工学部 工学科 知能情報コース、2024年度入学）。`slug`はコース（`Program#curriculum_slug`）が指す識別名で、学科名・コース名・プログラム名と同一視しない。
+
+このファイルは`curricula`表に公開済みの便覧として入れる初期データで、アプリが実行時に読むのはDBの行。`db:seed`とデプロイで流す`master:load`が`CurriculumFiles.load!`を呼び、同じslug・入学年度の公開済みが無いときだけ作る。既にある行は書き換えないので、ファイルを直してDBに反映したいときは該当の行を消してから流し直す。
 
 ```ruby
-curriculum = CurriculumRepository.find(department: 'intelligent_informatics', admission_year: 2024)
+curriculum = Curriculum.find_published(slug: 'intelligent_informatics', admission_year: 2024)
+curriculum.document # => 要件文書のHash
+Curriculum.published_years('intelligent_informatics') # => [2024]
 ```
 
-この呼び出しは登録済みのHashを返す。未登録の対象は`NotFound`になる。学部階層やプログラム別ファイルの合成、JSONB保存は導入していない。
+学生の便覧は`Student#curriculum`が、コースのslugと入学年度から公開済みの行を引いて返す。無ければ`SetupIncomplete`になる。学部階層やプログラム別ファイルの合成は導入していない。
 
 ## 出典と対象範囲
 
@@ -31,7 +35,7 @@ curriculum = CurriculumRepository.find(department: 'intelligent_informatics', ad
 
 `credits`は一次資料の所定単位で、未確認なら`null`。`review_reason`は未確認の理由。`requires_approval`は学生別の承認確認が必要なことを示す規則であり、承認済みという事実ではない。自コース提供の工学融合等は`selectable: false`とする。
 
-Repositoryの形式検証はJSONオブジェクトであることまでであり、JSON Schemaはまだ導入していない。卒業単位の条件式は、当該年度専用の`GraduationAssessment`と[判定設計](../../docs/graduation-rules-2024.md)で管理する。汎用のルールDSLではない。
+便覧の形式検証はJSONオブジェクトであることまでであり（`Curriculum`の検証）、JSON Schemaはまだ導入していない。卒業単位の条件式は、当該年度専用の`GraduationAssessment`と[判定設計](../../docs/graduation-rules-2024.md)で管理する。汎用のルールDSLではない。
 
 ## 判定Interface
 
@@ -47,11 +51,9 @@ result = GraduationAssessment.new(curriculum: curriculum).call(
 
 同一キーの修得済み科目を予定に重ねても増加させない。修得単位の競合や未確認の代替関係は勝手に最大値・最新値を選ばない。算入対象外と確定した科目は、履修状態が不明でも0単位の除外理由を表示し、その記録だけを理由に最終判定を要確認にはしない。
 
-## Repository取得の契約
+## DBに置く便覧の契約
 
-`find(department:, admission_year:)`はHashを返す。departmentは小文字英数字とアンダースコアのslug（先頭は英字）、admission_yearは1〜9999のInteger。
-
-`InvalidInput`、`NotFound`、`InvalidDocument`、`ReadError`はいずれも`CurriculumRepository::Error`。ファイルの場所やパース元本文はエラーに含めない。symlinkを含む保存ディレクトリ外への参照を拒否する。
+`Curriculum`はslug（小文字英数字とアンダースコア、先頭は英字）、admission_year（1〜9999の整数）、`document`（JSONのオブジェクト）を持つ。公開済み（`published_at`あり）は同じslug・入学年度に1つだけで、学生の判定に使うのはこれだけ。公開していない行は何件でも置ける。ファイル名が入学年度でないファイルや読めないJSONは、`CurriculumFiles.load!`がパスを添えた`ArgumentError`にする（本文はメッセージに含めない）。
 
 ## デモ履修データとの分離
 

@@ -21,7 +21,7 @@ class SampleStudent
   end
 
   def self.load!
-    curriculum = CurriculumRepository.find(curriculum: CURRICULUM, admission_year: ADMISSION_YEAR)
+    curriculum = Curriculum.find_published(slug: CURRICULUM, admission_year: ADMISSION_YEAR).document
     enrollments = JSON.parse(Rails.root.join(ENROLLMENTS_PATH).read).fetch('enrollments')
 
     ActiveRecord::Base.transaction do
